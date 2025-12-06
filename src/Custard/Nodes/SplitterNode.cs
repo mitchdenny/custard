@@ -50,13 +50,13 @@ public sealed class SplitterNode : CustardNode
 
     public override void Render(CustardRenderContext context)
     {
-        var theme = CustardThemes.Current;
+        var theme = context.Theme;
         var dividerChar = theme.Get(SplitterTheme.DividerCharacter);
         var dividerColor = theme.Get(SplitterTheme.DividerColor);
         
         // Get the rendered content of left and right as lines
-        var leftLines = RenderToLines(Left);
-        var rightLines = RenderToLines(Right);
+        var leftLines = RenderToLines(Left, theme);
+        var rightLines = RenderToLines(Right, theme);
 
         // Ensure both have the same number of lines
         var maxLines = Math.Max(leftLines.Count, rightLines.Count);
@@ -159,12 +159,12 @@ public sealed class SplitterNode : CustardNode
         return result.ToString();
     }
 
-    private static List<string> RenderToLines(CustardNode? node)
+    private static List<string> RenderToLines(CustardNode? node, Theming.CustardTheme theme)
     {
         if (node == null) return [""];
         
         var buffer = new StringRenderBuffer();
-        var tempContext = new CustardRenderContext(buffer);
+        var tempContext = new CustardRenderContext(buffer, theme);
         node.Render(tempContext);
         return buffer.GetLines();
     }

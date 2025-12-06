@@ -1,13 +1,18 @@
+using Custard.Theming;
+
 namespace Custard;
 
 public class CustardRenderContext
 {
     private readonly ICustardTerminalOutput _output;
 
-    public CustardRenderContext(ICustardTerminalOutput output)
+    public CustardRenderContext(ICustardTerminalOutput output, CustardTheme? theme = null)
     {
         _output = output;
+        Theme = theme ?? CustardThemes.Default;
     }
+
+    public CustardTheme Theme { get; }
 
     public void EnterAlternateScreen() => _output.EnterAlternateScreen();
     public void ExitAlternateScreen() => _output.ExitAlternateScreen();

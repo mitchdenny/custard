@@ -12,7 +12,7 @@ public sealed class ListNode : CustardNode
 
     public override void Render(CustardRenderContext context)
     {
-        var theme = CustardThemes.Current;
+        var theme = context.Theme;
         var selectedIndicator = theme.Get(ListTheme.SelectedIndicator);
         var unselectedIndicator = theme.Get(ListTheme.UnselectedIndicator);
         var selectedFg = theme.Get(ListTheme.SelectedForegroundColor);

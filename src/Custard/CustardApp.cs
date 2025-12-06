@@ -1,3 +1,4 @@
+using Custard.Theming;
 using Custard.Widgets;
 
 namespace Custard;
@@ -11,21 +12,21 @@ public class CustardApp : IDisposable
     private CustardNode? _rootNode;
 
     /// <summary>
-    /// Creates a CustardApp with a custom terminal implementation.
+    /// Creates a CustardApp with a custom terminal implementation and optional theme.
     /// </summary>
-    public CustardApp(Func<CancellationToken, Task<CustardWidget>> rootComponent, ICustardTerminal terminal, bool ownsTerminal = false)
+    public CustardApp(Func<CancellationToken, Task<CustardWidget>> rootComponent, ICustardTerminal terminal, CustardTheme? theme = null, bool ownsTerminal = false)
     {
         _rootComponent = rootComponent;
         _terminal = terminal;
-        _context = new CustardRenderContext(terminal);
+        _context = new CustardRenderContext(terminal, theme);
         _ownsTerminal = ownsTerminal;
     }
 
     /// <summary>
-    /// Creates a CustardApp with the default console terminal.
+    /// Creates a CustardApp with the default console terminal and optional theme.
     /// </summary>
-    public CustardApp(Func<CancellationToken, Task<CustardWidget>> rootComponent)
-        : this(rootComponent, new ConsoleCustardTerminal(), ownsTerminal: true)
+    public CustardApp(Func<CancellationToken, Task<CustardWidget>> rootComponent, CustardTheme? theme = null)
+        : this(rootComponent, new ConsoleCustardTerminal(), theme, ownsTerminal: true)
     {
     }
 

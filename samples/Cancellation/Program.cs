@@ -1,4 +1,5 @@
 ﻿using Custard;
+using Custard.Theming;
 using Custard.Widgets;
 
 // Set up cancellation with Ctrl+C
@@ -68,7 +69,7 @@ if (listState.SelectedItem != null)
 }
 
 // Create and run the app
-using var app = new CustardApp(ct => App(listState, nameState, emailState, Save, cts, ct));
+using var app = new CustardApp(ct => App(listState, nameState, emailState, Save, cts, ct), CustardThemes.Sunset);
 await app.RunAsync(cts.Token);
 
 // The root component - master-detail layout

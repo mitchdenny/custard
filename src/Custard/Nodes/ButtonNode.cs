@@ -12,7 +12,7 @@ public sealed class ButtonNode : CustardNode
 
     public override void Render(CustardRenderContext context)
     {
-        var theme = CustardThemes.Current;
+        var theme = context.Theme;
         var leftBracket = theme.Get(ButtonTheme.LeftBracket);
         var rightBracket = theme.Get(ButtonTheme.RightBracket);
         

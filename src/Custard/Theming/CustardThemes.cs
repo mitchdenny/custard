@@ -5,17 +5,6 @@ namespace Custard.Theming;
 /// </summary>
 public static class CustardThemes
 {
-    private static CustardTheme? _current;
-
-    /// <summary>
-    /// Gets or sets the current theme used by the application.
-    /// </summary>
-    public static CustardTheme Current
-    {
-        get => _current ?? Default;
-        set => _current = value;
-    }
-
     /// <summary>
     /// The default theme with minimal styling.
     /// </summary>

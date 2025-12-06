@@ -12,7 +12,7 @@ public sealed class TextBoxNode : CustardNode
 
     public override void Render(CustardRenderContext context)
     {
-        var theme = CustardThemes.Current;
+        var theme = context.Theme;
         var leftBracket = theme.Get(TextBoxTheme.LeftBracket);
         var rightBracket = theme.Get(TextBoxTheme.RightBracket);
         var cursorFg = theme.Get(TextBoxTheme.CursorForegroundColor);

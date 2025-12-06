@@ -90,6 +90,9 @@ public class CustardApp : IDisposable
         {
             TextBlockWidget textWidget => ReconcileTextBlock(existingNode as TextBlockNode, textWidget),
             TextBoxWidget textBoxWidget => ReconcileTextBox(existingNode as TextBoxNode, textBoxWidget),
+            ButtonWidget buttonWidget => ReconcileButton(existingNode as ButtonNode, buttonWidget),
+            ListWidget listWidget => ReconcileList(existingNode as ListNode, listWidget),
+            SplitterWidget splitterWidget => ReconcileSplitter(existingNode as SplitterNode, splitterWidget),
             VStackWidget vStackWidget => ReconcileVStack(existingNode as VStackNode, vStackWidget),
             HStackWidget hStackWidget => ReconcileHStack(existingNode as HStackNode, hStackWidget),
             _ => throw new NotSupportedException($"Unknown widget type: {widget.GetType()}")
@@ -107,6 +110,14 @@ public class CustardApp : IDisposable
     {
         var node = existingNode ?? new TextBoxNode();
         node.State = widget.State;
+        return node;
+    }
+
+    private static ButtonNode ReconcileButton(ButtonNode? existingNode, ButtonWidget widget)
+    {
+        var node = existingNode ?? new ButtonNode();
+        node.Label = widget.Label;
+        node.OnClick = widget.OnClick;
         return node;
     }
 
@@ -134,12 +145,54 @@ public class CustardApp : IDisposable
         if (existingNode is null)
         {
             var focusables = node.GetFocusableNodes().ToList();
-            if (focusables.Count > 0 && focusables[0] is TextBoxNode firstTextBox)
+            if (focusables.Count > 0)
             {
-                firstTextBox.IsFocused = true;
+                SetNodeFocus(focusables[0], true);
             }
         }
+        
+        return node;
+    }
 
+    private static void SetNodeFocus(CustardNode node, bool focused)
+    {
+        switch (node)
+        {
+            case TextBoxNode textBox:
+                textBox.IsFocused = focused;
+                break;
+            case ButtonNode button:
+                button.IsFocused = focused;
+                break;
+            case ListNode list:
+                list.IsFocused = focused;
+                break;
+        }
+    }
+
+    private static ListNode ReconcileList(ListNode? existingNode, ListWidget widget)
+    {
+        var node = existingNode ?? new ListNode();
+        node.State = widget.State;
+        return node;
+    }
+
+    private static SplitterNode ReconcileSplitter(SplitterNode? existingNode, SplitterWidget widget)
+    {
+        var node = existingNode ?? new SplitterNode();
+        node.Left = Reconcile(node.Left, widget.Left);
+        node.Right = Reconcile(node.Right, widget.Right);
+        node.LeftWidth = widget.LeftWidth;
+        
+        // Invalidate focus cache since children may have changed
+        node.InvalidateFocusCache();
+        
+        // Set initial focus if this is a new node
+        if (existingNode is null)
+        {
+            node.SetInitialFocus();
+        }
+        
         return node;
     }
 

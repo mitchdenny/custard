@@ -15,4 +15,6 @@ public static class CustardWidgets
     public static Task<CustardWidget> HStackAsync(IReadOnlyList<CustardWidget> children, CancellationToken cancellationToken = default) => Task.FromResult<CustardWidget>(new HStackWidget(children));
 
     public static Task<CustardWidget> HStackAsync(CancellationToken cancellationToken = default, params CustardWidget[] children) => Task.FromResult<CustardWidget>(new HStackWidget(children));
+
+    public static Task<CustardWidget> ButtonAsync(string label, Action onClick, CancellationToken cancellationToken = default) => Task.FromResult<CustardWidget>(new ButtonWidget(label, onClick));
 }

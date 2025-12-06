@@ -51,10 +51,7 @@ public sealed class VStackNode : CustardNode
                 // Clear old focus
                 if (_focusedIndex >= 0 && _focusedIndex < focusables.Count)
                 {
-                    if (focusables[_focusedIndex] is TextBoxNode oldFocused)
-                    {
-                        oldFocused.IsFocused = false;
-                    }
+                    SetNodeFocus(focusables[_focusedIndex], false);
                 }
 
                 // Move focus
@@ -68,10 +65,7 @@ public sealed class VStackNode : CustardNode
                 }
 
                 // Set new focus
-                if (focusables[_focusedIndex] is TextBoxNode newFocused)
-                {
-                    newFocused.IsFocused = true;
-                }
+                SetNodeFocus(focusables[_focusedIndex], true);
                 return true;
             }
         }
@@ -84,5 +78,21 @@ public sealed class VStackNode : CustardNode
         }
 
         return false;
+    }
+
+    private static void SetNodeFocus(CustardNode node, bool focused)
+    {
+        switch (node)
+        {
+            case TextBoxNode textBox:
+                textBox.IsFocused = focused;
+                break;
+            case ButtonNode button:
+                button.IsFocused = focused;
+                break;
+            case ListNode list:
+                list.IsFocused = focused;
+                break;
+        }
     }
 }

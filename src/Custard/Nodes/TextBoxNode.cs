@@ -1,3 +1,4 @@
+using Custard.Theming;
 using Custard.Widgets;
 
 namespace Custard;
@@ -11,6 +12,14 @@ public sealed class TextBoxNode : CustardNode
 
     public override void Render(CustardRenderContext context)
     {
+        var theme = CustardThemes.Current;
+        var leftBracket = theme.Get(TextBoxTheme.LeftBracket);
+        var rightBracket = theme.Get(TextBoxTheme.RightBracket);
+        var cursorFg = theme.Get(TextBoxTheme.CursorForegroundColor);
+        var cursorBg = theme.Get(TextBoxTheme.CursorBackgroundColor);
+        var selFg = theme.Get(TextBoxTheme.SelectionForegroundColor);
+        var selBg = theme.Get(TextBoxTheme.SelectionBackgroundColor);
+        
         var text = State.Text;
         var cursor = State.CursorPosition;
 
@@ -26,22 +35,22 @@ public sealed class TextBoxNode : CustardNode
                 var selected = text[selStart..selEnd];
                 var afterSel = text[selEnd..];
                 
-                // Use reverse video for selection, and underline for cursor position within selection
-                context.Write($"[{beforeSel}\x1b[7m{selected}\x1b[27m{afterSel}]");
+                // Use theme colors for selection
+                context.Write($"{leftBracket}{beforeSel}{selFg.ToForegroundAnsi()}{selBg.ToBackgroundAnsi()}{selected}\x1b[0m{afterSel}{rightBracket}");
             }
             else
             {
-                // Show text with cursor as reverse video block
+                // Show text with cursor as themed block
                 var before = text[..cursor];
                 var cursorChar = cursor < text.Length ? text[cursor].ToString() : " ";
                 var after = cursor < text.Length ? text[(cursor + 1)..] : "";
                 
-                context.Write($"[{before}\x1b[7m{cursorChar}\x1b[27m{after}]");
+                context.Write($"{leftBracket}{before}{cursorFg.ToForegroundAnsi()}{cursorBg.ToBackgroundAnsi()}{cursorChar}\x1b[0m{after}{rightBracket}");
             }
         }
         else
         {
-            context.Write($"[{text}]");
+            context.Write($"{leftBracket}{text}{rightBracket}");
         }
     }
 

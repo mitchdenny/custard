@@ -1,3 +1,5 @@
+using Hex1b;
+using Hex1b.Fluent;
 using Hex1b.Layout;
 using Hex1b.Theming;
 using Hex1b.Widgets;
@@ -18,37 +20,51 @@ public class ThemingExhibit(ILogger<ThemingExhibit> logger) : Hex1bExhibit
     public override string Description => "Dynamic theme switching with live widget preview.";
 
     public override string SourceCode => """
-        // Available themes
-        var themes = new[] {
-            Hex1bThemes.Default,
-            Hex1bThemes.Ocean,
-            Hex1bThemes.Sunset,
-            Hex1bThemes.HighContrast,
-            CreateForestTheme(),
-            CreateNeonTheme()
-        };
+        // Define state with themes and UI state
+        class ThemingState
+        {
+            public Hex1bTheme[] Themes { get; init; }
+            public ListState ThemeList { get; } = new();
+            public TextBoxState SampleTextBox { get; } = new();
+            public bool ButtonClicked { get; set; }
+        }
         
-        var themeList = new ListState {
-            Items = themes.Select(t => 
-                new ListItem(t.Name, t.Name)).ToList()
-        };
+        var state = new ThemingState { ... };
         
-        // Dynamic theme provider - called on each render
+        // Dynamic theme provider
         Hex1bTheme GetCurrentTheme() => 
-            themes[themeList.SelectedIndex];
+            state.Themes[state.ThemeList.SelectedIndex];
         
-        var app = new Hex1bApp(
-            rootComponent: BuildUI,
-            terminal: terminal,
-            themeProvider: GetCurrentTheme
-        );
+        var app = new Hex1bApp<ThemingState>(state, (ctx, ct) =>
+        {
+            return Task.FromResult<Hex1bWidget>(
+                ctx.Splitter(
+                    left => { ... theme list ... },
+                    right => { ... widget preview ... },
+                    leftWidth: 20
+                )
+            );
+        }, terminal, GetCurrentTheme);
+        
         await app.RunAsync();
         """;
 
     /// <summary>
-    /// Creates a new session state that is shared between widget builder and theme provider.
+    /// State for the theming exhibit.
     /// </summary>
-    private ThemingSessionState CreateSessionState()
+    private class ThemingState
+    {
+        public required Hex1bTheme[] Themes { get; init; }
+        public ListState ThemeList { get; } = new();
+        public TextBoxState SampleTextBox { get; } = new() { Text = "Sample text" };
+        public bool ButtonClicked { get; set; }
+    }
+
+    // Thread-local session state for each websocket connection
+    [ThreadStatic]
+    private static ThemingState? _currentSession;
+
+    public override Func<CancellationToken, Task<Hex1bWidget>> CreateWidgetBuilder()
     {
         var themes = new Hex1bTheme[]
         {
@@ -60,79 +76,66 @@ public class ThemingExhibit(ILogger<ThemingExhibit> logger) : Hex1bExhibit
             CreateNeonTheme(),
         };
 
-        return new ThemingSessionState
+        var state = new ThemingState
         {
-            Themes = themes,
-            ThemeListState = new ListState
-            {
-                Items = themes.Select(t => new ListItem(t.Name, t.Name)).ToList(),
-                SelectedIndex = 0
-            },
-            SampleTextBoxState = new TextBoxState { Text = "Sample text" },
-            ButtonClicked = false
+            Themes = themes
         };
-    }
+        state.ThemeList.Items = themes.Select(t => new ListItem(t.Name, t.Name)).ToList();
+        
+        _currentSession = state;
 
-    // Thread-local session state for each websocket connection
-    [ThreadStatic]
-    private static ThemingSessionState? _currentSession;
+        return ct =>
+        {
+            var ctx = new RootContext<ThemingState>(state);
+            
+            var widget = ctx.Splitter(
+                leftBuilder: left =>
+                {
+                    left.Text("═══ Themes ═══");
+                    left.Text("");
+                    left.AddFill(ctx.List(s => s.ThemeList));
+                },
+                rightBuilder: right =>
+                {
+                    right.Text("═══ Widget Preview ═══");
+                    right.Text("");
+                    right.Border(border =>
+                    {
+                        border.Text("  Content inside border");
+                        border.Text("  with multiple lines");
+                    }, title: "Border");
+                    right.Text("");
+                    right.Panel(panel =>
+                    {
+                        panel.Text("  Panel with styled background");
+                        panel.Text("  (theme-dependent colors)");
+                    });
+                    right.Text("");
+                    right.Text("TextBox (Tab to focus):");
+                    right.TextBox(ctx, s => s.SampleTextBox);
+                    right.Text("");
+                    right.Text("Button:");
+                    right.Button(
+                        state.ButtonClicked ? "Clicked!" : "Click Me",
+                        () => state.ButtonClicked = !state.ButtonClicked);
+                    right.Text("");
+                    right.Text("─────────────────────────");
+                    right.Text("");
+                    right.Text("Use ↑↓ to change theme");
+                    right.Text("Tab to switch focus");
+                    right.Text("Enter to click button");
+                },
+                leftWidth: 20
+            );
 
-    public override Func<CancellationToken, Task<Hex1bWidget>> CreateWidgetBuilder()
-    {
-        // Create new session state for this connection
-        _currentSession = CreateSessionState();
-        var session = _currentSession;
-
-        return ct => Task.FromResult<Hex1bWidget>(
-            new SplitterWidget(
-                Left: new VStackWidget([
-                    new TextBlockWidget("═══ Themes ═══"),
-                    new TextBlockWidget(""),
-                    new ListWidget(session.ThemeListState)
-                ]),
-                Right: new VStackWidget([
-                    new TextBlockWidget("═══ Widget Preview ═══"),
-                    new TextBlockWidget(""),
-                    new BorderWidget(
-                        new VStackWidget([
-                            new TextBlockWidget("  Content inside border"),
-                            new TextBlockWidget("  with multiple lines")
-                        ]),
-                        Title: "Border"
-                    ),
-                    new TextBlockWidget(""),
-                    new PanelWidget(
-                        new VStackWidget([
-                            new TextBlockWidget("  Panel with styled background"),
-                            new TextBlockWidget("  (theme-dependent colors)")
-                        ])
-                    ),
-                    new TextBlockWidget(""),
-                    new TextBlockWidget("TextBox (Tab to focus):"),
-                    new TextBoxWidget(session.SampleTextBoxState),
-                    new TextBlockWidget(""),
-                    new TextBlockWidget("Button:"),
-                    new ButtonWidget(
-                        session.ButtonClicked ? "Clicked!" : "Click Me", 
-                        () => session.ButtonClicked = !session.ButtonClicked
-                    ),
-                    new TextBlockWidget(""),
-                    new TextBlockWidget("─────────────────────────"),
-                    new TextBlockWidget(""),
-                    new TextBlockWidget("Use ↑↓ to change theme"),
-                    new TextBlockWidget("Tab to switch focus"),
-                    new TextBlockWidget("Enter to click button"),
-                ]),
-                LeftWidth: 20
-            )
-        );
+            return Task.FromResult<Hex1bWidget>(widget);
+        };
     }
 
     public override Func<Hex1bTheme>? CreateThemeProvider()
     {
-        // Use the session state created by CreateWidgetBuilder
         var session = _currentSession!;
-        return () => session.Themes[session.ThemeListState.SelectedIndex];
+        return () => session.Themes[session.ThemeList.SelectedIndex];
     }
 
     private static Hex1bTheme CreateForestTheme()
@@ -195,13 +198,5 @@ public class ThemingExhibit(ILogger<ThemingExhibit> logger) : Hex1bExhibit
             // Panel
             .Set(PanelTheme.BackgroundColor, Hex1bColor.FromRgb(30, 0, 30))
             .Set(PanelTheme.ForegroundColor, Hex1bColor.FromRgb(0, 255, 255));
-    }
-
-    private class ThemingSessionState
-    {
-        public required Hex1bTheme[] Themes { get; init; }
-        public required ListState ThemeListState { get; init; }
-        public required TextBoxState SampleTextBoxState { get; init; }
-        public bool ButtonClicked { get; set; }
     }
 }

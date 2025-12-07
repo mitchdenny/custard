@@ -1,3 +1,5 @@
+using Hex1b;
+using Hex1b.Fluent;
 using Hex1b.Widgets;
 using Microsoft.Extensions.Logging;
 
@@ -12,33 +14,57 @@ public class TextInputExhibit(ILogger<TextInputExhibit> logger) : Hex1bExhibit
     public override string Description => "Interactive text input using Hex1b TextBox widget.";
 
     public override string SourceCode => """
-        var textBoxState = new TextBoxState();
-        var app = new Hex1bApp(ct => Task.FromResult<Hex1bWidget>(
-            new VStackWidget([
-                new TextBlockWidget("Interactive Text Input"),
-                new TextBlockWidget("─────────────────────────"),
-                new TextBlockWidget(""),
-                new TextBoxWidget(textBoxState),
-                new TextBlockWidget(""),
-                new TextBlockWidget("Type something and press Enter!")
-            ])
-        ));
+        // Define state for the exhibit
+        class TextInputState
+        {
+            public TextBoxState Input { get; } = new();
+        }
+        
+        var state = new TextInputState();
+        var app = new Hex1bApp<TextInputState>(state, (ctx, ct) =>
+        {
+            return Task.FromResult<Hex1bWidget>(
+                ctx.VStack(stack =>
+                {
+                    stack.Text("Interactive Text Input");
+                    stack.Text("─────────────────────────");
+                    stack.Text("");
+                    stack.TextBox(ctx, s => s.Input);
+                    stack.Text("");
+                    stack.Text("Type something! Use Backspace to delete.");
+                })
+            );
+        });
         await app.RunAsync();
         """;
 
+    /// <summary>
+    /// State for this exhibit.
+    /// </summary>
+    private class TextInputState
+    {
+        public TextBoxState Input { get; } = new();
+    }
+
     public override Func<CancellationToken, Task<Hex1bWidget>> CreateWidgetBuilder()
     {
-        var textBoxState = new TextBoxState();
+        var state = new TextInputState();
         
-        return ct => Task.FromResult<Hex1bWidget>(
-            new VStackWidget([
-                new TextBlockWidget("Interactive Text Input"),
-                new TextBlockWidget("─────────────────────────"),
-                new TextBlockWidget(""),
-                new TextBoxWidget(textBoxState),
-                new TextBlockWidget(""),
-                new TextBlockWidget("Type something! Use Backspace to delete.")
-            ])
-        );
+        return ct =>
+        {
+            var ctx = new RootContext<TextInputState>(state);
+            
+            var widget = ctx.VStack(stack =>
+            {
+                stack.Text("Interactive Text Input");
+                stack.Text("─────────────────────────");
+                stack.Text("");
+                stack.TextBox(ctx, s => s.Input);
+                stack.Text("");
+                stack.Text("Type something! Use Backspace to delete.");
+            });
+
+            return Task.FromResult<Hex1bWidget>(widget);
+        };
     }
 }

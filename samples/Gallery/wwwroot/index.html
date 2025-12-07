@@ -567,7 +567,7 @@
             wrapper.className = 'terminal-wrapper main active';
 
             const sizeButtonsHtml = TERMINAL_SIZES.map((size, idx) => 
-                `<button class="size-btn${idx === 0 ? ' active' : ''}" data-size-idx="${idx}" onclick="resizeTerminal('${exhibit.id}', ${idx})">${size.name}</button>`
+                `<button class="size-btn${idx === 0 ? ' active' : ''}" data-size-idx="${idx}" onmousedown="resizeTerminal('${exhibit.id}', ${idx}, event)">${size.name}</button>`
             ).join('');
 
             wrapper.innerHTML = `
@@ -701,7 +701,12 @@
             return div.innerHTML;
         }
 
-        function resizeTerminal(id, sizeIdx) {
+        function resizeTerminal(id, sizeIdx, event) {
+            // Prevent button from stealing focus
+            if (event) {
+                event.preventDefault();
+            }
+
             const size = TERMINAL_SIZES[sizeIdx];
             if (!size || !mainTerminals[id]) return;
 
@@ -727,8 +732,11 @@
                 }));
             }
 
-            // Re-scale to fit the available space
-            setTimeout(() => scaleTerminalToFit(id), 50);
+            // Re-scale to fit the available space, then focus terminal
+            setTimeout(() => {
+                scaleTerminalToFit(id);
+                focusTerminal(id);
+            }, 50);
         }
 
         function refreshTerminal(id) {

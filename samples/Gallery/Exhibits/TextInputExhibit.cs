@@ -13,30 +13,6 @@ public class TextInputExhibit(ILogger<TextInputExhibit> logger) : Hex1bExhibit
     public override string Title => "Text Input";
     public override string Description => "Interactive text input using Hex1b TextBox widget.";
 
-    public override string SourceCode => """
-        // Define state for the exhibit
-        class TextInputState
-        {
-            public TextBoxState Input { get; } = new();
-        }
-        
-        var state = new TextInputState();
-        var app = new Hex1bApp<TextInputState>(state, (ctx, ct) =>
-        {
-            return Task.FromResult<Hex1bWidget>(
-                ctx.VStack(v => [
-                    v.Text("Interactive Text Input"),
-                    v.Text("─────────────────────────"),
-                    v.Text(""),
-                    v.TextBox(s => s.Input),
-                    v.Text(""),
-                    v.Text("Type something! Use Backspace to delete.")
-                ])
-            );
-        });
-        await app.RunAsync();
-        """;
-
     /// <summary>
     /// State for this exhibit.
     /// </summary>

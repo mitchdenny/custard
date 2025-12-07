@@ -20,22 +20,6 @@ public class NavigatorExhibit(ILogger<NavigatorExhibit> logger) : Hex1bExhibit
     public override string Title => "Navigator - CRM Demo";
     public override string Description => "A simple CRM system demonstrating stack-based navigation.";
 
-    public override string SourceCode => """
-        // Define typed state for the entire application
-        var state = new CrmAppState();
-        
-        // Create app with fluent builder - state flows through context
-        var app = new Hex1bApp<CrmAppState>(state, (ctx, ct) =>
-        {
-            // ctx.State gives us typed access to CrmAppState
-            return Task.FromResult<Hex1bWidget>(
-                ctx.Navigator(s => s.Navigator)
-            );
-        });
-        
-        await app.RunAsync();
-        """;
-
     #region Domain Model
 
     private class Opportunity

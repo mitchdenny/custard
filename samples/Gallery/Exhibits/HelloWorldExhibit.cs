@@ -16,35 +16,6 @@ public class HelloWorldExhibit(ILogger<HelloWorldExhibit> logger) : Hex1bExhibit
     public override string Title => "Hello World";
     public override string Description => "A simple hello world with interactive button.";
 
-    public override string SourceCode => """
-        // Define application state (even if empty)
-        public class AppState
-        {
-            public int ClickCount { get; set; }
-        }
-        
-        var state = new AppState();
-        
-        // Using fluent API with typed state context
-        var app = new Hex1bApp<AppState>(state, (ctx, ct) =>
-        {
-            return Task.FromResult<Hex1bWidget>(
-                ctx.VStack(v => [
-                    v.Text("╔════════════════════════════════════╗"),
-                    v.Text("║    Hello, Fluent World!            ║"),
-                    v.Text("║    Using the Context-Based API     ║"),
-                    v.Text("╚════════════════════════════════════╝"),
-                    v.Text(""),
-                    v.Text($"Click count: {ctx.State.ClickCount}"),
-                    v.Text(""),
-                    v.Button("Click me!", () => ctx.State.ClickCount++)
-                ])
-            );
-        });
-        
-        await app.RunAsync();
-        """;
-
     /// <summary>
     /// Simple state for this exhibit.
     /// </summary>

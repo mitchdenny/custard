@@ -24,11 +24,6 @@ public interface IGalleryExhibit
     string Description { get; }
 
     /// <summary>
-    /// Source code snippet to display for this exhibit.
-    /// </summary>
-    string SourceCode { get; }
-
-    /// <summary>
     /// Creates the Hex1b widget builder for this exhibit.
     /// </summary>
     Func<CancellationToken, Task<Hex1bWidget>> CreateWidgetBuilder();
@@ -48,7 +43,6 @@ public abstract class Hex1bExhibit : IGalleryExhibit
     public abstract string Id { get; }
     public abstract string Title { get; }
     public abstract string Description { get; }
-    public abstract string SourceCode { get; }
 
     public abstract Func<CancellationToken, Task<Hex1bWidget>> CreateWidgetBuilder();
 

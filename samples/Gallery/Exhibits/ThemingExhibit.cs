@@ -19,40 +19,6 @@ public class ThemingExhibit(ILogger<ThemingExhibit> logger) : Hex1bExhibit
     public override string Title => "Theming";
     public override string Description => "Dynamic theme switching with live widget preview.";
 
-    public override string SourceCode => """
-        // Define state with themes and UI state
-        class ThemingState
-        {
-            public Hex1bTheme[] Themes { get; init; }
-            public ListState ThemeList { get; } = new();
-            public TextBoxState SampleTextBox { get; } = new();
-            public bool ButtonClicked { get; set; }
-        }
-        
-        var state = new ThemingState { ... };
-        
-        // Dynamic theme provider
-        Hex1bTheme GetCurrentTheme() => 
-            state.Themes[state.ThemeList.SelectedIndex];
-        
-        var ctx = new RootContext<ThemingState>(state);
-        var widget = ctx.Splitter(
-            left => [
-                left.Text("═══ Themes ═══"),
-                left.Text(""),
-                left.List(s => s.ThemeList)
-            ],
-            right => [
-                right.Text("═══ Widget Preview ═══"),
-                right.Border(b => [...], title: "Border"),
-                right.Panel(p => [...]),
-                right.TextBox(s => s.SampleTextBox),
-                right.Button("Click Me", () => ...)
-            ],
-            leftWidth: 20
-        );
-        """;
-
     /// <summary>
     /// State for the theming exhibit.
     /// </summary>

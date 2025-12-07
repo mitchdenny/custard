@@ -33,7 +33,6 @@ app.MapGet("/apps", (IEnumerable<IGalleryExhibit> exhibits, HttpRequest request)
         id = e.Id,
         title = e.Title,
         description = e.Description,
-        sourceCode = e.SourceCode,
         websocketUrl = $"{wsScheme}://{request.Host}/apps/{e.Id}"
     });
 });

@@ -33,6 +33,13 @@
             overflow: hidden;
         }
 
+        /* Terminal wrapper */
+        .terminal-wrapper {
+            position: relative;
+            transition: transform 0.3s ease;
+            transform-origin: center center;
+        }
+
         .terminal-container {
             background: #0f0f1a;
             border-radius: 12px;
@@ -42,16 +49,94 @@
                 0 10px 40px rgba(0, 0, 0, 0.4),
                 inset 0 1px 0 rgba(255, 255, 255, 0.05);
             border: 1px solid rgba(255, 255, 255, 0.08);
-            transition: transform 0.3s ease;
-            transform-origin: center center;
+            position: relative;
+            /* Flip card setup */
+            perspective: 1000px;
         }
 
-        .terminal-container.main {
+        /* Flip card inner container */
+        .terminal-flipper {
+            position: relative;
+            width: 100%;
+            transition: transform 0.6s;
+            transform-style: preserve-3d;
+        }
+
+        .terminal-container.flipped .terminal-flipper {
+            transform: rotateY(180deg);
+        }
+
+        /* Front and back faces */
+        .terminal-front, .terminal-back {
+            backface-visibility: hidden;
+            -webkit-backface-visibility: hidden;
+        }
+
+        .terminal-front {
+            position: relative;
+        }
+
+        .terminal-back {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            transform: rotateY(180deg);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        /* Source code view */
+        .source-view {
+            flex: 1;
+            min-height: 0;
+            background: #0a0a12;
+            border-radius: 6px;
+            overflow: auto;
+            padding: 12px;
+        }
+
+        .source-view pre {
+            margin: 0;
+            font-family: "Cascadia Code", "Fira Code", monospace;
+            font-size: 13px;
+            color: #e0e0e0;
+            line-height: 1.5;
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+
+        /* Source button - similar to refresh button */
+        .source-btn {
+            background: none;
+            border: none;
+            color: rgba(255, 255, 255, 0.3);
+            font-size: 14px;
+            cursor: pointer;
+            padding: 4px 8px;
+            transition: color 0.2s;
+            border-radius: 4px;
+            font-family: monospace;
+        }
+
+        .source-btn:hover {
+            color: rgba(255, 255, 255, 0.7);
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        .source-btn.active {
+            color: #4ecdc4;
+            background: rgba(78, 205, 196, 0.1);
+        }
+
+        .terminal-wrapper.main {
             display: none;
         }
 
-        .terminal-container.main.active {
-            display: block;
+        .terminal-wrapper.main.active {
+            display: flex;
         }
 
         .terminal-header {
@@ -231,46 +316,6 @@
             overflow: hidden;
         }
 
-        /* Source code panel */
-        .source-panel {
-            position: absolute;
-            right: 24px;
-            top: 24px;
-            background: #0f0f1a;
-            border-radius: 8px;
-            border: 1px solid rgba(255, 255, 255, 0.08);
-            padding: 16px;
-            max-width: 400px;
-            display: none;
-        }
-
-        .source-panel.active {
-            display: block;
-        }
-
-        .source-panel h3 {
-            color: rgba(255, 255, 255, 0.6);
-            font-size: 12px;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            margin-bottom: 12px;
-        }
-
-        .source-panel pre {
-            background: #0a0a12;
-            padding: 12px;
-            border-radius: 6px;
-            overflow-x: auto;
-            font-family: "Cascadia Code", "Fira Code", monospace;
-            font-size: 12px;
-            color: #e0e0e0;
-            line-height: 1.5;
-        }
-
-        .source-panel .keyword { color: #c56cf0; }
-        .source-panel .string { color: #ffe66d; }
-        .source-panel .type { color: #4ecdc4; }
-
         .xterm-viewport::-webkit-scrollbar {
             width: 8px;
         }
@@ -301,10 +346,6 @@
             <p>Click an exhibit below to view it</p>
         </div>
         <div id="main-terminals"></div>
-        <div class="source-panel" id="source-panel">
-            <h3>Source Code</h3>
-            <pre id="source-code"></pre>
-        </div>
     </div>
 
     <div class="exhibit-dock" id="exhibit-dock">
@@ -350,6 +391,7 @@
         let miniTerminals = {};
         let websockets = {};
         let terminalSizes = {};
+        let sourceOpen = {};
 
         async function loadExhibits() {
             const response = await fetch('/apps');
@@ -426,7 +468,7 @@
             document.getElementById('welcome').style.display = 'none';
 
             // Hide all main terminals
-            document.querySelectorAll('.terminal-container.main').forEach(el => {
+            document.querySelectorAll('.terminal-wrapper.main').forEach(el => {
                 el.classList.remove('active');
             });
 
@@ -434,41 +476,55 @@
             if (!mainTerminals[id]) {
                 createMainTerminal(exhibit);
             } else {
-                document.getElementById(`main-container-${id}`).classList.add('active');
+                document.getElementById(`main-wrapper-${id}`).classList.add('active');
             }
-
-            // Show source code
-            const sourcePanel = document.getElementById('source-panel');
-            const sourceCode = document.getElementById('source-code');
-            sourceCode.textContent = exhibit.sourceCode;
-            sourcePanel.classList.add('active');
 
             activeExhibit = id;
         }
 
         function createMainTerminal(exhibit) {
-            const container = document.createElement('div');
-            container.id = `main-container-${exhibit.id}`;
-            container.className = 'terminal-container main active';
+            const wrapper = document.createElement('div');
+            wrapper.id = `main-wrapper-${exhibit.id}`;
+            wrapper.className = 'terminal-wrapper main active';
+
             const sizeButtonsHtml = TERMINAL_SIZES.map((size, idx) => 
                 `<button class="size-btn${idx === 0 ? ' active' : ''}" data-size-idx="${idx}" onclick="resizeTerminal('${exhibit.id}', ${idx})">${size.name}</button>`
             ).join('');
 
-            container.innerHTML = `
-                <div class="terminal-header">
-                    <div class="terminal-title">${exhibit.title}</div>
-                    <div class="header-spacer"></div>
-                    <div class="header-controls">
-                        <div class="size-buttons" id="size-buttons-${exhibit.id}">
-                            ${sizeButtonsHtml}
+            wrapper.innerHTML = `
+                <div class="terminal-container" id="main-container-${exhibit.id}">
+                    <div class="terminal-flipper">
+                        <div class="terminal-front">
+                            <div class="terminal-header">
+                                <div class="terminal-title">${exhibit.title}</div>
+                                <div class="header-spacer"></div>
+                                <div class="header-controls">
+                                    <div class="size-buttons" id="size-buttons-${exhibit.id}">
+                                        ${sizeButtonsHtml}
+                                    </div>
+                                    <button class="source-btn" id="source-btn-${exhibit.id}" onclick="toggleSource('${exhibit.id}')" title="View Source">{ }</button>
+                                    <button class="refresh-btn" onclick="refreshTerminal('${exhibit.id}')" title="Refresh">↻</button>
+                                </div>
+                            </div>
+                            <div id="main-term-${exhibit.id}" class="terminal-viewport"></div>
                         </div>
-                        <button class="refresh-btn" onclick="refreshTerminal('${exhibit.id}')" title="Refresh">↻</button>
+                        <div class="terminal-back">
+                            <div class="terminal-header">
+                                <div class="terminal-title">${exhibit.title} - Source</div>
+                                <div class="header-spacer"></div>
+                                <div class="header-controls">
+                                    <button class="source-btn active" onclick="toggleSource('${exhibit.id}')" title="Back to Terminal">↩</button>
+                                </div>
+                            </div>
+                            <div class="source-view">
+                                <pre>${escapeHtml(exhibit.sourceCode)}</pre>
+                            </div>
+                        </div>
                     </div>
                 </div>
-                <div id="main-term-${exhibit.id}" class="terminal-viewport"></div>
             `;
 
-            document.getElementById('main-terminals').appendChild(container);
+            document.getElementById('main-terminals').appendChild(wrapper);
 
             const term = new Terminal({
                 cols: 80,
@@ -511,27 +567,56 @@
         }
 
         function scaleTerminalToFit(id) {
-            const container = document.getElementById(`main-container-${id}`);
+            const wrapper = document.getElementById(`main-wrapper-${id}`);
             const mainArea = document.querySelector('.main-area');
-            if (!container || !mainArea) return;
+            if (!wrapper || !mainArea) return;
 
             // Reset scale to measure natural size
-            container.style.transform = 'scale(1)';
+            wrapper.style.transform = 'scale(1)';
 
             // Get available space (with padding buffer)
             const availableWidth = mainArea.clientWidth - 48;
             const availableHeight = mainArea.clientHeight - 48;
 
-            // Get terminal container size
-            const termWidth = container.offsetWidth;
-            const termHeight = container.offsetHeight;
+            // Get wrapper size (includes terminal + source panel if open)
+            const wrapperWidth = wrapper.offsetWidth;
+            const wrapperHeight = wrapper.offsetHeight;
 
             // Calculate scale to fit
-            const scaleX = availableWidth / termWidth;
-            const scaleY = availableHeight / termHeight;
+            const scaleX = availableWidth / wrapperWidth;
+            const scaleY = availableHeight / wrapperHeight;
             const scale = Math.min(scaleX, scaleY, 1); // Don't scale up, only down
 
-            container.style.transform = `scale(${scale})`;
+            wrapper.style.transform = `scale(${scale})`;
+        }
+
+        function toggleSource(id) {
+            const container = document.getElementById(`main-container-${id}`);
+            const btn = document.getElementById(`source-btn-${id}`);
+            const flipper = container?.querySelector('.terminal-flipper');
+            const front = container?.querySelector('.terminal-front');
+            if (!container || !flipper || !front) return;
+
+            sourceOpen[id] = !sourceOpen[id];
+            
+            // Set flipper height to match front content before flipping
+            if (sourceOpen[id]) {
+                flipper.style.height = front.offsetHeight + 'px';
+            } else {
+                // Reset height after flip animation completes
+                setTimeout(() => {
+                    flipper.style.height = '';
+                }, 600);
+            }
+            
+            container.classList.toggle('flipped', sourceOpen[id]);
+            if (btn) btn.classList.toggle('active', sourceOpen[id]);
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
         }
 
         function resizeTerminal(id, sizeIdx) {

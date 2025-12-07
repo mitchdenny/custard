@@ -1,3 +1,5 @@
+#pragma warning disable HEX1B_SIXEL // Sixel API is experimental - internal usage is allowed
+
 using Hex1b.Layout;
 using Hex1b.Nodes;
 using Hex1b.Theming;
@@ -98,6 +100,15 @@ public class Hex1bApp<TState> : IDisposable
             // React to input events - only render when input is received
             await foreach (var inputEvent in _terminal.InputEvents.ReadAllAsync(cancellationToken))
             {
+                // Handle capability response events specially (e.g., DA1 for Sixel detection)
+                if (inputEvent is CapabilityResponseEvent capabilityEvent)
+                {
+                    Nodes.SixelNode.HandleDA1Response(capabilityEvent.Response);
+                    // Re-render to reflect the updated capability detection
+                    await RenderFrameAsync(cancellationToken);
+                    continue;
+                }
+                
                 // Dispatch input to the root node
                 _rootNode?.HandleInput(inputEvent);
 
@@ -172,6 +183,7 @@ public class Hex1bApp<TState> : IDisposable
             NavigatorWidget navigatorWidget => ReconcileNavigator(existingNode as NavigatorNode, navigatorWidget),
             BorderWidget borderWidget => ReconcileBorder(existingNode as BorderNode, borderWidget),
             PanelWidget panelWidget => ReconcilePanel(existingNode as PanelNode, panelWidget),
+            SixelWidget sixelWidget => ReconcileSixel(existingNode as SixelNode, sixelWidget),
             _ => throw new NotSupportedException($"Unknown widget type: {widget.GetType()}")
         };
 #pragma warning restore HEX1B001
@@ -326,6 +338,16 @@ public class Hex1bApp<TState> : IDisposable
     {
         var node = existingNode ?? new PanelNode();
         node.Child = Reconcile(node.Child, widget.Child, node);
+        return node;
+    }
+
+    private static SixelNode ReconcileSixel(SixelNode? existingNode, SixelWidget widget)
+    {
+        var node = existingNode ?? new SixelNode();
+        node.ImageData = widget.ImageData;
+        node.RequestedWidth = widget.Width;
+        node.RequestedHeight = widget.Height;
+        node.Fallback = Reconcile(node.Fallback, widget.Fallback, node);
         return node;
     }
 

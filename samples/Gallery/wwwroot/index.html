@@ -489,6 +489,7 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/lib/xterm.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@xterm/addon-image@0.8.0/lib/addon-image.min.js"></script>
     <script>
         const terminalTheme = {
             background: '#0f0f1a',
@@ -692,10 +693,18 @@
                 fontSize: 14,
                 lineHeight: 1.2,
                 cursorBlink: true,
-                cursorStyle: 'block'
+                cursorStyle: 'block',
+                allowProposedApi: true
             });
 
             term.open(document.getElementById(`main-term-${exhibit.id}`));
+            
+            // Load Sixel/image addon for graphics support
+            if (window.ImageAddon) {
+                const imageAddon = new ImageAddon.ImageAddon();
+                term.loadAddon(imageAddon);
+            }
+            
             mainTerminals[exhibit.id] = term;
 
             // Connect to websocket
@@ -704,7 +713,20 @@
             const ws = new WebSocket(wsUrl);
 
             ws.onmessage = (event) => {
-                term.write(event.data);
+                const data = event.data;
+                
+                // Check for DA1 query (ESC [ c) and respond with Sixel capability
+                // DA1 response: ESC [ ? 62 ; 4 c (4 = Sixel graphics support)
+                if (data.includes('\x1b[c')) {
+                    console.log('[Sixel] Received DA1 query, sending response with Sixel support');
+                    // Send DA1 response indicating Sixel support (;4; means graphics)
+                    // The response format is: CSI ? Ps c where Ps includes 4 for Sixel
+                    if (ws.readyState === WebSocket.OPEN) {
+                        ws.send('\x1b[?62;4c');
+                    }
+                }
+                
+                term.write(data);
             };
 
             ws.onclose = () => {

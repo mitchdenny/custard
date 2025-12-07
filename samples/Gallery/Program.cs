@@ -12,6 +12,7 @@ builder.Services.AddSingleton<IGalleryExhibit, HelloWorldExhibit>();
 builder.Services.AddSingleton<IGalleryExhibit, TextInputExhibit>();
 builder.Services.AddSingleton<IGalleryExhibit, ThemingExhibit>();
 builder.Services.AddSingleton<IGalleryExhibit, NavigatorExhibit>();
+builder.Services.AddSingleton<IGalleryExhibit, SixelExhibit>();
 
 var app = builder.Build();
 

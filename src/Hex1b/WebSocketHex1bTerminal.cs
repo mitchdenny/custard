@@ -1,7 +1,10 @@
+#pragma warning disable HEX1B_SIXEL // Sixel API is experimental - internal usage is allowed
+
 using System.Net.WebSockets;
 using System.Text;
 using System.Text.Json;
 using System.Threading.Channels;
+using Hex1b.Nodes;
 using Hex1b.Theming;
 
 namespace Hex1b;
@@ -37,6 +40,10 @@ public sealed class WebSocketHex1bTerminal : IHex1bTerminal, IDisposable
         _height = height;
         _inputChannel = Channel.CreateUnbounded<Hex1bInputEvent>();
         _disposeCts = new CancellationTokenSource();
+        
+        // Reset Sixel detection for new terminal session
+        // This ensures each WebSocket session re-probes for Sixel support
+        SixelNode.ResetGlobalSixelDetection();
     }
 
     /// <inheritdoc />
@@ -134,6 +141,17 @@ public sealed class WebSocketHex1bTerminal : IHex1bTerminal, IDisposable
             return;
         }
 
+        // Check for DA1 response (ESC [ ? ... c) for Sixel support detection
+        if (TryParseDA1Response(message, out var capabilityEvent))
+        {
+            // Send event to trigger re-render with updated capability info
+            if (capabilityEvent != null)
+            {
+                await _inputChannel.Writer.WriteAsync(capabilityEvent, cancellationToken);
+            }
+            return;
+        }
+
         // Process the message, looking for ANSI escape sequences
         var i = 0;
         while (i < message.Length)
@@ -195,6 +213,29 @@ public sealed class WebSocketHex1bTerminal : IHex1bTerminal, IDisposable
         catch (JsonException)
         {
             // Not a valid JSON message
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// Checks if the message is a DA1 (Primary Device Attributes) response.
+    /// DA1 response format: ESC [ ? {params} c
+    /// If it contains ";4" it indicates Sixel graphics support.
+    /// </summary>
+    private static bool TryParseDA1Response(string message, out CapabilityResponseEvent? capabilityEvent)
+    {
+        capabilityEvent = null;
+        
+        // DA1 response starts with ESC [ ? and ends with c
+        // Example: \x1b[?62;4;6;22c
+        if (message.StartsWith("\x1b[?") && message.EndsWith("c"))
+        {
+            // This is a DA1 response - pass it to SixelNode for processing
+            Console.Error.WriteLine($"[Sixel] Received DA1 response: {message.Replace("\x1b", "ESC")}");
+            Nodes.SixelNode.HandleDA1Response(message);
+            capabilityEvent = new CapabilityResponseEvent(message);
+            return true;
         }
 
         return false;

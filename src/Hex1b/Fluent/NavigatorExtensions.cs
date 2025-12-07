@@ -7,14 +7,14 @@ using Hex1b.Widgets;
 /// Extension methods for building NavigatorWidget.
 /// </summary>
 [Experimental("HEX1B001")]
-public static class NavigatorExtensions2
+public static class NavigatorExtensions
 {
     /// <summary>
     /// Creates a Navigator with the specified state.
     /// </summary>
     [Experimental("HEX1B001")]
     public static NavigatorWidget Navigator<TParent, TState>(
-        this WidgetCtx<TParent, TState> ctx,
+        this WidgetContext<TParent, TState> ctx,
         NavigatorState navigatorState)
         where TParent : Hex1bWidget
         => new(navigatorState);
@@ -24,7 +24,7 @@ public static class NavigatorExtensions2
     /// </summary>
     [Experimental("HEX1B001")]
     public static NavigatorWidget Navigator<TParent, TState>(
-        this WidgetCtx<TParent, TState> ctx,
+        this WidgetContext<TParent, TState> ctx,
         Func<TState, NavigatorState> stateSelector)
         where TParent : Hex1bWidget
         => new(stateSelector(ctx.State));

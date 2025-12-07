@@ -5,13 +5,13 @@ using Hex1b.Widgets;
 /// <summary>
 /// Extension methods for building ListWidget.
 /// </summary>
-public static class ListExtensions2
+public static class ListExtensions
 {
     /// <summary>
     /// Creates a List with the specified state.
     /// </summary>
     public static ListWidget List<TParent, TState>(
-        this WidgetCtx<TParent, TState> ctx,
+        this WidgetContext<TParent, TState> ctx,
         ListState listState)
         where TParent : Hex1bWidget
         => new(listState);
@@ -20,7 +20,7 @@ public static class ListExtensions2
     /// Creates a List with state selected from context state.
     /// </summary>
     public static ListWidget List<TParent, TState>(
-        this WidgetCtx<TParent, TState> ctx,
+        this WidgetContext<TParent, TState> ctx,
         Func<TState, ListState> stateSelector)
         where TParent : Hex1bWidget
         => new(stateSelector(ctx.State));

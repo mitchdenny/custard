@@ -35,18 +35,22 @@ public class ThemingExhibit(ILogger<ThemingExhibit> logger) : Hex1bExhibit
         Hex1bTheme GetCurrentTheme() => 
             state.Themes[state.ThemeList.SelectedIndex];
         
-        var app = new Hex1bApp<ThemingState>(state, (ctx, ct) =>
-        {
-            return Task.FromResult<Hex1bWidget>(
-                ctx.Splitter(
-                    left => { ... theme list ... },
-                    right => { ... widget preview ... },
-                    leftWidth: 20
-                )
-            );
-        }, terminal, GetCurrentTheme);
-        
-        await app.RunAsync();
+        var ctx = new RootContext<ThemingState>(state);
+        var widget = ctx.Splitter(
+            left => [
+                left.Text("═══ Themes ═══"),
+                left.Text(""),
+                left.List(s => s.ThemeList)
+            ],
+            right => [
+                right.Text("═══ Widget Preview ═══"),
+                right.Border(b => [...], title: "Border"),
+                right.Panel(p => [...]),
+                right.TextBox(s => s.SampleTextBox),
+                right.Button("Click Me", () => ...)
+            ],
+            leftWidth: 20
+        );
         """;
 
     /// <summary>
@@ -89,42 +93,38 @@ public class ThemingExhibit(ILogger<ThemingExhibit> logger) : Hex1bExhibit
             var ctx = new RootContext<ThemingState>(state);
             
             var widget = ctx.Splitter(
-                leftBuilder: left =>
-                {
-                    left.Text("═══ Themes ═══");
-                    left.Text("");
-                    left.AddFill(ctx.List(s => s.ThemeList));
-                },
-                rightBuilder: right =>
-                {
-                    right.Text("═══ Widget Preview ═══");
-                    right.Text("");
-                    right.Border(border =>
-                    {
-                        border.Text("  Content inside border");
-                        border.Text("  with multiple lines");
-                    }, title: "Border");
-                    right.Text("");
-                    right.Panel(panel =>
-                    {
-                        panel.Text("  Panel with styled background");
-                        panel.Text("  (theme-dependent colors)");
-                    });
-                    right.Text("");
-                    right.Text("TextBox (Tab to focus):");
-                    right.TextBox(ctx, s => s.SampleTextBox);
-                    right.Text("");
-                    right.Text("Button:");
+                ctx.VStack(left => [
+                    left.Text("═══ Themes ═══"),
+                    left.Text(""),
+                    left.List(s => s.ThemeList)
+                ]),
+                ctx.VStack(right => [
+                    right.Text("═══ Widget Preview ═══"),
+                    right.Text(""),
+                    right.Border(b => [
+                        b.Text("  Content inside border"),
+                        b.Text("  with multiple lines")
+                    ], title: "Border"),
+                    right.Text(""),
+                    right.Panel(p => [
+                        p.Text("  Panel with styled background"),
+                        p.Text("  (theme-dependent colors)")
+                    ]),
+                    right.Text(""),
+                    right.Text("TextBox (Tab to focus):"),
+                    right.TextBox(s => s.SampleTextBox),
+                    right.Text(""),
+                    right.Text("Button:"),
                     right.Button(
                         state.ButtonClicked ? "Clicked!" : "Click Me",
-                        () => state.ButtonClicked = !state.ButtonClicked);
-                    right.Text("");
-                    right.Text("─────────────────────────");
-                    right.Text("");
-                    right.Text("Use ↑↓ to change theme");
-                    right.Text("Tab to switch focus");
-                    right.Text("Enter to click button");
-                },
+                        () => state.ButtonClicked = !state.ButtonClicked),
+                    right.Text(""),
+                    right.Text("─────────────────────────"),
+                    right.Text(""),
+                    right.Text("Use ↑↓ to change theme"),
+                    right.Text("Tab to switch focus"),
+                    right.Text("Enter to click button")
+                ]),
                 leftWidth: 20
             );
 

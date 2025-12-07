@@ -7,18 +7,18 @@ using Hex1b.Widgets;
 /// The callback returns Hex1bWidget[] using collection expressions.
 /// Covariance on Hex1bWidget allows mixing different widget types.
 /// </summary>
-public static class VStackExtensions2
+public static class VStackExtensions
 {
     /// <summary>
     /// Creates a VStack where the callback returns an array of children.
     /// Use collection expression syntax: v => [v.Text("a"), v.Button("b", () => {})]
     /// </summary>
     public static VStackWidget VStack<TParent, TState>(
-        this WidgetCtx<TParent, TState> ctx,
-        Func<WidgetCtx<VStackWidget, TState>, Hex1bWidget[]> builder)
+        this WidgetContext<TParent, TState> ctx,
+        Func<WidgetContext<VStackWidget, TState>, Hex1bWidget[]> builder)
         where TParent : Hex1bWidget
     {
-        var childCtx = new WidgetCtx<VStackWidget, TState>(ctx.State);
+        var childCtx = new WidgetContext<VStackWidget, TState>(ctx.State);
         var children = builder(childCtx);
         return new VStackWidget(children);
     }
@@ -28,12 +28,12 @@ public static class VStackExtensions2
     /// First argument is the child state, enabling progressive state narrowing.
     /// </summary>
     public static VStackWidget VStack<TParent, TState, TChildState>(
-        this WidgetCtx<TParent, TState> ctx,
+        this WidgetContext<TParent, TState> ctx,
         TChildState childState,
-        Func<WidgetCtx<VStackWidget, TChildState>, Hex1bWidget[]> builder)
+        Func<WidgetContext<VStackWidget, TChildState>, Hex1bWidget[]> builder)
         where TParent : Hex1bWidget
     {
-        var childCtx = new WidgetCtx<VStackWidget, TChildState>(childState);
+        var childCtx = new WidgetContext<VStackWidget, TChildState>(childState);
         var children = builder(childCtx);
         return new VStackWidget(children);
     }
@@ -42,12 +42,12 @@ public static class VStackExtensions2
     /// Creates a VStack with state selected from parent state.
     /// </summary>
     public static VStackWidget VStack<TParent, TState, TChildState>(
-        this WidgetCtx<TParent, TState> ctx,
+        this WidgetContext<TParent, TState> ctx,
         Func<TState, TChildState> stateSelector,
-        Func<WidgetCtx<VStackWidget, TChildState>, Hex1bWidget[]> builder)
+        Func<WidgetContext<VStackWidget, TChildState>, Hex1bWidget[]> builder)
         where TParent : Hex1bWidget
     {
-        var childCtx = new WidgetCtx<VStackWidget, TChildState>(stateSelector(ctx.State));
+        var childCtx = new WidgetContext<VStackWidget, TChildState>(stateSelector(ctx.State));
         var children = builder(childCtx);
         return new VStackWidget(children);
     }

@@ -5,13 +5,13 @@ using Hex1b.Widgets;
 /// <summary>
 /// Extension methods for building TextBoxWidget.
 /// </summary>
-public static class TextBoxExtensions2
+public static class TextBoxExtensions
 {
     /// <summary>
     /// Creates a TextBox with the specified state.
     /// </summary>
     public static TextBoxWidget TextBox<TParent, TState>(
-        this WidgetCtx<TParent, TState> ctx,
+        this WidgetContext<TParent, TState> ctx,
         TextBoxState textBoxState)
         where TParent : Hex1bWidget
         => new(textBoxState);
@@ -20,7 +20,7 @@ public static class TextBoxExtensions2
     /// Creates a TextBox with state selected from context state.
     /// </summary>
     public static TextBoxWidget TextBox<TParent, TState>(
-        this WidgetCtx<TParent, TState> ctx,
+        this WidgetContext<TParent, TState> ctx,
         Func<TState, TextBoxState> stateSelector)
         where TParent : Hex1bWidget
         => new(stateSelector(ctx.State));

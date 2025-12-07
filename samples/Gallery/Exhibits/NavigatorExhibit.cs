@@ -102,8 +102,7 @@ public class NavigatorExhibit(ILogger<NavigatorExhibit> logger) : Hex1bExhibit
         /// </summary>
         private Hex1bWidget BuildStartup(NavigatorState nav)
         {
-            // Create a context for this state
-            var ctx = new WidgetContext<CrmAppState>(this);
+            var ctx = new WidgetContext<RootWidget, CrmAppState>(this);
             
             if (Customers.Count == 0)
             {
@@ -115,49 +114,47 @@ public class NavigatorExhibit(ILogger<NavigatorExhibit> logger) : Hex1bExhibit
         /// <summary>
         /// First-run experience using fluent API.
         /// </summary>
-        private Hex1bWidget BuildFirstRun(WidgetContext<CrmAppState> ctx, NavigatorState nav)
+        private Hex1bWidget BuildFirstRun(WidgetContext<RootWidget, CrmAppState> ctx, NavigatorState nav)
         {
-            return ctx.VStack(stack =>
-            {
-                stack.Text("╭───────────────────────────────────────╮");
-                stack.Text("│         Welcome to Mini CRM           │");
-                stack.Text("╰───────────────────────────────────────╯");
-                stack.Text("");
-                stack.Text("This is your first time running the CRM.");
-                stack.Text("");
-                stack.Text("To get started, you'll need to create");
-                stack.Text("your first customer record.");
-                stack.Text("");
-                stack.Button("Create First Customer →", () => 
-                    nav.Push("new-customer", n => BuildNewCustomer(ctx, n)));
-            });
+            return ctx.VStack(v => [
+                v.Text("╭───────────────────────────────────────╮"),
+                v.Text("│         Welcome to Mini CRM           │"),
+                v.Text("╰───────────────────────────────────────╯"),
+                v.Text(""),
+                v.Text("This is your first time running the CRM."),
+                v.Text(""),
+                v.Text("To get started, you'll need to create"),
+                v.Text("your first customer record."),
+                v.Text(""),
+                v.Button("Create First Customer →", () => 
+                    nav.Push("new-customer", n => BuildNewCustomer(ctx, n)))
+            ]);
         }
 
         /// <summary>
         /// New customer form using fluent API.
         /// </summary>
-        private Hex1bWidget BuildNewCustomer(WidgetContext<CrmAppState> ctx, NavigatorState nav)
+        private Hex1bWidget BuildNewCustomer(WidgetContext<RootWidget, CrmAppState> ctx, NavigatorState nav)
         {
-            return ctx.VStack(stack =>
+            return new VStackWidget([
+                new TextBlockWidget("╭───────────────────────────────────────╮"),
+                new TextBlockWidget("│          New Customer                 │"),
+                new TextBlockWidget("╰───────────────────────────────────────╯"),
+                new TextBlockWidget(""),
+                new TextBlockWidget("Company Name:"),
+                new TextBoxWidget(CompanyNameInput),
+                new TextBlockWidget(""),
+                new TextBlockWidget("Email:"),
+                new TextBoxWidget(EmailInput),
+                new TextBlockWidget(""),
+                new ButtonWidget("Save Customer", () => SaveNewCustomer(nav))
+            ])
             {
-                stack.Text("╭───────────────────────────────────────╮");
-                stack.Text("│          New Customer                 │");
-                stack.Text("╰───────────────────────────────────────╯");
-                stack.Text("");
-                stack.Text("Company Name:");
-                stack.TextBox(ctx, s => s.CompanyNameInput);
-                stack.Text("");
-                stack.Text("Email:");
-                stack.TextBox(ctx, s => s.EmailInput);
-                stack.Text("");
-                stack.Button("Save Customer", () => SaveNewCustomer(nav));
-                
-                // Add escape shortcut
-                stack.Shortcuts(new Shortcut(
+                Shortcuts = [new Shortcut(
                     KeyBinding.Plain(ConsoleKey.Escape),
                     () => nav.Pop(),
-                    "Cancel"));
-            });
+                    "Cancel")]
+            };
         }
 
         private void SaveNewCustomer(NavigatorState nav)
@@ -180,7 +177,7 @@ public class NavigatorExhibit(ILogger<NavigatorExhibit> logger) : Hex1bExhibit
         /// <summary>
         /// Home screen - master/detail using fluent API.
         /// </summary>
-        private Hex1bWidget BuildHome(WidgetContext<CrmAppState> ctx, NavigatorState nav)
+        private Hex1bWidget BuildHome(WidgetContext<RootWidget, CrmAppState> ctx, NavigatorState nav)
         {
             // Update list from customers
             CustomerList.Items = Customers
@@ -190,21 +187,16 @@ public class NavigatorExhibit(ILogger<NavigatorExhibit> logger) : Hex1bExhibit
             var selectedCustomer = Customers
                 .FirstOrDefault(c => c.Id == CustomerList.SelectedItem?.Id);
 
-            // Use the Splitter extension with VStack builders
             return ctx.Splitter(
-                leftBuilder: left =>
-                {
-                    left.Text("Customers");
-                    left.Text("─────────────────");
-                    left.AddFill(ctx.List(s => s.CustomerList));
-                    left.Text("");
+                ctx.VStack(left => [
+                    left.Text("Customers"),
+                    left.Text("─────────────────"),
+                    left.List(s => s.CustomerList),
+                    left.Text(""),
                     left.Button("+ New", () => 
-                        nav.Push("new-customer", n => BuildNewCustomer(ctx, n)));
-                },
-                rightBuilder: right =>
-                {
-                    BuildCustomerDetail(right, ctx, selectedCustomer, nav);
-                },
+                        nav.Push("new-customer", n => BuildNewCustomer(ctx, n)))
+                ]),
+                BuildCustomerDetail(ctx, selectedCustomer, nav),
                 leftWidth: 25
             );
         }
@@ -212,17 +204,17 @@ public class NavigatorExhibit(ILogger<NavigatorExhibit> logger) : Hex1bExhibit
         /// <summary>
         /// Customer detail panel (right side of splitter).
         /// </summary>
-        private void BuildCustomerDetail(
-            VStackBuilder<CrmAppState> stack,
-            WidgetContext<CrmAppState> ctx,
+        private Hex1bWidget BuildCustomerDetail(
+            WidgetContext<RootWidget, CrmAppState> ctx,
             Customer? customer,
             NavigatorState nav)
         {
             if (customer == null)
             {
-                stack.Text("");
-                stack.Text("  Select a customer");
-                return;
+                return ctx.VStack(v => [
+                    v.Text(""),
+                    v.Text("  Select a customer")
+                ]);
             }
 
             // Get opportunity list for this customer
@@ -233,54 +225,53 @@ public class NavigatorExhibit(ILogger<NavigatorExhibit> logger) : Hex1bExhibit
 
             var totalValue = customer.Opportunities.Sum(o => o.Amount);
 
-            stack.Text("Customer Details");
-            stack.Text("────────────────────────");
-            stack.Text("");
-            stack.Text($"Company: {customer.CompanyName}");
-            stack.Text($"Email:   {customer.Email}");
-            stack.Text($"ID:      {customer.Id}");
-            stack.Text("");
-            stack.Text($"Opportunities ({customer.Opportunities.Count}) - Total: ${totalValue:N0}");
-            stack.Text("────────────────────────");
-            stack.AddFill(new ListWidget(oppList));
-            
-            // HStack for buttons
-            stack.HStack(buttons =>
-            {
-                buttons.Button("+ Add", () => 
-                    nav.Push("new-opportunity", n => BuildNewOpportunity(ctx, n, customer)));
-                buttons.Button("Delete", () => 
-                    DeleteSelectedOpportunity(customer, oppList));
-            });
+            return ctx.VStack(v => [
+                v.Text("Customer Details"),
+                v.Text("────────────────────────"),
+                v.Text(""),
+                v.Text($"Company: {customer.CompanyName}"),
+                v.Text($"Email:   {customer.Email}"),
+                v.Text($"ID:      {customer.Id}"),
+                v.Text(""),
+                v.Text($"Opportunities ({customer.Opportunities.Count}) - Total: ${totalValue:N0}"),
+                v.Text("────────────────────────"),
+                new ListWidget(oppList),
+                v.HStack(h => [
+                    h.Button("+ Add", () => 
+                        nav.Push("new-opportunity", n => BuildNewOpportunity(ctx, n, customer))),
+                    h.Button("Delete", () => 
+                        DeleteSelectedOpportunity(customer, oppList))
+                ])
+            ]);
         }
 
         /// <summary>
         /// New opportunity form using fluent API.
         /// </summary>
         private Hex1bWidget BuildNewOpportunity(
-            WidgetContext<CrmAppState> ctx,
+            WidgetContext<RootWidget, CrmAppState> ctx,
             NavigatorState nav,
             Customer customer)
         {
-            return ctx.VStack(stack =>
+            return new VStackWidget([
+                new TextBlockWidget("╭───────────────────────────────────────╮"),
+                new TextBlockWidget($"│  New Opportunity for {customer.CompanyName,-16} │"),
+                new TextBlockWidget("╰───────────────────────────────────────╯"),
+                new TextBlockWidget(""),
+                new TextBlockWidget("Opportunity Name:"),
+                new TextBoxWidget(OpportunityNameInput),
+                new TextBlockWidget(""),
+                new TextBlockWidget("Amount ($):"),
+                new TextBoxWidget(OpportunityAmountInput),
+                new TextBlockWidget(""),
+                new ButtonWidget("Save Opportunity", () => SaveNewOpportunity(nav, customer))
+            ])
             {
-                stack.Text("╭───────────────────────────────────────╮");
-                stack.Text($"│  New Opportunity for {customer.CompanyName,-16} │");
-                stack.Text("╰───────────────────────────────────────╯");
-                stack.Text("");
-                stack.Text("Opportunity Name:");
-                stack.TextBox(ctx, s => s.OpportunityNameInput);
-                stack.Text("");
-                stack.Text("Amount ($):");
-                stack.TextBox(ctx, s => s.OpportunityAmountInput);
-                stack.Text("");
-                stack.Button("Save Opportunity", () => SaveNewOpportunity(nav, customer));
-                
-                stack.Shortcuts(new Shortcut(
+                Shortcuts = [new Shortcut(
                     KeyBinding.Plain(ConsoleKey.Escape),
                     () => nav.Pop(),
-                    "Cancel"));
-            });
+                    "Cancel")]
+            };
         }
 
         private void SaveNewOpportunity(NavigatorState nav, Customer customer)

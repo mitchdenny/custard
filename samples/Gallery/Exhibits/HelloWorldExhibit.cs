@@ -29,17 +29,16 @@ public class HelloWorldExhibit(ILogger<HelloWorldExhibit> logger) : Hex1bExhibit
         var app = new Hex1bApp<AppState>(state, (ctx, ct) =>
         {
             return Task.FromResult<Hex1bWidget>(
-                ctx.VStack(stack =>
-                {
-                    stack.Text("╔════════════════════════════════════╗");
-                    stack.Text("║    Hello, Fluent World!            ║");
-                    stack.Text("║    Using the Context-Based API     ║");
-                    stack.Text("╚════════════════════════════════════╝");
-                    stack.Text("");
-                    stack.Text($"Click count: {ctx.State.ClickCount}");
-                    stack.Text("");
-                    stack.Button("Click me!", () => ctx.State.ClickCount++);
-                })
+                ctx.VStack(v => [
+                    v.Text("╔════════════════════════════════════╗"),
+                    v.Text("║    Hello, Fluent World!            ║"),
+                    v.Text("║    Using the Context-Based API     ║"),
+                    v.Text("╚════════════════════════════════════╝"),
+                    v.Text(""),
+                    v.Text($"Click count: {ctx.State.ClickCount}"),
+                    v.Text(""),
+                    v.Button("Click me!", () => ctx.State.ClickCount++)
+                ])
             );
         });
         
@@ -66,18 +65,17 @@ public class HelloWorldExhibit(ILogger<HelloWorldExhibit> logger) : Hex1bExhibit
             // Create root context with the state
             var ctx = new RootContext<HelloState>(state);
 
-            // Build using fluent API
-            var widget = ctx.VStack(stack =>
-            {
-                stack.Text("╔════════════════════════════════════╗");
-                stack.Text("║    Hello, Fluent World!            ║");
-                stack.Text("║    Using the Context-Based API     ║");
-                stack.Text("╚════════════════════════════════════╝");
-                stack.Text("");
-                stack.Text($"Click count: {ctx.State.ClickCount}");
-                stack.Text("");
-                stack.Button("Click me!", () => ctx.State.ClickCount++);
-            });
+            // Build using fluent API with collection expressions
+            var widget = ctx.VStack(v => [
+                v.Text("╔════════════════════════════════════╗"),
+                v.Text("║    Hello, Fluent World!            ║"),
+                v.Text("║    Using the Context-Based API     ║"),
+                v.Text("╚════════════════════════════════════╝"),
+                v.Text(""),
+                v.Text(s => $"Click count: {s.ClickCount}"),
+                v.Text(""),
+                v.Button("Click me!", () => state.ClickCount++)
+            ]);
 
             return Task.FromResult<Hex1bWidget>(widget);
         };

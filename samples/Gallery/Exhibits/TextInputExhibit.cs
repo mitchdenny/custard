@@ -24,15 +24,14 @@ public class TextInputExhibit(ILogger<TextInputExhibit> logger) : Hex1bExhibit
         var app = new Hex1bApp<TextInputState>(state, (ctx, ct) =>
         {
             return Task.FromResult<Hex1bWidget>(
-                ctx.VStack(stack =>
-                {
-                    stack.Text("Interactive Text Input");
-                    stack.Text("─────────────────────────");
-                    stack.Text("");
-                    stack.TextBox(ctx, s => s.Input);
-                    stack.Text("");
-                    stack.Text("Type something! Use Backspace to delete.");
-                })
+                ctx.VStack(v => [
+                    v.Text("Interactive Text Input"),
+                    v.Text("─────────────────────────"),
+                    v.Text(""),
+                    v.TextBox(s => s.Input),
+                    v.Text(""),
+                    v.Text("Type something! Use Backspace to delete.")
+                ])
             );
         });
         await app.RunAsync();
@@ -54,15 +53,14 @@ public class TextInputExhibit(ILogger<TextInputExhibit> logger) : Hex1bExhibit
         {
             var ctx = new RootContext<TextInputState>(state);
             
-            var widget = ctx.VStack(stack =>
-            {
-                stack.Text("Interactive Text Input");
-                stack.Text("─────────────────────────");
-                stack.Text("");
-                stack.TextBox(ctx, s => s.Input);
-                stack.Text("");
-                stack.Text("Type something! Use Backspace to delete.");
-            });
+            var widget = ctx.VStack(v => [
+                v.Text("Interactive Text Input"),
+                v.Text("─────────────────────────"),
+                v.Text(""),
+                v.TextBox(s => s.Input),
+                v.Text(""),
+                v.Text("Type something! Use Backspace to delete.")
+            ]);
 
             return Task.FromResult<Hex1bWidget>(widget);
         };

@@ -3,6 +3,7 @@ using System.Text;
 using System.Text.Json;
 using Gallery;
 using Gallery.Exhibits;
+using Hex1b;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -58,31 +59,77 @@ app.Map("/apps/{exhibitId}", async (HttpContext context, string exhibitId, IEnum
     }
 
     using var webSocket = await context.WebSockets.AcceptWebSocketAsync();
-    var session = new TerminalSession();
+
+    if (exhibit.UsesHex1b)
+    {
+        // Handle Hex1b-based exhibit
+        await HandleHex1bExhibitAsync(webSocket, exhibit, context.RequestAborted);
+    }
+    else
+    {
+        // Handle legacy raw WebSocket exhibit
+        var session = new TerminalSession();
+        
+        // Start a task to handle resize messages
+        using var cts = CancellationTokenSource.CreateLinkedTokenSource(context.RequestAborted);
+        var resizeHandler = HandleResizeMessagesAsync(webSocket, session, cts.Token);
+        
+        try
+        {
+            await exhibit.HandleSessionAsync(webSocket, session, cts.Token);
+        }
+        catch (OperationCanceledException)
+        {
+            // Client disconnected
+        }
+        catch (WebSocketException)
+        {
+            // Connection closed unexpectedly
+        }
+        finally
+        {
+            cts.Cancel();
+        }
+    }
+});
+
+app.Run();
+
+async Task HandleHex1bExhibitAsync(WebSocket webSocket, IGalleryExhibit exhibit, CancellationToken cancellationToken)
+{
+    using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+    using var terminal = new WebSocketHex1bTerminal(webSocket, 80, 24);
     
-    // Start a task to handle resize messages
-    using var cts = CancellationTokenSource.CreateLinkedTokenSource(context.RequestAborted);
-    var resizeHandler = HandleResizeMessagesAsync(webSocket, session, cts.Token);
+    var widgetBuilder = exhibit.CreateWidgetBuilder();
+    if (widgetBuilder == null)
+    {
+        throw new InvalidOperationException($"Exhibit {exhibit.Id} claims UsesHex1b but CreateWidgetBuilder returned null");
+    }
+
+    using var hex1bApp = new Hex1bApp(widgetBuilder, terminal);
+    
+    // Run input processing and the Hex1b app concurrently
+    var inputTask = terminal.ProcessInputAsync(cts.Token);
+    var appTask = hex1bApp.RunAsync(cts.Token);
     
     try
     {
-        await exhibit.HandleSessionAsync(webSocket, session, cts.Token);
+        // Wait for either to complete (usually the app exits first on user action)
+        await Task.WhenAny(inputTask, appTask);
     }
     catch (OperationCanceledException)
     {
-        // Client disconnected
+        // Normal shutdown
     }
     catch (WebSocketException)
     {
-        // Connection closed unexpectedly
+        // Connection closed
     }
     finally
     {
         cts.Cancel();
     }
-});
-
-app.Run();
+}
 
 async Task HandleResizeMessagesAsync(WebSocket webSocket, TerminalSession session, CancellationToken cancellationToken)
 {

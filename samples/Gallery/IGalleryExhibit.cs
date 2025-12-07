@@ -1,4 +1,6 @@
 using System.Net.WebSockets;
+using Hex1b;
+using Hex1b.Widgets;
 
 namespace Gallery;
 
@@ -28,9 +30,43 @@ public interface IGalleryExhibit
     string SourceCode { get; }
 
     /// <summary>
+    /// Indicates whether this exhibit uses the Hex1b widget system.
+    /// If true, CreateWidgetBuilder will be called instead of HandleSessionAsync.
+    /// </summary>
+    bool UsesHex1b => false;
+
+    /// <summary>
+    /// Creates the Hex1b widget builder for this exhibit.
+    /// Only called if UsesHex1b returns true.
+    /// </summary>
+    Func<CancellationToken, Task<Hex1bWidget>>? CreateWidgetBuilder() => null;
+
+    /// <summary>
     /// Handle a WebSocket terminal session for this exhibit.
+    /// Only called if UsesHex1b returns false.
     /// </summary>
     Task HandleSessionAsync(WebSocket webSocket, TerminalSession session, CancellationToken cancellationToken);
+}
+
+/// <summary>
+/// Base class for exhibits that use the Hex1b widget system.
+/// </summary>
+public abstract class Hex1bExhibit : IGalleryExhibit
+{
+    public abstract string Id { get; }
+    public abstract string Title { get; }
+    public abstract string Description { get; }
+    public abstract string SourceCode { get; }
+
+    public bool UsesHex1b => true;
+
+    public abstract Func<CancellationToken, Task<Hex1bWidget>>? CreateWidgetBuilder();
+
+    public Task HandleSessionAsync(WebSocket webSocket, TerminalSession session, CancellationToken cancellationToken)
+    {
+        // This won't be called for Hex1b exhibits
+        throw new NotSupportedException("This exhibit uses Hex1b widgets. Use CreateWidgetBuilder instead.");
+    }
 }
 
 /// <summary>

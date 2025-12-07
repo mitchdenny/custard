@@ -1,50 +1,39 @@
 using System.Net.WebSockets;
-using System.Text;
+using Hex1b.Widgets;
 
 namespace Gallery.Exhibits;
 
-public class HelloWorldExhibit : IGalleryExhibit
+public class HelloWorldExhibit : Hex1bExhibit
 {
-    public string Id => "hello-world";
-    public string Title => "Hello World";
-    public string Description => "A simple hello world terminal output with ANSI colors.";
+    public override string Id => "hello-world";
+    public override string Title => "Hello World";
+    public override string Description => "A simple hello world using Hex1b widgets.";
 
-    public string SourceCode => """
-        var app = new Hex1bApp(() => new TextBlockWidget("Hello, World!")
-        {
-            Foreground = CustardColor.Green
-        });
+    public override string SourceCode => """
+        var app = new Hex1bApp(ct => Task.FromResult<Hex1bWidget>(
+            new VStackWidget([
+                new TextBlockWidget("╔════════════════════════════════════╗"),
+                new TextBlockWidget("║    Hello, World!                   ║"),
+                new TextBlockWidget("║    Welcome to Hex1b Gallery        ║"),
+                new TextBlockWidget("╚════════════════════════════════════╝"),
+                new TextBlockWidget(""),
+                new TextBlockWidget("Press any key to interact...")
+            ])
+        ));
         await app.RunAsync();
         """;
 
-    public async Task HandleSessionAsync(WebSocket webSocket, TerminalSession session, CancellationToken cancellationToken)
+    public override Func<CancellationToken, Task<Hex1bWidget>>? CreateWidgetBuilder()
     {
-        var message = "\x1b[32m╔════════════════════════════════════╗\x1b[0m\r\n" +
-                      "\x1b[32m║\x1b[0m    \x1b[1;36mHello, World!\x1b[0m                 \x1b[32m║\x1b[0m\r\n" +
-                      "\x1b[32m║\x1b[0m    Welcome to Hex1b Gallery        \x1b[32m║\x1b[0m\r\n" +
-                      "\x1b[32m╚════════════════════════════════════╝\x1b[0m\r\n" +
-                      $"\r\nTerminal size: {session.Cols}x{session.Rows}\r\n";
-
-        await webSocket.SendAsync(
-            Encoding.UTF8.GetBytes(message),
-            WebSocketMessageType.Text,
-            true,
-            cancellationToken);
-
-        await KeepAliveAsync(webSocket, cancellationToken);
-    }
-
-    private static async Task KeepAliveAsync(WebSocket webSocket, CancellationToken cancellationToken)
-    {
-        var buffer = new byte[1024];
-        while (webSocket.State == WebSocketState.Open && !cancellationToken.IsCancellationRequested)
-        {
-            var result = await webSocket.ReceiveAsync(buffer, cancellationToken);
-            if (result.MessageType == WebSocketMessageType.Close)
-            {
-                await webSocket.CloseAsync(WebSocketCloseStatus.NormalClosure, "Closing", cancellationToken);
-                break;
-            }
-        }
+        return ct => Task.FromResult<Hex1bWidget>(
+            new VStackWidget([
+                new TextBlockWidget("╔════════════════════════════════════╗"),
+                new TextBlockWidget("║    Hello, World!                   ║"),
+                new TextBlockWidget("║    Welcome to Hex1b Gallery        ║"),
+                new TextBlockWidget("╚════════════════════════════════════╝"),
+                new TextBlockWidget(""),
+                new TextBlockWidget("Press any key to interact...")
+            ])
+        );
     }
 }

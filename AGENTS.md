@@ -171,8 +171,8 @@ dotnet run --project apphost.cs
 | `src/Hex1b/Hex1bApp.cs` | Main entry point, reconciliation, render loop |
 | `src/Hex1b/Hex1bRenderContext.cs` | Terminal rendering abstraction |
 | `src/Hex1b/IHex1bTerminal.cs` | Terminal interface (mockable for tests) |
-| `src/Hex1b/Nodes/CustardNode.cs` | Base class for all nodes |
-| `src/Hex1b/Widgets/CustardWidget.cs` | Base class for all widgets |
+| `src/Hex1b/Nodes/Hex1bNode.cs` | Base class for all nodes |
+| `src/Hex1b/Widgets/Hex1bWidget.cs` | Base class for all widgets |
 | `src/Hex1b/Layout/Constraints.cs` | Layout constraint system |
 
 ## 🧪 Testing Strategies

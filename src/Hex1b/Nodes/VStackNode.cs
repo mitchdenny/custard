@@ -168,6 +168,9 @@ public sealed class VStackNode : Hex1bNode
             case ListNode list:
                 list.IsFocused = focused;
                 break;
+            case SplitterNode splitter:
+                splitter.IsFocused = focused;
+                break;
         }
     }
 
@@ -186,6 +189,7 @@ public sealed class VStackNode : Hex1bNode
                 TextBoxNode textBox => textBox.IsFocused,
                 ButtonNode button => button.IsFocused,
                 ListNode list => list.IsFocused,
+                SplitterNode splitter => splitter.IsFocused,
                 _ => false
             };
             if (isFocused)

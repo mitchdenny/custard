@@ -8,8 +8,33 @@ public sealed class SplitterNode : Hex1bNode
     public Hex1bNode? Left { get; set; }
     public Hex1bNode? Right { get; set; }
     public int LeftWidth { get; set; } = 30;
+    public bool IsFocused { get; set; } = false;
+    
+    /// <summary>
+    /// The amount to move the splitter when pressing left/right arrow keys.
+    /// </summary>
+    public int ResizeStep { get; set; } = 2;
+    
+    /// <summary>
+    /// Minimum width for the left pane.
+    /// </summary>
+    public int MinLeftWidth { get; set; } = 5;
+    
     private int _focusedIndex = 0;
     private List<Hex1bNode>? _focusableNodes;
+
+    public override bool IsFocusable => true;
+
+    /// <summary>
+    /// Computes a contrasting color (black or white) based on the luminance of the input color.
+    /// </summary>
+    private static Hex1bColor GetContrastingColor(Hex1bColor color)
+    {
+        // Calculate relative luminance using the formula for sRGB
+        // https://www.w3.org/TR/WCAG20/#relativeluminancedef
+        var luminance = (0.299 * color.R + 0.587 * color.G + 0.114 * color.B) / 255.0;
+        return luminance > 0.5 ? Hex1bColor.Black : Hex1bColor.White;
+    }
 
     public override Size Measure(Constraints constraints)
     {
@@ -51,6 +76,10 @@ public sealed class SplitterNode : Hex1bNode
                 yield return focusable;
             }
         }
+        
+        // The splitter itself is focusable (for resizing with arrow keys)
+        yield return this;
+        
         if (Right != null)
         {
             foreach (var focusable in Right.GetFocusableNodes())
@@ -86,6 +115,22 @@ public sealed class SplitterNode : Hex1bNode
         var dividerChar = theme.Get(SplitterTheme.DividerCharacter);
         var dividerColor = theme.Get(SplitterTheme.DividerColor);
         
+        // When focused, invert colors: divider color becomes background, use contrasting foreground
+        Hex1bColor dividerFg;
+        Hex1bColor dividerBg;
+        
+        if (IsFocused)
+        {
+            // Use divider color as background, compute contrasting foreground
+            dividerBg = dividerColor.IsDefault ? Hex1bColor.White : dividerColor;
+            dividerFg = GetContrastingColor(dividerBg);
+        }
+        else
+        {
+            dividerFg = dividerColor;
+            dividerBg = Hex1bColor.Default;
+        }
+        
         // Render left pane at its bounds
         if (Left != null)
         {
@@ -98,7 +143,14 @@ public sealed class SplitterNode : Hex1bNode
         for (int row = 0; row < Bounds.Height; row++)
         {
             context.SetCursorPosition(dividerX, Bounds.Y + row);
-            context.Write($"{dividerColor.ToForegroundAnsi()}{dividerChar}\x1b[0m");
+            if (IsFocused)
+            {
+                context.Write($"{dividerFg.ToForegroundAnsi()}{dividerBg.ToBackgroundAnsi()}{dividerChar}\x1b[0m");
+            }
+            else
+            {
+                context.Write($"{dividerFg.ToForegroundAnsi()}{dividerChar}\x1b[0m");
+            }
         }
         
         // Render right pane at its bounds
@@ -168,10 +220,32 @@ public sealed class SplitterNode : Hex1bNode
             }
         }
 
-        // Dispatch to focused node for regular input handling
+        // Handle splitter resize when the splitter itself is focused
+        if (IsFocused && evt is KeyInputEvent resizeEvent)
+        {
+            if (resizeEvent.Key == ConsoleKey.LeftArrow)
+            {
+                // Decrease left pane width
+                LeftWidth = Math.Max(MinLeftWidth, LeftWidth - ResizeStep);
+                return true;
+            }
+            else if (resizeEvent.Key == ConsoleKey.RightArrow)
+            {
+                // Increase left pane width (respect overall bounds)
+                var maxLeftWidth = Bounds.Width - 3 - MinLeftWidth; // 3 for divider, MinLeftWidth for right pane
+                LeftWidth = Math.Min(maxLeftWidth, LeftWidth + ResizeStep);
+                return true;
+            }
+        }
+
+        // Dispatch to focused node for regular input handling (but not to ourselves to avoid infinite recursion)
         if (_focusedIndex >= 0 && _focusedIndex < focusablesList.Count)
         {
-            return focusablesList[_focusedIndex].HandleInput(evt);
+            var focusedNode = focusablesList[_focusedIndex];
+            if (focusedNode != this)
+            {
+                return focusedNode.HandleInput(evt);
+            }
         }
 
         return false;
@@ -189,6 +263,9 @@ public sealed class SplitterNode : Hex1bNode
                 break;
             case ListNode list:
                 list.IsFocused = focused;
+                break;
+            case SplitterNode splitter:
+                splitter.IsFocused = focused;
                 break;
         }
     }
@@ -208,6 +285,7 @@ public sealed class SplitterNode : Hex1bNode
                 TextBoxNode textBox => textBox.IsFocused,
                 ButtonNode button => button.IsFocused,
                 ListNode list => list.IsFocused,
+                SplitterNode splitter => splitter.IsFocused,
                 _ => false
             };
             if (isFocused)

@@ -254,6 +254,9 @@ public class Hex1bApp<TState> : IDisposable
             case ListNode list:
                 list.IsFocused = focused;
                 break;
+            case SplitterNode splitter:
+                splitter.IsFocused = focused;
+                break;
         }
     }
 
@@ -269,7 +272,12 @@ public class Hex1bApp<TState> : IDisposable
         var node = existingNode ?? new SplitterNode();
         node.Left = Reconcile(node.Left, widget.Left, node);
         node.Right = Reconcile(node.Right, widget.Right, node);
-        node.LeftWidth = widget.LeftWidth;
+        
+        // Only set LeftWidth on initial creation - preserve user resizing
+        if (existingNode is null)
+        {
+            node.LeftWidth = widget.LeftWidth;
+        }
         
         // Invalidate focus cache since children may have changed
         node.InvalidateFocusCache();
@@ -459,6 +467,7 @@ public class Hex1bApp<TState> : IDisposable
             TextBoxNode textBox => textBox.IsFocused,
             ButtonNode button => button.IsFocused,
             ListNode list => list.IsFocused,
+            SplitterNode splitter => splitter.IsFocused,
             _ => false
         };
     }

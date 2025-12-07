@@ -6,25 +6,25 @@ namespace Hex1b.Theming;
 public static class ButtonTheme
 {
     public static readonly Hex1bThemeElement<int> MinimumWidth = 
-        new("Button.MinimumWidth", () => 10);
+        new($"{nameof(ButtonTheme)}.{nameof(MinimumWidth)}", () => 10);
     
     public static readonly Hex1bThemeElement<Hex1bColor> ForegroundColor = 
-        new("Button.ForegroundColor", () => Hex1bColor.Default);
+        new($"{nameof(ButtonTheme)}.{nameof(ForegroundColor)}", () => Hex1bColor.Default);
     
     public static readonly Hex1bThemeElement<Hex1bColor> BackgroundColor = 
-        new("Button.BackgroundColor", () => Hex1bColor.Default);
+        new($"{nameof(ButtonTheme)}.{nameof(BackgroundColor)}", () => Hex1bColor.Default);
     
     public static readonly Hex1bThemeElement<Hex1bColor> FocusedForegroundColor = 
-        new("Button.FocusedForegroundColor", () => Hex1bColor.Black);
+        new($"{nameof(ButtonTheme)}.{nameof(FocusedForegroundColor)}", () => Hex1bColor.Black);
     
     public static readonly Hex1bThemeElement<Hex1bColor> FocusedBackgroundColor = 
-        new("Button.FocusedBackgroundColor", () => Hex1bColor.White);
+        new($"{nameof(ButtonTheme)}.{nameof(FocusedBackgroundColor)}", () => Hex1bColor.White);
     
     public static readonly Hex1bThemeElement<string> LeftBracket = 
-        new("Button.LeftBracket", () => "[ ");
+        new($"{nameof(ButtonTheme)}.{nameof(LeftBracket)}", () => "[ ");
     
     public static readonly Hex1bThemeElement<string> RightBracket = 
-        new("Button.RightBracket", () => " ]");
+        new($"{nameof(ButtonTheme)}.{nameof(RightBracket)}", () => " ]");
 }
 
 /// <summary>
@@ -33,31 +33,31 @@ public static class ButtonTheme
 public static class TextBoxTheme
 {
     public static readonly Hex1bThemeElement<Hex1bColor> ForegroundColor = 
-        new("TextBox.ForegroundColor", () => Hex1bColor.Default);
+        new($"{nameof(TextBoxTheme)}.{nameof(ForegroundColor)}", () => Hex1bColor.Default);
     
     public static readonly Hex1bThemeElement<Hex1bColor> BackgroundColor = 
-        new("TextBox.BackgroundColor", () => Hex1bColor.Default);
+        new($"{nameof(TextBoxTheme)}.{nameof(BackgroundColor)}", () => Hex1bColor.Default);
     
     public static readonly Hex1bThemeElement<Hex1bColor> FocusedForegroundColor = 
-        new("TextBox.FocusedForegroundColor", () => Hex1bColor.Default);
+        new($"{nameof(TextBoxTheme)}.{nameof(FocusedForegroundColor)}", () => Hex1bColor.Default);
     
     public static readonly Hex1bThemeElement<Hex1bColor> CursorForegroundColor = 
-        new("TextBox.CursorForegroundColor", () => Hex1bColor.Black);
+        new($"{nameof(TextBoxTheme)}.{nameof(CursorForegroundColor)}", () => Hex1bColor.Black);
     
     public static readonly Hex1bThemeElement<Hex1bColor> CursorBackgroundColor = 
-        new("TextBox.CursorBackgroundColor", () => Hex1bColor.White);
+        new($"{nameof(TextBoxTheme)}.{nameof(CursorBackgroundColor)}", () => Hex1bColor.White);
     
     public static readonly Hex1bThemeElement<Hex1bColor> SelectionForegroundColor = 
-        new("TextBox.SelectionForegroundColor", () => Hex1bColor.Black);
+        new($"{nameof(TextBoxTheme)}.{nameof(SelectionForegroundColor)}", () => Hex1bColor.Black);
     
     public static readonly Hex1bThemeElement<Hex1bColor> SelectionBackgroundColor = 
-        new("TextBox.SelectionBackgroundColor", () => Hex1bColor.Cyan);
+        new($"{nameof(TextBoxTheme)}.{nameof(SelectionBackgroundColor)}", () => Hex1bColor.Cyan);
     
     public static readonly Hex1bThemeElement<string> LeftBracket = 
-        new("TextBox.LeftBracket", () => "[");
+        new($"{nameof(TextBoxTheme)}.{nameof(LeftBracket)}", () => "[");
     
     public static readonly Hex1bThemeElement<string> RightBracket = 
-        new("TextBox.RightBracket", () => "]");
+        new($"{nameof(TextBoxTheme)}.{nameof(RightBracket)}", () => "]");
 }
 
 /// <summary>
@@ -66,22 +66,22 @@ public static class TextBoxTheme
 public static class ListTheme
 {
     public static readonly Hex1bThemeElement<Hex1bColor> ForegroundColor = 
-        new("List.ForegroundColor", () => Hex1bColor.Default);
+        new($"{nameof(ListTheme)}.{nameof(ForegroundColor)}", () => Hex1bColor.Default);
     
     public static readonly Hex1bThemeElement<Hex1bColor> BackgroundColor = 
-        new("List.BackgroundColor", () => Hex1bColor.Default);
+        new($"{nameof(ListTheme)}.{nameof(BackgroundColor)}", () => Hex1bColor.Default);
     
     public static readonly Hex1bThemeElement<Hex1bColor> SelectedForegroundColor = 
-        new("List.SelectedForegroundColor", () => Hex1bColor.White);
+        new($"{nameof(ListTheme)}.{nameof(SelectedForegroundColor)}", () => Hex1bColor.White);
     
     public static readonly Hex1bThemeElement<Hex1bColor> SelectedBackgroundColor = 
-        new("List.SelectedBackgroundColor", () => Hex1bColor.Blue);
+        new($"{nameof(ListTheme)}.{nameof(SelectedBackgroundColor)}", () => Hex1bColor.Blue);
     
     public static readonly Hex1bThemeElement<string> SelectedIndicator = 
-        new("List.SelectedIndicator", () => "> ");
+        new($"{nameof(ListTheme)}.{nameof(SelectedIndicator)}", () => "> ");
     
     public static readonly Hex1bThemeElement<string> UnselectedIndicator = 
-        new("List.UnselectedIndicator", () => "  ");
+        new($"{nameof(ListTheme)}.{nameof(UnselectedIndicator)}", () => "  ");
 }
 
 /// <summary>
@@ -90,10 +90,10 @@ public static class ListTheme
 public static class SplitterTheme
 {
     public static readonly Hex1bThemeElement<Hex1bColor> DividerColor = 
-        new("Splitter.DividerColor", () => Hex1bColor.Gray);
+        new($"{nameof(SplitterTheme)}.{nameof(DividerColor)}", () => Hex1bColor.Gray);
     
     public static readonly Hex1bThemeElement<string> DividerCharacter = 
-        new("Splitter.DividerCharacter", () => "│");
+        new($"{nameof(SplitterTheme)}.{nameof(DividerCharacter)}", () => "│");
 }
 
 /// <summary>
@@ -102,10 +102,10 @@ public static class SplitterTheme
 public static class GlobalTheme
 {
     public static readonly Hex1bThemeElement<Hex1bColor> ForegroundColor = 
-        new("Global.ForegroundColor", () => Hex1bColor.Default);
+        new($"{nameof(GlobalTheme)}.{nameof(ForegroundColor)}", () => Hex1bColor.Default);
     
     public static readonly Hex1bThemeElement<Hex1bColor> BackgroundColor = 
-        new("Global.BackgroundColor", () => Hex1bColor.Default);
+        new($"{nameof(GlobalTheme)}.{nameof(BackgroundColor)}", () => Hex1bColor.Default);
 }
 
 /// <summary>
@@ -114,28 +114,28 @@ public static class GlobalTheme
 public static class BorderTheme
 {
     public static readonly Hex1bThemeElement<Hex1bColor> BorderColor = 
-        new("Border.BorderColor", () => Hex1bColor.Gray);
+        new($"{nameof(BorderTheme)}.{nameof(BorderColor)}", () => Hex1bColor.Gray);
     
     public static readonly Hex1bThemeElement<Hex1bColor> TitleColor = 
-        new("Border.TitleColor", () => Hex1bColor.White);
+        new($"{nameof(BorderTheme)}.{nameof(TitleColor)}", () => Hex1bColor.White);
     
     public static readonly Hex1bThemeElement<string> TopLeftCorner = 
-        new("Border.TopLeftCorner", () => "┌");
+        new($"{nameof(BorderTheme)}.{nameof(TopLeftCorner)}", () => "┌");
     
     public static readonly Hex1bThemeElement<string> TopRightCorner = 
-        new("Border.TopRightCorner", () => "┐");
+        new($"{nameof(BorderTheme)}.{nameof(TopRightCorner)}", () => "┐");
     
     public static readonly Hex1bThemeElement<string> BottomLeftCorner = 
-        new("Border.BottomLeftCorner", () => "└");
+        new($"{nameof(BorderTheme)}.{nameof(BottomLeftCorner)}", () => "└");
     
     public static readonly Hex1bThemeElement<string> BottomRightCorner = 
-        new("Border.BottomRightCorner", () => "┘");
+        new($"{nameof(BorderTheme)}.{nameof(BottomRightCorner)}", () => "┘");
     
     public static readonly Hex1bThemeElement<string> HorizontalLine = 
-        new("Border.HorizontalLine", () => "─");
+        new($"{nameof(BorderTheme)}.{nameof(HorizontalLine)}", () => "─");
     
     public static readonly Hex1bThemeElement<string> VerticalLine = 
-        new("Border.VerticalLine", () => "│");
+        new($"{nameof(BorderTheme)}.{nameof(VerticalLine)}", () => "│");
 }
 
 /// <summary>
@@ -144,8 +144,8 @@ public static class BorderTheme
 public static class PanelTheme
 {
     public static readonly Hex1bThemeElement<Hex1bColor> ForegroundColor = 
-        new("Panel.ForegroundColor", () => Hex1bColor.Default);
+        new($"{nameof(PanelTheme)}.{nameof(ForegroundColor)}", () => Hex1bColor.Default);
     
     public static readonly Hex1bThemeElement<Hex1bColor> BackgroundColor = 
-        new("Panel.BackgroundColor", () => Hex1bColor.Default);
+        new($"{nameof(PanelTheme)}.{nameof(BackgroundColor)}", () => Hex1bColor.Default);
 }

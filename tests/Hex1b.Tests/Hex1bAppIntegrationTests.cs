@@ -12,8 +12,9 @@ public class Hex1bAppIntegrationTests
     {
         using var terminal = new Hex1bTerminal(80, 24);
         
-        using var app = new Hex1bApp(
-            _ => Task.FromResult<Hex1bWidget>(new TextBlockWidget("Hello")),
+        using var app = new Hex1bApp<object>(
+            new object(),
+            (ctx, ct) => Task.FromResult<Hex1bWidget>(new TextBlockWidget("Hello")),
             terminal
         );
 
@@ -31,8 +32,9 @@ public class Hex1bAppIntegrationTests
     {
         using var terminal = new Hex1bTerminal(80, 24);
         
-        using var app = new Hex1bApp(
-            _ => Task.FromResult<Hex1bWidget>(new TextBlockWidget("Hello World")),
+        using var app = new Hex1bApp<object>(
+            new object(),
+            (ctx, ct) => Task.FromResult<Hex1bWidget>(new TextBlockWidget("Hello World")),
             terminal
         );
 
@@ -49,8 +51,9 @@ public class Hex1bAppIntegrationTests
         var textState = new TextBoxState { Text = "" };
         
         // Wrap in VStack to get automatic focus
-        using var app = new Hex1bApp(
-            _ => Task.FromResult<Hex1bWidget>(
+        using var app = new Hex1bApp<object>(
+            new object(),
+            (ctx, ct) => Task.FromResult<Hex1bWidget>(
                 new VStackWidget(new Hex1bWidget[]
                 {
                     new TextBoxWidget(textState)
@@ -76,8 +79,9 @@ public class Hex1bAppIntegrationTests
         var clicked = false;
         
         // Wrap in VStack to get automatic focus
-        using var app = new Hex1bApp(
-            _ => Task.FromResult<Hex1bWidget>(
+        using var app = new Hex1bApp<object>(
+            new object(),
+            (ctx, ct) => Task.FromResult<Hex1bWidget>(
                 new VStackWidget(new Hex1bWidget[]
                 {
                     new ButtonWidget("Click Me", () => clicked = true)
@@ -100,8 +104,9 @@ public class Hex1bAppIntegrationTests
         using var terminal = new Hex1bTerminal(80, 24);
         using var cts = new CancellationTokenSource();
         
-        using var app = new Hex1bApp(
-            _ => Task.FromResult<Hex1bWidget>(new TextBlockWidget("Test")),
+        using var app = new Hex1bApp<object>(
+            new object(),
+            (ctx, ct) => Task.FromResult<Hex1bWidget>(new TextBlockWidget("Test")),
             terminal
         );
 
@@ -122,8 +127,9 @@ public class Hex1bAppIntegrationTests
     {
         using var terminal = new Hex1bTerminal(80, 24);
         
-        using var app = new Hex1bApp(
-            _ => Task.FromResult<Hex1bWidget>(
+        using var app = new Hex1bApp<object>(
+            new object(),
+            (ctx, ct) => Task.FromResult<Hex1bWidget>(
                 new VStackWidget(new Hex1bWidget[]
                 {
                     new TextBlockWidget("Line 1"),
@@ -149,8 +155,9 @@ public class Hex1bAppIntegrationTests
         var textState1 = new TextBoxState { Text = "" };
         var textState2 = new TextBoxState { Text = "" };
         
-        using var app = new Hex1bApp(
-            _ => Task.FromResult<Hex1bWidget>(
+        using var app = new Hex1bApp<object>(
+            new object(),
+            (ctx, ct) => Task.FromResult<Hex1bWidget>(
                 new VStackWidget(new Hex1bWidget[]
                 {
                     new TextBoxWidget(textState1),
@@ -189,8 +196,9 @@ public class Hex1bAppIntegrationTests
         };
         
         // Wrap in VStack to get automatic focus
-        using var app = new Hex1bApp(
-            _ => Task.FromResult<Hex1bWidget>(
+        using var app = new Hex1bApp<object>(
+            new object(),
+            (ctx, ct) => Task.FromResult<Hex1bWidget>(
                 new VStackWidget(new Hex1bWidget[]
                 {
                     new ListWidget(listState)
@@ -215,8 +223,9 @@ public class Hex1bAppIntegrationTests
         using var terminal = new Hex1bTerminal(80, 24);
         var counter = 0;
         
-        using var app = new Hex1bApp(
-            _ => 
+        using var app = new Hex1bApp<object>(
+            new object(),
+            (ctx, ct) => 
             {
                 var widget = new VStackWidget(new Hex1bWidget[]
                 {
@@ -245,8 +254,9 @@ public class Hex1bAppIntegrationTests
     {
         var terminal = new Hex1bTerminal(80, 24);
         
-        var app = new Hex1bApp(
-            _ => Task.FromResult<Hex1bWidget>(new TextBlockWidget("Test")),
+        var app = new Hex1bApp<object>(
+            new object(),
+            (ctx, ct) => Task.FromResult<Hex1bWidget>(new TextBlockWidget("Test")),
             terminal,
             ownsTerminal: true
         );

@@ -73,7 +73,10 @@ if (listState.SelectedItem != null)
 }
 
 // Create and run the app
-using var app = new Hex1bApp(ct => App(listState, nameState, emailState, Save, () => statusMessage, cts, ct), Hex1bThemes.Sunset);
+using var app = new Hex1bApp<object>(
+    new object(),
+    (ctx, ct) => App(listState, nameState, emailState, Save, () => statusMessage, cts, ct),
+    Hex1bThemes.Sunset);
 await app.RunAsync(cts.Token);
 
 // The root component - master-detail layout with status bar

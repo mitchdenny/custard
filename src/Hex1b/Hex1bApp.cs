@@ -5,33 +5,56 @@ using Hex1b.Widgets;
 
 namespace Hex1b;
 
-public class Hex1bApp : IDisposable
+/// <summary>
+/// A Hex1bApp with typed state management.
+/// </summary>
+/// <typeparam name="TState">The application state type.</typeparam>
+public class Hex1bApp<TState> : IDisposable
 {
-    private readonly Func<CancellationToken, Task<Hex1bWidget>> _rootComponent;
+    private readonly Func<RootContext<TState>, CancellationToken, Task<Hex1bWidget>> _rootComponent;
     private readonly Func<Hex1bTheme>? _themeProvider;
     private readonly IHex1bTerminal _terminal;
     private readonly Hex1bRenderContext _context;
     private readonly bool _ownsTerminal;
+    private readonly RootContext<TState> _rootContext;
     private Hex1bNode? _rootNode;
 
     /// <summary>
-    /// Creates a Hex1bApp with a custom terminal implementation and optional theme.
+    /// The application state, accessible for external state mutations.
     /// </summary>
-    public Hex1bApp(Func<CancellationToken, Task<Hex1bWidget>> rootComponent, IHex1bTerminal terminal, Hex1bTheme? theme = null, bool ownsTerminal = false)
+    public TState State { get; }
+
+    /// <summary>
+    /// Creates a Hex1bApp with typed state and a custom terminal implementation.
+    /// </summary>
+    public Hex1bApp(
+        TState state,
+        Func<RootContext<TState>, CancellationToken, Task<Hex1bWidget>> builder,
+        IHex1bTerminal terminal,
+        Hex1bTheme? theme = null,
+        bool ownsTerminal = false)
     {
-        _rootComponent = rootComponent;
+        State = state;
+        _rootContext = new RootContext<TState>(state);
+        _rootComponent = builder;
         _terminal = terminal;
         _context = new Hex1bRenderContext(terminal, theme);
         _ownsTerminal = ownsTerminal;
     }
 
     /// <summary>
-    /// Creates a Hex1bApp with a custom terminal implementation and a dynamic theme provider.
-    /// The theme provider is called on each render to get the current theme.
+    /// Creates a Hex1bApp with typed state, a custom terminal, and a dynamic theme provider.
     /// </summary>
-    public Hex1bApp(Func<CancellationToken, Task<Hex1bWidget>> rootComponent, IHex1bTerminal terminal, Func<Hex1bTheme> themeProvider, bool ownsTerminal = false)
+    public Hex1bApp(
+        TState state,
+        Func<RootContext<TState>, CancellationToken, Task<Hex1bWidget>> builder,
+        IHex1bTerminal terminal,
+        Func<Hex1bTheme> themeProvider,
+        bool ownsTerminal = false)
     {
-        _rootComponent = rootComponent;
+        State = state;
+        _rootContext = new RootContext<TState>(state);
+        _rootComponent = builder;
         _themeProvider = themeProvider;
         _terminal = terminal;
         _context = new Hex1bRenderContext(terminal, themeProvider());
@@ -39,13 +62,31 @@ public class Hex1bApp : IDisposable
     }
 
     /// <summary>
-    /// Creates a Hex1bApp with the default console terminal and optional theme.
+    /// Creates a Hex1bApp with typed state and the default console terminal.
     /// </summary>
-    public Hex1bApp(Func<CancellationToken, Task<Hex1bWidget>> rootComponent, Hex1bTheme? theme = null)
-        : this(rootComponent, new ConsoleHex1bTerminal(), theme, ownsTerminal: true)
+    public Hex1bApp(
+        TState state,
+        Func<RootContext<TState>, CancellationToken, Task<Hex1bWidget>> builder,
+        Hex1bTheme? theme = null)
+        : this(state, builder, new ConsoleHex1bTerminal(), theme, ownsTerminal: true)
     {
     }
 
+    /// <summary>
+    /// Creates a Hex1bApp with typed state and a synchronous widget builder.
+    /// </summary>
+    public Hex1bApp(
+        TState state,
+        Func<RootContext<TState>, Hex1bWidget> builder,
+        IHex1bTerminal? terminal = null,
+        Hex1bTheme? theme = null)
+        : this(state, (ctx, ct) => Task.FromResult(builder(ctx)), terminal ?? new ConsoleHex1bTerminal(), theme, ownsTerminal: terminal == null)
+    {
+    }
+
+    /// <summary>
+    /// Runs the application until cancellation is requested.
+    /// </summary>
     public async Task RunAsync(CancellationToken cancellationToken = default)
     {
         _context.EnterAlternateScreen();
@@ -84,7 +125,7 @@ public class Hex1bApp : IDisposable
         }
 
         // Step 1: Call the root component to get the widget tree
-        var widgetTree = await _rootComponent(cancellationToken);
+        var widgetTree = await _rootComponent(_rootContext, cancellationToken);
 
         // Step 2: Reconcile - update the node tree to match the widget tree
         _rootNode = Reconcile(_rootNode, widgetTree);

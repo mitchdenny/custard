@@ -33,12 +33,15 @@ using Hex1b.Widgets;
 using var cts = new CancellationTokenSource();
 Console.CancelKeyPress += (_, e) => { e.Cancel = true; cts.Cancel(); };
 
-using var app = new Hex1bApp(ct => Task.FromResult<Hex1bWidget>(
-    new VStackWidget([
-        new TextBlockWidget("Hello, Terminal!"),
-        new ButtonWidget("Exit", () => cts.Cancel())
-    ])
-));
+using var app = new Hex1bApp<object>(
+    new object(),
+    (ctx, ct) => Task.FromResult<Hex1bWidget>(
+        new VStackWidget([
+            new TextBlockWidget("Hello, Terminal!"),
+            new ButtonWidget("Exit", () => cts.Cancel())
+        ])
+    )
+);
 
 await app.RunAsync(cts.Token);
 ```
@@ -93,7 +96,7 @@ var widget = new SplitterWidget(left, right, 25) with
 Apply built-in themes or create your own:
 
 ```csharp
-using var app = new Hex1bApp(rootComponent, Hex1bThemes.Sunset);
+using var app = new Hex1bApp<object>(new object(), builder, Hex1bThemes.Sunset);
 ```
 
 ## 🏗️ Architecture

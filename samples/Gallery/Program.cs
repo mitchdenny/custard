@@ -75,8 +75,8 @@ async Task HandleHex1bExhibitAsync(WebSocket webSocket, IGalleryExhibit exhibit,
     var widgetBuilder = exhibit.CreateWidgetBuilder();
     var themeProvider = exhibit.CreateThemeProvider();
     using var hex1bApp = themeProvider != null
-        ? new Hex1bApp(widgetBuilder, terminal, themeProvider)
-        : new Hex1bApp(widgetBuilder, terminal);
+        ? new Hex1bApp<object>(new object(), (ctx, ct) => widgetBuilder(ct), terminal, themeProvider)
+        : new Hex1bApp<object>(new object(), (ctx, ct) => widgetBuilder(ct), terminal);
     
     // Run input processing and the Hex1b app concurrently
     var inputTask = terminal.ProcessInputAsync(cts.Token);

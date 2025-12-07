@@ -1,5 +1,4 @@
 using Hex1b;
-using Hex1b.Fluent;
 using Hex1b.Widgets;
 using Microsoft.Extensions.Logging;
 

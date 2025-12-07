@@ -72,9 +72,10 @@ public sealed class BorderNode : Hex1bNode
         var width = Bounds.Width;
         var height = Bounds.Height;
 
-        // Apply border color
-        var colorCode = borderColor.ToForegroundAnsi();
-        var resetCode = "\x1b[0m";
+        // Apply border color with inherited background
+        var inheritedBg = context.InheritedBackground.IsDefault ? "" : context.InheritedBackground.ToBackgroundAnsi();
+        var colorCode = $"{inheritedBg}{borderColor.ToForegroundAnsi()}";
+        var resetToInherited = context.GetResetToInheritedCodes();
 
         // Draw top border with optional title
         context.SetCursorPosition(x, y);
@@ -88,22 +89,22 @@ public sealed class BorderNode : Hex1bNode
             var rightPadding = innerWidth - titleToShow.Length - leftPadding;
             
             context.Write(new string(horizontal[0], leftPadding));
-            context.Write($"{titleColor.ToForegroundAnsi()}{titleToShow}{colorCode}");
+            context.Write($"{inheritedBg}{titleColor.ToForegroundAnsi()}{titleToShow}{colorCode}");
             context.Write(new string(horizontal[0], rightPadding));
         }
         else
         {
             context.Write(new string(horizontal[0], innerWidth));
         }
-        context.Write($"{topRight}{resetCode}");
+        context.Write($"{topRight}{resetToInherited}");
 
         // Draw left and right borders for each row
         for (int row = 1; row < height - 1; row++)
         {
             context.SetCursorPosition(x, y + row);
-            context.Write($"{colorCode}{vertical}{resetCode}");
+            context.Write($"{colorCode}{vertical}{resetToInherited}");
             context.SetCursorPosition(x + width - 1, y + row);
-            context.Write($"{colorCode}{vertical}{resetCode}");
+            context.Write($"{colorCode}{vertical}{resetToInherited}");
         }
 
         // Draw bottom border
@@ -112,7 +113,7 @@ public sealed class BorderNode : Hex1bNode
             context.SetCursorPosition(x, y + height - 1);
             context.Write($"{colorCode}{bottomLeft}");
             context.Write(new string(horizontal[0], innerWidth));
-            context.Write($"{bottomRight}{resetCode}");
+            context.Write($"{bottomRight}{resetToInherited}");
         }
 
         // Render child content

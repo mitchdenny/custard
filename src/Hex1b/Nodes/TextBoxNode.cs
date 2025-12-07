@@ -32,6 +32,8 @@ public sealed class TextBoxNode : Hex1bNode
         
         var text = State.Text;
         var cursor = State.CursorPosition;
+        var inheritedColors = context.GetInheritedColorCodes();
+        var resetToInherited = context.GetResetToInheritedCodes();
 
         if (IsFocused)
         {
@@ -45,8 +47,8 @@ public sealed class TextBoxNode : Hex1bNode
                 var selected = text[selStart..selEnd];
                 var afterSel = text[selEnd..];
                 
-                // Use theme colors for selection
-                context.Write($"{leftBracket}{beforeSel}{selFg.ToForegroundAnsi()}{selBg.ToBackgroundAnsi()}{selected}\x1b[0m{afterSel}{rightBracket}");
+                // Use theme colors for selection, inherit for rest
+                context.Write($"{inheritedColors}{leftBracket}{beforeSel}{selFg.ToForegroundAnsi()}{selBg.ToBackgroundAnsi()}{selected}{resetToInherited}{afterSel}{rightBracket}");
             }
             else
             {
@@ -55,12 +57,12 @@ public sealed class TextBoxNode : Hex1bNode
                 var cursorChar = cursor < text.Length ? text[cursor].ToString() : " ";
                 var after = cursor < text.Length ? text[(cursor + 1)..] : "";
                 
-                context.Write($"{leftBracket}{before}{cursorFg.ToForegroundAnsi()}{cursorBg.ToBackgroundAnsi()}{cursorChar}\x1b[0m{after}{rightBracket}");
+                context.Write($"{inheritedColors}{leftBracket}{before}{cursorFg.ToForegroundAnsi()}{cursorBg.ToBackgroundAnsi()}{cursorChar}{resetToInherited}{after}{rightBracket}");
             }
         }
         else
         {
-            context.Write($"{leftBracket}{text}{rightBracket}");
+            context.Write($"{inheritedColors}{leftBracket}{text}{rightBracket}{resetToInherited}");
         }
     }
 

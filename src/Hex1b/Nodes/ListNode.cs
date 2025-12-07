@@ -32,6 +32,10 @@ public sealed class ListNode : Hex1bNode
         var selectedFg = theme.Get(ListTheme.SelectedForegroundColor);
         var selectedBg = theme.Get(ListTheme.SelectedBackgroundColor);
         
+        // Get inherited colors for non-selected items
+        var inheritedColors = context.GetInheritedColorCodes();
+        var resetToInherited = context.GetResetToInheritedCodes();
+        
         var items = State.Items;
         for (int i = 0; i < items.Count; i++)
         {
@@ -44,17 +48,17 @@ public sealed class ListNode : Hex1bNode
             if (isSelected && IsFocused)
             {
                 // Focused and selected: use theme colors
-                context.Write($"{selectedFg.ToForegroundAnsi()}{selectedBg.ToBackgroundAnsi()}{selectedIndicator}{item.Text}\x1b[0m");
+                context.Write($"{selectedFg.ToForegroundAnsi()}{selectedBg.ToBackgroundAnsi()}{selectedIndicator}{item.Text}{resetToInherited}");
             }
             else if (isSelected)
             {
-                // Selected but not focused: just show indicator
-                context.Write($"{selectedIndicator}{item.Text}");
+                // Selected but not focused: just show indicator with inherited colors
+                context.Write($"{inheritedColors}{selectedIndicator}{item.Text}{resetToInherited}");
             }
             else
             {
-                // Not selected
-                context.Write($"{unselectedIndicator}{item.Text}");
+                // Not selected: use inherited colors
+                context.Write($"{inheritedColors}{unselectedIndicator}{item.Text}{resetToInherited}");
             }
         }
     }

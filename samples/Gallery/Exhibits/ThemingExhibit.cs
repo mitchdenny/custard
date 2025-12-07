@@ -58,37 +58,41 @@ public class ThemingExhibit(ILogger<ThemingExhibit> logger) : Hex1bExhibit
             var ctx = new RootContext<ThemingState>(state);
             
             var widget = ctx.Splitter(
-                ctx.VStack(left => [
-                    left.Text("═══ Themes ═══"),
-                    left.Text(""),
-                    left.List(s => s.ThemeList)
+                ctx.Panel(leftPanel => [
+                    leftPanel.VStack(left => [
+                        left.Text("═══ Themes ═══"),
+                        left.Text(""),
+                        left.List(s => s.ThemeList)
+                    ])
                 ]),
-                ctx.VStack(right => [
-                    right.Text("═══ Widget Preview ═══"),
-                    right.Text(""),
-                    right.Border(b => [
-                        b.Text("  Content inside border"),
-                        b.Text("  with multiple lines")
-                    ], title: "Border"),
-                    right.Text(""),
-                    right.Panel(p => [
-                        p.Text("  Panel with styled background"),
-                        p.Text("  (theme-dependent colors)")
-                    ]),
-                    right.Text(""),
-                    right.Text("TextBox (Tab to focus):"),
-                    right.TextBox(s => s.SampleTextBox),
-                    right.Text(""),
-                    right.Text("Button:"),
-                    right.Button(
-                        state.ButtonClicked ? "Clicked!" : "Click Me",
-                        () => state.ButtonClicked = !state.ButtonClicked),
-                    right.Text(""),
-                    right.Text("─────────────────────────"),
-                    right.Text(""),
-                    right.Text("Use ↑↓ to change theme"),
-                    right.Text("Tab to switch focus"),
-                    right.Text("Enter to click button")
+                ctx.Panel(rightPanel => [
+                    rightPanel.VStack(right => [
+                        right.Text("═══ Widget Preview ═══"),
+                        right.Text(""),
+                        right.Border(b => [
+                            b.Text("  Content inside border"),
+                            b.Text("  with multiple lines")
+                        ], title: "Border"),
+                        right.Text(""),
+                        right.Panel(p => [
+                            p.Text("  Panel with styled background"),
+                            p.Text("  (theme-dependent colors)")
+                        ]),
+                        right.Text(""),
+                        right.Text("TextBox (Tab to focus):"),
+                        right.TextBox(s => s.SampleTextBox),
+                        right.Text(""),
+                        right.Text("Button:"),
+                        right.Button(
+                            state.ButtonClicked ? "Clicked!" : "Click Me",
+                            () => state.ButtonClicked = !state.ButtonClicked),
+                        right.Text(""),
+                        right.Text("─────────────────────────"),
+                        right.Text(""),
+                        right.Text("Use ↑↓ to change theme"),
+                        right.Text("Tab to switch focus"),
+                        right.Text("Enter to click button")
+                    ])
                 ]),
                 leftWidth: 20
             );
@@ -100,7 +104,48 @@ public class ThemingExhibit(ILogger<ThemingExhibit> logger) : Hex1bExhibit
     public override Func<Hex1bTheme>? CreateThemeProvider()
     {
         var session = _currentSession!;
-        return () => session.Themes[session.ThemeList.SelectedIndex];
+        return () => CreateThemeWithPanelBackgrounds(session.Themes[session.ThemeList.SelectedIndex]);
+    }
+
+    /// <summary>
+    /// Creates a theme that wraps the selected theme and adds complementary panel background colors.
+    /// </summary>
+    private static Hex1bTheme CreateThemeWithPanelBackgrounds(Hex1bTheme baseTheme)
+    {
+        // Get accent color from the base theme (use selected background as the primary accent)
+        var accentColor = baseTheme.Get(ListTheme.SelectedBackgroundColor);
+        
+        // Create a darker, desaturated version of the accent for the panel background
+        var panelBg = CreateComplementaryBackground(accentColor);
+        
+        // Clone the base theme and set our panel background
+        return baseTheme.Clone($"{baseTheme.Name} (Enhanced)")
+            .Set(PanelTheme.BackgroundColor, panelBg);
+    }
+
+    /// <summary>
+    /// Creates a darker, more subdued background color that complements the given accent color.
+    /// </summary>
+    private static Hex1bColor CreateComplementaryBackground(Hex1bColor accentColor)
+    {
+        if (accentColor.IsDefault)
+        {
+            // For default color, use a subtle dark gray
+            return Hex1bColor.FromRgb(20, 20, 25);
+        }
+
+        // Create a very dark version of the accent color (around 10-15% brightness)
+        // This keeps the hue but makes it suitable as a background
+        var r = (byte)(accentColor.R * 0.12);
+        var g = (byte)(accentColor.G * 0.12);
+        var b = (byte)(accentColor.B * 0.12);
+        
+        // Ensure minimum brightness so it's not pure black
+        r = Math.Max(r, (byte)8);
+        g = Math.Max(g, (byte)8);
+        b = Math.Max(b, (byte)8);
+        
+        return Hex1bColor.FromRgb(r, g, b);
     }
 
     private static Hex1bTheme CreateForestTheme()

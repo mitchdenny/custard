@@ -24,18 +24,22 @@ public sealed class ButtonNode : Hex1bNode
         var theme = context.Theme;
         var leftBracket = theme.Get(ButtonTheme.LeftBracket);
         var rightBracket = theme.Get(ButtonTheme.RightBracket);
+        var resetToInherited = context.GetResetToInheritedCodes();
         
         if (IsFocused)
         {
             var fg = theme.Get(ButtonTheme.FocusedForegroundColor);
             var bg = theme.Get(ButtonTheme.FocusedBackgroundColor);
-            context.Write($"{fg.ToForegroundAnsi()}{bg.ToBackgroundAnsi()}{leftBracket}{Label}{rightBracket}\x1b[0m");
+            context.Write($"{fg.ToForegroundAnsi()}{bg.ToBackgroundAnsi()}{leftBracket}{Label}{rightBracket}{resetToInherited}");
         }
         else
         {
             var fg = theme.Get(ButtonTheme.ForegroundColor);
             var bg = theme.Get(ButtonTheme.BackgroundColor);
-            context.Write($"{fg.ToForegroundAnsi()}{bg.ToBackgroundAnsi()}{leftBracket}{Label}{rightBracket}\x1b[0m");
+            // Use inherited colors if theme colors are default
+            var fgCode = fg.IsDefault ? context.InheritedForeground.ToForegroundAnsi() : fg.ToForegroundAnsi();
+            var bgCode = bg.IsDefault ? context.InheritedBackground.ToBackgroundAnsi() : bg.ToBackgroundAnsi();
+            context.Write($"{fgCode}{bgCode}{leftBracket}{Label}{rightBracket}{resetToInherited}");
         }
     }
 

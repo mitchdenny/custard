@@ -55,22 +55,22 @@ public sealed class PanelNode : Hex1bNode
             }
         }
 
-        // Apply foreground color for child content
-        var fgCode = foregroundColor.IsDefault ? "" : foregroundColor.ToForegroundAnsi();
-        var fgReset = foregroundColor.IsDefault ? "" : "\x1b[39m";
-
-        if (!string.IsNullOrEmpty(fgCode))
-        {
-            context.Write(fgCode);
-        }
+        // Save previous inherited colors
+        var previousForeground = context.InheritedForeground;
+        var previousBackground = context.InheritedBackground;
+        
+        // Set inherited colors for child nodes
+        if (!foregroundColor.IsDefault)
+            context.InheritedForeground = foregroundColor;
+        if (!backgroundColor.IsDefault)
+            context.InheritedBackground = backgroundColor;
 
         // Render child content (on top of background)
         Child?.Render(context);
-
-        if (!string.IsNullOrEmpty(fgReset))
-        {
-            context.Write(fgReset);
-        }
+        
+        // Restore previous inherited colors
+        context.InheritedForeground = previousForeground;
+        context.InheritedBackground = previousBackground;
     }
 
     public override bool HandleInput(Hex1bInputEvent evt)

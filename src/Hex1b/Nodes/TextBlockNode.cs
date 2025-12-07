@@ -16,6 +16,15 @@ public sealed class TextBlockNode : Hex1bNode
 
     public override void Render(Hex1bRenderContext context)
     {
-        context.Write(Text);
+        // Apply inherited colors if present
+        var colorCodes = context.GetInheritedColorCodes();
+        if (!string.IsNullOrEmpty(colorCodes))
+        {
+            context.Write($"{colorCodes}{Text}{context.GetResetToInheritedCodes()}");
+        }
+        else
+        {
+            context.Write(Text);
+        }
     }
 }

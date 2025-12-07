@@ -69,6 +69,25 @@ public class WebSocketHex1bTerminalTests
     }
 
     [Fact]
+    public async Task Resize_PushesResizeInputEvent()
+    {
+        // Arrange
+        using var mockWebSocket = new MockWebSocket();
+        using var terminal = new WebSocketHex1bTerminal(mockWebSocket, 80, 24);
+
+        // Act
+        terminal.Resize(120, 40);
+
+        // Assert - check that a ResizeInputEvent was pushed to the channel
+        using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(100));
+        var inputEvent = await terminal.InputEvents.ReadAsync(cts.Token);
+        
+        var resizeEvent = Assert.IsType<ResizeInputEvent>(inputEvent);
+        Assert.Equal(120, resizeEvent.Width);
+        Assert.Equal(40, resizeEvent.Height);
+    }
+
+    [Fact]
     public void Write_SendsTextToWebSocket()
     {
         // Arrange

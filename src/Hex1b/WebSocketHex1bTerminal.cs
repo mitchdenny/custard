@@ -208,6 +208,9 @@ public sealed class WebSocketHex1bTerminal : IHex1bTerminal, IDisposable
         _width = cols;
         _height = rows;
         OnResize?.Invoke(cols, rows);
+        
+        // Push a resize event to trigger re-render
+        _inputChannel.Writer.TryWrite(new ResizeInputEvent(cols, rows));
     }
 
     private static KeyInputEvent? ParseKeyInput(char c)

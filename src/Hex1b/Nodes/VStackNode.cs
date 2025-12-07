@@ -22,7 +22,15 @@ public sealed class VStackNode : Hex1bNode
 
     private List<Hex1bNode> GetFocusableNodesList()
     {
-        _focusableNodes ??= GetFocusableNodes().ToList();
+        if (_focusableNodes == null)
+        {
+            _focusableNodes = GetFocusableNodes().ToList();
+            // Auto-focus the first focusable node if none are focused
+            if (_focusableNodes.Count > 0 && _focusedIndex == 0)
+            {
+                SetNodeFocus(_focusableNodes[0], true);
+            }
+        }
         return _focusableNodes;
     }
 

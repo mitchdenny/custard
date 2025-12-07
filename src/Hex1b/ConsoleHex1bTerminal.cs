@@ -20,6 +20,9 @@ public sealed class ConsoleHex1bTerminal : IHex1bTerminal, IDisposable
 
     public ConsoleHex1bTerminal()
     {
+        // Disable Ctrl+C handling at Console level so we get the key event
+        Console.TreatControlCAsInput = true;
+        
         _inputChannel = Channel.CreateUnbounded<Hex1bInputEvent>();
         _inputLoopCts = new CancellationTokenSource();
         _inputLoopTask = Task.Run(() => ReadInputLoopAsync(_inputLoopCts.Token));
@@ -30,12 +33,17 @@ public sealed class ConsoleHex1bTerminal : IHex1bTerminal, IDisposable
     public int Width => Console.WindowWidth;
     public int Height => Console.WindowHeight;
 
-    public void Write(string text) => Console.Write(text);
+    public void Write(string text)
+    {
+        Console.Write(text);
+        Console.Out.Flush();
+    }
 
     public void Clear()
     {
         Console.Write(ClearScreen);
         Console.Write(MoveCursorHome);
+        Console.Out.Flush();
     }
 
     public void SetCursorPosition(int left, int top) => Console.SetCursorPosition(left, top);
@@ -46,12 +54,14 @@ public sealed class ConsoleHex1bTerminal : IHex1bTerminal, IDisposable
         Console.Write(HideCursor);
         Console.Write(ClearScreen);
         Console.Write(MoveCursorHome);
+        Console.Out.Flush();
     }
 
     public void ExitAlternateScreen()
     {
         Console.Write(ShowCursor);
         Console.Write(ExitAlternateBuffer);
+        Console.Out.Flush();
     }
 
     private async Task ReadInputLoopAsync(CancellationToken cancellationToken)

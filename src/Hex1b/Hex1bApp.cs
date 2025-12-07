@@ -184,6 +184,7 @@ public class Hex1bApp<TState> : IDisposable
             BorderWidget borderWidget => ReconcileBorder(existingNode as BorderNode, borderWidget),
             PanelWidget panelWidget => ReconcilePanel(existingNode as PanelNode, panelWidget),
             SixelWidget sixelWidget => ReconcileSixel(existingNode as SixelNode, sixelWidget),
+            ResponsiveWidget responsiveWidget => ReconcileResponsive(existingNode as ResponsiveNode, responsiveWidget),
             _ => throw new NotSupportedException($"Unknown widget type: {widget.GetType()}")
         };
 #pragma warning restore HEX1B001
@@ -348,6 +349,24 @@ public class Hex1bApp<TState> : IDisposable
         node.RequestedWidth = widget.Width;
         node.RequestedHeight = widget.Height;
         node.Fallback = Reconcile(node.Fallback, widget.Fallback, node);
+        return node;
+    }
+
+    private static ResponsiveNode ReconcileResponsive(ResponsiveNode? existingNode, ResponsiveWidget widget)
+    {
+        var node = existingNode ?? new ResponsiveNode();
+        node.Branches = widget.Branches;
+
+        // Reconcile child nodes for each branch
+        var newChildNodes = new List<Hex1bNode?>();
+        for (int i = 0; i < widget.Branches.Count; i++)
+        {
+            var existingChild = i < node.ChildNodes.Count ? node.ChildNodes[i] : null;
+            var reconciledChild = Reconcile(existingChild, widget.Branches[i].Content, node);
+            newChildNodes.Add(reconciledChild);
+        }
+        node.ChildNodes = newChildNodes;
+
         return node;
     }
 

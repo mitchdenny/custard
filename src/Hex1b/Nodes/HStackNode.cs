@@ -6,7 +6,8 @@ public sealed class HStackNode : Hex1bNode
 {
     public List<Hex1bNode> Children { get; set; } = new();
     public List<SizeHint> ChildWidthHints { get; set; } = new();
-    public int FocusedIndex { get; set; } = 0;
+    private int _focusedIndex = 0;
+    private List<Hex1bNode>? _focusableNodes;
 
     public override IEnumerable<Hex1bNode> GetFocusableNodes()
     {
@@ -17,6 +18,17 @@ public sealed class HStackNode : Hex1bNode
                 yield return focusable;
             }
         }
+    }
+
+    private List<Hex1bNode> GetFocusableNodesList()
+    {
+        _focusableNodes ??= GetFocusableNodes().ToList();
+        return _focusableNodes;
+    }
+
+    public void InvalidateFocusCache()
+    {
+        _focusableNodes = null;
     }
 
     public override Size Measure(Constraints constraints)
@@ -105,12 +117,86 @@ public sealed class HStackNode : Hex1bNode
 
     public override bool HandleInput(Hex1bInputEvent evt)
     {
-        // Dispatch to focused child
-        if (FocusedIndex >= 0 && FocusedIndex < Children.Count)
+        // Handle Tab to move focus
+        if (evt is KeyInputEvent keyEvent && keyEvent.Key == ConsoleKey.Tab)
         {
-            return Children[FocusedIndex].HandleInput(evt);
+            var focusables = GetFocusableNodesList();
+            if (focusables.Count > 0)
+            {
+                // Clear old focus
+                if (_focusedIndex >= 0 && _focusedIndex < focusables.Count)
+                {
+                    SetNodeFocus(focusables[_focusedIndex], false);
+                }
+
+                // Move focus
+                if (keyEvent.Shift)
+                {
+                    _focusedIndex = _focusedIndex <= 0 ? focusables.Count - 1 : _focusedIndex - 1;
+                }
+                else
+                {
+                    _focusedIndex = (_focusedIndex + 1) % focusables.Count;
+                }
+
+                // Set new focus
+                SetNodeFocus(focusables[_focusedIndex], true);
+                return true;
+            }
+        }
+
+        // Dispatch to focused node
+        var focusablesList = GetFocusableNodesList();
+        if (_focusedIndex >= 0 && _focusedIndex < focusablesList.Count)
+        {
+            return focusablesList[_focusedIndex].HandleInput(evt);
         }
 
         return false;
+    }
+
+    private static void SetNodeFocus(Hex1bNode node, bool focused)
+    {
+        switch (node)
+        {
+            case TextBoxNode textBox:
+                textBox.IsFocused = focused;
+                break;
+            case ButtonNode button:
+                button.IsFocused = focused;
+                break;
+            case ListNode list:
+                list.IsFocused = focused;
+                break;
+            case SplitterNode splitter:
+                splitter.IsFocused = focused;
+                break;
+        }
+    }
+
+    /// <summary>
+    /// Syncs _focusedIndex to match which child node has IsFocused = true.
+    /// Call this after externally setting focus on a child node.
+    /// </summary>
+    public void SyncFocusIndex()
+    {
+        var focusables = GetFocusableNodesList();
+        for (int i = 0; i < focusables.Count; i++)
+        {
+            var node = focusables[i];
+            bool isFocused = node switch
+            {
+                TextBoxNode textBox => textBox.IsFocused,
+                ButtonNode button => button.IsFocused,
+                ListNode list => list.IsFocused,
+                SplitterNode splitter => splitter.IsFocused,
+                _ => false
+            };
+            if (isFocused)
+            {
+                _focusedIndex = i;
+                return;
+            }
+        }
     }
 }

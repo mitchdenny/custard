@@ -133,19 +133,35 @@ public class ListNodeTests
     }
 
     [Fact]
-    public void HandleInput_Enter_InvokesOnSelectionChanged()
+    public void HandleInput_Enter_InvokesOnItemActivated()
     {
         var state = CreateListState("Item 1", "Item 2");
-        ListItem? changedItem = null;
-        state.OnSelectionChanged = item => changedItem = item;
+        ListItem? activatedItem = null;
+        state.OnItemActivated = item => activatedItem = item;
         state.SelectedIndex = 1;
         var node = new ListNode { State = state, IsFocused = true };
         
         var handled = node.HandleInput(new KeyInputEvent(ConsoleKey.Enter, '\r', false, false, false));
         
         Assert.True(handled);
-        Assert.NotNull(changedItem);
-        Assert.Equal("Item 2", changedItem.Text);
+        Assert.NotNull(activatedItem);
+        Assert.Equal("Item 2", activatedItem.Text);
+    }
+
+    [Fact]
+    public void HandleInput_Space_InvokesOnItemActivated()
+    {
+        var state = CreateListState("Item 1", "Item 2");
+        ListItem? activatedItem = null;
+        state.OnItemActivated = item => activatedItem = item;
+        state.SelectedIndex = 0;
+        var node = new ListNode { State = state, IsFocused = true };
+        
+        var handled = node.HandleInput(new KeyInputEvent(ConsoleKey.Spacebar, ' ', false, false, false));
+        
+        Assert.True(handled);
+        Assert.NotNull(activatedItem);
+        Assert.Equal("Item 1", activatedItem.Text);
     }
 
     [Fact]

@@ -1,0 +1,258 @@
+using Hex1b;
+using Hex1b.Layout;
+using Hex1b.Widgets;
+using Microsoft.Extensions.Logging;
+
+namespace Gallery.Exhibits;
+
+/// <summary>
+/// A responsive todo list that adapts its layout based on available terminal width.
+/// Demonstrates the ResponsiveWidget with different layouts for different sizes.
+/// </summary>
+public class ResponsiveTodoExhibit(ILogger<ResponsiveTodoExhibit> logger) : Hex1bExhibit
+{
+    private readonly ILogger<ResponsiveTodoExhibit> _logger = logger;
+
+    public override string Id => "responsive-todo";
+    public override string Title => "Responsive Todo";
+    public override string Description => "Todo list that adapts layout based on terminal size.";
+
+    /// <summary>
+    /// State for the todo list exhibit.
+    /// </summary>
+    private class TodoState
+    {
+        public List<TodoItem> Items { get; } =
+        [
+            new("Buy groceries", true),
+            new("Review pull request", false),
+            new("Write documentation", false),
+            new("Fix bug #42", true),
+            new("Deploy to staging", false),
+            new("Team standup meeting", true),
+        ];
+
+        public ListState ListState { get; }
+        public TextBoxState NewItemInput { get; } = new();
+        
+        public TodoState()
+        {
+            ListState = new ListState
+            {
+                OnItemActivated = _ => ToggleSelected()
+            };
+        }
+
+        public void AddItem()
+        {
+            if (!string.IsNullOrWhiteSpace(NewItemInput.Text))
+            {
+                Items.Add(new TodoItem(NewItemInput.Text, false));
+                NewItemInput.Text = "";
+                NewItemInput.CursorPosition = 0;
+            }
+        }
+
+        public void ToggleSelected()
+        {
+            if (ListState.SelectedIndex >= 0 && ListState.SelectedIndex < Items.Count)
+            {
+                Items[ListState.SelectedIndex] = Items[ListState.SelectedIndex] with 
+                { 
+                    IsComplete = !Items[ListState.SelectedIndex].IsComplete 
+                };
+            }
+        }
+
+        public void DeleteSelected()
+        {
+            if (ListState.SelectedIndex >= 0 && ListState.SelectedIndex < Items.Count)
+            {
+                Items.RemoveAt(ListState.SelectedIndex);
+                if (ListState.SelectedIndex >= Items.Count && Items.Count > 0)
+                {
+                    ListState.SelectedIndex = Items.Count - 1;
+                }
+            }
+        }
+
+        public void UpdateListItems()
+        {
+            ListState.Items = Items.Select((item, idx) => 
+                new ListItem(idx.ToString(), FormatTodoItem(item))).ToList();
+        }
+
+        private static string FormatTodoItem(TodoItem item)
+        {
+            var check = item.IsComplete ? "✓" : "○";
+            return $" [{check}] {item.Title}";
+        }
+    }
+
+    private record TodoItem(string Title, bool IsComplete);
+
+    public override Func<CancellationToken, Task<Hex1bWidget>> CreateWidgetBuilder()
+    {
+        _logger.LogInformation("Creating responsive todo widget builder");
+
+        var state = new TodoState();
+
+        return ct =>
+        {
+            // Update list items before each render
+            state.UpdateListItems();
+
+            var ctx = new RootContext<TodoState>(state);
+
+            // Build responsive layout that adapts to available width
+            var widget = ctx.Responsive(r => [
+                // Extra wide layout (150+ cols): Three columns with stats
+                r.WhenMinWidth(150, r => BuildExtraWideLayout(r)),
+                
+                // Wide layout (110+ cols): Two columns with details sidebar
+                r.WhenMinWidth(110, r => BuildWideLayout(r)),
+                
+                // Medium layout (70+ cols): Single column with full details
+                r.WhenMinWidth(70, r => BuildMediumLayout(r)),
+                
+                // Compact layout (< 70 cols): Minimal single column
+                r.Otherwise(r => BuildCompactLayout(r))
+            ]);
+
+            return Task.FromResult<Hex1bWidget>(widget);
+        };
+    }
+
+    /// <summary>
+    /// Extra wide layout: Three columns - list, details, and statistics.
+    /// </summary>
+    private static Hex1bWidget BuildExtraWideLayout(WidgetContext<ConditionalWidget, TodoState> ctx)
+    {
+        var state = ctx.State;
+        var completedCount = state.Items.Count(i => i.IsComplete);
+        var totalCount = state.Items.Count;
+        var todoCount = totalCount - completedCount;
+        
+        return new HStackWidget([
+            // Left: Todo list
+            new BorderWidget(new VStackWidget([
+                new TextBlockWidget("📋 Todo Items"),
+                new TextBlockWidget(""),
+                new ListWidget(state.ListState),
+                new TextBlockWidget(""),
+                new TextBlockWidget("↑↓ Navigate  Space: Toggle")
+            ]), "Tasks"),
+            
+            // Middle: Add new item
+            new BorderWidget(new VStackWidget([
+                new TextBlockWidget("➕ Add New Task"),
+                new TextBlockWidget(""),
+                new TextBoxWidget(state.NewItemInput),
+                new TextBlockWidget(""),
+                new ButtonWidget("Add Task", () => state.AddItem()),
+                new TextBlockWidget(""),
+                new TextBlockWidget("Type and click Add")
+            ]), "New Task"),
+            
+            // Right: Statistics
+            new BorderWidget(new VStackWidget([
+                new TextBlockWidget("📊 Statistics"),
+                new TextBlockWidget(""),
+                new TextBlockWidget($"Total: {totalCount} items"),
+                new TextBlockWidget($"Done:  {completedCount} ✓"),
+                new TextBlockWidget($"Todo:  {todoCount} ○"),
+                new TextBlockWidget(""),
+                new TextBlockWidget($"Progress: {GetProgressBar(state)}")
+            ]), "Stats")
+        ], [SizeHint.Weighted(2), SizeHint.Weighted(1), SizeHint.Weighted(1)]);
+    }
+
+    /// <summary>
+    /// Wide layout: Two columns - list and details/add panel.
+    /// </summary>
+    private static Hex1bWidget BuildWideLayout(WidgetContext<ConditionalWidget, TodoState> ctx)
+    {
+        var state = ctx.State;
+        var completedCount = state.Items.Count(i => i.IsComplete);
+        var totalCount = state.Items.Count;
+        
+        return new HStackWidget([
+            // Left: Todo list
+            new BorderWidget(new VStackWidget([
+                new TextBlockWidget("📋 Todo Items"),
+                new TextBlockWidget(""),
+                new ListWidget(state.ListState),
+                new TextBlockWidget(""),
+                new TextBlockWidget("↑↓ Nav  Space: Toggle")
+            ]), "Tasks"),
+            
+            // Right: Add + Stats combined
+            new VStackWidget([
+                new BorderWidget(new VStackWidget([
+                    new TextBlockWidget("➕ Add Task"),
+                    new TextBoxWidget(state.NewItemInput),
+                    new ButtonWidget("Add", () => state.AddItem())
+                ]), "New"),
+                new BorderWidget(new VStackWidget([
+                    new TextBlockWidget($"Done: {completedCount}/{totalCount}"),
+                    new TextBlockWidget(GetProgressBar(state))
+                ]), "Progress")
+            ], [SizeHint.Content, SizeHint.Fill])
+        ], [SizeHint.Weighted(2), SizeHint.Weighted(1)]);
+    }
+
+    /// <summary>
+    /// Medium layout: Single column with all features visible.
+    /// </summary>
+    private static Hex1bWidget BuildMediumLayout(WidgetContext<ConditionalWidget, TodoState> ctx)
+    {
+        var state = ctx.State;
+        var completedCount = state.Items.Count(i => i.IsComplete);
+        var totalCount = state.Items.Count;
+        
+        return new VStackWidget([
+            new BorderWidget(new VStackWidget([
+                new TextBlockWidget("📋 Responsive Todo List"),
+                new TextBlockWidget($"[{completedCount}/{totalCount} complete]")
+            ]), "Todo"),
+            
+            new BorderWidget(new ListWidget(state.ListState), "Items"),
+            
+            new HStackWidget([
+                new TextBoxWidget(state.NewItemInput),
+                new ButtonWidget("[+]", () => state.AddItem())
+            ], [SizeHint.Fill, SizeHint.Content]),
+            
+            new TextBlockWidget("↑↓:Move  Space:Toggle  Tab:Focus")
+        ], [SizeHint.Content, SizeHint.Fill, SizeHint.Content, SizeHint.Content]);
+    }
+
+    /// <summary>
+    /// Compact layout: Minimal display for narrow terminals.
+    /// </summary>
+    private static Hex1bWidget BuildCompactLayout(WidgetContext<ConditionalWidget, TodoState> ctx)
+    {
+        var state = ctx.State;
+        var completedCount = state.Items.Count(i => i.IsComplete);
+        var totalCount = state.Items.Count;
+        
+        return new VStackWidget([
+            new TextBlockWidget($"Todo [{completedCount}/{totalCount}]"),
+            new TextBlockWidget("────────────────────"),
+            new ListWidget(state.ListState),
+            new TextBlockWidget("────────────────────"),
+            new TextBoxWidget(state.NewItemInput),
+            new ButtonWidget("+ Add", () => state.AddItem())
+        ], [SizeHint.Content, SizeHint.Content, SizeHint.Fill, SizeHint.Content, SizeHint.Content, SizeHint.Content]);
+    }
+
+    private static string GetProgressBar(TodoState state)
+    {
+        if (state.Items.Count == 0) return "[          ] 0%";
+        
+        var percent = state.Items.Count(i => i.IsComplete) * 100 / state.Items.Count;
+        var filled = percent / 10;
+        var bar = new string('█', filled) + new string('░', 10 - filled);
+        return $"[{bar}] {percent}%";
+    }
+}

@@ -78,10 +78,11 @@ public sealed class ListNode : Hex1bNode
                     State.MoveDown();
                     return true;
                 case ConsoleKey.Enter:
-                    // Trigger selection changed on Enter as well
+                case ConsoleKey.Spacebar:
+                    // Trigger item activated on Enter or Space
                     if (State.SelectedItem != null)
                     {
-                        State.OnSelectionChanged?.Invoke(State.SelectedItem);
+                        State.OnItemActivated?.Invoke(State.SelectedItem);
                     }
                     return true;
             }

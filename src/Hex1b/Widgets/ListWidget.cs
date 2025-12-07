@@ -13,6 +13,11 @@ public class ListState
     public IReadOnlyList<ListItem> Items { get; set; } = [];
     public int SelectedIndex { get; set; } = 0;
     public Action<ListItem>? OnSelectionChanged { get; set; }
+    
+    /// <summary>
+    /// Called when an item is activated (Space or Enter key).
+    /// </summary>
+    public Action<ListItem>? OnItemActivated { get; set; }
 
     public ListItem? SelectedItem => SelectedIndex >= 0 && SelectedIndex < Items.Count 
         ? Items[SelectedIndex] 

@@ -266,4 +266,207 @@ public class PanelNodeTests
         Assert.Contains("Nested", screenText);
         Assert.Contains("┌", screenText);
     }
+
+    #region Integration Tests with Hex1bApp
+
+    [Fact]
+    public async Task Integration_PanelWithTextBlock_RendersCorrectly()
+    {
+        using var terminal = new Hex1bTerminal(30, 10);
+
+        using var app = new Hex1bApp<object>(
+            new object(),
+            (ctx, ct) => Task.FromResult<Hex1bWidget>(
+                ctx.Panel(ctx.Text("Panel Content"))
+            ),
+            terminal
+        );
+
+        terminal.CompleteInput();
+        await app.RunAsync();
+
+        Assert.Contains("Panel Content", terminal.RawOutput);
+    }
+
+    [Fact]
+    public async Task Integration_PanelWithVStack_RendersChildren()
+    {
+        using var terminal = new Hex1bTerminal(30, 10);
+
+        using var app = new Hex1bApp<object>(
+            new object(),
+            (ctx, ct) => Task.FromResult<Hex1bWidget>(
+                ctx.Panel(v => [
+                    v.Text("Line 1"),
+                    v.Text("Line 2"),
+                    v.Text("Line 3")
+                ])
+            ),
+            terminal
+        );
+
+        terminal.CompleteInput();
+        await app.RunAsync();
+
+        Assert.Contains("Line 1", terminal.RawOutput);
+        Assert.Contains("Line 2", terminal.RawOutput);
+        Assert.Contains("Line 3", terminal.RawOutput);
+    }
+
+    [Fact]
+    public async Task Integration_PanelWithButton_HandlesFocus()
+    {
+        using var terminal = new Hex1bTerminal(30, 10);
+        var clicked = false;
+
+        using var app = new Hex1bApp<object>(
+            new object(),
+            (ctx, ct) => Task.FromResult<Hex1bWidget>(
+                ctx.Panel(ctx.Button("Click Me", () => clicked = true))
+            ),
+            terminal
+        );
+
+        terminal.SendKey(ConsoleKey.Enter, '\r');
+        terminal.CompleteInput();
+        await app.RunAsync();
+
+        Assert.True(clicked);
+    }
+
+    [Fact]
+    public async Task Integration_PanelWithTextBox_HandlesInput()
+    {
+        using var terminal = new Hex1bTerminal(30, 10);
+        var textBoxState = new TextBoxState();
+
+        using var app = new Hex1bApp<object>(
+            new object(),
+            (ctx, ct) => Task.FromResult<Hex1bWidget>(
+                ctx.Panel(ctx.TextBox(textBoxState))
+            ),
+            terminal
+        );
+
+        terminal.TypeText("Hello Panel");
+        terminal.CompleteInput();
+        await app.RunAsync();
+
+        Assert.Equal("Hello Panel", textBoxState.Text);
+    }
+
+    [Fact]
+    public async Task Integration_PanelInsideBorder_RendersCorrectly()
+    {
+        using var terminal = new Hex1bTerminal(40, 10);
+
+        using var app = new Hex1bApp<object>(
+            new object(),
+            (ctx, ct) => Task.FromResult<Hex1bWidget>(
+                ctx.Border(ctx.Panel(ctx.Text("Panel Inside Border")), "Container")
+            ),
+            terminal
+        );
+
+        terminal.CompleteInput();
+        await app.RunAsync();
+
+        Assert.Contains("Panel Inside Border", terminal.RawOutput);
+        Assert.Contains("Container", terminal.RawOutput);
+        Assert.Contains("┌", terminal.RawOutput);
+    }
+
+    [Fact]
+    public async Task Integration_PanelWithCustomTheme_AppliesColors()
+    {
+        using var terminal = new Hex1bTerminal(30, 10);
+        var theme = Hex1bThemes.Default.Clone()
+            .Set(PanelTheme.BackgroundColor, Hex1bColor.FromRgb(50, 50, 100));
+
+        using var app = new Hex1bApp<object>(
+            new object(),
+            (ctx, ct) => Task.FromResult<Hex1bWidget>(
+                ctx.Panel(ctx.Text("Themed"))
+            ),
+            terminal,
+            theme
+        );
+
+        terminal.CompleteInput();
+        await app.RunAsync();
+
+        // Should contain background color ANSI code
+        Assert.Contains("\x1b[48;2;50;50;100m", terminal.RawOutput);
+    }
+
+    [Fact]
+    public async Task Integration_NestedPanels_RendersCorrectly()
+    {
+        using var terminal = new Hex1bTerminal(30, 10);
+
+        using var app = new Hex1bApp<object>(
+            new object(),
+            (ctx, ct) => Task.FromResult<Hex1bWidget>(
+                ctx.Panel(ctx.Panel(ctx.Text("Deep Nested")))
+            ),
+            terminal
+        );
+
+        terminal.CompleteInput();
+        await app.RunAsync();
+
+        Assert.Contains("Deep Nested", terminal.RawOutput);
+    }
+
+    [Fact]
+    public async Task Integration_PanelInVStack_RendersWithSiblings()
+    {
+        using var terminal = new Hex1bTerminal(40, 10);
+
+        using var app = new Hex1bApp<object>(
+            new object(),
+            (ctx, ct) => Task.FromResult<Hex1bWidget>(
+                ctx.VStack(v => [
+                    v.Text("Header"),
+                    v.Panel(ctx.Text("Panel Content")),
+                    v.Text("Footer")
+                ])
+            ),
+            terminal
+        );
+
+        terminal.CompleteInput();
+        await app.RunAsync();
+
+        Assert.Contains("Header", terminal.RawOutput);
+        Assert.Contains("Panel Content", terminal.RawOutput);
+        Assert.Contains("Footer", terminal.RawOutput);
+    }
+
+    [Fact]
+    public async Task Integration_PanelWithList_HandlesNavigation()
+    {
+        using var terminal = new Hex1bTerminal(30, 10);
+        var listState = new ListState
+        {
+            Items = [new ListItem("1", "Item 1"), new ListItem("2", "Item 2")],
+            SelectedIndex = 0
+        };
+
+        using var app = new Hex1bApp<object>(
+            new object(),
+            (ctx, ct) => Task.FromResult<Hex1bWidget>(
+                ctx.Panel(ctx.List(listState))
+            ),
+            terminal
+        );
+
+        terminal.SendKey(ConsoleKey.DownArrow);
+        terminal.CompleteInput();
+        await app.RunAsync();
+
+        Assert.Equal(1, listState.SelectedIndex);
+    }
+
+    #endregion
 }

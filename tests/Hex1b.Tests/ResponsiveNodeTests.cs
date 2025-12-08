@@ -458,4 +458,398 @@ public class ResponsiveNodeTests
 
         Assert.Contains("Fallback", terminal.GetScreenText());
     }
+
+    #region Integration Tests with Fluent API
+
+    [Fact]
+    public async Task Integration_Responsive_WideLayout_ShowsWideContent()
+    {
+        using var terminal = new Hex1bTerminal(120, 20);
+
+        using var app = new Hex1bApp<object>(
+            new object(),
+            (ctx, ct) => Task.FromResult<Hex1bWidget>(
+                ctx.Responsive(r => [
+                    r.WhenMinWidth(100, r => r.Text("Wide View: Full Details")),
+                    r.Otherwise(r => r.Text("Compact"))
+                ])
+            ),
+            terminal
+        );
+
+        terminal.CompleteInput();
+        await app.RunAsync();
+
+        Assert.Contains("Wide View: Full Details", terminal.RawOutput);
+        Assert.DoesNotContain("Compact", terminal.RawOutput);
+    }
+
+    [Fact]
+    public async Task Integration_Responsive_NarrowLayout_ShowsNarrowContent()
+    {
+        using var terminal = new Hex1bTerminal(50, 10);
+
+        using var app = new Hex1bApp<object>(
+            new object(),
+            (ctx, ct) => Task.FromResult<Hex1bWidget>(
+                ctx.Responsive(r => [
+                    r.WhenMinWidth(100, r => r.Text("Wide View")),
+                    r.Otherwise(r => r.Text("Compact View"))
+                ])
+            ),
+            terminal
+        );
+
+        terminal.CompleteInput();
+        await app.RunAsync();
+
+        Assert.Contains("Compact View", terminal.RawOutput);
+        Assert.DoesNotContain("Wide View", terminal.RawOutput);
+    }
+
+    [Fact]
+    public async Task Integration_Responsive_ThreeTiers_SelectsCorrectTier()
+    {
+        using var terminal = new Hex1bTerminal(75, 10);
+
+        using var app = new Hex1bApp<object>(
+            new object(),
+            (ctx, ct) => Task.FromResult<Hex1bWidget>(
+                ctx.Responsive(r => [
+                    r.WhenMinWidth(100, r => r.Text("Large")),
+                    r.WhenMinWidth(60, r => r.Text("Medium")),
+                    r.Otherwise(r => r.Text("Small"))
+                ])
+            ),
+            terminal
+        );
+
+        terminal.CompleteInput();
+        await app.RunAsync();
+
+        // 75 width should match Medium tier
+        Assert.Contains("Medium", terminal.RawOutput);
+        Assert.DoesNotContain("Large", terminal.RawOutput);
+        Assert.DoesNotContain("Small", terminal.RawOutput);
+    }
+
+    [Fact]
+    public async Task Integration_Responsive_WhenWidth_ConditionWorks()
+    {
+        using var terminal = new Hex1bTerminal(80, 10);
+
+        using var app = new Hex1bApp<object>(
+            new object(),
+            (ctx, ct) => Task.FromResult<Hex1bWidget>(
+                ctx.Responsive(r => [
+                    r.WhenWidth(w => w > 100, r => r.Text("Very Wide")),
+                    r.WhenWidth(w => w > 50, r => r.Text("Wide")),
+                    r.Otherwise(r => r.Text("Narrow"))
+                ])
+            ),
+            terminal
+        );
+
+        terminal.CompleteInput();
+        await app.RunAsync();
+
+        Assert.Contains("Wide", terminal.RawOutput);
+        Assert.DoesNotContain("Very Wide", terminal.RawOutput);
+    }
+
+    [Fact]
+    public async Task Integration_Responsive_WithFullCondition_UsesWidthAndHeight()
+    {
+        using var terminal = new Hex1bTerminal(60, 30);
+
+        using var app = new Hex1bApp<object>(
+            new object(),
+            (ctx, ct) => Task.FromResult<Hex1bWidget>(
+                ctx.Responsive(r => [
+                    r.When((w, h) => w >= 50 && h >= 20, r => r.Text("Large Screen")),
+                    r.Otherwise(r => r.Text("Small Screen"))
+                ])
+            ),
+            terminal
+        );
+
+        terminal.CompleteInput();
+        await app.RunAsync();
+
+        Assert.Contains("Large Screen", terminal.RawOutput);
+    }
+
+    [Fact]
+    public async Task Integration_Responsive_InsideBorder_ReceivesConstrainedSize()
+    {
+        using var terminal = new Hex1bTerminal(50, 10);
+
+        using var app = new Hex1bApp<object>(
+            new object(),
+            (ctx, ct) => Task.FromResult<Hex1bWidget>(
+                ctx.Border(
+                    ctx.Responsive(r => [
+                        r.WhenMinWidth(100, r => r.Text("Wide")),
+                        r.Otherwise(r => r.Text("Narrow"))
+                    ]),
+                    "Container"
+                )
+            ),
+            terminal
+        );
+
+        terminal.CompleteInput();
+        await app.RunAsync();
+
+        // Border takes 2 columns, so inner space is 48, which is < 100
+        Assert.Contains("Narrow", terminal.RawOutput);
+        Assert.Contains("Container", terminal.RawOutput);
+    }
+
+    [Fact]
+    public async Task Integration_Responsive_WithFocusableChildren_FocusWorks()
+    {
+        using var terminal = new Hex1bTerminal(80, 10);
+        var clicked = false;
+
+        using var app = new Hex1bApp<object>(
+            new object(),
+            (ctx, ct) => Task.FromResult<Hex1bWidget>(
+                ctx.Responsive(r => [
+                    r.WhenMinWidth(50, r => r.Button("Click Me", () => clicked = true)),
+                    r.Otherwise(r => r.Text("Too narrow"))
+                ])
+            ),
+            terminal
+        );
+
+        terminal.SendKey(ConsoleKey.Enter, '\r');
+        terminal.CompleteInput();
+        await app.RunAsync();
+
+        Assert.True(clicked);
+    }
+
+    [Fact]
+    public async Task Integration_Responsive_WithTextBox_InputWorks()
+    {
+        using var terminal = new Hex1bTerminal(80, 10);
+        var textBoxState = new TextBoxState();
+
+        using var app = new Hex1bApp<TextBoxState>(
+            textBoxState,
+            (ctx, ct) => Task.FromResult<Hex1bWidget>(
+                ctx.Responsive(r => [
+                    r.WhenMinWidth(50, r => r.TextBox(ctx.State)),
+                    r.Otherwise(r => r.Text("Too narrow"))
+                ])
+            ),
+            terminal
+        );
+
+        terminal.TypeText("Responsive input");
+        terminal.CompleteInput();
+        await app.RunAsync();
+
+        Assert.Equal("Responsive input", textBoxState.Text);
+    }
+
+    [Fact]
+    public async Task Integration_Responsive_InVStack_RendersCorrectly()
+    {
+        using var terminal = new Hex1bTerminal(80, 10);
+
+        using var app = new Hex1bApp<object>(
+            new object(),
+            (ctx, ct) => Task.FromResult<Hex1bWidget>(
+                ctx.VStack(v => [
+                    v.Text("Header"),
+                    v.Responsive(r => [
+                        r.WhenMinWidth(50, r => r.Text("Wide Content")),
+                        r.Otherwise(r => r.Text("Narrow"))
+                    ]),
+                    v.Text("Footer")
+                ])
+            ),
+            terminal
+        );
+
+        terminal.CompleteInput();
+        await app.RunAsync();
+
+        Assert.Contains("Header", terminal.RawOutput);
+        Assert.Contains("Wide Content", terminal.RawOutput);
+        Assert.Contains("Footer", terminal.RawOutput);
+    }
+
+    [Fact]
+    public async Task Integration_Responsive_NoMatchingConditions_RendersNothing()
+    {
+        using var terminal = new Hex1bTerminal(40, 10);
+
+        using var app = new Hex1bApp<object>(
+            new object(),
+            (ctx, ct) => Task.FromResult<Hex1bWidget>(
+                ctx.Responsive(r => [
+                    r.WhenMinWidth(100, r => r.Text("Very Wide")),
+                    r.WhenMinWidth(80, r => r.Text("Wide"))
+                    // No Otherwise fallback - neither condition matches
+                ])
+            ),
+            terminal
+        );
+
+        terminal.CompleteInput();
+        await app.RunAsync();
+
+        Assert.DoesNotContain("Very Wide", terminal.RawOutput);
+        Assert.DoesNotContain("Wide", terminal.RawOutput);
+    }
+
+    [Fact]
+    public async Task Integration_Responsive_WithList_NavigationWorks()
+    {
+        using var terminal = new Hex1bTerminal(80, 10);
+        var listState = new ListState
+        {
+            Items = [new ListItem("1", "Item 1"), new ListItem("2", "Item 2")],
+            SelectedIndex = 0
+        };
+
+        using var app = new Hex1bApp<ListState>(
+            listState,
+            (ctx, ct) => Task.FromResult<Hex1bWidget>(
+                ctx.Responsive(r => [
+                    r.WhenMinWidth(50, r => r.List(ctx.State)),
+                    r.Otherwise(r => r.Text("Too narrow for list"))
+                ])
+            ),
+            terminal
+        );
+
+        terminal.SendKey(ConsoleKey.DownArrow);
+        terminal.CompleteInput();
+        await app.RunAsync();
+
+        Assert.Equal(1, listState.SelectedIndex);
+    }
+
+    [Fact]
+    public async Task Integration_Responsive_DifferentLayoutsForDifferentWidgets()
+    {
+        using var terminal = new Hex1bTerminal(100, 20);
+
+        using var app = new Hex1bApp<object>(
+            new object(),
+            (ctx, ct) => Task.FromResult<Hex1bWidget>(
+                ctx.Responsive(r => [
+                    r.WhenMinWidth(80, r =>
+                        r.HStack(h => [
+                            h.Text("Left Panel"),
+                            h.Text("Right Panel")
+                        ])
+                    ),
+                    r.Otherwise(r =>
+                        r.VStack(v => [
+                            v.Text("Top Panel"),
+                            v.Text("Bottom Panel")
+                        ])
+                    )
+                ])
+            ),
+            terminal
+        );
+
+        terminal.CompleteInput();
+        await app.RunAsync();
+
+        // Wide layout uses HStack
+        Assert.Contains("Left Panel", terminal.RawOutput);
+        Assert.Contains("Right Panel", terminal.RawOutput);
+    }
+
+    [Fact]
+    public async Task Integration_Responsive_NarrowFallsBackToVStack()
+    {
+        using var terminal = new Hex1bTerminal(40, 20);
+
+        using var app = new Hex1bApp<object>(
+            new object(),
+            (ctx, ct) => Task.FromResult<Hex1bWidget>(
+                ctx.Responsive(r => [
+                    r.WhenMinWidth(80, r =>
+                        r.HStack(h => [
+                            h.Text("Left Panel"),
+                            h.Text("Right Panel")
+                        ])
+                    ),
+                    r.Otherwise(r =>
+                        r.VStack(v => [
+                            v.Text("Top Panel"),
+                            v.Text("Bottom Panel")
+                        ])
+                    )
+                ])
+            ),
+            terminal
+        );
+
+        terminal.CompleteInput();
+        await app.RunAsync();
+
+        // Narrow layout uses VStack
+        Assert.Contains("Top Panel", terminal.RawOutput);
+        Assert.Contains("Bottom Panel", terminal.RawOutput);
+    }
+
+    [Fact]
+    public async Task Integration_Responsive_InSplitter_WorksCorrectly()
+    {
+        using var terminal = new Hex1bTerminal(100, 10);
+
+        using var app = new Hex1bApp<object>(
+            new object(),
+            (ctx, ct) => Task.FromResult<Hex1bWidget>(
+                ctx.Splitter(
+                    ctx.Responsive(r => [
+                        r.WhenMinWidth(30, r => r.Text("Wide Left")),
+                        r.Otherwise(r => r.Text("Narrow Left"))
+                    ]),
+                    ctx.Text("Right Panel"),
+                    leftWidth: 40
+                )
+            ),
+            terminal
+        );
+
+        terminal.CompleteInput();
+        await app.RunAsync();
+
+        Assert.Contains("Wide Left", terminal.RawOutput);
+        Assert.Contains("Right Panel", terminal.RawOutput);
+    }
+
+    [Fact]
+    public async Task Integration_Responsive_WithState_AccessesStateCorrectly()
+    {
+        using var terminal = new Hex1bTerminal(80, 10);
+        var state = new { Message = "Hello from state" };
+
+        using var app = new Hex1bApp<object>(
+            state,
+            (ctx, ct) => Task.FromResult<Hex1bWidget>(
+                ctx.Responsive(state, r => [
+                    r.Otherwise(r => r.Text(state.Message))
+                ])
+            ),
+            terminal
+        );
+
+        terminal.CompleteInput();
+        await app.RunAsync();
+
+        Assert.Contains("Hello from state", terminal.RawOutput);
+    }
+
+    #endregion
 }

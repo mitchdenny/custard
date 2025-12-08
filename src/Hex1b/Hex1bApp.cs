@@ -277,6 +277,13 @@ public class Hex1bApp<TState> : IDisposable
     {
         var node = existingNode ?? new ListNode();
         node.State = widget.State;
+        
+        // Set initial focus if this is a new node (ListNode is always focusable)
+        if (existingNode is null)
+        {
+            node.IsFocused = true;
+        }
+        
         return node;
     }
 
@@ -332,6 +339,17 @@ public class Hex1bApp<TState> : IDisposable
         var node = existingNode ?? new BorderNode();
         node.Child = Reconcile(node.Child, widget.Child, node);
         node.Title = widget.Title;
+        
+        // Set initial focus on first focusable if this is a new node
+        if (existingNode is null)
+        {
+            var focusables = node.GetFocusableNodes().ToList();
+            if (focusables.Count > 0)
+            {
+                SetNodeFocus(focusables[0], true);
+            }
+        }
+        
         return node;
     }
 
@@ -339,6 +357,17 @@ public class Hex1bApp<TState> : IDisposable
     {
         var node = existingNode ?? new PanelNode();
         node.Child = Reconcile(node.Child, widget.Child, node);
+        
+        // Set initial focus on first focusable if this is a new node
+        if (existingNode is null)
+        {
+            var focusables = node.GetFocusableNodes().ToList();
+            if (focusables.Count > 0)
+            {
+                SetNodeFocus(focusables[0], true);
+            }
+        }
+        
         return node;
     }
 
@@ -366,6 +395,25 @@ public class Hex1bApp<TState> : IDisposable
             newChildNodes.Add(reconciledChild);
         }
         node.ChildNodes = newChildNodes;
+
+        // Set initial focus on the first focusable node in each branch.
+        // Since we don't know which branch will be active until Measure(),
+        // we pre-set focus on all branches' first focusable nodes.
+        // When a branch becomes active, its focusable nodes will already have correct focus.
+        if (existingNode is null)
+        {
+            foreach (var child in newChildNodes)
+            {
+                if (child != null)
+                {
+                    var firstFocusable = child.GetFocusableNodes().FirstOrDefault();
+                    if (firstFocusable != null)
+                    {
+                        SetNodeFocused(firstFocusable, true);
+                    }
+                }
+            }
+        }
 
         return node;
     }
@@ -511,6 +559,25 @@ public class Hex1bApp<TState> : IDisposable
             SplitterNode splitter => splitter.IsFocused,
             _ => false
         };
+    }
+
+    private static void SetNodeFocused(Hex1bNode node, bool focused)
+    {
+        switch (node)
+        {
+            case TextBoxNode textBox:
+                textBox.IsFocused = focused;
+                break;
+            case ButtonNode button:
+                button.IsFocused = focused;
+                break;
+            case ListNode list:
+                list.IsFocused = focused;
+                break;
+            case SplitterNode splitter:
+                splitter.IsFocused = focused;
+                break;
+        }
     }
 #pragma warning restore HEX1B001
 

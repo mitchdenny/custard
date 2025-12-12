@@ -146,26 +146,26 @@ public class SixelExhibit : Hex1bExhibit
 
             var widget = ctx.Splitter(
                 // Left panel: Image list
-                ctx.VStack(left => [
-                    left.Text("═══ Images ═══"),
-                    left.Text(""),
-                    left.List(s => s.ImageList),
-                    left.Text(""),
-                    left.Text("Use ↑↓ to select"),
-                    left.Text("Tab to switch panels")
+                ctx.Layout(leftPanel => [
+                    leftPanel.Text("═══ Images ═══"),
+                    leftPanel.Text(""),
+                    leftPanel.List(s => s.ImageList),
+                    leftPanel.Text(""),
+                    leftPanel.Text("Use ↑↓ to select"),
+                    leftPanel.Text("Tab to switch panels")
                 ]),
                 // Right panel: Image viewer
-                ctx.VStack(right => selectedImage != null 
+                ctx.Layout(rightPanel => selectedImage != null
                     ? [
-                        right.Text($"═══ {selectedImage.Name} ═══"),
-                        right.Text(""),
-                        right.Text(selectedImage.Description),
-                        right.Text(""),
-                        string.IsNullOrEmpty(sixelData) 
-                            ? right.Text("[Failed to load image]")
-                            : right.Sixel(
+                        rightPanel.Text($"═══ {selectedImage.Name} ═══"),
+                        rightPanel.Text(""),
+                        rightPanel.Text(selectedImage.Description),
+                        rightPanel.Text(""),
+                        string.IsNullOrEmpty(sixelData)
+                            ? rightPanel.Text("[Failed to load image]")
+                            : rightPanel.Sixel(
                                 sixelData,
-                                right.VStack(fallback => [
+                                rightPanel.VStack(fallback => [
                                     fallback.Text("┌─────────────────────────────────┐"),
                                     fallback.Text("│  Sixel graphics not supported   │"),
                                     fallback.Text("│  in this terminal.              │"),
@@ -182,13 +182,13 @@ public class SixelExhibit : Hex1bExhibit
                                 height: imageHeightCells)
                       ]
                     : [
-                        right.Text("═══ No Image Selected ═══"),
-                        right.Text(""),
-                        right.Text("Select an image from the list"),
-                        right.Text(""),
-                        state.Images.Count == 0 
-                            ? right.Text("No images found in wwwroot/images/")
-                            : right.Text($"Found {state.Images.Count} image(s)")
+                        rightPanel.Text("═══ No Image Selected ═══"),
+                        rightPanel.Text(""),
+                        rightPanel.Text("Select an image from the list"),
+                        rightPanel.Text(""),
+                        state.Images.Count == 0
+                            ? rightPanel.Text("No images found in wwwroot/images/")
+                            : rightPanel.Text($"Found {state.Images.Count} image(s)")
                       ]),
                 leftWidth: 25
             );

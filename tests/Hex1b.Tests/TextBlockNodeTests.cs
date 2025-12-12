@@ -104,6 +104,22 @@ public class TextBlockNodeTests
     }
 
     [Fact]
+    public void Measure_WithWrap_PrefersWordBoundaries()
+    {
+        var node = new TextBlockNode
+        {
+            Text = "Hello world",
+            Overflow = TextOverflow.Wrap
+        };
+
+        // Width 7 can't fit "Hello w" without splitting "world", so it should wrap at the space.
+        var size = node.Measure(new Constraints(0, 7, 0, int.MaxValue));
+
+        Assert.Equal(2, size.Height);
+        Assert.True(size.Width <= 7, $"Expected width <= 7, got {size.Width}");
+    }
+
+    [Fact]
     public void Measure_WithEllipsis_RespectsMaxWidth()
     {
         var node = new TextBlockNode 

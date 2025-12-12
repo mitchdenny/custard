@@ -86,14 +86,13 @@ public class LayoutExhibit(ILogger<LayoutExhibit> logger) : Hex1bExhibit
     private static Hex1bWidget BuildTextWrappingExample(RootContext<LayoutState> ctx)
     {
         var loremIpsum = "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.";
+        var explanation = "TextOverflow.Wrap automatically breaks text at word boundaries when it exceeds the available width.";
 
         return ctx.Panel(panel => [
             panel.VStack(v => [
                 v.Text("═══ Text Wrapping Demo ═══"),
                 v.Text(""),
-                v.Text("TextOverflow.Wrap automatically breaks", TextOverflow.Wrap),
-                v.Text("text at word boundaries when it exceeds", TextOverflow.Wrap),
-                v.Text("the available width.", TextOverflow.Wrap),
+                v.Text(explanation, TextOverflow.Wrap),
                 v.Text(""),
                 v.Text("─── Long Paragraph ───"),
                 v.Text(""),
@@ -106,11 +105,25 @@ public class LayoutExhibit(ILogger<LayoutExhibit> logger) : Hex1bExhibit
 
     private static Hex1bWidget BuildTextClippingExample(RootContext<LayoutState> ctx)
     {
-        var wideText = "╔══════════════════════════════════════════════════════════════════════════════════════════════════╗";
-        var contentLine1 = "║  TECHNICAL SPECIFICATIONS - SYSTEM ARCHITECTURE OVERVIEW - VERSION 2.4.1                         ║";
-        var contentLine2 = "║  Component: Terminal Rendering Engine | Status: Active | Memory: 256MB | Threads: 4              ║";
-        var contentLine3 = "║  Rendering Pipeline: Widget Tree → Reconciliation → Measure → Arrange → Render                  ║";
-        var bottomLine = "╚══════════════════════════════════════════════════════════════════════════════════════════════════╝";
+        // Intentionally very wide so it overflows even on large terminals (e.g. 160x50).
+        const int innerWidth = 240;
+
+        static string MakeTopBottom(char left, char fill, char right)
+            => $"{left}{new string(fill, innerWidth)}{right}";
+
+        static string MakeContent(string content)
+        {
+            // Ensure each content line is exactly innerWidth chars (truncate or pad).
+            var normalized = content.Length > innerWidth ? content[..innerWidth] : content.PadRight(innerWidth);
+            return $"║{normalized}║";
+        }
+
+        var topLine = MakeTopBottom('╔', '═', '╗');
+        var contentLine1 = MakeContent("  TECHNICAL SPECIFICATIONS - SYSTEM ARCHITECTURE OVERVIEW - VERSION 2.4.1");
+        var contentLine2 = MakeContent("  Component: Terminal Rendering Engine | Status: Active | Memory: 256MB | Threads: 4");
+        var contentLine3 = MakeContent("  Rendering Pipeline: Widget Tree → Reconciliation → Measure → Arrange → Render");
+        var contentLine4 = MakeContent("  Notes: This line is intentionally padded to force right-edge clipping in the demo.");
+        var bottomLine = MakeTopBottom('╚', '═', '╝');
 
         return ctx.Panel(panel => [
             panel.VStack(v => [
@@ -122,10 +135,11 @@ public class LayoutExhibit(ILogger<LayoutExhibit> logger) : Hex1bExhibit
                 v.Text(""),
                 v.Text("─── Wide ASCII Art (clipped) ───"),
                 v.Text(""),
-                v.Text(wideText),
+                v.Text(topLine),
                 v.Text(contentLine1),
                 v.Text(contentLine2),
                 v.Text(contentLine3),
+                v.Text(contentLine4),
                 v.Text(bottomLine),
                 v.Text(""),
                 v.Text("Notice how the box is cut off at the", TextOverflow.Wrap),

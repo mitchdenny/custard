@@ -38,13 +38,35 @@ public sealed class SplitterNode : Hex1bNode
 
     public override Size Measure(Constraints constraints)
     {
-        // Splitter: left width + divider (3 chars " │ ") + right content
-        var leftSize = Left?.Measure(Constraints.Unbounded) ?? Size.Zero;
-        var rightSize = Right?.Measure(Constraints.Unbounded) ?? Size.Zero;
-        
-        var width = LeftWidth + 3 + rightSize.Width;
+        // Splitter: left width + divider (3 chars " │ ") + right content.
+        // IMPORTANT: propagate bounded width constraints to children so text wrapping can work.
+        const int dividerWidth = 3;
+
+        if (constraints.MaxWidth == int.MaxValue && constraints.MaxHeight == int.MaxValue)
+        {
+            // Unbounded measure: keep legacy behavior.
+            var leftSizeUnbounded = Left?.Measure(Constraints.Unbounded) ?? Size.Zero;
+            var rightSizeUnbounded = Right?.Measure(Constraints.Unbounded) ?? Size.Zero;
+
+            var widthUnbounded = LeftWidth + dividerWidth + rightSizeUnbounded.Width;
+            var heightUnbounded = Math.Max(leftSizeUnbounded.Height, rightSizeUnbounded.Height);
+            return constraints.Constrain(new Size(widthUnbounded, heightUnbounded));
+        }
+
+        var maxWidth = constraints.MaxWidth;
+        var maxHeight = constraints.MaxHeight;
+
+        var leftMaxWidth = Math.Max(0, Math.Min(LeftWidth, maxWidth));
+        var rightMaxWidth = Math.Max(0, maxWidth - LeftWidth - dividerWidth);
+
+        var leftConstraints = new Constraints(0, leftMaxWidth, 0, maxHeight);
+        var rightConstraints = new Constraints(0, rightMaxWidth, 0, maxHeight);
+
+        var leftSize = Left?.Measure(leftConstraints) ?? Size.Zero;
+        var rightSize = Right?.Measure(rightConstraints) ?? Size.Zero;
+
+        var width = LeftWidth + dividerWidth + rightSize.Width;
         var height = Math.Max(leftSize.Height, rightSize.Height);
-        
         return constraints.Constrain(new Size(width, height));
     }
 

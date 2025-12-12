@@ -82,7 +82,9 @@ public sealed class VStackNode : Hex1bNode
             }
             else if (hint.IsContent)
             {
-                var measured = Children[i].Measure(Constraints.Unbounded);
+                // Content height often depends on available width (e.g., wrapped TextBlock).
+                // Measure with the current bounds width so content sizing is accurate.
+                var measured = Children[i].Measure(new Constraints(0, bounds.Width, 0, int.MaxValue));
                 childSizes[i] = measured.Height;
                 totalFixed += measured.Height;
             }

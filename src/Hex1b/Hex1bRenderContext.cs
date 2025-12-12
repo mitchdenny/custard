@@ -1,3 +1,4 @@
+using Hex1b.Nodes;
 using Hex1b.Theming;
 
 namespace Hex1b;
@@ -13,6 +14,12 @@ public class Hex1bRenderContext
     }
 
     public Hex1bTheme Theme { get; set; }
+    
+    /// <summary>
+    /// The current layout provider in scope. Child nodes can use this to query
+    /// whether characters should be rendered (for clipping support).
+    /// </summary>
+    public ILayoutProvider? CurrentLayoutProvider { get; set; }
     
     /// <summary>
     /// The inherited foreground color from parent containers (e.g., Panel).
@@ -63,4 +70,38 @@ public class Hex1bRenderContext
     public void SetCursorPosition(int left, int top) => _output.SetCursorPosition(left, top);
     public int Width => _output.Width;
     public int Height => _output.Height;
+    
+    /// <summary>
+    /// Writes text at the specified position, respecting the current layout provider's clipping.
+    /// If no layout provider is active, the text is written as-is.
+    /// </summary>
+    /// <param name="x">The X position to start writing.</param>
+    /// <param name="y">The Y position to write at.</param>
+    /// <param name="text">The text to write.</param>
+    public void WriteClipped(int x, int y, string text)
+    {
+        if (CurrentLayoutProvider == null)
+        {
+            // No layout provider - write directly
+            SetCursorPosition(x, y);
+            Write(text);
+            return;
+        }
+        
+        var (adjustedX, clippedText) = CurrentLayoutProvider.ClipString(x, y, text);
+        if (clippedText.Length > 0)
+        {
+            SetCursorPosition(adjustedX, y);
+            Write(clippedText);
+        }
+    }
+    
+    /// <summary>
+    /// Checks if a position should be rendered based on the current layout provider.
+    /// If no layout provider is active, returns true.
+    /// </summary>
+    public bool ShouldRenderAt(int x, int y)
+    {
+        return CurrentLayoutProvider?.ShouldRenderAt(x, y) ?? true;
+    }
 }

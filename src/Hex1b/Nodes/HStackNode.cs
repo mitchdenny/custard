@@ -42,12 +42,15 @@ public sealed class HStackNode : Hex1bNode
     public override Size Measure(Constraints constraints)
     {
         // HStack: sum widths, take max height
+        // Pass height constraint to children so they can size appropriately
         var totalWidth = 0;
         var maxHeight = 0;
 
         foreach (var child in Children)
         {
-            var childSize = child.Measure(Constraints.Unbounded);
+            // Children get the parent's height constraint but unbounded width
+            var childConstraints = new Constraints(0, int.MaxValue, 0, constraints.MaxHeight);
+            var childSize = child.Measure(childConstraints);
             totalWidth += childSize.Width;
             maxHeight = Math.Max(maxHeight, childSize.Height);
         }

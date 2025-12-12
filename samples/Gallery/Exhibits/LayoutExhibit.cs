@@ -33,21 +33,8 @@ public class LayoutExhibit(ILogger<LayoutExhibit> logger) : Hex1bExhibit
         {
             var ctx = new RootContext<LayoutState>(state);
 
-            // Large text content to demonstrate clipping/wrapping scenarios
-            var loremIpsum = """
-                Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.
-                Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.
-                Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur.
-                Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.
-                
-                Curabitur pretium tincidunt lacus. Nulla gravida orci a odio. Nullam varius, turpis et commodo pharetra.
-                Est eros bibendum elit, nec luctus magna felis sollicitudin mauris. Integer in mauris eu nibh euismod gravida.
-                Duis ac tellus et risus vulputate vehicula. Donec lobortis risus a elit. Etiam tempor.
-                
-                Ut ullamcorper, ligula eu tempor congue, eros est euismod turpis, id tincidunt sapien risus a quam.
-                Maecenas fermentum consequat mi. Donec fermentum. Pellentesque malesuada nulla a mi.
-                Duis sapien sem, aliquet sed, vulputate eget, feugiat non, leo. Cras volutpat.
-                """;
+            // Long paragraph text for wrapping demonstration
+            var wrappingText = "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur.";
 
             var technicalText = """
                 ╔══════════════════════════════════════════════════════════════════════════════════════════════════╗
@@ -55,46 +42,42 @@ public class LayoutExhibit(ILogger<LayoutExhibit> logger) : Hex1bExhibit
                 ╠══════════════════════════════════════════════════════════════════════════════════════════════════╣
                 ║  Component: Terminal Rendering Engine                                                             ║
                 ║  Status: Active | Memory: 256MB | Threads: 4 | Uptime: 99.97%                                    ║
-                ╠══════════════════════════════════════════════════════════════════════════════════════════════════╣
-                ║                                                                                                   ║
-                ║  ┌─────────────────────────────────────────────────────────────────────────────────────────────┐ ║
-                ║  │  Rendering Pipeline:                                                                         │ ║
-                ║  │    1. Widget Tree Construction → 2. Reconciliation → 3. Measure → 4. Arrange → 5. Render   │ ║
-                ║  │                                                                                              │ ║
-                ║  │  Current Frame Stats:                                                                        │ ║
-                ║  │    - Widgets: 47 | Nodes: 42 | Dirty: 3 | Cached: 39                                        │ ║
-                ║  │    - Render Time: 2.3ms | Layout Time: 0.8ms | Total: 3.1ms                                 │ ║
-                ║  └─────────────────────────────────────────────────────────────────────────────────────────────┘ ║
-                ║                                                                                                   ║
-                ║  Supported Features: ANSI Colors, Box Drawing, Unicode, Alt Screen Buffer                        ║
-                ║  Warning: This text is intentionally very wide to test horizontal clipping behavior!             ║
                 ╚══════════════════════════════════════════════════════════════════════════════════════════════════╝
                 """;
 
             var widget = ctx.Splitter(
-                ctx.Panel(leftPanel => [
-                    leftPanel.VStack(left => [
-                        left.Text("═══ Left Panel ═══"),
-                        left.Text(""),
-                        left.Text("This panel contains a large block of"),
-                        left.Text("text that may need to be clipped or"),
-                        left.Text("wrapped depending on available space."),
-                        left.Text(""),
-                        left.Text("─── Lorem Ipsum ───"),
-                        .. loremIpsum.Split('\n').Select(line => left.Text(line))
-                    ])
-                ]),
-                ctx.Panel(rightPanel => [
-                    rightPanel.VStack(right => [
-                        right.Text("═══ Right Panel ═══"),
-                        right.Text(""),
-                        right.Text("This panel contains wide technical text"),
-                        right.Text("that tests horizontal clipping behavior."),
-                        right.Text(""),
-                        right.Text("─── Technical Specs ───"),
-                        .. technicalText.Split('\n').Select(line => right.Text(line))
-                    ])
-                ]),
+                ctx.Layout(
+                    ctx.Panel(leftPanel => [
+                        leftPanel.VStack(left => [
+                            left.Text("═══ Left Panel (Wrapping) ═══"),
+                            left.Text(""),
+                            left.Text("TextOverflow.Wrap:", TextOverflow.Wrap),
+                            left.Text("─────────────────────────────"),
+                            left.Text(wrappingText, TextOverflow.Wrap),
+                            left.Text(""),
+                            left.Text("TextOverflow.Ellipsis:", TextOverflow.Wrap),
+                            left.Text("─────────────────────────────"),
+                            left.Text(wrappingText, TextOverflow.Ellipsis),
+                            left.Text(""),
+                            left.Text("TextOverflow.Overflow (default):", TextOverflow.Wrap),
+                            left.Text("─────────────────────────────"),
+                            left.Text(wrappingText, TextOverflow.Overflow)
+                        ])
+                    ]),
+                    ClipMode.Clip
+                ),
+                ctx.Layout(
+                    ctx.Panel(rightPanel => [
+                        rightPanel.VStack(right => [
+                            right.Text("═══ Right Panel (Clipped) ═══"),
+                            right.Text(""),
+                            right.Text("Wide ASCII art with clipping:"),
+                            right.Text(""),
+                            .. technicalText.Split('\n').Select(line => right.Text(line))
+                        ])
+                    ]),
+                    ClipMode.Clip
+                ),
                 leftWidth: 40
             );
 

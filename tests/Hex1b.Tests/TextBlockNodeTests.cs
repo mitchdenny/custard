@@ -54,6 +54,88 @@ public class TextBlockNodeTests
 
     #endregion
 
+    #region Wrapping Tests
+
+    [Fact]
+    public void Measure_WithWrap_CalculatesMultipleLines()
+    {
+        var node = new TextBlockNode 
+        { 
+            Text = "Hello World from Hex1b", 
+            Overflow = TextOverflow.Wrap 
+        };
+
+        // Constrain to 10 chars wide - should wrap into 3 lines
+        var size = node.Measure(new Constraints(0, 10, 0, int.MaxValue));
+
+        // "Hello" (5), "World from" (10), "Hex1b" (5) - needs multiple lines
+        Assert.True(size.Height > 1, $"Expected height > 1, got {size.Height}");
+        Assert.True(size.Width <= 10, $"Expected width <= 10, got {size.Width}");
+    }
+
+    [Fact]
+    public void Measure_WithWrap_SingleLineWhenFits()
+    {
+        var node = new TextBlockNode 
+        { 
+            Text = "Hello", 
+            Overflow = TextOverflow.Wrap 
+        };
+
+        var size = node.Measure(new Constraints(0, 40, 0, int.MaxValue));
+
+        Assert.Equal(1, size.Height);
+        Assert.Equal(5, size.Width);
+    }
+
+    [Fact]
+    public void Measure_WithWrap_UnboundedWidth_SingleLine()
+    {
+        var node = new TextBlockNode 
+        { 
+            Text = "This is a very long text that should not wrap", 
+            Overflow = TextOverflow.Wrap 
+        };
+
+        var size = node.Measure(Constraints.Unbounded);
+
+        Assert.Equal(1, size.Height);
+        Assert.Equal(45, size.Width);
+    }
+
+    [Fact]
+    public void Measure_WithEllipsis_RespectsMaxWidth()
+    {
+        var node = new TextBlockNode 
+        { 
+            Text = "Hello World from Hex1b", 
+            Overflow = TextOverflow.Ellipsis 
+        };
+
+        var size = node.Measure(new Constraints(0, 10, 0, 5));
+
+        Assert.Equal(10, size.Width);
+        Assert.Equal(1, size.Height);
+    }
+
+    [Fact]
+    public void Measure_WithOverflow_IgnoresConstraint()
+    {
+        var node = new TextBlockNode 
+        { 
+            Text = "Hello World", 
+            Overflow = TextOverflow.Overflow 
+        };
+
+        // Default behavior - width is clamped but not reduced naturally
+        var size = node.Measure(new Constraints(0, 5, 0, 5));
+
+        Assert.Equal(5, size.Width);  // Clamped by Constrain()
+        Assert.Equal(1, size.Height);
+    }
+
+    #endregion
+
     #region Rendering Tests
 
     [Fact]
@@ -137,6 +219,98 @@ public class TextBlockNodeTests
         Assert.Equal("ABCDEFGHIJKLMNOPQRST", terminal.GetLine(0));
         // Remaining chars on line 1
         Assert.Equal("UVWXYZ", terminal.GetLineTrimmed(1));
+    }
+
+    #endregion
+
+    #region Clipping Tests
+
+    [Fact]
+    public void Render_WithLayoutProvider_ClipsToClipRect()
+    {
+        using var terminal = new Hex1bTerminal(80, 10);
+        var context = new Hex1bRenderContext(terminal);
+        
+        // Create a LayoutNode that will clip to a 10-char wide region
+        var layoutNode = new Hex1b.Nodes.LayoutNode
+        {
+            ClipMode = Hex1b.Widgets.ClipMode.Clip
+        };
+        layoutNode.Arrange(new Rect(0, 0, 10, 5));
+        
+        // Set layout provider on context
+        context.CurrentLayoutProvider = layoutNode;
+        
+        var node = new TextBlockNode { Text = "Hello World - This is long text" };
+        node.Arrange(new Rect(0, 0, 10, 1));
+        
+        node.Render(context);
+        
+        // Text should be clipped to 10 characters
+        Assert.Equal("Hello Worl", terminal.GetLineTrimmed(0));
+    }
+
+    [Fact]
+    public void Render_WithLayoutProvider_ClipsWhenStartingOutsideClipRect()
+    {
+        using var terminal = new Hex1bTerminal(80, 10);
+        var context = new Hex1bRenderContext(terminal);
+        
+        // Layout clips from x=5 to x=15 (width 10)
+        var layoutNode = new Hex1b.Nodes.LayoutNode
+        {
+            ClipMode = Hex1b.Widgets.ClipMode.Clip
+        };
+        layoutNode.Arrange(new Rect(5, 0, 10, 5));
+        context.CurrentLayoutProvider = layoutNode;
+        
+        // Text starts at x=0, which is outside the clip rect (starts at x=5)
+        var node = new TextBlockNode { Text = "ABCDEFGHIJKLMNOPQRSTUVWXYZ" };
+        node.Arrange(new Rect(0, 0, 26, 1));
+        
+        node.Render(context);
+        
+        // Only chars from index 5-14 should appear (FGHIJKLMNO), at positions 5-14
+        var line = terminal.GetLine(0);
+        Assert.Equal("     FGHIJKLMNO", line.Substring(0, 15));
+    }
+
+    [Fact]
+    public void Render_WithLayoutProviderOverflow_DoesNotClip()
+    {
+        using var terminal = new Hex1bTerminal(80, 10);
+        var context = new Hex1bRenderContext(terminal);
+        
+        // Layout with Overflow mode - should not clip
+        var layoutNode = new Hex1b.Nodes.LayoutNode
+        {
+            ClipMode = Hex1b.Widgets.ClipMode.Overflow
+        };
+        layoutNode.Arrange(new Rect(0, 0, 10, 5));
+        context.CurrentLayoutProvider = layoutNode;
+        
+        var node = new TextBlockNode { Text = "Hello World" };
+        node.Arrange(new Rect(0, 0, 20, 1));
+        
+        node.Render(context);
+        
+        // Full text should appear (no clipping)
+        Assert.Equal("Hello World", terminal.GetLineTrimmed(0));
+    }
+
+    [Fact]
+    public void Render_WithoutLayoutProvider_DoesNotClip()
+    {
+        using var terminal = new Hex1bTerminal(80, 10);
+        var context = new Hex1bRenderContext(terminal);
+        
+        // No layout provider
+        var node = new TextBlockNode { Text = "Hello World" };
+        
+        node.Render(context);
+        
+        // Full text should appear
+        Assert.Equal("Hello World", terminal.GetLineTrimmed(0));
     }
 
     #endregion

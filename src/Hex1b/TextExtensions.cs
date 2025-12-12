@@ -13,16 +13,18 @@ public static class TextExtensions
     /// </summary>
     public static TextBlockWidget Text<TParent, TState>(
         this WidgetContext<TParent, TState> ctx,
-        string text)
+        string text,
+        TextOverflow overflow = TextOverflow.Overflow)
         where TParent : Hex1bWidget
-        => new(text);
+        => new(text, overflow);
 
     /// <summary>
     /// Creates a TextBlockWidget with text derived from state.
     /// </summary>
     public static TextBlockWidget Text<TParent, TState>(
         this WidgetContext<TParent, TState> ctx,
-        Func<TState, string> textSelector)
+        Func<TState, string> textSelector,
+        TextOverflow overflow = TextOverflow.Overflow)
         where TParent : Hex1bWidget
-        => new(textSelector(ctx.State));
+        => new(textSelector(ctx.State), overflow);
 }

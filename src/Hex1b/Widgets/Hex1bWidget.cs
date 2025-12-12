@@ -11,7 +11,30 @@ public abstract record Hex1bWidget
     public IReadOnlyList<Shortcut>? Shortcuts { get; init; }
 }
 
-public sealed record TextBlockWidget(string Text) : Hex1bWidget;
+/// <summary>
+/// How text should handle horizontal overflow.
+/// </summary>
+public enum TextOverflow
+{
+    /// <summary>
+    /// Text extends beyond bounds (default, for backward compatibility).
+    /// Clipping is handled by parent LayoutNode if present.
+    /// </summary>
+    Overflow,
+    
+    /// <summary>
+    /// Text wraps to next line when it exceeds available width.
+    /// This affects the measured height of the node.
+    /// </summary>
+    Wrap,
+    
+    /// <summary>
+    /// Text is truncated with ellipsis when it exceeds available width.
+    /// </summary>
+    Ellipsis,
+}
+
+public sealed record TextBlockWidget(string Text, TextOverflow Overflow = TextOverflow.Overflow) : Hex1bWidget;
 
 public sealed record TextBoxWidget(TextBoxState State) : Hex1bWidget;
 

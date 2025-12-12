@@ -183,6 +183,7 @@ public class Hex1bApp<TState> : IDisposable
             NavigatorWidget navigatorWidget => ReconcileNavigator(existingNode as NavigatorNode, navigatorWidget),
             BorderWidget borderWidget => ReconcileBorder(existingNode as BorderNode, borderWidget),
             PanelWidget panelWidget => ReconcilePanel(existingNode as PanelNode, panelWidget),
+            LayoutWidget layoutWidget => ReconcileLayout(existingNode as LayoutNode, layoutWidget),
             SixelWidget sixelWidget => ReconcileSixel(existingNode as SixelNode, sixelWidget),
             ResponsiveWidget responsiveWidget => ReconcileResponsive(existingNode as ResponsiveNode, responsiveWidget),
             _ => throw new NotSupportedException($"Unknown widget type: {widget.GetType()}")
@@ -200,6 +201,7 @@ public class Hex1bApp<TState> : IDisposable
     {
         var node = existingNode ?? new TextBlockNode();
         node.Text = widget.Text;
+        node.Overflow = widget.Overflow;
         return node;
     }
 
@@ -368,6 +370,14 @@ public class Hex1bApp<TState> : IDisposable
             }
         }
         
+        return node;
+    }
+
+    private static LayoutNode ReconcileLayout(LayoutNode? existingNode, LayoutWidget widget)
+    {
+        var node = existingNode ?? new LayoutNode();
+        node.ClipMode = widget.ClipMode;
+        node.Child = Reconcile(node.Child, widget.Child, node);
         return node;
     }
 

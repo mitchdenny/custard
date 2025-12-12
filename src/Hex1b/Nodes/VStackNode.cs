@@ -25,13 +25,30 @@ public sealed class VStackNode : Hex1bNode
         if (_focusableNodes == null)
         {
             _focusableNodes = GetFocusableNodes().ToList();
-            // Auto-focus the first focusable node if none are focused
-            if (_focusableNodes.Count > 0 && _focusedIndex == 0)
+            // Sync _focusedIndex to match any node that's already focused
+            // (focus is set externally during reconciliation)
+            for (int i = 0; i < _focusableNodes.Count; i++)
             {
-                SetNodeFocus(_focusableNodes[0], true);
+                if (IsNodeFocused(_focusableNodes[i]))
+                {
+                    _focusedIndex = i;
+                    break;
+                }
             }
         }
         return _focusableNodes;
+    }
+
+    private static bool IsNodeFocused(Hex1bNode node)
+    {
+        return node switch
+        {
+            TextBoxNode textBox => textBox.IsFocused,
+            ButtonNode button => button.IsFocused,
+            ListNode list => list.IsFocused,
+            SplitterNode splitter => splitter.IsFocused,
+            _ => false
+        };
     }
 
     public void InvalidateFocusCache()

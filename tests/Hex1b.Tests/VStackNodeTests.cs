@@ -226,9 +226,7 @@ public class VStackNodeTests
         };
         node.InvalidateFocusCache();
 
-        // First tab forward to set internal index
-        node.HandleInput(new KeyInputEvent(ConsoleKey.Tab, '\t', false, false, false));
-        // Then shift-tab back
+        // textBox2 starts focused at index 1, shift-tab moves back to index 0
         node.HandleInput(new KeyInputEvent(ConsoleKey.Tab, '\t', true, false, false));
 
         Assert.True(textBox1.IsFocused);
@@ -261,8 +259,7 @@ public class VStackNodeTests
         };
         node.InvalidateFocusCache();
 
-        // Tab from second to first (wrap around)
-        node.HandleInput(new KeyInputEvent(ConsoleKey.Tab, '\t', false, false, false));
+        // button2 starts focused at index 1, one Tab wraps to index 0
         node.HandleInput(new KeyInputEvent(ConsoleKey.Tab, '\t', false, false, false));
 
         Assert.True(button1.IsFocused);

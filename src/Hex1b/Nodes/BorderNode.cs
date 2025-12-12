@@ -76,48 +76,60 @@ public sealed class BorderNode : Hex1bNode
         var inheritedBg = context.InheritedBackground.IsDefault ? "" : context.InheritedBackground.ToBackgroundAnsi();
         var colorCode = $"{inheritedBg}{borderColor.ToForegroundAnsi()}";
         var resetToInherited = context.GetResetToInheritedCodes();
-
-        // Draw top border with optional title
-        context.SetCursorPosition(x, y);
-        context.Write($"{colorCode}{topLeft}");
         
         var innerWidth = Math.Max(0, width - 2);
+
+        // Build and render top border with optional title
+        string topLine;
         if (!string.IsNullOrEmpty(Title) && innerWidth > 2)
         {
             var titleToShow = Title.Length > innerWidth - 2 ? Title[..(innerWidth - 2)] : Title;
             var leftPadding = (innerWidth - titleToShow.Length) / 2;
             var rightPadding = innerWidth - titleToShow.Length - leftPadding;
             
-            context.Write(new string(horizontal[0], leftPadding));
-            context.Write($"{inheritedBg}{titleColor.ToForegroundAnsi()}{titleToShow}{colorCode}");
-            context.Write(new string(horizontal[0], rightPadding));
+            topLine = $"{colorCode}{topLeft}" +
+                      new string(horizontal[0], leftPadding) +
+                      $"{inheritedBg}{titleColor.ToForegroundAnsi()}{titleToShow}{colorCode}" +
+                      new string(horizontal[0], rightPadding) +
+                      $"{topRight}{resetToInherited}";
         }
         else
         {
-            context.Write(new string(horizontal[0], innerWidth));
+            topLine = $"{colorCode}{topLeft}{new string(horizontal[0], innerWidth)}{topRight}{resetToInherited}";
         }
-        context.Write($"{topRight}{resetToInherited}");
+        WriteLineClipped(context, x, y, topLine);
 
         // Draw left and right borders for each row
+        var leftBorder = $"{colorCode}{vertical}{resetToInherited}";
+        var rightBorder = $"{colorCode}{vertical}{resetToInherited}";
         for (int row = 1; row < height - 1; row++)
         {
-            context.SetCursorPosition(x, y + row);
-            context.Write($"{colorCode}{vertical}{resetToInherited}");
-            context.SetCursorPosition(x + width - 1, y + row);
-            context.Write($"{colorCode}{vertical}{resetToInherited}");
+            WriteLineClipped(context, x, y + row, leftBorder);
+            WriteLineClipped(context, x + width - 1, y + row, rightBorder);
         }
 
         // Draw bottom border
         if (height > 1)
         {
-            context.SetCursorPosition(x, y + height - 1);
-            context.Write($"{colorCode}{bottomLeft}");
-            context.Write(new string(horizontal[0], innerWidth));
-            context.Write($"{bottomRight}{resetToInherited}");
+            var bottomLine = $"{colorCode}{bottomLeft}{new string(horizontal[0], innerWidth)}{bottomRight}{resetToInherited}";
+            WriteLineClipped(context, x, y + height - 1, bottomLine);
         }
 
         // Render child content
         Child?.Render(context);
+    }
+
+    private static void WriteLineClipped(Hex1bRenderContext context, int x, int y, string text)
+    {
+        if (context.CurrentLayoutProvider != null)
+        {
+            context.WriteClipped(x, y, text);
+        }
+        else
+        {
+            context.SetCursorPosition(x, y);
+            context.Write(text);
+        }
     }
 
     public override bool HandleInput(Hex1bInputEvent evt)

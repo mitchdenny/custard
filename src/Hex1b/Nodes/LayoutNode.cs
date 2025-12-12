@@ -1,4 +1,5 @@
 using Hex1b.Layout;
+using Hex1b.Terminal;
 using Hex1b.Widgets;
 
 namespace Hex1b.Nodes;
@@ -76,24 +77,41 @@ public sealed class LayoutNode : Hex1bNode, ILayoutProvider
             
         var clipLeft = ClipRect.X;
         var clipRight = ClipRect.X + ClipRect.Width;
-        
-        var textEnd = x + text.Length;
-        
-        // Entirely outside horizontal bounds
-        if (textEnd <= clipLeft || x >= clipRight)
+
+        // Entirely outside horizontal bounds (based on starting X)
+        if (x >= clipRight)
             return (x, "");
-            
-        // Calculate how much to trim from left and right
-        var leftTrim = Math.Max(0, clipLeft - x);
-        var rightTrim = Math.Max(0, textEnd - clipRight);
-        
-        var visibleLength = text.Length - leftTrim - rightTrim;
+
+        // Clip by visible columns (ANSI-aware) so we never cut escape sequences.
+        var visibleLength = AnsiString.VisibleLength(text);
         if (visibleLength <= 0)
             return (x, "");
-            
-        var clippedText = text.Substring(leftTrim, visibleLength);
-        var adjustedX = x + leftTrim;
-        
+
+        var startColumn = Math.Max(0, clipLeft - x);
+        var endColumnExclusive = Math.Min(visibleLength, clipRight - x);
+
+        // Entirely left of the clip region.
+        if (endColumnExclusive <= 0)
+            return (x, "");
+
+        if (endColumnExclusive <= startColumn)
+            return (x, "");
+
+        var sliceLength = endColumnExclusive - startColumn;
+        var clippedText = AnsiString.SliceByColumns(text, startColumn, sliceLength);
+        if (clippedText.Length == 0)
+            return (x, "");
+
+        // If we clipped away printable characters on the right, preserve any trailing
+        // escape suffix (typically a reset-to-inherited) to avoid style leaking.
+        if (endColumnExclusive < visibleLength)
+        {
+            var suffix = AnsiString.TrailingEscapeSuffix(text);
+            if (!string.IsNullOrEmpty(suffix) && !clippedText.EndsWith(suffix, StringComparison.Ordinal))
+                clippedText += suffix;
+        }
+
+        var adjustedX = x + startColumn;
         return (adjustedX, clippedText);
     }
 

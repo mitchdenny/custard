@@ -47,11 +47,20 @@ public sealed class PanelNode : Hex1bNode
         {
             var bgCode = backgroundColor.ToBackgroundAnsi();
             var resetCode = "\x1b[0m";
+            var fillLine = $"{bgCode}{new string(' ', Bounds.Width)}{resetCode}";
 
             for (int row = 0; row < Bounds.Height; row++)
             {
-                context.SetCursorPosition(Bounds.X, Bounds.Y + row);
-                context.Write($"{bgCode}{new string(' ', Bounds.Width)}{resetCode}");
+                var y = Bounds.Y + row;
+                if (context.CurrentLayoutProvider != null)
+                {
+                    context.WriteClipped(Bounds.X, y, fillLine);
+                }
+                else
+                {
+                    context.SetCursorPosition(Bounds.X, y);
+                    context.Write(fillLine);
+                }
             }
         }
 

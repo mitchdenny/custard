@@ -42,23 +42,35 @@ public sealed class ListNode : Hex1bNode
             var item = items[i];
             var isSelected = i == State.SelectedIndex;
 
-            // Position cursor for this row
-            context.SetCursorPosition(Bounds.X, Bounds.Y + i);
-
+            var x = Bounds.X;
+            var y = Bounds.Y + i;
+            
+            string text;
             if (isSelected && IsFocused)
             {
                 // Focused and selected: use theme colors
-                context.Write($"{selectedFg.ToForegroundAnsi()}{selectedBg.ToBackgroundAnsi()}{selectedIndicator}{item.Text}{resetToInherited}");
+                text = $"{selectedFg.ToForegroundAnsi()}{selectedBg.ToBackgroundAnsi()}{selectedIndicator}{item.Text}{resetToInherited}";
             }
             else if (isSelected)
             {
                 // Selected but not focused: just show indicator with inherited colors
-                context.Write($"{inheritedColors}{selectedIndicator}{item.Text}{resetToInherited}");
+                text = $"{inheritedColors}{selectedIndicator}{item.Text}{resetToInherited}";
             }
             else
             {
                 // Not selected: use inherited colors
-                context.Write($"{inheritedColors}{unselectedIndicator}{item.Text}{resetToInherited}");
+                text = $"{inheritedColors}{unselectedIndicator}{item.Text}{resetToInherited}";
+            }
+
+            // Use clipped rendering when a layout provider is active
+            if (context.CurrentLayoutProvider != null)
+            {
+                context.WriteClipped(x, y, text);
+            }
+            else
+            {
+                context.SetCursorPosition(x, y);
+                context.Write(text);
             }
         }
     }

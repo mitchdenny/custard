@@ -1,4 +1,5 @@
 using Hex1b.Layout;
+using Hex1b.Nodes;
 
 namespace Hex1b.Widgets;
 
@@ -6,7 +7,18 @@ namespace Hex1b.Widgets;
 /// A layout widget that provides clipping and rendering assistance to its children.
 /// Children that are aware of layout can query whether characters should be rendered.
 /// </summary>
-public sealed record LayoutWidget(Hex1bWidget Child, ClipMode ClipMode = ClipMode.Clip) : Hex1bWidget;
+public sealed record LayoutWidget(Hex1bWidget Child, ClipMode ClipMode = ClipMode.Clip) : Hex1bWidget
+{
+    internal override Hex1bNode Reconcile(Hex1bNode? existingNode, ReconcileContext context)
+    {
+        var node = existingNode as LayoutNode ?? new LayoutNode();
+        node.ClipMode = ClipMode;
+        node.Child = context.ReconcileChild(node.Child, Child, node);
+        return node;
+    }
+
+    internal override Type GetExpectedNodeType() => typeof(LayoutNode);
+}
 
 /// <summary>
 /// Determines how content that exceeds bounds is handled.

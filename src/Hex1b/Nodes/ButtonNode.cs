@@ -7,7 +7,9 @@ public sealed class ButtonNode : Hex1bNode
 {
     public string Label { get; set; } = "";
     public Action? OnClick { get; set; }
-    public bool IsFocused { get; set; } = false;
+    
+    private bool _isFocused;
+    public override bool IsFocused { get => _isFocused; set => _isFocused = value; }
 
     public override bool IsFocusable => true;
 

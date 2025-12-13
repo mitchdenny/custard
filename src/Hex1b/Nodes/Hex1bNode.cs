@@ -84,6 +84,19 @@ public abstract class Hex1bNode
     public virtual bool IsFocusable => false;
 
     /// <summary>
+    /// Gets or sets whether this node is currently focused.
+    /// Only meaningful for focusable nodes (where IsFocusable is true).
+    /// </summary>
+    public virtual bool IsFocused { get => false; set { } }
+
+    /// <summary>
+    /// Syncs internal focus tracking to match the current IsFocused state of child nodes.
+    /// Called after externally setting focus on a child node.
+    /// Container nodes should override this to update their internal focus index.
+    /// </summary>
+    public virtual void SyncFocusIndex() { }
+
+    /// <summary>
     /// Gets all focusable nodes in this subtree (including this node if focusable).
     /// </summary>
     public virtual IEnumerable<Hex1bNode> GetFocusableNodes()

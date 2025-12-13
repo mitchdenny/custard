@@ -7,7 +7,9 @@ namespace Hex1b;
 public sealed class TextBoxNode : Hex1bNode
 {
     public TextBoxState State { get; set; } = new();
-    public bool IsFocused { get; set; } = false;
+    
+    private bool _isFocused;
+    public override bool IsFocused { get => _isFocused; set => _isFocused = value; }
 
     public override bool IsFocusable => true;
 

@@ -1,4 +1,5 @@
 using System.Diagnostics.CodeAnalysis;
+using Hex1b.Nodes;
 
 namespace Hex1b.Widgets;
 
@@ -15,4 +16,17 @@ public sealed record SixelWidget(
     string ImageData, 
     Hex1bWidget Fallback,
     int? Width = null,
-    int? Height = null) : Hex1bWidget;
+    int? Height = null) : Hex1bWidget
+{
+    internal override Hex1bNode Reconcile(Hex1bNode? existingNode, ReconcileContext context)
+    {
+        var node = existingNode as SixelNode ?? new SixelNode();
+        node.ImageData = ImageData;
+        node.RequestedWidth = Width;
+        node.RequestedHeight = Height;
+        node.Fallback = context.ReconcileChild(node.Fallback, Fallback, node);
+        return node;
+    }
+
+    internal override Type GetExpectedNodeType() => typeof(SixelNode);
+}

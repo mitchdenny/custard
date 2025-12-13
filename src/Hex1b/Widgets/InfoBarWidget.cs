@@ -1,3 +1,4 @@
+using Hex1b.Nodes;
 using Hex1b.Theming;
 
 namespace Hex1b.Widgets;
@@ -21,4 +22,15 @@ public sealed record InfoBarSection(
 /// <param name="InvertColors">Whether to invert foreground/background colors (default: true).</param>
 public sealed record InfoBarWidget(
     IReadOnlyList<InfoBarSection> Sections,
-    bool InvertColors = true) : Hex1bWidget;
+    bool InvertColors = true) : Hex1bWidget
+{
+    internal override Hex1bNode Reconcile(Hex1bNode? existingNode, ReconcileContext context)
+    {
+        var node = existingNode as InfoBarNode ?? new InfoBarNode();
+        node.Sections = Sections;
+        node.InvertColors = InvertColors;
+        return node;
+    }
+
+    internal override Type GetExpectedNodeType() => typeof(InfoBarNode);
+}

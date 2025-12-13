@@ -28,7 +28,7 @@ public sealed class VStackNode : Hex1bNode
             // (focus is set externally during reconciliation)
             for (int i = 0; i < _focusableNodes.Count; i++)
             {
-                if (IsNodeFocused(_focusableNodes[i]))
+                if (_focusableNodes[i].IsFocused)
                 {
                     _focusedIndex = i;
                     break;
@@ -36,19 +36,6 @@ public sealed class VStackNode : Hex1bNode
             }
         }
         return _focusableNodes;
-    }
-
-    private static bool IsNodeFocused(Hex1bNode node)
-    {
-        return node switch
-        {
-            TextBoxNode textBox => textBox.IsFocused,
-            ButtonNode button => button.IsFocused,
-            ListNode list => list.IsFocused,
-            SplitterNode splitter => splitter.IsFocused,
-            ToggleSwitchNode toggleSwitch => toggleSwitch.IsFocused,
-            _ => false
-        };
     }
 
     public void InvalidateFocusCache()
@@ -156,7 +143,7 @@ public sealed class VStackNode : Hex1bNode
                 // Clear old focus
                 if (_focusedIndex >= 0 && _focusedIndex < focusables.Count)
                 {
-                    SetNodeFocus(focusables[_focusedIndex], false);
+                    focusables[_focusedIndex].IsFocused = false;
                 }
 
                 // Move focus
@@ -170,7 +157,7 @@ public sealed class VStackNode : Hex1bNode
                 }
 
                 // Set new focus
-                SetNodeFocus(focusables[_focusedIndex], true);
+                focusables[_focusedIndex].IsFocused = true;
                 return true;
             }
         }
@@ -185,52 +172,26 @@ public sealed class VStackNode : Hex1bNode
         return false;
     }
 
-    private static void SetNodeFocus(Hex1bNode node, bool focused)
-    {
-        switch (node)
-        {
-            case TextBoxNode textBox:
-                textBox.IsFocused = focused;
-                break;
-            case ButtonNode button:
-                button.IsFocused = focused;
-                break;
-            case ListNode list:
-                list.IsFocused = focused;
-                break;
-            case SplitterNode splitter:
-                splitter.IsFocused = focused;
-                break;
-            case ToggleSwitchNode toggleSwitch:
-                toggleSwitch.IsFocused = focused;
-                break;
-        }
-    }
-
     /// <summary>
     /// Syncs _focusedIndex to match which child node has IsFocused = true.
     /// Call this after externally setting focus on a child node.
     /// </summary>
-    public void SyncFocusIndex()
+    public override void SyncFocusIndex()
     {
         var focusables = GetFocusableNodesList();
         for (int i = 0; i < focusables.Count; i++)
         {
-            var node = focusables[i];
-            bool isFocused = node switch
-            {
-                TextBoxNode textBox => textBox.IsFocused,
-                ButtonNode button => button.IsFocused,
-                ListNode list => list.IsFocused,
-                SplitterNode splitter => splitter.IsFocused,
-                ToggleSwitchNode toggleSwitch => toggleSwitch.IsFocused,
-                _ => false
-            };
-            if (isFocused)
+            if (focusables[i].IsFocused)
             {
                 _focusedIndex = i;
-                return;
+                break;
             }
+        }
+        
+        // Recursively sync children
+        foreach (var child in Children)
+        {
+            child.SyncFocusIndex();
         }
     }
 }

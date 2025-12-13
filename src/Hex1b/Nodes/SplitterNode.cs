@@ -8,7 +8,9 @@ public sealed class SplitterNode : Hex1bNode
     public Hex1bNode? Left { get; set; }
     public Hex1bNode? Right { get; set; }
     public int LeftWidth { get; set; } = 30;
-    public bool IsFocused { get; set; } = false;
+    
+    private bool _isFocused;
+    public override bool IsFocused { get => _isFocused; set => _isFocused = value; }
     
     /// <summary>
     /// The amount to move the splitter when pressing left/right arrow keys.
@@ -127,7 +129,7 @@ public sealed class SplitterNode : Hex1bNode
         var focusables = GetFocusableNodesList();
         if (focusables.Count > 0)
         {
-            SetNodeFocus(focusables[0], true);
+            focusables[0].IsFocused = true;
         }
     }
 
@@ -204,12 +206,12 @@ public sealed class SplitterNode : Hex1bNode
                 // Clear old focus
                 if (_focusedIndex >= 0 && _focusedIndex < focusables.Count)
                 {
-                    SetNodeFocus(focusables[_focusedIndex], false);
+                    focusables[_focusedIndex].IsFocused = false;
                 }
                 
                 // Jump to first focusable
                 _focusedIndex = 0;
-                SetNodeFocus(focusables[_focusedIndex], true);
+                focusables[_focusedIndex].IsFocused = true;
                 return true;
             }
         }
@@ -223,7 +225,7 @@ public sealed class SplitterNode : Hex1bNode
                 // Clear old focus
                 if (_focusedIndex >= 0 && _focusedIndex < focusables.Count)
                 {
-                    SetNodeFocus(focusables[_focusedIndex], false);
+                    focusables[_focusedIndex].IsFocused = false;
                 }
 
                 // Move focus
@@ -237,7 +239,7 @@ public sealed class SplitterNode : Hex1bNode
                 }
 
                 // Set new focus
-                SetNodeFocus(focusables[_focusedIndex], true);
+                focusables[_focusedIndex].IsFocused = true;
                 return true;
             }
         }
@@ -273,52 +275,24 @@ public sealed class SplitterNode : Hex1bNode
         return false;
     }
 
-    private static void SetNodeFocus(Hex1bNode node, bool focused)
-    {
-        switch (node)
-        {
-            case TextBoxNode textBox:
-                textBox.IsFocused = focused;
-                break;
-            case ButtonNode button:
-                button.IsFocused = focused;
-                break;
-            case ListNode list:
-                list.IsFocused = focused;
-                break;
-            case SplitterNode splitter:
-                splitter.IsFocused = focused;
-                break;
-            case ToggleSwitchNode toggleSwitch:
-                toggleSwitch.IsFocused = focused;
-                break;
-        }
-    }
-
     /// <summary>
     /// Syncs _focusedIndex to match which child node has IsFocused = true.
     /// Call this after externally setting focus on a child node.
     /// </summary>
-    public void SyncFocusIndex()
+    public override void SyncFocusIndex()
     {
         var focusables = GetFocusableNodesList();
         for (int i = 0; i < focusables.Count; i++)
         {
-            var node = focusables[i];
-            bool isFocused = node switch
-            {
-                TextBoxNode textBox => textBox.IsFocused,
-                ButtonNode button => button.IsFocused,
-                ListNode list => list.IsFocused,
-                SplitterNode splitter => splitter.IsFocused,
-                ToggleSwitchNode toggleSwitch => toggleSwitch.IsFocused,
-                _ => false
-            };
-            if (isFocused)
+            if (focusables[i].IsFocused)
             {
                 _focusedIndex = i;
-                return;
+                break;
             }
         }
+        
+        // Recursively sync children
+        Left?.SyncFocusIndex();
+        Right?.SyncFocusIndex();
     }
 }

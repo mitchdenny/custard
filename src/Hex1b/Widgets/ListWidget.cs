@@ -1,3 +1,5 @@
+using Hex1b.Nodes;
+
 namespace Hex1b.Widgets;
 
 /// <summary>
@@ -38,4 +40,21 @@ public class ListState
     }
 }
 
-public sealed record ListWidget(ListState State) : Hex1bWidget;
+public sealed record ListWidget(ListState State) : Hex1bWidget
+{
+    internal override Hex1bNode Reconcile(Hex1bNode? existingNode, ReconcileContext context)
+    {
+        var node = existingNode as ListNode ?? new ListNode();
+        node.State = State;
+        
+        // Set initial focus if this is a new node (ListNode is always focusable)
+        if (context.IsNew)
+        {
+            node.IsFocused = true;
+        }
+        
+        return node;
+    }
+
+    internal override Type GetExpectedNodeType() => typeof(ListNode);
+}

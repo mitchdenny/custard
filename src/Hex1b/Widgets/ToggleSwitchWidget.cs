@@ -1,3 +1,5 @@
+using Hex1b.Nodes;
+
 namespace Hex1b.Widgets;
 
 /// <summary>
@@ -62,4 +64,15 @@ public class ToggleSwitchState
 /// A horizontal toggle switch widget that allows selecting between multiple options.
 /// Use arrow keys (left/right) to switch between options when focused.
 /// </summary>
-public sealed record ToggleSwitchWidget(ToggleSwitchState State) : Hex1bWidget;
+public sealed record ToggleSwitchWidget(ToggleSwitchState State) : Hex1bWidget
+{
+    internal override Hex1bNode Reconcile(Hex1bNode? existingNode, ReconcileContext context)
+    {
+        var node = existingNode as ToggleSwitchNode ?? new ToggleSwitchNode();
+        node.State = State;
+        // Note: IsFocused is managed by the parent container, not set here
+        return node;
+    }
+
+    internal override Type GetExpectedNodeType() => typeof(ToggleSwitchNode);
+}

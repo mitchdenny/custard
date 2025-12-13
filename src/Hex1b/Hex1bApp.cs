@@ -201,11 +201,11 @@ public class Hex1bApp<TState> : IDisposable
             ButtonWidget buttonWidget => ReconcileButton(existingNode as ButtonNode, buttonWidget),
             ListWidget listWidget => ReconcileList(existingNode as ListNode, listWidget),
             SplitterWidget splitterWidget => ReconcileSplitter(existingNode as SplitterNode, splitterWidget),
-            VStackWidget vStackWidget => ReconcileVStack(existingNode as VStackNode, vStackWidget),
+            VStackWidget vStackWidget => ReconcileVStack(existingNode as VStackNode, vStackWidget, parent),
             HStackWidget hStackWidget => ReconcileHStack(existingNode as HStackNode, hStackWidget),
             NavigatorWidget navigatorWidget => ReconcileNavigator(existingNode as NavigatorNode, navigatorWidget),
-            BorderWidget borderWidget => ReconcileBorder(existingNode as BorderNode, borderWidget),
-            PanelWidget panelWidget => ReconcilePanel(existingNode as PanelNode, panelWidget),
+            BorderWidget borderWidget => ReconcileBorder(existingNode as BorderNode, borderWidget, parent),
+            PanelWidget panelWidget => ReconcilePanel(existingNode as PanelNode, panelWidget, parent),
             LayoutWidget layoutWidget => ReconcileLayout(existingNode as LayoutNode, layoutWidget),
             SixelWidget sixelWidget => ReconcileSixel(existingNode as SixelNode, sixelWidget),
             ResponsiveWidget responsiveWidget => ReconcileResponsive(existingNode as ResponsiveNode, responsiveWidget),
@@ -247,7 +247,7 @@ public class Hex1bApp<TState> : IDisposable
         return node;
     }
 
-    private static VStackNode ReconcileVStack(VStackNode? existingNode, VStackWidget widget)
+    private static VStackNode ReconcileVStack(VStackNode? existingNode, VStackWidget widget, Hex1bNode? parent)
     {
         var node = existingNode ?? new VStackNode();
 
@@ -267,8 +267,9 @@ public class Hex1bApp<TState> : IDisposable
         // Invalidate focus cache since children changed
         node.InvalidateFocusCache();
 
-        // Set initial focus on first focusable if this is a new node
-        if (existingNode is null)
+        // Set initial focus only if this is a new node AND we're at the root or parent doesn't manage focus
+        // Focus-managing parents (SplitterNode) will call their own SetInitialFocus
+        if (existingNode is null && !ParentManagesFocus(parent))
         {
             var focusables = node.GetFocusableNodes().ToList();
             if (focusables.Count > 0)
@@ -278,6 +279,26 @@ public class Hex1bApp<TState> : IDisposable
         }
         
         return node;
+    }
+
+    /// <summary>
+    /// Returns true if the parent node manages focus for its children.
+    /// When a parent manages focus, child containers should NOT set initial focus.
+    /// </summary>
+    private static bool ParentManagesFocus(Hex1bNode? parent)
+    {
+        // Walk up the parent chain to find if there's a focus-managing ancestor
+        var current = parent;
+        while (current != null)
+        {
+            // SplitterNode manages focus between its left/right panes
+            if (current is SplitterNode)
+            {
+                return true;
+            }
+            current = current.Parent;
+        }
+        return false;
     }
 
     private static void SetNodeFocus(Hex1bNode node, bool focused)
@@ -360,14 +381,14 @@ public class Hex1bApp<TState> : IDisposable
         return node;
     }
 
-    private static BorderNode ReconcileBorder(BorderNode? existingNode, BorderWidget widget)
+    private static BorderNode ReconcileBorder(BorderNode? existingNode, BorderWidget widget, Hex1bNode? parent)
     {
         var node = existingNode ?? new BorderNode();
         node.Child = Reconcile(node.Child, widget.Child, node);
         node.Title = widget.Title;
         
-        // Set initial focus on first focusable if this is a new node
-        if (existingNode is null)
+        // Set initial focus only if this is a new node AND we're at the root or parent doesn't manage focus
+        if (existingNode is null && !ParentManagesFocus(parent))
         {
             var focusables = node.GetFocusableNodes().ToList();
             if (focusables.Count > 0)
@@ -379,13 +400,13 @@ public class Hex1bApp<TState> : IDisposable
         return node;
     }
 
-    private static PanelNode ReconcilePanel(PanelNode? existingNode, PanelWidget widget)
+    private static PanelNode ReconcilePanel(PanelNode? existingNode, PanelWidget widget, Hex1bNode? parent)
     {
         var node = existingNode ?? new PanelNode();
         node.Child = Reconcile(node.Child, widget.Child, node);
         
-        // Set initial focus on first focusable if this is a new node
-        if (existingNode is null)
+        // Set initial focus only if this is a new node AND we're at the root or parent doesn't manage focus
+        if (existingNode is null && !ParentManagesFocus(parent))
         {
             var focusables = node.GetFocusableNodes().ToList();
             if (focusables.Count > 0)

@@ -35,6 +35,7 @@ public sealed class TextBoxNode : Hex1bNode
         var inheritedColors = context.GetInheritedColorCodes();
         var resetToInherited = context.GetResetToInheritedCodes();
 
+        string output;
         if (IsFocused)
         {
             if (State.HasSelection)
@@ -48,7 +49,7 @@ public sealed class TextBoxNode : Hex1bNode
                 var afterSel = text[selEnd..];
                 
                 // Use theme colors for selection, inherit for rest
-                context.Write($"{inheritedColors}{leftBracket}{beforeSel}{selFg.ToForegroundAnsi()}{selBg.ToBackgroundAnsi()}{selected}{resetToInherited}{afterSel}{rightBracket}");
+                output = $"{inheritedColors}{leftBracket}{beforeSel}{selFg.ToForegroundAnsi()}{selBg.ToBackgroundAnsi()}{selected}{resetToInherited}{afterSel}{rightBracket}";
             }
             else
             {
@@ -57,12 +58,22 @@ public sealed class TextBoxNode : Hex1bNode
                 var cursorChar = cursor < text.Length ? text[cursor].ToString() : " ";
                 var after = cursor < text.Length ? text[(cursor + 1)..] : "";
                 
-                context.Write($"{inheritedColors}{leftBracket}{before}{cursorFg.ToForegroundAnsi()}{cursorBg.ToBackgroundAnsi()}{cursorChar}{resetToInherited}{after}{rightBracket}");
+                output = $"{inheritedColors}{leftBracket}{before}{cursorFg.ToForegroundAnsi()}{cursorBg.ToBackgroundAnsi()}{cursorChar}{resetToInherited}{after}{rightBracket}";
             }
         }
         else
         {
-            context.Write($"{inheritedColors}{leftBracket}{text}{rightBracket}{resetToInherited}");
+            output = $"{inheritedColors}{leftBracket}{text}{rightBracket}{resetToInherited}";
+        }
+        
+        // Use clipped rendering when a layout provider is active
+        if (context.CurrentLayoutProvider != null)
+        {
+            context.WriteClipped(Bounds.X, Bounds.Y, output);
+        }
+        else
+        {
+            context.Write(output);
         }
     }
 

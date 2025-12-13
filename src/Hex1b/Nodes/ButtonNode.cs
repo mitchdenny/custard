@@ -26,11 +26,12 @@ public sealed class ButtonNode : Hex1bNode
         var rightBracket = theme.Get(ButtonTheme.RightBracket);
         var resetToInherited = context.GetResetToInheritedCodes();
         
+        string output;
         if (IsFocused)
         {
             var fg = theme.Get(ButtonTheme.FocusedForegroundColor);
             var bg = theme.Get(ButtonTheme.FocusedBackgroundColor);
-            context.Write($"{fg.ToForegroundAnsi()}{bg.ToBackgroundAnsi()}{leftBracket}{Label}{rightBracket}{resetToInherited}");
+            output = $"{fg.ToForegroundAnsi()}{bg.ToBackgroundAnsi()}{leftBracket}{Label}{rightBracket}{resetToInherited}";
         }
         else
         {
@@ -39,7 +40,17 @@ public sealed class ButtonNode : Hex1bNode
             // Use inherited colors if theme colors are default
             var fgCode = fg.IsDefault ? context.InheritedForeground.ToForegroundAnsi() : fg.ToForegroundAnsi();
             var bgCode = bg.IsDefault ? context.InheritedBackground.ToBackgroundAnsi() : bg.ToBackgroundAnsi();
-            context.Write($"{fgCode}{bgCode}{leftBracket}{Label}{rightBracket}{resetToInherited}");
+            output = $"{fgCode}{bgCode}{leftBracket}{Label}{rightBracket}{resetToInherited}";
+        }
+        
+        // Use clipped rendering when a layout provider is active
+        if (context.CurrentLayoutProvider != null)
+        {
+            context.WriteClipped(Bounds.X, Bounds.Y, output);
+        }
+        else
+        {
+            context.Write(output);
         }
     }
 

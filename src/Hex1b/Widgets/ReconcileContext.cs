@@ -14,15 +14,23 @@ public sealed class ReconcileContext
     /// The parent node in the tree (used for focus management decisions).
     /// </summary>
     public Hex1bNode? Parent { get; }
+    
+    /// <summary>
+    /// The full chain of ancestor nodes, from immediate parent to root.
+    /// This is needed because during reconciliation, node.Parent links may not
+    /// be set yet on intermediate nodes.
+    /// </summary>
+    private readonly IReadOnlyList<Hex1bNode> _ancestors;
 
     /// <summary>
     /// Whether this is a new node being created (vs updating an existing one).
     /// </summary>
     public bool IsNew { get; internal set; }
 
-    private ReconcileContext(Hex1bNode? parent)
+    private ReconcileContext(Hex1bNode? parent, IReadOnlyList<Hex1bNode>? ancestors = null)
     {
         Parent = parent;
+        _ancestors = ancestors ?? Array.Empty<Hex1bNode>();
     }
 
     /// <summary>
@@ -32,8 +40,15 @@ public sealed class ReconcileContext
 
     /// <summary>
     /// Creates a child context with the specified parent.
+    /// The new context includes the full ancestor chain.
     /// </summary>
-    internal ReconcileContext WithParent(Hex1bNode parent) => new(parent);
+    internal ReconcileContext WithParent(Hex1bNode parent)
+    {
+        // Build the new ancestor list: [parent, ...current ancestors]
+        var newAncestors = new List<Hex1bNode>(_ancestors.Count + 1) { parent };
+        newAncestors.AddRange(_ancestors);
+        return new ReconcileContext(parent, newAncestors);
+    }
 
     /// <summary>
     /// Reconciles a child widget, returning the updated or new node.
@@ -65,15 +80,15 @@ public sealed class ReconcileContext
     /// </summary>
     public bool ParentManagesFocus()
     {
-        var current = Parent;
-        while (current != null)
+        // Use the ancestor chain stored in the context, not node.Parent links,
+        // because node.Parent links may not be set yet during reconciliation.
+        foreach (var ancestor in _ancestors)
         {
             // SplitterNode manages focus between its left/right panes
-            if (current is SplitterNode)
+            if (ancestor is SplitterNode)
             {
                 return true;
             }
-            current = current.Parent;
         }
         return false;
     }

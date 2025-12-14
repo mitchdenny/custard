@@ -195,7 +195,7 @@ public class PanelNodeTests
         {
             Label = "Click",
             IsFocused = true,
-            OnClick = () => clicked = true
+            ClickAction = () => clicked = true
         };
         var node = new PanelNode { Child = button };
 

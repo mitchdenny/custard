@@ -8,7 +8,7 @@ public sealed record ButtonWidget(string Label, Action OnClick) : Hex1bWidget
     {
         var node = existingNode as ButtonNode ?? new ButtonNode();
         node.Label = Label;
-        node.OnClick = OnClick;
+        node.ClickAction = OnClick;
         return node;
     }
 

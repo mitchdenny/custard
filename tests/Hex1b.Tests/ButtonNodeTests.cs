@@ -185,14 +185,14 @@ public class ButtonNodeTests
     #region Input Handling Tests
 
     [Fact]
-    public void HandleInput_Enter_TriggersOnClick()
+    public void HandleInput_Enter_TriggersClickAction()
     {
         var clicked = false;
         var node = new ButtonNode
         {
             Label = "Click Me",
             IsFocused = true,
-            OnClick = () => clicked = true
+            ClickAction = () => clicked = true
         };
 
         var result = InputRouter.RouteInputToNode(node, new Hex1bKeyEvent(Hex1bKey.Enter, '\r', Hex1bModifiers.None));
@@ -202,14 +202,14 @@ public class ButtonNodeTests
     }
 
     [Fact]
-    public void HandleInput_Space_TriggersOnClick()
+    public void HandleInput_Space_TriggersClickAction()
     {
         var clicked = false;
         var node = new ButtonNode
         {
             Label = "Click Me",
             IsFocused = true,
-            OnClick = () => clicked = true
+            ClickAction = () => clicked = true
         };
 
         var result = InputRouter.RouteInputToNode(node, new Hex1bKeyEvent(Hex1bKey.Spacebar, ' ', Hex1bModifiers.None));
@@ -226,7 +226,7 @@ public class ButtonNodeTests
         {
             Label = "Click Me",
             IsFocused = true,
-            OnClick = () => clicked = true
+            ClickAction = () => clicked = true
         };
 
         var result = InputRouter.RouteInputToNode(node, new Hex1bKeyEvent(Hex1bKey.A, 'a', Hex1bModifiers.None));
@@ -243,7 +243,7 @@ public class ButtonNodeTests
         {
             Label = "Click Me",
             IsFocused = false,
-            OnClick = () => clicked = true
+            ClickAction = () => clicked = true
         };
 
         var result = InputRouter.RouteInputToNode(node, new Hex1bKeyEvent(Hex1bKey.Enter, '\r', Hex1bModifiers.None));
@@ -255,18 +255,19 @@ public class ButtonNodeTests
     }
 
     [Fact]
-    public void HandleInput_NullOnClick_DoesNotThrow()
+    public void HandleInput_NullClickAction_DoesNotThrow()
     {
         var node = new ButtonNode
         {
             Label = "Click Me",
             IsFocused = true,
-            OnClick = null
+            ClickAction = null
         };
 
+        // With no ClickAction, no bindings are registered, so Enter falls through
         var result = InputRouter.RouteInputToNode(node, new Hex1bKeyEvent(Hex1bKey.Enter, '\r', Hex1bModifiers.None));
 
-        Assert.Equal(InputResult.Handled, result);
+        Assert.Equal(InputResult.NotHandled, result);
     }
 
     [Fact]
@@ -277,7 +278,7 @@ public class ButtonNodeTests
         {
             Label = "Click",
             IsFocused = true,
-            OnClick = () => clicked = true
+            ClickAction = () => clicked = true
         };
 
         var result = InputRouter.RouteInputToNode(node, new Hex1bKeyEvent(Hex1bKey.Tab, '\t', Hex1bModifiers.None));

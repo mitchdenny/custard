@@ -223,7 +223,7 @@ public class SixelNodeTests : IDisposable
         var buttonNode = new ButtonNode 
         { 
             Label = "Test",
-            OnClick = () => clickedCount++,
+            ClickAction = () => clickedCount++,
             IsFocused = true
         };
         

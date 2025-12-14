@@ -235,7 +235,7 @@ public class HStackNodeTests
     public void HandleInput_DispatchesToFocusedChild()
     {
         var clicked = false;
-        var button = new ButtonNode { Label = "Click", IsFocused = true, OnClick = () => clicked = true };
+        var button = new ButtonNode { Label = "Click", IsFocused = true, ClickAction = () => clicked = true };
 
         var node = new HStackNode { Children = new List<Hex1bNode> { button } };
 

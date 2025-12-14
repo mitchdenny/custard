@@ -308,7 +308,7 @@ public class ResponsiveNodeTests
         {
             Label = "Click",
             IsFocused = true,
-            OnClick = () => clicked = true
+            ClickAction = () => clicked = true
         };
         var node = new ResponsiveNode
         {

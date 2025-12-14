@@ -7,7 +7,12 @@ namespace Hex1b;
 public sealed class ButtonNode : Hex1bNode
 {
     public string Label { get; set; } = "";
-    public Action? OnClick { get; set; }
+    
+    /// <summary>
+    /// The action to execute when the button is activated.
+    /// This is registered as an input binding during ConfigureDefaultBindings.
+    /// </summary>
+    public Action? ClickAction { get; set; }
     
     private bool _isFocused;
     public override bool IsFocused { get => _isFocused; set => _isFocused = value; }
@@ -19,17 +24,16 @@ public sealed class ButtonNode : Hex1bNode
 
     public override void ConfigureDefaultBindings(InputBindingsBuilder bindings)
     {
-        // Enter and Space trigger the button
-        bindings.Key(Hex1bKey.Enter).Action(Click, "Activate button");
-        bindings.Key(Hex1bKey.Spacebar).Action(Click, "Activate button");
-        
-        // Left click activates the button
-        bindings.Mouse(MouseButton.Left).Action(Click, "Click button");
-    }
-
-    private void Click()
-    {
-        OnClick?.Invoke();
+        // Only register activation bindings if there's an action to perform
+        if (ClickAction != null)
+        {
+            // Enter and Space trigger the button
+            bindings.Key(Hex1bKey.Enter).Action(ClickAction, "Activate button");
+            bindings.Key(Hex1bKey.Spacebar).Action(ClickAction, "Activate button");
+            
+            // Left click activates the button
+            bindings.Mouse(MouseButton.Left).Action(ClickAction, "Click button");
+        }
     }
 
     public override Size Measure(Constraints constraints)

@@ -151,38 +151,47 @@ public sealed class VStackNode : Hex1bNode
         return false;
     }
 
-    public override InputResult HandleInput(Hex1bKeyEvent keyEvent)
+    public override void ConfigureDefaultBindings(InputBindingsBuilder bindings)
     {
-        // Handle Tab to move focus only if no ancestor manages focus
-        // If an ancestor (like SplitterNode) manages focus, let Tab bubble up to it
-        if (keyEvent.Key == Hex1bKey.Tab && !HasAncestorThatManagesFocus())
+        bindings.Key(Hex1bKey.Tab).Action(FocusNext, "Next focusable");
+        bindings.Shift().Key(Hex1bKey.Tab).Action(FocusPrevious, "Previous focusable");
+    }
+
+    private void FocusNext()
+    {
+        if (HasAncestorThatManagesFocus()) return;
+        MoveFocus(forward: true);
+    }
+
+    private void FocusPrevious()
+    {
+        if (HasAncestorThatManagesFocus()) return;
+        MoveFocus(forward: false);
+    }
+
+    private void MoveFocus(bool forward)
+    {
+        var focusables = GetFocusableNodesList();
+        if (focusables.Count == 0) return;
+
+        // Clear old focus
+        if (_focusedIndex >= 0 && _focusedIndex < focusables.Count)
         {
-            var focusables = GetFocusableNodesList();
-            if (focusables.Count > 0)
-            {
-                // Clear old focus
-                if (_focusedIndex >= 0 && _focusedIndex < focusables.Count)
-                {
-                    focusables[_focusedIndex].IsFocused = false;
-                }
-
-                // Move focus
-                if (keyEvent.Modifiers.HasFlag(Hex1bModifiers.Shift))
-                {
-                    _focusedIndex = _focusedIndex <= 0 ? focusables.Count - 1 : _focusedIndex - 1;
-                }
-                else
-                {
-                    _focusedIndex = (_focusedIndex + 1) % focusables.Count;
-                }
-
-                // Set new focus
-                focusables[_focusedIndex].IsFocused = true;
-                return InputResult.Handled;
-            }
+            focusables[_focusedIndex].IsFocused = false;
         }
 
-        return InputResult.NotHandled;
+        // Move focus
+        if (forward)
+        {
+            _focusedIndex = (_focusedIndex + 1) % focusables.Count;
+        }
+        else
+        {
+            _focusedIndex = _focusedIndex <= 0 ? focusables.Count - 1 : _focusedIndex - 1;
+        }
+
+        // Set new focus
+        focusables[_focusedIndex].IsFocused = true;
     }
 
     /// <summary>

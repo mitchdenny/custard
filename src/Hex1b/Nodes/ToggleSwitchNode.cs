@@ -18,6 +18,15 @@ public sealed class ToggleSwitchNode : Hex1bNode
 
     public override bool IsFocusable => true;
 
+    public override void ConfigureDefaultBindings(InputBindingsBuilder bindings)
+    {
+        bindings.Key(Hex1bKey.LeftArrow).Action(MovePrevious, "Previous option");
+        bindings.Key(Hex1bKey.RightArrow).Action(MoveNext, "Next option");
+    }
+
+    private void MovePrevious() => State.MovePrevious();
+    private void MoveNext() => State.MoveNext();
+
     public override Size Measure(Constraints constraints)
     {
         var options = State.Options;
@@ -148,21 +157,5 @@ public sealed class ToggleSwitchNode : Hex1bNode
             context.SetCursorPosition(Bounds.X, Bounds.Y);
             context.Write(output.ToString());
         }
-    }
-
-    public override InputResult HandleInput(Hex1bKeyEvent keyEvent)
-    {
-        if (!IsFocused) return InputResult.NotHandled;
-
-        switch (keyEvent.Key)
-        {
-            case Hex1bKey.LeftArrow:
-                State.MovePrevious();
-                return InputResult.Handled;
-            case Hex1bKey.RightArrow:
-                State.MoveNext();
-                return InputResult.Handled;
-        }
-        return InputResult.NotHandled;
     }
 }

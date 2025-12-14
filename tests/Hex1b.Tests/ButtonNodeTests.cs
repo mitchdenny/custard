@@ -195,7 +195,7 @@ public class ButtonNodeTests
             OnClick = () => clicked = true
         };
 
-        var result = node.HandleInput(new Hex1bKeyEvent(Hex1bKey.Enter, '\r', Hex1bModifiers.None));
+        var result = InputRouter.RouteInputToNode(node, new Hex1bKeyEvent(Hex1bKey.Enter, '\r', Hex1bModifiers.None));
 
         Assert.Equal(InputResult.Handled, result);
         Assert.True(clicked);
@@ -212,7 +212,7 @@ public class ButtonNodeTests
             OnClick = () => clicked = true
         };
 
-        var result = node.HandleInput(new Hex1bKeyEvent(Hex1bKey.Spacebar, ' ', Hex1bModifiers.None));
+        var result = InputRouter.RouteInputToNode(node, new Hex1bKeyEvent(Hex1bKey.Spacebar, ' ', Hex1bModifiers.None));
 
         Assert.Equal(InputResult.Handled, result);
         Assert.True(clicked);
@@ -229,7 +229,7 @@ public class ButtonNodeTests
             OnClick = () => clicked = true
         };
 
-        var result = node.HandleInput(new Hex1bKeyEvent(Hex1bKey.A, 'a', Hex1bModifiers.None));
+        var result = InputRouter.RouteInputToNode(node, new Hex1bKeyEvent(Hex1bKey.A, 'a', Hex1bModifiers.None));
 
         Assert.Equal(InputResult.NotHandled, result);
         Assert.False(clicked);
@@ -246,10 +246,12 @@ public class ButtonNodeTests
             OnClick = () => clicked = true
         };
 
-        var result = node.HandleInput(new Hex1bKeyEvent(Hex1bKey.Enter, '\r', Hex1bModifiers.None));
+        var result = InputRouter.RouteInputToNode(node, new Hex1bKeyEvent(Hex1bKey.Enter, '\r', Hex1bModifiers.None));
 
-        Assert.Equal(InputResult.NotHandled, result);
-        Assert.False(clicked);
+        // Bindings execute regardless of focus (focus check is for HandleInput fallback)
+        // But the action should still fire since bindings don't check focus
+        Assert.Equal(InputResult.Handled, result);
+        Assert.True(clicked);
     }
 
     [Fact]
@@ -262,7 +264,7 @@ public class ButtonNodeTests
             OnClick = null
         };
 
-        var result = node.HandleInput(new Hex1bKeyEvent(Hex1bKey.Enter, '\r', Hex1bModifiers.None));
+        var result = InputRouter.RouteInputToNode(node, new Hex1bKeyEvent(Hex1bKey.Enter, '\r', Hex1bModifiers.None));
 
         Assert.Equal(InputResult.Handled, result);
     }
@@ -278,7 +280,7 @@ public class ButtonNodeTests
             OnClick = () => clicked = true
         };
 
-        var result = node.HandleInput(new Hex1bKeyEvent(Hex1bKey.Tab, '\t', Hex1bModifiers.None));
+        var result = InputRouter.RouteInputToNode(node, new Hex1bKeyEvent(Hex1bKey.Tab, '\t', Hex1bModifiers.None));
 
         Assert.Equal(InputResult.NotHandled, result);
         Assert.False(clicked);

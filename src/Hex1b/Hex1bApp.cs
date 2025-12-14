@@ -208,7 +208,7 @@ public class Hex1bApp<TState> : IDisposable
 
         // Set common properties on the reconciled node
         node.Parent = null; // Root has no parent
-        node.InputBindings = widget.InputBindings ?? [];
+        node.BindingsConfigurator = widget.BindingsConfigurator;
         node.WidthHint = widget.WidthHint;
         node.HeightHint = widget.HeightHint;
 

@@ -1,19 +1,46 @@
 namespace Hex1b.Input;
 
 /// <summary>
-/// Routes input through the node tree to the focused node, collecting and resolving bindings.
+/// Routes input through the node tree to the focused node using layered chord tries.
 /// </summary>
 public static class InputRouter
 {
     /// <summary>
-    /// Routes a key event through the node tree using the new explicit routing model.
+    /// Current chord state - the trie node we're in mid-chord, if any.
+    /// </summary>
+    private static ChordTrie? _chordNode;
+    
+    /// <summary>
+    /// The path when the chord started (to detect focus changes).
+    /// </summary>
+    private static List<Hex1bNode>? _chordAnchorPath;
+    
+    /// <summary>
+    /// The layer index of the chord (which node in the path owns the chord).
+    /// </summary>
+    private static int _chordLayerIndex = -1;
+    
+    /// <summary>
+    /// Gets whether we're currently mid-chord.
+    /// </summary>
+    public static bool IsInChord => _chordNode != null;
+    
+    /// <summary>
+    /// Event raised when chord state changes (for UI feedback).
+    /// </summary>
+    public static event Action? OnChordStateChanged;
+
+    /// <summary>
+    /// Routes a key event through the node tree using layered chord tries.
     /// 
     /// Algorithm:
     /// 1. Build path from root to focused node
-    /// 2. Walk DOWN the path, collecting bindings at each level (child bindings override parent)
-    /// 3. Try to execute a matching binding
-    /// 4. If no binding matched, let the focused node handle the input directly
-    /// 5. If focused node doesn't handle it, bubble UP to container nodes (for Tab navigation, etc.)
+    /// 2. If mid-chord, validate path matches and continue chord
+    /// 3. Build tries from each node's bindings (focused first, root last)
+    /// 4. Search layers in order - first match wins
+    /// 5. If internal node matched, start/continue chord
+    /// 6. If leaf matched, execute action
+    /// 7. If no match, fall through to HandleInput on focused node, then bubble up
     /// </summary>
     public static InputResult RouteInput(Hex1bNode root, Hex1bKeyEvent keyEvent)
     {
@@ -22,44 +49,180 @@ public static class InputRouter
         if (path.Count == 0)
         {
             // No focused node found, nothing to route to
+            ResetChordState();
             return InputResult.NotHandled;
         }
 
-        // Create input context
-        var context = new InputContext(keyEvent);
-
-        // Walk down the path, collecting bindings (child overrides parent)
-        foreach (var node in path)
+        // Escape always cancels pending chord
+        if (keyEvent.Key == Hex1bKey.Escape && _chordNode != null)
         {
-            context.AddBindings(node.InputBindings);
+            ResetChordState();
+            return InputResult.Handled;
         }
 
-        // Try to execute a matching binding
-        if (context.TryExecuteBinding())
+        // If mid-chord but focus changed, cancel the chord
+        if (_chordNode != null && !PathsMatch(_chordAnchorPath, path))
         {
-            return InputResult.Handled;
+            ResetChordState();
+        }
+
+        // If mid-chord, continue from the anchored layer
+        if (_chordNode != null)
+        {
+            return ContinueChord(keyEvent, path);
+        }
+
+        // Build layers: focused first (index 0), root last
+        // Search from focused toward root - first match wins
+        for (int i = path.Count - 1; i >= 0; i--)
+        {
+            var node = path[i];
+            var builder = node.BuildBindings();
+            var bindings = builder.Build();
+            
+            if (bindings.Count == 0) continue;
+            
+            var trie = ChordTrie.Build(bindings);
+            var result = trie.Lookup(keyEvent);
+            
+            if (result.IsNoMatch) continue;
+            
+            // Found a match at this layer
+            if (result.IsLeaf)
+            {
+                // Leaf node - execute and done
+                result.Execute();
+                ResetChordState();
+                return InputResult.Handled;
+            }
+            
+            if (result.HasChildren)
+            {
+                // Internal node - start a chord, anchor to this layer
+                _chordNode = result.Node;
+                _chordAnchorPath = path;
+                _chordLayerIndex = i;
+                OnChordStateChanged?.Invoke();
+                return InputResult.Handled;  // waiting for more keys
+            }
         }
 
         // No binding matched, let the focused node handle the input directly
         var focusedNode = path[^1];
-        var result = focusedNode.HandleInput(keyEvent);
-        if (result == InputResult.Handled)
+        var inputResult = focusedNode.HandleInput(keyEvent);
+        if (inputResult == InputResult.Handled)
         {
-            return result;
+            return inputResult;
         }
 
         // Focused node didn't handle it, bubble UP to container nodes
-        // Walk from the parent of focused node back to root
         for (int i = path.Count - 2; i >= 0; i--)
         {
-            result = path[i].HandleInput(keyEvent);
-            if (result == InputResult.Handled)
+            inputResult = path[i].HandleInput(keyEvent);
+            if (inputResult == InputResult.Handled)
             {
-                return result;
+                return inputResult;
             }
         }
 
         return InputResult.NotHandled;
+    }
+    
+    private static InputResult ContinueChord(Hex1bKeyEvent keyEvent, List<Hex1bNode> path)
+    {
+        var result = _chordNode!.Lookup(keyEvent);
+        
+        if (result.IsNoMatch)
+        {
+            // Chord failed - no match for this key
+            ResetChordState();
+            return InputResult.Handled;  // swallow the key
+        }
+        
+        if (result.IsLeaf)
+        {
+            // Chord completed - execute
+            result.Execute();
+            ResetChordState();
+            return InputResult.Handled;
+        }
+        
+        if (result.HasChildren)
+        {
+            // Chord continues
+            _chordNode = result.Node;
+            OnChordStateChanged?.Invoke();
+            return InputResult.Handled;
+        }
+        
+        // Has action but also children - execute and reset
+        // (rare case: ambiguous binding like 'g' with action and 'gg' chord)
+        if (result.HasAction)
+        {
+            result.Execute();
+            ResetChordState();
+            return InputResult.Handled;
+        }
+        
+        return InputResult.NotHandled;
+    }
+    
+    private static void ResetChordState()
+    {
+        var wasInChord = _chordNode != null;
+        _chordNode = null;
+        _chordAnchorPath = null;
+        _chordLayerIndex = -1;
+        if (wasInChord)
+        {
+            OnChordStateChanged?.Invoke();
+        }
+    }
+    
+    private static bool PathsMatch(List<Hex1bNode>? a, List<Hex1bNode>? b)
+    {
+        if (a is null || b is null) return false;
+        if (a.Count != b.Count) return false;
+        for (int i = 0; i < a.Count; i++)
+        {
+            if (!ReferenceEquals(a[i], b[i])) return false;
+        }
+        return true;
+    }
+
+    /// <summary>
+    /// Routes input to a single node using its bindings. 
+    /// This is a simplified entry point for testing that doesn't require a full tree.
+    /// </summary>
+    /// <param name="node">The node to route input to (assumed to be focused).</param>
+    /// <param name="keyEvent">The key event to route.</param>
+    /// <returns>The result of input processing.</returns>
+    public static InputResult RouteInputToNode(Hex1bNode node, Hex1bKeyEvent keyEvent)
+    {
+        // Build bindings for this node and look up the key
+        var builder = node.BuildBindings();
+        var bindings = builder.Build();
+        
+        if (bindings.Count > 0)
+        {
+            var trie = ChordTrie.Build(bindings);
+            var result = trie.Lookup(keyEvent);
+            
+            if (result.IsLeaf)
+            {
+                result.Execute();
+                return InputResult.Handled;
+            }
+            
+            // For chords in single-node testing, just return handled if we hit an internal node
+            if (result.HasChildren)
+            {
+                return InputResult.Handled;
+            }
+        }
+        
+        // No binding matched, fall through to HandleInput
+        return node.HandleInput(keyEvent);
     }
 
     /// <summary>

@@ -14,6 +14,18 @@ public sealed class ButtonNode : Hex1bNode
 
     public override bool IsFocusable => true;
 
+    public override void ConfigureDefaultBindings(InputBindingsBuilder bindings)
+    {
+        // Enter and Space trigger the button
+        bindings.Key(Hex1bKey.Enter).Action(Click, "Activate button");
+        bindings.Key(Hex1bKey.Spacebar).Action(Click, "Activate button");
+    }
+
+    private void Click()
+    {
+        OnClick?.Invoke();
+    }
+
     public override Size Measure(Constraints constraints)
     {
         // Button renders as "[ Label ]" - 4 chars for brackets/spaces + label length
@@ -55,18 +67,5 @@ public sealed class ButtonNode : Hex1bNode
         {
             context.Write(output);
         }
-    }
-
-    public override InputResult HandleInput(Hex1bKeyEvent keyEvent)
-    {
-        if (!IsFocused) return InputResult.NotHandled;
-
-        // Enter or Space triggers the button
-        if (keyEvent.Key == Hex1bKey.Enter || keyEvent.Key == Hex1bKey.Spacebar)
-        {
-            OnClick?.Invoke();
-            return InputResult.Handled;
-        }
-        return InputResult.NotHandled;
     }
 }

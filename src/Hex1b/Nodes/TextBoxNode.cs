@@ -14,6 +14,146 @@ public sealed class TextBoxNode : Hex1bNode
 
     public override bool IsFocusable => true;
 
+    public override void ConfigureDefaultBindings(InputBindingsBuilder bindings)
+    {
+        // Navigation
+        bindings.Key(Hex1bKey.LeftArrow).Action(MoveLeft, "Move left");
+        bindings.Key(Hex1bKey.RightArrow).Action(MoveRight, "Move right");
+        bindings.Key(Hex1bKey.Home).Action(MoveHome, "Go to start");
+        bindings.Key(Hex1bKey.End).Action(MoveEnd, "Go to end");
+        
+        // Selection navigation
+        bindings.Shift().Key(Hex1bKey.LeftArrow).Action(SelectLeft, "Extend selection left");
+        bindings.Shift().Key(Hex1bKey.RightArrow).Action(SelectRight, "Extend selection right");
+        bindings.Shift().Key(Hex1bKey.Home).Action(SelectToStart, "Select to start");
+        bindings.Shift().Key(Hex1bKey.End).Action(SelectToEnd, "Select to end");
+        
+        // Editing
+        bindings.Key(Hex1bKey.Backspace).Action(DeleteBackward, "Delete backward");
+        bindings.Key(Hex1bKey.Delete).Action(DeleteForward, "Delete forward");
+        
+        // Selection
+        bindings.Ctrl().Key(Hex1bKey.A).Action(SelectAll, "Select all");
+    }
+
+    private void MoveLeft()
+    {
+        if (State.HasSelection)
+        {
+            State.CursorPosition = State.SelectionStart;
+            State.ClearSelection();
+        }
+        else if (State.CursorPosition > 0)
+        {
+            State.CursorPosition--;
+        }
+    }
+
+    private void MoveRight()
+    {
+        if (State.HasSelection)
+        {
+            State.CursorPosition = State.SelectionEnd;
+            State.ClearSelection();
+        }
+        else if (State.CursorPosition < State.Text.Length)
+        {
+            State.CursorPosition++;
+        }
+    }
+
+    private void MoveHome()
+    {
+        State.ClearSelection();
+        State.CursorPosition = 0;
+    }
+
+    private void MoveEnd()
+    {
+        State.ClearSelection();
+        State.CursorPosition = State.Text.Length;
+    }
+
+    private void SelectLeft()
+    {
+        if (!State.SelectionAnchor.HasValue)
+        {
+            State.SelectionAnchor = State.CursorPosition;
+        }
+        if (State.CursorPosition > 0)
+        {
+            State.CursorPosition--;
+        }
+    }
+
+    private void SelectRight()
+    {
+        if (!State.SelectionAnchor.HasValue)
+        {
+            State.SelectionAnchor = State.CursorPosition;
+        }
+        if (State.CursorPosition < State.Text.Length)
+        {
+            State.CursorPosition++;
+        }
+    }
+
+    private void SelectToStart()
+    {
+        if (!State.SelectionAnchor.HasValue)
+        {
+            State.SelectionAnchor = State.CursorPosition;
+        }
+        State.CursorPosition = 0;
+    }
+
+    private void SelectToEnd()
+    {
+        if (!State.SelectionAnchor.HasValue)
+        {
+            State.SelectionAnchor = State.CursorPosition;
+        }
+        State.CursorPosition = State.Text.Length;
+    }
+
+    private void DeleteBackward()
+    {
+        if (State.HasSelection)
+        {
+            DeleteSelection();
+        }
+        else if (State.CursorPosition > 0)
+        {
+            var newCursor = State.CursorPosition - 1;
+            State.Text = State.Text.Remove(newCursor, 1);
+            State.CursorPosition = newCursor;
+        }
+    }
+
+    private void DeleteForward()
+    {
+        if (State.HasSelection)
+        {
+            DeleteSelection();
+        }
+        else if (State.CursorPosition < State.Text.Length)
+        {
+            State.Text = State.Text.Remove(State.CursorPosition, 1);
+        }
+    }
+
+    private void DeleteSelection()
+    {
+        if (!State.HasSelection) return;
+        var start = State.SelectionStart;
+        var end = State.SelectionEnd;
+        State.Text = State.Text[..start] + State.Text[end..];
+        State.CursorPosition = start;
+        State.ClearSelection();
+    }
+
+    private void SelectAll() => State.SelectAll();
+
     public override Size Measure(Constraints constraints)
     {
         // TextBox renders as "[text]" - 2 chars for brackets + text length (or at least 1 for cursor)
@@ -84,6 +224,19 @@ public sealed class TextBoxNode : Hex1bNode
     {
         if (!IsFocused) return InputResult.NotHandled;
 
-        return State.HandleInput(keyEvent) ? InputResult.Handled : InputResult.NotHandled;
+        // Only handle printable characters - everything else is bindings
+        if (!char.IsControl(keyEvent.Character))
+        {
+            // If there's a selection, delete it first
+            if (State.HasSelection)
+            {
+                DeleteSelection();
+            }
+            State.Text = State.Text.Insert(State.CursorPosition, keyEvent.Character.ToString());
+            State.CursorPosition++;
+            return InputResult.Handled;
+        }
+
+        return InputResult.NotHandled;
     }
 }

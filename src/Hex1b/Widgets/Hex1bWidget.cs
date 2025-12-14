@@ -7,10 +7,10 @@ namespace Hex1b.Widgets;
 public abstract record Hex1bWidget
 {
     /// <summary>
-    /// Input bindings for this widget. These are collected during input routing,
-    /// with bindings closer to the focused node taking precedence over ancestors.
+    /// Callback to configure input bindings for this widget.
+    /// The callback receives a builder pre-populated with the widget's default bindings.
     /// </summary>
-    public IReadOnlyList<InputBinding>? InputBindings { get; init; }
+    internal Action<InputBindingsBuilder>? BindingsConfigurator { get; init; }
 
     /// <summary>
     /// Hint for how this widget should be sized horizontally within its parent.

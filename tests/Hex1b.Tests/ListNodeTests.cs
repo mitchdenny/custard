@@ -429,7 +429,7 @@ public class ListNodeTests
         state.SelectedIndex = 0;
         var node = new ListNode { State = state, IsFocused = true };
         
-        var result = node.HandleInput(new Hex1bKeyEvent(Hex1bKey.DownArrow, '\0', Hex1bModifiers.None));
+        var result = InputRouter.RouteInputToNode(node, new Hex1bKeyEvent(Hex1bKey.DownArrow, '\0', Hex1bModifiers.None));
         
         Assert.Equal(InputResult.Handled, result);
         Assert.Equal(1, state.SelectedIndex);
@@ -442,7 +442,7 @@ public class ListNodeTests
         state.SelectedIndex = 2;
         var node = new ListNode { State = state, IsFocused = true };
         
-        var result = node.HandleInput(new Hex1bKeyEvent(Hex1bKey.UpArrow, '\0', Hex1bModifiers.None));
+        var result = InputRouter.RouteInputToNode(node, new Hex1bKeyEvent(Hex1bKey.UpArrow, '\0', Hex1bModifiers.None));
         
         Assert.Equal(InputResult.Handled, result);
         Assert.Equal(1, state.SelectedIndex);
@@ -455,7 +455,7 @@ public class ListNodeTests
         state.SelectedIndex = 1;
         var node = new ListNode { State = state, IsFocused = true };
         
-        node.HandleInput(new Hex1bKeyEvent(Hex1bKey.DownArrow, '\0', Hex1bModifiers.None));
+        InputRouter.RouteInputToNode(node, new Hex1bKeyEvent(Hex1bKey.DownArrow, '\0', Hex1bModifiers.None));
         
         Assert.Equal(0, state.SelectedIndex);
     }
@@ -467,7 +467,7 @@ public class ListNodeTests
         state.SelectedIndex = 0;
         var node = new ListNode { State = state, IsFocused = true };
         
-        node.HandleInput(new Hex1bKeyEvent(Hex1bKey.UpArrow, '\0', Hex1bModifiers.None));
+        InputRouter.RouteInputToNode(node, new Hex1bKeyEvent(Hex1bKey.UpArrow, '\0', Hex1bModifiers.None));
         
         Assert.Equal(1, state.SelectedIndex);
     }
@@ -479,9 +479,9 @@ public class ListNodeTests
         state.SelectedIndex = 0;
         var node = new ListNode { State = state, IsFocused = true };
         
-        node.HandleInput(new Hex1bKeyEvent(Hex1bKey.DownArrow, '\0', Hex1bModifiers.None));
-        node.HandleInput(new Hex1bKeyEvent(Hex1bKey.DownArrow, '\0', Hex1bModifiers.None));
-        node.HandleInput(new Hex1bKeyEvent(Hex1bKey.DownArrow, '\0', Hex1bModifiers.None));
+        InputRouter.RouteInputToNode(node, new Hex1bKeyEvent(Hex1bKey.DownArrow, '\0', Hex1bModifiers.None));
+        InputRouter.RouteInputToNode(node, new Hex1bKeyEvent(Hex1bKey.DownArrow, '\0', Hex1bModifiers.None));
+        InputRouter.RouteInputToNode(node, new Hex1bKeyEvent(Hex1bKey.DownArrow, '\0', Hex1bModifiers.None));
         
         Assert.Equal(3, state.SelectedIndex);
     }
@@ -493,8 +493,8 @@ public class ListNodeTests
         state.SelectedIndex = 3;
         var node = new ListNode { State = state, IsFocused = true };
         
-        node.HandleInput(new Hex1bKeyEvent(Hex1bKey.UpArrow, '\0', Hex1bModifiers.None));
-        node.HandleInput(new Hex1bKeyEvent(Hex1bKey.UpArrow, '\0', Hex1bModifiers.None));
+        InputRouter.RouteInputToNode(node, new Hex1bKeyEvent(Hex1bKey.UpArrow, '\0', Hex1bModifiers.None));
+        InputRouter.RouteInputToNode(node, new Hex1bKeyEvent(Hex1bKey.UpArrow, '\0', Hex1bModifiers.None));
         
         Assert.Equal(1, state.SelectedIndex);
     }
@@ -512,7 +512,7 @@ public class ListNodeTests
         state.SelectedIndex = 1;
         var node = new ListNode { State = state, IsFocused = true };
         
-        var result = node.HandleInput(new Hex1bKeyEvent(Hex1bKey.Enter, '\r', Hex1bModifiers.None));
+        var result = InputRouter.RouteInputToNode(node, new Hex1bKeyEvent(Hex1bKey.Enter, '\r', Hex1bModifiers.None));
         
         Assert.Equal(InputResult.Handled, result);
         Assert.NotNull(activatedItem);
@@ -528,7 +528,7 @@ public class ListNodeTests
         state.SelectedIndex = 0;
         var node = new ListNode { State = state, IsFocused = true };
         
-        var result = node.HandleInput(new Hex1bKeyEvent(Hex1bKey.Spacebar, ' ', Hex1bModifiers.None));
+        var result = InputRouter.RouteInputToNode(node, new Hex1bKeyEvent(Hex1bKey.Spacebar, ' ', Hex1bModifiers.None));
         
         Assert.Equal(InputResult.Handled, result);
         Assert.NotNull(activatedItem);
@@ -543,7 +543,7 @@ public class ListNodeTests
         // No OnItemActivated callback set
         var node = new ListNode { State = state, IsFocused = true };
         
-        var result = node.HandleInput(new Hex1bKeyEvent(Hex1bKey.Enter, '\r', Hex1bModifiers.None));
+        var result = InputRouter.RouteInputToNode(node, new Hex1bKeyEvent(Hex1bKey.Enter, '\r', Hex1bModifiers.None));
         
         Assert.Equal(InputResult.Handled, result);
     }
@@ -556,7 +556,7 @@ public class ListNodeTests
         state.OnItemActivated = item => activatedItem = item;
         var node = new ListNode { State = state, IsFocused = true };
         
-        var result = node.HandleInput(new Hex1bKeyEvent(Hex1bKey.Enter, '\r', Hex1bModifiers.None));
+        var result = InputRouter.RouteInputToNode(node, new Hex1bKeyEvent(Hex1bKey.Enter, '\r', Hex1bModifiers.None));
         
         Assert.Equal(InputResult.Handled, result);
         Assert.Null(activatedItem); // No item to activate
@@ -575,7 +575,7 @@ public class ListNodeTests
         state.SelectedIndex = 0;
         var node = new ListNode { State = state, IsFocused = true };
         
-        node.HandleInput(new Hex1bKeyEvent(Hex1bKey.DownArrow, '\0', Hex1bModifiers.None));
+        InputRouter.RouteInputToNode(node, new Hex1bKeyEvent(Hex1bKey.DownArrow, '\0', Hex1bModifiers.None));
         
         Assert.NotNull(selectedItem);
         Assert.Equal("Item 2", selectedItem.Text);
@@ -590,7 +590,7 @@ public class ListNodeTests
         state.SelectedIndex = 1;
         var node = new ListNode { State = state, IsFocused = true };
         
-        node.HandleInput(new Hex1bKeyEvent(Hex1bKey.UpArrow, '\0', Hex1bModifiers.None));
+        InputRouter.RouteInputToNode(node, new Hex1bKeyEvent(Hex1bKey.UpArrow, '\0', Hex1bModifiers.None));
         
         Assert.NotNull(selectedItem);
         Assert.Equal("Item 1", selectedItem.Text);
@@ -601,16 +601,20 @@ public class ListNodeTests
     #region Input Handling - Edge Cases
 
     [Fact]
-    public void HandleInput_NotFocused_DoesNotHandle()
+    public void HandleInput_WhenNotFocused_BindingsStillExecute()
     {
+        // Note: With the new input binding architecture, bindings execute at the node level
+        // regardless of focus. Focus is a tree concept handled by InputRouter.RouteInput().
+        // When using RouteInputToNode() for testing, bindings always execute.
         var state = CreateListState("Item 1", "Item 2");
         state.SelectedIndex = 0;
         var node = new ListNode { State = state, IsFocused = false };
         
-        var result = node.HandleInput(new Hex1bKeyEvent(Hex1bKey.DownArrow, '\0', Hex1bModifiers.None));
+        var result = InputRouter.RouteInputToNode(node, new Hex1bKeyEvent(Hex1bKey.DownArrow, '\0', Hex1bModifiers.None));
         
-        Assert.Equal(InputResult.NotHandled, result);
-        Assert.Equal(0, state.SelectedIndex);
+        // Bindings execute regardless of focus state when using RouteInputToNode
+        Assert.Equal(InputResult.Handled, result);
+        Assert.Equal(1, state.SelectedIndex);  // Selection changed
     }
 
     [Fact]
@@ -619,7 +623,7 @@ public class ListNodeTests
         var state = CreateListState("Item 1", "Item 2");
         var node = new ListNode { State = state, IsFocused = true };
         
-        var result = node.HandleInput(new Hex1bKeyEvent(Hex1bKey.A, 'a', Hex1bModifiers.None));
+        var result = InputRouter.RouteInputToNode(node, new Hex1bKeyEvent(Hex1bKey.A, 'a', Hex1bModifiers.None));
         
         Assert.Equal(InputResult.NotHandled, result);
     }
@@ -630,7 +634,7 @@ public class ListNodeTests
         var state = CreateListState("Item 1", "Item 2");
         var node = new ListNode { State = state, IsFocused = true };
         
-        var result = node.HandleInput(new Hex1bKeyEvent(Hex1bKey.Tab, '\t', Hex1bModifiers.None));
+        var result = InputRouter.RouteInputToNode(node, new Hex1bKeyEvent(Hex1bKey.Tab, '\t', Hex1bModifiers.None));
         
         Assert.Equal(InputResult.NotHandled, result);
     }
@@ -641,7 +645,7 @@ public class ListNodeTests
         var state = CreateListState("Item 1", "Item 2");
         var node = new ListNode { State = state, IsFocused = true };
         
-        var result = node.HandleInput(new Hex1bKeyEvent(Hex1bKey.Escape, '\x1b', Hex1bModifiers.None));
+        var result = InputRouter.RouteInputToNode(node, new Hex1bKeyEvent(Hex1bKey.Escape, '\x1b', Hex1bModifiers.None));
         
         Assert.Equal(InputResult.NotHandled, result);
     }

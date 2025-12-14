@@ -139,7 +139,10 @@ using var app = new Hex1bApp<object>(
                     ]))
             ]),
             $"Hex1b Todo ({terminalSize})"
-        ) with { InputBindings = [InputBinding.Plain(Hex1bKey.Delete, DeleteSelected, "Delete selected item")] };
+        ).WithInputBindings(bindings =>
+        {
+            bindings.Key(Hex1bKey.Delete).Action(DeleteSelected, "Delete selected item");
+        });
     }
 );
 

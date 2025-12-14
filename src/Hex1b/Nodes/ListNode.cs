@@ -14,6 +14,28 @@ public sealed class ListNode : Hex1bNode
 
     public override bool IsFocusable => true;
 
+    public override void ConfigureDefaultBindings(InputBindingsBuilder bindings)
+    {
+        // Navigation
+        bindings.Key(Hex1bKey.UpArrow).Action(MoveUp, "Move up");
+        bindings.Key(Hex1bKey.DownArrow).Action(MoveDown, "Move down");
+        
+        // Activation
+        bindings.Key(Hex1bKey.Enter).Action(ActivateItem, "Activate item");
+        bindings.Key(Hex1bKey.Spacebar).Action(ActivateItem, "Activate item");
+    }
+
+    private void MoveUp() => State.MoveUp();
+    private void MoveDown() => State.MoveDown();
+    
+    private void ActivateItem()
+    {
+        if (State.SelectedItem != null)
+        {
+            State.OnItemActivated?.Invoke(State.SelectedItem);
+        }
+    }
+
     public override Size Measure(Constraints constraints)
     {
         // List: width is max item length + indicator (2 chars), height is item count
@@ -76,29 +98,5 @@ public sealed class ListNode : Hex1bNode
                 context.Write(text);
             }
         }
-    }
-
-    public override InputResult HandleInput(Hex1bKeyEvent keyEvent)
-    {
-        if (!IsFocused) return InputResult.NotHandled;
-
-        switch (keyEvent.Key)
-        {
-            case Hex1bKey.UpArrow:
-                State.MoveUp();
-                return InputResult.Handled;
-            case Hex1bKey.DownArrow:
-                State.MoveDown();
-                return InputResult.Handled;
-            case Hex1bKey.Enter:
-            case Hex1bKey.Spacebar:
-                // Trigger item activated on Enter or Space
-                if (State.SelectedItem != null)
-                {
-                    State.OnItemActivated?.Invoke(State.SelectedItem);
-                }
-                return InputResult.Handled;
-        }
-        return InputResult.NotHandled;
     }
 }

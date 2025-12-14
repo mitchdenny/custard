@@ -119,25 +119,22 @@ public class NavigatorExhibit(ILogger<NavigatorExhibit> logger) : Hex1bExhibit
         /// </summary>
         private Hex1bWidget BuildNewCustomer(WidgetContext<RootWidget, CrmAppState> ctx, NavigatorState nav)
         {
-            return new VStackWidget([
-                new TextBlockWidget("╭───────────────────────────────────────╮"),
-                new TextBlockWidget("│          New Customer                 │"),
-                new TextBlockWidget("╰───────────────────────────────────────╯"),
-                new TextBlockWidget(""),
-                new TextBlockWidget("Company Name:"),
-                new TextBoxWidget(CompanyNameInput),
-                new TextBlockWidget(""),
-                new TextBlockWidget("Email:"),
-                new TextBoxWidget(EmailInput),
-                new TextBlockWidget(""),
-                new ButtonWidget("Save Customer", () => SaveNewCustomer(nav))
-            ])
+            return ctx.VStack(v => [
+                v.Text("╭───────────────────────────────────────╮"),
+                v.Text("│          New Customer                 │"),
+                v.Text("╰───────────────────────────────────────╯"),
+                v.Text(""),
+                v.Text("Company Name:"),
+                v.TextBox(s => s.CompanyNameInput),
+                v.Text(""),
+                v.Text("Email:"),
+                v.TextBox(s => s.EmailInput),
+                v.Text(""),
+                v.Button("Save Customer", () => SaveNewCustomer(nav))
+            ]).WithInputBindings(bindings =>
             {
-                InputBindings = [InputBinding.Plain(
-                    Hex1bKey.Escape,
-                    () => nav.Pop(),
-                    "Cancel")]
-            };
+                bindings.Key(Hex1bKey.Escape).Action(() => nav.Pop(), "Cancel");
+            });
         }
 
         private void SaveNewCustomer(NavigatorState nav)
@@ -218,7 +215,7 @@ public class NavigatorExhibit(ILogger<NavigatorExhibit> logger) : Hex1bExhibit
                 v.Text(""),
                 v.Text($"Opportunities ({customer.Opportunities.Count}) - Total: ${totalValue:N0}"),
                 v.Text("────────────────────────"),
-                new ListWidget(oppList),
+                v.List(_ => oppList),
                 v.HStack(h => [
                     h.Button("+ Add", () => 
                         nav.Push("new-opportunity", n => BuildNewOpportunity(ctx, n, customer))),
@@ -236,25 +233,22 @@ public class NavigatorExhibit(ILogger<NavigatorExhibit> logger) : Hex1bExhibit
             NavigatorState nav,
             Customer customer)
         {
-            return new VStackWidget([
-                new TextBlockWidget("╭───────────────────────────────────────╮"),
-                new TextBlockWidget($"│  New Opportunity for {customer.CompanyName,-16} │"),
-                new TextBlockWidget("╰───────────────────────────────────────╯"),
-                new TextBlockWidget(""),
-                new TextBlockWidget("Opportunity Name:"),
-                new TextBoxWidget(OpportunityNameInput),
-                new TextBlockWidget(""),
-                new TextBlockWidget("Amount ($):"),
-                new TextBoxWidget(OpportunityAmountInput),
-                new TextBlockWidget(""),
-                new ButtonWidget("Save Opportunity", () => SaveNewOpportunity(nav, customer))
-            ])
+            return ctx.VStack(v => [
+                v.Text("╭───────────────────────────────────────╮"),
+                v.Text($"│  New Opportunity for {customer.CompanyName,-16} │"),
+                v.Text("╰───────────────────────────────────────╯"),
+                v.Text(""),
+                v.Text("Opportunity Name:"),
+                v.TextBox(s => s.OpportunityNameInput),
+                v.Text(""),
+                v.Text("Amount ($):"),
+                v.TextBox(s => s.OpportunityAmountInput),
+                v.Text(""),
+                v.Button("Save Opportunity", () => SaveNewOpportunity(nav, customer))
+            ]).WithInputBindings(bindings =>
             {
-                InputBindings = [InputBinding.Plain(
-                    Hex1bKey.Escape,
-                    () => nav.Pop(),
-                    "Cancel")]
-            };
+                bindings.Key(Hex1bKey.Escape).Action(() => nav.Pop(), "Cancel");
+            });
         }
 
         private void SaveNewOpportunity(NavigatorState nav, Customer customer)

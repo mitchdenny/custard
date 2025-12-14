@@ -16,10 +16,33 @@ public abstract class Hex1bNode
     public Hex1bNode? Parent { get; set; }
 
     /// <summary>
-    /// Input bindings for this node. These are collected during input routing,
-    /// with bindings closer to the focused node taking precedence over ancestors.
+    /// Optional callback to configure bindings for this node.
+    /// Set from the widget's WithInputBindings() call.
     /// </summary>
-    public IReadOnlyList<InputBinding> InputBindings { get; set; } = [];
+    internal Action<InputBindingsBuilder>? BindingsConfigurator { get; set; }
+
+    /// <summary>
+    /// Configures the default input bindings for this node type.
+    /// Override in derived classes to add default key bindings.
+    /// These bindings can be inspected and modified by the user's callback.
+    /// </summary>
+    /// <param name="bindings">The builder to add bindings to.</param>
+    public virtual void ConfigureDefaultBindings(InputBindingsBuilder bindings)
+    {
+        // Base implementation does nothing - leaf nodes have no default bindings
+    }
+
+    /// <summary>
+    /// Builds the complete set of bindings for this node.
+    /// Called during input routing to get the trie for this node's layer.
+    /// </summary>
+    internal InputBindingsBuilder BuildBindings()
+    {
+        var builder = new InputBindingsBuilder();
+        ConfigureDefaultBindings(builder);
+        BindingsConfigurator?.Invoke(builder);
+        return builder;
+    }
 
     /// <summary>
     /// Hint for how this node should be sized horizontally within its parent.

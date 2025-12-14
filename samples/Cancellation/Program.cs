@@ -109,13 +109,11 @@ static Task<Hex1bWidget> App(
                 detail.Button("Close", () => cts.Cancel())
             ]),
             leftWidth: 25
-        ).FillHeight() with
+        ).FillHeight().WithInputBindings(bindings =>
         {
-            InputBindings = [
-                InputBinding.Ctrl(Hex1bKey.S, onSave, "Save contact"),
-                InputBinding.Ctrl(Hex1bKey.Q, () => cts.Cancel(), "Quit application"),
-            ]
-        },
+            bindings.Ctrl().Key(Hex1bKey.S).Action(onSave, "Save contact");
+            bindings.Ctrl().Key(Hex1bKey.Q).Action(() => cts.Cancel(), "Quit application");
+        }),
         v.HStack(h => [h.Text(statusText)])
     ]);
 

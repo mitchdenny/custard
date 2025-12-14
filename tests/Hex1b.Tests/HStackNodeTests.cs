@@ -201,7 +201,7 @@ public class HStackNodeTests
         };
         node.InvalidateFocusCache();
 
-        var result = node.HandleInput(new Hex1bKeyEvent(Hex1bKey.Tab, '\t', Hex1bModifiers.None));
+        var result = InputRouter.RouteInputToNode(node, new Hex1bKeyEvent(Hex1bKey.Tab, '\t', Hex1bModifiers.None));
 
         Assert.Equal(InputResult.Handled, result);
         Assert.False(button1.IsFocused);
@@ -221,7 +221,7 @@ public class HStackNodeTests
         node.InvalidateFocusCache();
 
         // Shift-tab from button1 should wrap to button2
-        node.HandleInput(new Hex1bKeyEvent(Hex1bKey.Tab, '\t', Hex1bModifiers.Shift));
+        InputRouter.RouteInputToNode(node, new Hex1bKeyEvent(Hex1bKey.Tab, '\t', Hex1bModifiers.Shift));
 
         Assert.False(button1.IsFocused);
         Assert.True(button2.IsFocused);

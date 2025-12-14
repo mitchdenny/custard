@@ -60,6 +60,90 @@ public sealed class SplitterNode : Hex1bNode
     /// </summary>
     private int DividerSize => Orientation == SplitterOrientation.Horizontal ? 3 : 1;
 
+    public override void ConfigureDefaultBindings(InputBindingsBuilder bindings)
+    {
+        // Resize bindings
+        bindings.Key(Hex1bKey.LeftArrow).Action(ResizeLeft, "Resize left");
+        bindings.Key(Hex1bKey.RightArrow).Action(ResizeRight, "Resize right");
+        bindings.Key(Hex1bKey.UpArrow).Action(ResizeUp, "Resize up");
+        bindings.Key(Hex1bKey.DownArrow).Action(ResizeDown, "Resize down");
+        
+        // Focus navigation
+        bindings.Key(Hex1bKey.Tab).Action(FocusNext, "Next focusable");
+        bindings.Shift().Key(Hex1bKey.Tab).Action(FocusPrevious, "Previous focusable");
+        bindings.Key(Hex1bKey.Escape).Action(FocusFirst, "Jump to first focusable");
+    }
+
+    private void FocusNext() => MoveFocus(forward: true);
+    private void FocusPrevious() => MoveFocus(forward: false);
+
+    private void MoveFocus(bool forward)
+    {
+        var focusables = GetFocusableNodesList();
+        if (focusables.Count == 0) return;
+
+        // Clear old focus
+        if (_focusedIndex >= 0 && _focusedIndex < focusables.Count)
+        {
+            focusables[_focusedIndex].IsFocused = false;
+        }
+
+        // Move focus
+        if (forward)
+        {
+            _focusedIndex = (_focusedIndex + 1) % focusables.Count;
+        }
+        else
+        {
+            _focusedIndex = _focusedIndex <= 0 ? focusables.Count - 1 : _focusedIndex - 1;
+        }
+
+        // Set new focus
+        focusables[_focusedIndex].IsFocused = true;
+    }
+
+    private void FocusFirst()
+    {
+        var focusables = GetFocusableNodesList();
+        if (focusables.Count == 0 || _focusedIndex == 0) return;
+
+        // Clear old focus
+        if (_focusedIndex >= 0 && _focusedIndex < focusables.Count)
+        {
+            focusables[_focusedIndex].IsFocused = false;
+        }
+
+        // Jump to first focusable
+        _focusedIndex = 0;
+        focusables[_focusedIndex].IsFocused = true;
+    }
+
+    private void ResizeLeft()
+    {
+        if (!IsFocused || Orientation != SplitterOrientation.Horizontal) return;
+        FirstSize = Math.Max(MinFirstSize, FirstSize - ResizeStep);
+    }
+
+    private void ResizeRight()
+    {
+        if (!IsFocused || Orientation != SplitterOrientation.Horizontal) return;
+        var maxFirstSize = Bounds.Width - 3 - MinFirstSize;
+        FirstSize = Math.Min(maxFirstSize, FirstSize + ResizeStep);
+    }
+
+    private void ResizeUp()
+    {
+        if (!IsFocused || Orientation != SplitterOrientation.Vertical) return;
+        FirstSize = Math.Max(MinFirstSize, FirstSize - ResizeStep);
+    }
+
+    private void ResizeDown()
+    {
+        if (!IsFocused || Orientation != SplitterOrientation.Vertical) return;
+        var maxFirstSize = Bounds.Height - 1 - MinFirstSize;
+        FirstSize = Math.Min(maxFirstSize, FirstSize + ResizeStep);
+    }
+
     /// <summary>
     /// Computes a contrasting color (black or white) based on the luminance of the input color.
     /// </summary>
@@ -315,102 +399,6 @@ public sealed class SplitterNode : Hex1bNode
         {
             context.Write($"{dividerFg.ToForegroundAnsi()}{dividerLine}\x1b[0m");
         }
-    }
-
-    public override InputResult HandleInput(Hex1bKeyEvent keyEvent)
-    {
-        // Handle Escape to jump focus back to first focusable (e.g., master list)
-        if (keyEvent.Key == Hex1bKey.Escape)
-        {
-            var focusables = GetFocusableNodesList();
-            if (focusables.Count > 0 && _focusedIndex != 0)
-            {
-                // Clear old focus
-                if (_focusedIndex >= 0 && _focusedIndex < focusables.Count)
-                {
-                    focusables[_focusedIndex].IsFocused = false;
-                }
-                
-                // Jump to first focusable
-                _focusedIndex = 0;
-                focusables[_focusedIndex].IsFocused = true;
-                return InputResult.Handled;
-            }
-        }
-        
-        // Handle Tab to move focus across all focusable nodes
-        if (keyEvent.Key == Hex1bKey.Tab)
-        {
-            var focusables = GetFocusableNodesList();
-            if (focusables.Count > 0)
-            {
-                // Clear old focus
-                if (_focusedIndex >= 0 && _focusedIndex < focusables.Count)
-                {
-                    focusables[_focusedIndex].IsFocused = false;
-                }
-
-                // Move focus
-                if (keyEvent.Modifiers.HasFlag(Hex1bModifiers.Shift))
-                {
-                    _focusedIndex = _focusedIndex <= 0 ? focusables.Count - 1 : _focusedIndex - 1;
-                }
-                else
-                {
-                    _focusedIndex = (_focusedIndex + 1) % focusables.Count;
-                }
-
-                // Set new focus
-                focusables[_focusedIndex].IsFocused = true;
-                return InputResult.Handled;
-            }
-        }
-
-        // Handle splitter resize when the splitter itself is focused
-        if (IsFocused)
-        {
-            return HandleResizeInput(keyEvent);
-        }
-
-        return InputResult.NotHandled;
-    }
-
-    private InputResult HandleResizeInput(Hex1bKeyEvent keyEvent)
-    {
-        if (Orientation == SplitterOrientation.Horizontal)
-        {
-            if (keyEvent.Key == Hex1bKey.LeftArrow)
-            {
-                // Decrease first pane width
-                FirstSize = Math.Max(MinFirstSize, FirstSize - ResizeStep);
-                return InputResult.Handled;
-            }
-            else if (keyEvent.Key == Hex1bKey.RightArrow)
-            {
-                // Increase first pane width (respect overall bounds)
-                var maxFirstSize = Bounds.Width - 3 - MinFirstSize; // 3 for divider, MinFirstSize for second pane
-                FirstSize = Math.Min(maxFirstSize, FirstSize + ResizeStep);
-                return InputResult.Handled;
-            }
-        }
-        else // Vertical
-        {
-            if (keyEvent.Key == Hex1bKey.UpArrow)
-            {
-                // Decrease first pane height
-                FirstSize = Math.Max(MinFirstSize, FirstSize - ResizeStep);
-                return InputResult.Handled;
-            }
-            else if (keyEvent.Key == Hex1bKey.DownArrow)
-            {
-                // Increase first pane height (respect overall bounds)
-                var maxFirstSize = Bounds.Height - 1 - MinFirstSize; // 1 for divider, MinFirstSize for second pane
-                FirstSize = Math.Min(maxFirstSize, FirstSize + ResizeStep);
-                return InputResult.Handled;
-            }
-        }
-
-        return InputResult.NotHandled;
     }
 
     /// <summary>

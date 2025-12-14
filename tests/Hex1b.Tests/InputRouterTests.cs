@@ -1,5 +1,6 @@
 using Hex1b.Input;
 using Hex1b.Layout;
+using Hex1b.Widgets;
 
 namespace Hex1b.Tests;
 
@@ -15,6 +16,14 @@ public class InputRouterTests
         public override bool IsFocused { get => _isFocused; set => _isFocused = value; }
         
         public List<Hex1bKeyEvent> ReceivedInputs { get; } = new();
+        
+        // Action to configure bindings for this node
+        public Action<InputBindingsBuilder>? BindingsConfig { get; set; }
+        
+        public override void ConfigureDefaultBindings(InputBindingsBuilder bindings)
+        {
+            BindingsConfig?.Invoke(bindings);
+        }
         
         public override Size Measure(Layout.Constraints constraints) => new Size(10, 1);
         public override void Render(Hex1bRenderContext context) { }
@@ -32,6 +41,14 @@ public class InputRouterTests
     private sealed class MockContainerNode : Hex1bNode
     {
         public List<Hex1bNode> Children { get; } = new();
+        
+        // Action to configure bindings for this node
+        public Action<InputBindingsBuilder>? BindingsConfig { get; set; }
+        
+        public override void ConfigureDefaultBindings(InputBindingsBuilder bindings)
+        {
+            BindingsConfig?.Invoke(bindings);
+        }
         
         public override Size Measure(Layout.Constraints constraints) => new Size(80, 24);
         public override void Render(Hex1bRenderContext context) { }
@@ -76,9 +93,9 @@ public class InputRouterTests
         // Arrange
         var bindingExecuted = false;
         var focusedNode = new MockFocusableNode { IsFocused = true };
-        focusedNode.InputBindings = new[]
+        focusedNode.BindingsConfig = bindings =>
         {
-            InputBinding.Ctrl(Hex1bKey.S, () => bindingExecuted = true, "Save")
+            bindings.Ctrl().Key(Hex1bKey.S).Action(() => bindingExecuted = true, "Save");
         };
         
         var container = new MockContainerNode();
@@ -104,15 +121,15 @@ public class InputRouterTests
         var childBindingExecuted = false;
         
         var focusedNode = new MockFocusableNode { IsFocused = true };
-        focusedNode.InputBindings = new[]
+        focusedNode.BindingsConfig = bindings =>
         {
-            InputBinding.Ctrl(Hex1bKey.S, () => childBindingExecuted = true, "Child Save")
+            bindings.Ctrl().Key(Hex1bKey.S).Action(() => childBindingExecuted = true, "Child Save");
         };
         
         var container = new MockContainerNode();
-        container.InputBindings = new[]
+        container.BindingsConfig = bindings =>
         {
-            InputBinding.Ctrl(Hex1bKey.S, () => parentBindingExecuted = true, "Parent Save")
+            bindings.Ctrl().Key(Hex1bKey.S).Action(() => parentBindingExecuted = true, "Parent Save");
         };
         container.Children.Add(focusedNode);
         focusedNode.Parent = container;
@@ -138,9 +155,9 @@ public class InputRouterTests
         // No bindings on focused node
         
         var container = new MockContainerNode();
-        container.InputBindings = new[]
+        container.BindingsConfig = bindings =>
         {
-            InputBinding.Ctrl(Hex1bKey.Q, () => parentBindingExecuted = true, "Quit")
+            bindings.Ctrl().Key(Hex1bKey.Q).Action(() => parentBindingExecuted = true, "Quit");
         };
         container.Children.Add(focusedNode);
         focusedNode.Parent = container;
@@ -182,17 +199,17 @@ public class InputRouterTests
         var focusedNode = new MockFocusableNode { IsFocused = true };
         
         var middleContainer = new MockContainerNode();
-        middleContainer.InputBindings = new[]
+        middleContainer.BindingsConfig = bindings =>
         {
-            InputBinding.Ctrl(Hex1bKey.M, () => middleBindingExecuted = true, "Middle")
+            bindings.Ctrl().Key(Hex1bKey.M).Action(() => middleBindingExecuted = true, "Middle");
         };
         middleContainer.Children.Add(focusedNode);
         focusedNode.Parent = middleContainer;
         
         var rootContainer = new MockContainerNode();
-        rootContainer.InputBindings = new[]
+        rootContainer.BindingsConfig = bindings =>
         {
-            InputBinding.Ctrl(Hex1bKey.R, () => rootBindingExecuted = true, "Root")
+            bindings.Ctrl().Key(Hex1bKey.R).Action(() => rootBindingExecuted = true, "Root");
         };
         rootContainer.Children.Add(middleContainer);
         middleContainer.Parent = rootContainer;
@@ -215,26 +232,37 @@ public class InputRouterTests
     [Fact]
     public void InputBinding_Factory_CreatesCorrectBindings()
     {
-        // Test factory methods create correct key/modifier combinations
-        var plainBinding = InputBinding.Plain(Hex1bKey.A, () => { });
-        Assert.Equal(Hex1bKey.A, plainBinding.Key);
-        Assert.Equal(Hex1bModifiers.None, plainBinding.Modifiers);
+        // Test InputBindingsBuilder creates correct key/modifier combinations
+        var builder = new InputBindingsBuilder();
+        builder.Key(Hex1bKey.A).Action(() => { });
+        builder.Ctrl().Key(Hex1bKey.S).Action(() => { });
+        builder.Alt().Key(Hex1bKey.F).Action(() => { });
+        builder.Shift().Key(Hex1bKey.Tab).Action(() => { });
+        builder.Ctrl().Shift().Key(Hex1bKey.Z).Action(() => { });
         
-        var ctrlBinding = InputBinding.Ctrl(Hex1bKey.S, () => { });
-        Assert.Equal(Hex1bKey.S, ctrlBinding.Key);
-        Assert.Equal(Hex1bModifiers.Control, ctrlBinding.Modifiers);
+        var bindings = builder.Bindings;
         
-        var altBinding = InputBinding.Alt(Hex1bKey.F, () => { });
-        Assert.Equal(Hex1bKey.F, altBinding.Key);
-        Assert.Equal(Hex1bModifiers.Alt, altBinding.Modifiers);
+        Assert.Equal(5, bindings.Count);
         
-        var shiftBinding = InputBinding.Shift(Hex1bKey.Tab, () => { });
-        Assert.Equal(Hex1bKey.Tab, shiftBinding.Key);
-        Assert.Equal(Hex1bModifiers.Shift, shiftBinding.Modifiers);
+        // Plain binding
+        Assert.Equal(Hex1bKey.A, bindings[0].Steps[0].Key);
+        Assert.Equal(Hex1bModifiers.None, bindings[0].Steps[0].Modifiers);
         
-        var ctrlShiftBinding = InputBinding.CtrlShift(Hex1bKey.Z, () => { });
-        Assert.Equal(Hex1bKey.Z, ctrlShiftBinding.Key);
-        Assert.Equal(Hex1bModifiers.Control | Hex1bModifiers.Shift, ctrlShiftBinding.Modifiers);
+        // Ctrl binding
+        Assert.Equal(Hex1bKey.S, bindings[1].Steps[0].Key);
+        Assert.Equal(Hex1bModifiers.Control, bindings[1].Steps[0].Modifiers);
+        
+        // Alt binding
+        Assert.Equal(Hex1bKey.F, bindings[2].Steps[0].Key);
+        Assert.Equal(Hex1bModifiers.Alt, bindings[2].Steps[0].Modifiers);
+        
+        // Shift binding
+        Assert.Equal(Hex1bKey.Tab, bindings[3].Steps[0].Key);
+        Assert.Equal(Hex1bModifiers.Shift, bindings[3].Steps[0].Modifiers);
+        
+        // Ctrl+Shift binding
+        Assert.Equal(Hex1bKey.Z, bindings[4].Steps[0].Key);
+        Assert.Equal(Hex1bModifiers.Control | Hex1bModifiers.Shift, bindings[4].Steps[0].Modifiers);
     }
 
     [Fact]
@@ -273,5 +301,37 @@ public class InputRouterTests
             Hex1bModifiers.Shift | Hex1bModifiers.Control,
             KeyMapper.ToHex1bModifiers(true, false, true)
         );
+    }
+
+    [Fact]
+    public void RouteInputToNode_TextBoxBackspace_DeletesAndPositionsCursor()
+    {
+        // Arrange
+        var state = new TextBoxState { Text = "hello", CursorPosition = 5 };
+        var node = new TextBoxNode { State = state, IsFocused = true };
+
+        // Act
+        var result = InputRouter.RouteInputToNode(node, new Hex1bKeyEvent(Hex1bKey.Backspace, '\b', Hex1bModifiers.None));
+
+        // Assert
+        Assert.Equal(InputResult.Handled, result);
+        Assert.Equal("hell", state.Text);
+        Assert.Equal(4, state.CursorPosition);
+    }
+
+    [Fact]
+    public void RouteInputToNode_TextBoxDoubleBackspace_DeletesTwoCharacters()
+    {
+        // Arrange
+        var state = new TextBoxState { Text = "hello", CursorPosition = 5 };
+        var node = new TextBoxNode { State = state, IsFocused = true };
+
+        // Act - two backspaces
+        InputRouter.RouteInputToNode(node, new Hex1bKeyEvent(Hex1bKey.Backspace, '\b', Hex1bModifiers.None));
+        InputRouter.RouteInputToNode(node, new Hex1bKeyEvent(Hex1bKey.Backspace, '\b', Hex1bModifiers.None));
+
+        // Assert
+        Assert.Equal("hel", state.Text);
+        Assert.Equal(3, state.CursorPosition);
     }
 }

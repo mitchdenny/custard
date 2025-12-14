@@ -1,0 +1,82 @@
+namespace Hex1b.Input;
+
+/// <summary>
+/// Fluent builder for constructing key steps in an input binding.
+/// Supports chaining modifiers, keys, and multi-step chords.
+/// </summary>
+public sealed class KeyStepBuilder
+{
+    private readonly InputBindingsBuilder _parent;
+    private readonly List<KeyStep> _completedSteps = [];
+    private Hex1bModifiers _currentModifiers = Hex1bModifiers.None;
+    private Hex1bKey? _currentKey;
+
+    internal KeyStepBuilder(InputBindingsBuilder parent)
+    {
+        _parent = parent;
+    }
+
+    /// <summary>
+    /// Adds Ctrl modifier to the current step.
+    /// </summary>
+    public KeyStepBuilder Ctrl()
+    {
+        _currentModifiers |= Hex1bModifiers.Control;
+        return this;
+    }
+
+    /// <summary>
+    /// Adds Shift modifier to the current step.
+    /// </summary>
+    public KeyStepBuilder Shift()
+    {
+        _currentModifiers |= Hex1bModifiers.Shift;
+        return this;
+    }
+
+    /// <summary>
+    /// Adds Alt modifier to the current step.
+    /// </summary>
+    public KeyStepBuilder Alt()
+    {
+        _currentModifiers |= Hex1bModifiers.Alt;
+        return this;
+    }
+
+    /// <summary>
+    /// Sets the key for the current step.
+    /// </summary>
+    public KeyStepBuilder Key(Hex1bKey key)
+    {
+        _currentKey = key;
+        return this;
+    }
+
+    /// <summary>
+    /// Commits the current step and starts a new one for chords.
+    /// </summary>
+    public KeyStepBuilder Then()
+    {
+        CommitCurrentStep();
+        return this;
+    }
+
+    /// <summary>
+    /// Completes the binding with the given action handler.
+    /// </summary>
+    public void Action(Action handler, string? description = null)
+    {
+        CommitCurrentStep();
+        _parent.AddBinding(new InputBinding([.. _completedSteps], handler, description));
+    }
+
+    private void CommitCurrentStep()
+    {
+        if (_currentKey is null)
+            throw new InvalidOperationException("Key must be set before Then() or Action(). Use .Key(Hex1bKey.X) before calling Then() or Action().");
+
+        _completedSteps.Add(new KeyStep(_currentKey.Value, _currentModifiers));
+        _currentModifiers = Hex1bModifiers.None;
+        _currentKey = null;
+    }
+}

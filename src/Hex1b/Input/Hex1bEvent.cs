@@ -12,10 +12,18 @@ public abstract record Hex1bEvent;
 /// A keyboard input event that gets routed to the focused node.
 /// </summary>
 /// <param name="Key">The key that was pressed.</param>
-/// <param name="Character">The character produced by the keypress (may be '\0' for non-printable keys).</param>
+/// <param name="Text">The text produced by the keypress (may be empty for non-printable keys). Supports multi-char input like emojis.</param>
 /// <param name="Modifiers">The modifier keys held during the keypress.</param>
-public sealed record Hex1bKeyEvent(Hex1bKey Key, char Character, Hex1bModifiers Modifiers) : Hex1bEvent
+public sealed record Hex1bKeyEvent(Hex1bKey Key, string Text, Hex1bModifiers Modifiers) : Hex1bEvent
 {
+    /// <summary>
+    /// Legacy constructor for single character input.
+    /// </summary>
+    public Hex1bKeyEvent(Hex1bKey key, char character, Hex1bModifiers modifiers)
+        : this(key, character == '\0' ? "" : character.ToString(), modifiers)
+    {
+    }
+
     /// <summary>
     /// Returns true if the Shift modifier is active.
     /// </summary>
@@ -32,33 +40,45 @@ public sealed record Hex1bKeyEvent(Hex1bKey Key, char Character, Hex1bModifiers 
     public bool Control => (Modifiers & Hex1bModifiers.Control) != 0;
 
     /// <summary>
-    /// Returns true if the key produces a printable character.
+    /// Gets the first character of the text, or '\0' if empty.
+    /// For compatibility with code expecting a single char.
     /// </summary>
-    public bool IsPrintable => Character != '\0' && !char.IsControl(Character);
+    public char Character => Text.Length > 0 ? Text[0] : '\0';
+
+    /// <summary>
+    /// Returns true if the key produces printable text.
+    /// </summary>
+    public bool IsPrintable => Text.Length > 0 && (Text.Length > 1 || !char.IsControl(Text[0]));
 
     /// <summary>
     /// Creates an event for a simple key press with no modifiers.
     /// </summary>
     public static Hex1bKeyEvent Plain(Hex1bKey key, char character = '\0') 
-        => new(key, character, Hex1bModifiers.None);
+        => new(key, character == '\0' ? "" : character.ToString(), Hex1bModifiers.None);
+
+    /// <summary>
+    /// Creates an event for text input with no modifiers (e.g., paste, emoji).
+    /// </summary>
+    public static Hex1bKeyEvent FromText(string text) 
+        => new(Hex1bKey.None, text, Hex1bModifiers.None);
 
     /// <summary>
     /// Creates an event for a key press with Control modifier.
     /// </summary>
     public static Hex1bKeyEvent WithCtrl(Hex1bKey key, char character = '\0') 
-        => new(key, character, Hex1bModifiers.Control);
+        => new(key, character == '\0' ? "" : character.ToString(), Hex1bModifiers.Control);
 
     /// <summary>
     /// Creates an event for a key press with Shift modifier.
     /// </summary>
     public static Hex1bKeyEvent WithShift(Hex1bKey key, char character = '\0') 
-        => new(key, character, Hex1bModifiers.Shift);
+        => new(key, character == '\0' ? "" : character.ToString(), Hex1bModifiers.Shift);
 
     /// <summary>
     /// Creates an event for a key press with Alt modifier.
     /// </summary>
     public static Hex1bKeyEvent WithAlt(Hex1bKey key, char character = '\0') 
-        => new(key, character, Hex1bModifiers.Alt);
+        => new(key, character == '\0' ? "" : character.ToString(), Hex1bModifiers.Alt);
 }
 
 /// <summary>

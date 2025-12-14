@@ -49,14 +49,21 @@ public sealed class InputBindingsBuilder
     public KeyStepBuilder Key(Hex1bKey key) => new KeyStepBuilder(this).Key(key);
 
     /// <summary>
-    /// Starts building a character binding that matches any printable character.
+    /// Starts building a character binding that matches any printable text.
     /// </summary>
-    public CharacterStepBuilder AnyCharacter() => new CharacterStepBuilder(this, c => !char.IsControl(c));
+    public CharacterStepBuilder AnyCharacter() => new CharacterStepBuilder(this, IsPrintableText);
 
     /// <summary>
     /// Starts building a character binding with a custom predicate.
     /// </summary>
-    public CharacterStepBuilder Character(Func<char, bool> predicate) => new CharacterStepBuilder(this, predicate);
+    public CharacterStepBuilder Character(Func<string, bool> predicate) => new CharacterStepBuilder(this, predicate);
+
+    /// <summary>
+    /// Default predicate for printable text (non-empty and not a control character).
+    /// Handles both single characters and multi-char sequences like emojis.
+    /// </summary>
+    private static bool IsPrintableText(string text) 
+        => text.Length > 0 && (text.Length > 1 || !char.IsControl(text[0]));
 
     /// <summary>
     /// Adds a pre-built binding directly.

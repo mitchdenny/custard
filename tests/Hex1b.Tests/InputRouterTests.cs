@@ -338,40 +338,49 @@ public class InputRouterTests
     #region CharacterBinding Tests
 
     [Fact]
-    public void CharacterBinding_MatchesPrintableCharacter()
+    public void CharacterBinding_MatchesPrintableText()
     {
         // Arrange
-        char received = '\0';
-        var binding = new CharacterBinding(c => !char.IsControl(c), c => received = c, "Insert char");
+        string received = "";
+        var binding = new CharacterBinding(
+            text => text.Length > 0 && (text.Length > 1 || !char.IsControl(text[0])), 
+            text => received = text, 
+            "Insert text");
 
         // Act & Assert
-        Assert.True(binding.Matches('a'));
-        Assert.True(binding.Matches('Z'));
-        Assert.True(binding.Matches('5'));
-        Assert.True(binding.Matches(' '));
-        Assert.False(binding.Matches('\n'));
-        Assert.False(binding.Matches('\t'));
-        Assert.False(binding.Matches('\b'));
+        Assert.True(binding.Matches("a"));
+        Assert.True(binding.Matches("Z"));
+        Assert.True(binding.Matches("5"));
+        Assert.True(binding.Matches(" "));
+        Assert.True(binding.Matches("😀"));  // Emoji as string works!
+        Assert.False(binding.Matches("\n"));
+        Assert.False(binding.Matches("\t"));
+        Assert.False(binding.Matches("\b"));
+        Assert.False(binding.Matches(""));
         
-        binding.Execute('X');
-        Assert.Equal('X', received);
+        binding.Execute("X");
+        Assert.Equal("X", received);
     }
 
     [Fact]
     public void CharacterBinding_CustomPredicate_MatchesDigitsOnly()
     {
         // Arrange
-        char received = '\0';
-        var binding = new CharacterBinding(char.IsDigit, c => received = c, "Insert digit");
+        string received = "";
+        var binding = new CharacterBinding(
+            text => text.Length == 1 && char.IsDigit(text[0]), 
+            text => received = text, 
+            "Insert digit");
 
         // Act & Assert
-        Assert.True(binding.Matches('0'));
-        Assert.True(binding.Matches('9'));
-        Assert.False(binding.Matches('a'));
-        Assert.False(binding.Matches(' '));
+        Assert.True(binding.Matches("0"));
+        Assert.True(binding.Matches("9"));
+        Assert.False(binding.Matches("a"));
+        Assert.False(binding.Matches(" "));
+        Assert.False(binding.Matches("12"));  // Multiple digits don't match single-digit predicate
         
-        binding.Execute('7');
-        Assert.Equal('7', received);
+        binding.Execute("7");
+        Assert.Equal("7", received);
     }
 
     [Fact]
@@ -379,18 +388,20 @@ public class InputRouterTests
     {
         // Arrange
         var builder = new InputBindingsBuilder();
-        char received = '\0';
+        string received = "";
 
         // Act
-        builder.AnyCharacter().Action(c => received = c, "Type");
+        builder.AnyCharacter().Action(text => received = text, "Type");
 
         // Assert
         Assert.Single(builder.CharacterBindings);
         Assert.Empty(builder.Bindings);  // Key bindings list should be empty
         
         var binding = builder.CharacterBindings[0];
-        Assert.True(binding.Matches('a'));
-        Assert.False(binding.Matches('\n'));
+        Assert.True(binding.Matches("a"));
+        Assert.True(binding.Matches("😀"));  // Emoji works
+        Assert.False(binding.Matches("\n"));
+        Assert.False(binding.Matches(""));
         Assert.Equal("Type", binding.Description);
     }
 
@@ -399,19 +410,19 @@ public class InputRouterTests
     {
         // Arrange
         var builder = new InputBindingsBuilder();
-        char received = '\0';
+        string received = "";
 
         // Act
-        builder.Character(char.IsLetter).Action(c => received = c, "Letters only");
+        builder.Character(text => text.Length == 1 && char.IsLetter(text[0])).Action(text => received = text, "Letters only");
 
         // Assert
         Assert.Single(builder.CharacterBindings);
         
         var binding = builder.CharacterBindings[0];
-        Assert.True(binding.Matches('a'));
-        Assert.True(binding.Matches('Z'));
-        Assert.False(binding.Matches('5'));
-        Assert.False(binding.Matches(' '));
+        Assert.True(binding.Matches("a"));
+        Assert.True(binding.Matches("Z"));
+        Assert.False(binding.Matches("5"));
+        Assert.False(binding.Matches(" "));
     }
 
     [Fact]
@@ -482,13 +493,13 @@ public class InputRouterTests
     {
         // Arrange - node with both a key binding for 'A' and a character binding
         bool keyBindingCalled = false;
-        char charReceived = '\0';
+        string textReceived = "";
         
         var node = new MockFocusableNode { IsFocused = true };
         node.BindingsConfig = bindings =>
         {
             bindings.Key(Hex1bKey.A).Action(() => keyBindingCalled = true, "A key");
-            bindings.AnyCharacter().Action(c => charReceived = c, "Type");
+            bindings.AnyCharacter().Action(text => textReceived = text, "Type");
         };
 
         // Act
@@ -497,7 +508,7 @@ public class InputRouterTests
         // Assert - key binding should win
         Assert.Equal(InputResult.Handled, result);
         Assert.True(keyBindingCalled);
-        Assert.Equal('\0', charReceived);  // Character binding should not have been called
+        Assert.Equal("", textReceived);  // Character binding should not have been called
     }
 
     [Fact]
@@ -505,13 +516,13 @@ public class InputRouterTests
     {
         // Arrange - node with key binding for Enter, but typing 'x'
         bool enterPressed = false;
-        char charReceived = '\0';
+        string textReceived = "";
         
         var node = new MockFocusableNode { IsFocused = true };
         node.BindingsConfig = bindings =>
         {
             bindings.Key(Hex1bKey.Enter).Action(() => enterPressed = true, "Submit");
-            bindings.AnyCharacter().Action(c => charReceived = c, "Type");
+            bindings.AnyCharacter().Action(text => textReceived = text, "Type");
         };
 
         // Act
@@ -520,27 +531,27 @@ public class InputRouterTests
         // Assert - character binding should handle it
         Assert.Equal(InputResult.Handled, result);
         Assert.False(enterPressed);
-        Assert.Equal('x', charReceived);
+        Assert.Equal("x", textReceived);
     }
 
     [Fact]
-    public void RouteInputToNode_CharacterBinding_NullCharacter_NotHandled()
+    public void RouteInputToNode_CharacterBinding_EmptyText_NotHandled()
     {
-        // Arrange - key event with no character
-        char charReceived = '\0';
+        // Arrange - key event with no text
+        string textReceived = "";
         
         var node = new MockFocusableNode { IsFocused = true };
         node.BindingsConfig = bindings =>
         {
-            bindings.AnyCharacter().Action(c => charReceived = c, "Type");
+            bindings.AnyCharacter().Action(text => textReceived = text, "Type");
         };
 
-        // Act - F1 key has no character
+        // Act - F1 key has no text
         var result = InputRouter.RouteInputToNode(node, new Hex1bKeyEvent(Hex1bKey.F1, '\0', Hex1bModifiers.None));
 
         // Assert - character binding should not match
         Assert.Equal(InputResult.Handled, result);  // Handled by HandleInput fallback
-        Assert.Equal('\0', charReceived);
+        Assert.Equal("", textReceived);
     }
 
     [Fact]
@@ -552,8 +563,8 @@ public class InputRouterTests
         var node = new MockFocusableNode { IsFocused = true };
         node.BindingsConfig = bindings =>
         {
-            bindings.Character(char.IsDigit).Action(c => handler = "digit", "Digits");
-            bindings.AnyCharacter().Action(c => handler = "any", "Any char");
+            bindings.Character(text => text.Length == 1 && char.IsDigit(text[0])).Action(_ => handler = "digit", "Digits");
+            bindings.AnyCharacter().Action(_ => handler = "any", "Any char");
         };
 
         // Act - '5' matches both, but digit comes first
@@ -573,8 +584,8 @@ public class InputRouterTests
         var node = new MockFocusableNode { IsFocused = true };
         node.BindingsConfig = bindings =>
         {
-            bindings.Character(char.IsDigit).Action(c => handler = "digit", "Digits");
-            bindings.AnyCharacter().Action(c => handler = "any", "Any char");
+            bindings.Character(text => text.Length == 1 && char.IsDigit(text[0])).Action(_ => handler = "digit", "Digits");
+            bindings.AnyCharacter().Action(_ => handler = "any", "Any char");
         };
 
         // Act - 'a' doesn't match digit, falls through to any
@@ -589,19 +600,19 @@ public class InputRouterTests
     public void RouteInput_CharacterBinding_OnlyOnFocusedNode()
     {
         // Arrange - parent has character binding, child is focused
-        char parentReceived = '\0';
-        char childReceived = '\0';
+        string parentReceived = "";
+        string childReceived = "";
         
         var container = new MockContainerNode();
         container.BindingsConfig = bindings =>
         {
-            bindings.AnyCharacter().Action(c => parentReceived = c, "Parent type");
+            bindings.AnyCharacter().Action(text => parentReceived = text, "Parent type");
         };
         
         var child = new MockFocusableNode { IsFocused = true };
         child.BindingsConfig = bindings =>
         {
-            bindings.AnyCharacter().Action(c => childReceived = c, "Child type");
+            bindings.AnyCharacter().Action(text => childReceived = text, "Child type");
         };
         
         container.Children.Add(child);
@@ -612,8 +623,74 @@ public class InputRouterTests
 
         // Assert - only child's character binding should fire (not parent's)
         Assert.Equal(InputResult.Handled, result);
-        Assert.Equal('x', childReceived);
-        Assert.Equal('\0', parentReceived);  // Parent's character binding should NOT have been called
+        Assert.Equal("x", childReceived);
+        Assert.Equal("", parentReceived);  // Parent's character binding should NOT have been called
+    }
+
+    [Fact]
+    public void RouteInputToNode_CharacterBinding_Emoji()
+    {
+        // Arrange - emoji as a full string (not surrogate pair chars)
+        var state = new TextBoxState { Text = "hello", CursorPosition = 5 };
+        var node = new TextBoxNode { State = state, IsFocused = true };
+
+        // Act - insert an emoji using FromText (simulating paste or input method)
+        var result = InputRouter.RouteInputToNode(node, Hex1bKeyEvent.FromText("😀"));
+
+        // Assert
+        Assert.Equal(InputResult.Handled, result);
+        Assert.Equal("hello😀", state.Text);
+        Assert.Equal(7, state.CursorPosition);  // Emoji is 2 chars in UTF-16
+    }
+
+    [Fact]
+    public void RouteInputToNode_CharacterBinding_MultipleEmojis()
+    {
+        // Arrange
+        var state = new TextBoxState { Text = "", CursorPosition = 0 };
+        var node = new TextBoxNode { State = state, IsFocused = true };
+
+        // Act - insert multiple emojis
+        InputRouter.RouteInputToNode(node, Hex1bKeyEvent.FromText("👍"));
+        InputRouter.RouteInputToNode(node, Hex1bKeyEvent.FromText("🎉"));
+        InputRouter.RouteInputToNode(node, Hex1bKeyEvent.FromText("🚀"));
+
+        // Assert
+        Assert.Equal("👍🎉🚀", state.Text);
+    }
+
+    [Fact]
+    public void RouteInputToNode_CharacterBinding_UnicodeCharacters()
+    {
+        // Arrange
+        var state = new TextBoxState { Text = "", CursorPosition = 0 };
+        var node = new TextBoxNode { State = state, IsFocused = true };
+
+        // Act - insert various Unicode characters
+        InputRouter.RouteInputToNode(node, new Hex1bKeyEvent(Hex1bKey.None, 'é', Hex1bModifiers.None));
+        InputRouter.RouteInputToNode(node, new Hex1bKeyEvent(Hex1bKey.None, 'ñ', Hex1bModifiers.None));
+        InputRouter.RouteInputToNode(node, new Hex1bKeyEvent(Hex1bKey.None, '中', Hex1bModifiers.None));
+        InputRouter.RouteInputToNode(node, new Hex1bKeyEvent(Hex1bKey.None, '日', Hex1bModifiers.None));
+
+        // Assert
+        Assert.Equal("éñ中日", state.Text);
+        Assert.Equal(4, state.CursorPosition);
+    }
+
+    [Fact]
+    public void RouteInputToNode_CharacterBinding_PastedText()
+    {
+        // Arrange - simulating paste of multiple characters at once
+        var state = new TextBoxState { Text = "Hello ", CursorPosition = 6 };
+        var node = new TextBoxNode { State = state, IsFocused = true };
+
+        // Act - paste "World!" as a single event
+        var result = InputRouter.RouteInputToNode(node, Hex1bKeyEvent.FromText("World!"));
+
+        // Assert
+        Assert.Equal(InputResult.Handled, result);
+        Assert.Equal("Hello World!", state.Text);
+        Assert.Equal(12, state.CursorPosition);
     }
 
     #endregion

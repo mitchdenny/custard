@@ -177,9 +177,18 @@ public sealed class WebSocketHex1bTerminal : IHex1bTerminal, IDisposable
                 }
                 i += consumed;
             }
+            else if (char.IsHighSurrogate(message[i]) && i + 1 < message.Length && char.IsLowSurrogate(message[i + 1]))
+            {
+                // Surrogate pair (emoji or other supplementary Unicode character)
+                // Combine into a single string and send as one event
+                var text = message.Substring(i, 2);
+                var inputEvent = Hex1bKeyEvent.FromText(text);
+                await _inputChannel.Writer.WriteAsync(inputEvent, cancellationToken);
+                i += 2;
+            }
             else
             {
-                // Regular character
+                // Regular character (BMP)
                 var inputEvent = ParseKeyInput(message[i]);
                 if (inputEvent != null)
                 {
@@ -270,7 +279,8 @@ public sealed class WebSocketHex1bTerminal : IHex1bTerminal, IDisposable
             >= '0' and <= '9' => new Hex1bKeyEvent(KeyMapper.ToHex1bKey((ConsoleKey)((int)ConsoleKey.D0 + (c - '0'))), c, Hex1bModifiers.None),
             // Control characters (Ctrl+A through Ctrl+Z)
             >= '\x01' and <= '\x1a' => new Hex1bKeyEvent(KeyMapper.ToHex1bKey((ConsoleKey)((int)ConsoleKey.A + (c - '\x01'))), c, Hex1bModifiers.Control),
-            _ when c >= ' ' && c <= '~' => new Hex1bKeyEvent(Hex1bKey.None, c, Hex1bModifiers.None),
+            // Any non-control character (includes Unicode, emojis as surrogate pairs, etc.)
+            _ when !char.IsControl(c) => new Hex1bKeyEvent(Hex1bKey.None, c, Hex1bModifiers.None),
             _ => null
         };
     }

@@ -1,23 +1,23 @@
 namespace Hex1b.Input;
 
 /// <summary>
-/// Fluent builder for constructing character bindings.
+/// Fluent builder for constructing character/text bindings.
 /// </summary>
 public sealed class CharacterStepBuilder
 {
     private readonly InputBindingsBuilder _parent;
-    private readonly Func<char, bool> _predicate;
+    private readonly Func<string, bool> _predicate;
 
-    internal CharacterStepBuilder(InputBindingsBuilder parent, Func<char, bool> predicate)
+    internal CharacterStepBuilder(InputBindingsBuilder parent, Func<string, bool> predicate)
     {
         _parent = parent;
         _predicate = predicate;
     }
 
     /// <summary>
-    /// Completes the binding with the given action handler that receives the character.
+    /// Completes the binding with the given action handler that receives the text.
     /// </summary>
-    public void Action(Action<char> handler, string? description = null)
+    public void Action(Action<string> handler, string? description = null)
     {
         _parent.AddCharacterBinding(new CharacterBinding(_predicate, handler, description));
     }

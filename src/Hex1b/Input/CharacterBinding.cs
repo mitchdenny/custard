@@ -1,21 +1,22 @@
 namespace Hex1b.Input;
 
 /// <summary>
-/// Represents a binding that matches character input based on a predicate.
-/// Used for handling arbitrary printable character input in widgets like TextBox.
+/// Represents a binding that matches text input based on a predicate.
+/// Used for handling arbitrary printable text input in widgets like TextBox.
+/// Supports both single characters and multi-char sequences like emojis.
 /// </summary>
 public sealed class CharacterBinding
 {
     /// <summary>
-    /// Predicate that determines if a character should be handled.
-    /// Common predicates: c => !char.IsControl(c) for printable chars.
+    /// Predicate that determines if a text input should be handled.
+    /// Common predicates: text => text.Length > 0 &amp;&amp; !char.IsControl(text[0]) for printable text.
     /// </summary>
-    public Func<char, bool> Predicate { get; }
+    public Func<string, bool> Predicate { get; }
 
     /// <summary>
-    /// The action to execute when a matching character is received.
+    /// The action to execute when matching text input is received.
     /// </summary>
-    public Action<char> Handler { get; }
+    public Action<string> Handler { get; }
 
     /// <summary>
     /// Optional description for this binding (for help/documentation).
@@ -23,9 +24,9 @@ public sealed class CharacterBinding
     public string? Description { get; }
 
     /// <summary>
-    /// Creates a character binding with the given predicate and handler.
+    /// Creates a text binding with the given predicate and handler.
     /// </summary>
-    public CharacterBinding(Func<char, bool> predicate, Action<char> handler, string? description = null)
+    public CharacterBinding(Func<string, bool> predicate, Action<string> handler, string? description = null)
     {
         Predicate = predicate ?? throw new ArgumentNullException(nameof(predicate));
         Handler = handler ?? throw new ArgumentNullException(nameof(handler));
@@ -33,12 +34,12 @@ public sealed class CharacterBinding
     }
 
     /// <summary>
-    /// Checks if this binding matches the given character.
+    /// Checks if this binding matches the given text.
     /// </summary>
-    public bool Matches(char c) => Predicate(c);
+    public bool Matches(string text) => Predicate(text);
 
     /// <summary>
-    /// Executes the binding's handler with the given character.
+    /// Executes the binding's handler with the given text.
     /// </summary>
-    public void Execute(char c) => Handler(c);
+    public void Execute(string text) => Handler(text);
 }

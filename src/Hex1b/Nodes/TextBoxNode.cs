@@ -35,19 +35,19 @@ public sealed class TextBoxNode : Hex1bNode
         // Selection
         bindings.Ctrl().Key(Hex1bKey.A).Action(SelectAll, "Select all");
         
-        // Character input - matches any printable character
-        bindings.AnyCharacter().Action(InsertCharacter, "Type character");
+        // Character input - matches any printable text (including emojis)
+        bindings.AnyCharacter().Action(InsertText, "Type text");
     }
 
-    private void InsertCharacter(char c)
+    private void InsertText(string text)
     {
         // If there's a selection, delete it first
         if (State.HasSelection)
         {
             DeleteSelection();
         }
-        State.Text = State.Text.Insert(State.CursorPosition, c.ToString());
-        State.CursorPosition++;
+        State.Text = State.Text.Insert(State.CursorPosition, text);
+        State.CursorPosition += text.Length;
     }
 
     private void MoveLeft()

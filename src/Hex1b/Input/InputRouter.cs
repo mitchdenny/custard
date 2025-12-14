@@ -248,15 +248,15 @@ public static class InputRouter
     {
         if (characterBindings.Count == 0) return false;
         
-        var c = keyEvent.Character;
-        if (c == '\0') return false;  // No character in this event
+        var text = keyEvent.Text;
+        if (string.IsNullOrEmpty(text)) return false;  // No text in this event
         
         // Check each character binding in order (first match wins)
         foreach (var binding in characterBindings)
         {
-            if (binding.Matches(c))
+            if (binding.Matches(text))
             {
-                binding.Execute(c);
+                binding.Execute(text);
                 return true;
             }
         }

@@ -1600,4 +1600,173 @@ public class SplitterNodeTests
     }
 
     #endregion
+
+    #region Drag Binding Tests
+
+    [Fact]
+    public void ConfigureDefaultBindings_IncludesDragBinding()
+    {
+        var node = new SplitterNode();
+        var builder = node.BuildBindings();
+
+        Assert.Single(builder.DragBindings);
+        Assert.Equal(MouseButton.Left, builder.DragBindings[0].Button);
+    }
+
+    [Fact]
+    public void DragBinding_Matches_LeftMouseDown()
+    {
+        var node = new SplitterNode();
+        var builder = node.BuildBindings();
+        var dragBinding = builder.DragBindings[0];
+
+        var mouseEvent = new Hex1bMouseEvent(MouseButton.Left, MouseAction.Down, 10, 5, Hex1bModifiers.None);
+        
+        Assert.True(dragBinding.Matches(mouseEvent));
+    }
+
+    [Fact]
+    public void DragBinding_DoesNotMatch_RightMouseDown()
+    {
+        var node = new SplitterNode();
+        var builder = node.BuildBindings();
+        var dragBinding = builder.DragBindings[0];
+
+        var mouseEvent = new Hex1bMouseEvent(MouseButton.Right, MouseAction.Down, 10, 5, Hex1bModifiers.None);
+        
+        Assert.False(dragBinding.Matches(mouseEvent));
+    }
+
+    [Fact]
+    public void DragBinding_DoesNotMatch_MouseMove()
+    {
+        var node = new SplitterNode();
+        var builder = node.BuildBindings();
+        var dragBinding = builder.DragBindings[0];
+
+        var mouseEvent = new Hex1bMouseEvent(MouseButton.Left, MouseAction.Move, 10, 5, Hex1bModifiers.None);
+        
+        Assert.False(dragBinding.Matches(mouseEvent));
+    }
+
+    [Fact]
+    public void DragHandler_OnMove_Horizontal_UpdatesFirstSize()
+    {
+        var node = new SplitterNode
+        {
+            First = new TextBlockNode { Text = "Left" },
+            Second = new TextBlockNode { Text = "Right" },
+            FirstSize = 20,
+            Orientation = SplitterOrientation.Horizontal,
+            MinFirstSize = 5
+        };
+        node.Measure(Constraints.Unbounded);
+        node.Arrange(new Rect(0, 0, 60, 10));
+
+        var builder = node.BuildBindings();
+        var dragBinding = builder.DragBindings[0];
+        
+        // Start drag at position (0, 0) - local to the node
+        var handler = dragBinding.StartDrag(0, 0);
+        
+        // Move 10 pixels to the right
+        handler.OnMove?.Invoke(10, 0);
+
+        Assert.Equal(30, node.FirstSize); // 20 + 10
+    }
+
+    [Fact]
+    public void DragHandler_OnMove_Horizontal_RespectsMinSize()
+    {
+        var node = new SplitterNode
+        {
+            First = new TextBlockNode { Text = "Left" },
+            Second = new TextBlockNode { Text = "Right" },
+            FirstSize = 20,
+            Orientation = SplitterOrientation.Horizontal,
+            MinFirstSize = 10
+        };
+        node.Measure(Constraints.Unbounded);
+        node.Arrange(new Rect(0, 0, 60, 10));
+
+        var builder = node.BuildBindings();
+        var handler = builder.DragBindings[0].StartDrag(0, 0);
+        
+        // Try to move 15 pixels to the left (beyond min)
+        handler.OnMove?.Invoke(-15, 0);
+
+        Assert.Equal(10, node.FirstSize); // Clamped to MinFirstSize
+    }
+
+    [Fact]
+    public void DragHandler_OnMove_Horizontal_RespectsMaxSize()
+    {
+        var node = new SplitterNode
+        {
+            First = new TextBlockNode { Text = "Left" },
+            Second = new TextBlockNode { Text = "Right" },
+            FirstSize = 20,
+            Orientation = SplitterOrientation.Horizontal,
+            MinFirstSize = 5
+        };
+        node.Measure(Constraints.Unbounded);
+        node.Arrange(new Rect(0, 0, 60, 10)); // Max = 60 - 3 - 5 = 52
+
+        var builder = node.BuildBindings();
+        var handler = builder.DragBindings[0].StartDrag(0, 0);
+        
+        // Try to move far to the right (beyond max)
+        handler.OnMove?.Invoke(50, 0);
+
+        Assert.Equal(52, node.FirstSize); // Clamped to max
+    }
+
+    [Fact]
+    public void DragHandler_OnMove_Vertical_UpdatesFirstSize()
+    {
+        var node = new SplitterNode
+        {
+            First = new TextBlockNode { Text = "Top" },
+            Second = new TextBlockNode { Text = "Bottom" },
+            FirstSize = 10,
+            Orientation = SplitterOrientation.Vertical,
+            MinFirstSize = 3
+        };
+        node.Measure(Constraints.Unbounded);
+        node.Arrange(new Rect(0, 0, 40, 30));
+
+        var builder = node.BuildBindings();
+        var handler = builder.DragBindings[0].StartDrag(0, 0);
+        
+        // Move 5 pixels down
+        handler.OnMove?.Invoke(0, 5);
+
+        Assert.Equal(15, node.FirstSize); // 10 + 5
+    }
+
+    [Fact]
+    public void DragHandler_OnMove_CapturesStartSize()
+    {
+        var node = new SplitterNode
+        {
+            First = new TextBlockNode { Text = "Left" },
+            Second = new TextBlockNode { Text = "Right" },
+            FirstSize = 20,
+            Orientation = SplitterOrientation.Horizontal,
+            MinFirstSize = 5
+        };
+        node.Measure(Constraints.Unbounded);
+        node.Arrange(new Rect(0, 0, 60, 10));
+
+        var builder = node.BuildBindings();
+        var handler = builder.DragBindings[0].StartDrag(0, 0);
+        
+        // Multiple moves should be relative to start, not cumulative
+        handler.OnMove?.Invoke(5, 0);  // 20 + 5 = 25
+        handler.OnMove?.Invoke(10, 0); // 20 + 10 = 30 (not 25 + 10 = 35)
+
+        Assert.Equal(30, node.FirstSize);
+    }
+
+    #endregion
 }

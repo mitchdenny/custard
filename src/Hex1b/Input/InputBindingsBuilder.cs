@@ -9,6 +9,7 @@ public sealed class InputBindingsBuilder
     private readonly List<InputBinding> _bindings = [];
     private readonly List<CharacterBinding> _characterBindings = [];
     private readonly List<MouseBinding> _mouseBindings = [];
+    private readonly List<DragBinding> _dragBindings = [];
 
     /// <summary>
     /// Gets all key bindings currently configured.
@@ -26,6 +27,11 @@ public sealed class InputBindingsBuilder
     /// Gets all mouse bindings currently configured.
     /// </summary>
     public IReadOnlyList<MouseBinding> MouseBindings => _mouseBindings;
+
+    /// <summary>
+    /// Gets all drag bindings currently configured.
+    /// </summary>
+    public IReadOnlyList<DragBinding> DragBindings => _dragBindings;
 
     /// <summary>
     /// Creates an empty builder.
@@ -58,6 +64,12 @@ public sealed class InputBindingsBuilder
     /// Starts building a mouse binding for the given button.
     /// </summary>
     public MouseStepBuilder Mouse(MouseButton button) => new MouseStepBuilder(this, button);
+
+    /// <summary>
+    /// Starts building a drag binding for the given button.
+    /// Drag bindings capture the mouse on button down and receive move/up events until release.
+    /// </summary>
+    public DragStepBuilder Drag(MouseButton button) => new DragStepBuilder(this, button);
 
     /// <summary>
     /// Starts building a character binding that matches any printable text.
@@ -98,6 +110,14 @@ public sealed class InputBindingsBuilder
     internal void AddMouseBinding(MouseBinding binding)
     {
         _mouseBindings.Add(binding);
+    }
+
+    /// <summary>
+    /// Adds a pre-built drag binding directly.
+    /// </summary>
+    internal void AddDragBinding(DragBinding binding)
+    {
+        _dragBindings.Add(binding);
     }
 
     /// <summary>

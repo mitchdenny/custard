@@ -93,6 +93,22 @@ public sealed class SplitterNode : Hex1bNode
         bindings.Key(Hex1bKey.Tab).Action(ctx => ctx.FocusNext(), "Next focusable");
         bindings.Shift().Key(Hex1bKey.Tab).Action(ctx => ctx.FocusPrevious(), "Previous focusable");
         bindings.Key(Hex1bKey.Escape).Action(FocusFirst, "Jump to first focusable");
+        
+        // Mouse drag to resize
+        bindings.Drag(MouseButton.Left).Action((startX, startY) =>
+        {
+            var startSize = FirstSize;
+            return new DragHandler(
+                onMove: (deltaX, deltaY) =>
+                {
+                    var delta = Orientation == SplitterOrientation.Horizontal ? deltaX : deltaY;
+                    var maxSize = Orientation == SplitterOrientation.Horizontal 
+                        ? Bounds.Width - DividerSize - MinFirstSize 
+                        : Bounds.Height - DividerSize - MinFirstSize;
+                    FirstSize = Math.Clamp(startSize + delta, MinFirstSize, maxSize);
+                }
+            );
+        }, "Drag to resize");
     }
 
     private void FocusFirst()

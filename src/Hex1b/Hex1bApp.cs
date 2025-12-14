@@ -30,6 +30,11 @@ public class Hex1bApp<TState> : IDisposable
     private int _mouseY = -1;
     private bool _mouseEnabled;
     
+    // Drag state - when active, all mouse events route to the drag handler
+    private DragHandler? _activeDragHandler;
+    private int _dragStartX;
+    private int _dragStartY;
+    
     // Channel for signaling that a re-render is needed (from Invalidate() calls)
     private readonly Channel<bool> _invalidateChannel = Channel.CreateBounded<bool>(
         new BoundedChannelOptions(1) 
@@ -156,12 +161,31 @@ public class Hex1bApp<TState> : IDisposable
                             InputRouter.RouteInput(_rootNode, keyEvent, _focusRing);
                             break;
                         
-                        // Mouse events: update cursor position and handle clicks
+                        // Mouse events: update cursor position and handle clicks/drags
                         case Hex1bMouseEvent mouseEvent:
                             _mouseX = mouseEvent.X;
                             _mouseY = mouseEvent.Y;
                             
-                            // Handle click events (button down)
+                            // If a drag is active, route all events to the drag handler
+                            if (_activeDragHandler != null)
+                            {
+                                // Handle both Move (no button) and Drag (button held) actions
+                                if (mouseEvent.Action == MouseAction.Move || mouseEvent.Action == MouseAction.Drag)
+                                {
+                                    var deltaX = mouseEvent.X - _dragStartX;
+                                    var deltaY = mouseEvent.Y - _dragStartY;
+                                    _activeDragHandler.OnMove?.Invoke(deltaX, deltaY);
+                                }
+                                else if (mouseEvent.Action == MouseAction.Up)
+                                {
+                                    _activeDragHandler.OnEnd?.Invoke();
+                                    _activeDragHandler = null;
+                                }
+                                // While dragging, skip normal event handling
+                                break;
+                            }
+                            
+                            // Handle click events (button down) - may start a drag
                             if (mouseEvent.Action == MouseAction.Down && mouseEvent.Button != MouseButton.None)
                             {
                                 HandleMouseClick(mouseEvent);
@@ -254,6 +278,7 @@ public class Hex1bApp<TState> : IDisposable
     
     /// <summary>
     /// Handles a mouse click by hit testing and routing through bindings.
+    /// May initiate a drag if a drag binding matches.
     /// </summary>
     private void HandleMouseClick(Hex1bMouseEvent mouseEvent)
     {
@@ -268,8 +293,25 @@ public class Hex1bApp<TState> : IDisposable
             _focusRing.Focus(hitNode);
         }
         
-        // Check if the node has a mouse binding for this event
+        // Calculate local coordinates for this node
+        var localX = mouseEvent.X - hitNode.Bounds.X;
+        var localY = mouseEvent.Y - hitNode.Bounds.Y;
+        
+        // Check if the node has a drag binding for this event (checked first)
         var builder = hitNode.BuildBindings();
+        foreach (var dragBinding in builder.DragBindings)
+        {
+            if (dragBinding.Matches(mouseEvent))
+            {
+                // Start the drag - capture mouse until release
+                _activeDragHandler = dragBinding.StartDrag(localX, localY);
+                _dragStartX = mouseEvent.X;
+                _dragStartY = mouseEvent.Y;
+                return;
+            }
+        }
+        
+        // Check if the node has a mouse binding for this event
         foreach (var mouseBinding in builder.MouseBindings)
         {
             if (mouseBinding.Matches(mouseEvent))
@@ -280,8 +322,6 @@ public class Hex1bApp<TState> : IDisposable
         }
         
         // No binding matched - call the node's HandleMouseClick with local coordinates
-        var localX = mouseEvent.X - hitNode.Bounds.X;
-        var localY = mouseEvent.Y - hitNode.Bounds.Y;
         hitNode.HandleMouseClick(localX, localY, mouseEvent);
     }
 

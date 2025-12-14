@@ -30,6 +30,23 @@ public class Hex1bApp<TState> : IDisposable
     private int _mouseY = -1;
     private bool _mouseEnabled;
     
+    // Click tracking for double/triple click detection
+    private DateTime _lastClickTime;
+    private int _lastClickX = -1;
+    private int _lastClickY = -1;
+    private MouseButton _lastClickButton = MouseButton.None;
+    private int _currentClickCount;
+    
+    /// <summary>
+    /// Maximum time between clicks (in milliseconds) to count as a multi-click.
+    /// </summary>
+    private const int DoubleClickThresholdMs = 500;
+    
+    /// <summary>
+    /// Maximum distance (in cells) between clicks to count as a multi-click.
+    /// </summary>
+    private const int DoubleClickDistance = 1;
+    
     // Drag state - when active, all mouse events route to the drag handler
     private DragHandler? _activeDragHandler;
     private int _dragStartX;
@@ -282,6 +299,10 @@ public class Hex1bApp<TState> : IDisposable
     /// </summary>
     private void HandleMouseClick(Hex1bMouseEvent mouseEvent)
     {
+        // Compute click count for double/triple click detection
+        var clickCount = ComputeClickCount(mouseEvent);
+        var eventWithClickCount = mouseEvent.WithClickCount(clickCount);
+        
         // Find the focusable node at the click position
         var hitNode = _focusRing.HitTest(mouseEvent.X, mouseEvent.Y);
         
@@ -301,7 +322,7 @@ public class Hex1bApp<TState> : IDisposable
         var builder = hitNode.BuildBindings();
         foreach (var dragBinding in builder.DragBindings)
         {
-            if (dragBinding.Matches(mouseEvent))
+            if (dragBinding.Matches(eventWithClickCount))
             {
                 // Start the drag - capture mouse until release
                 _activeDragHandler = dragBinding.StartDrag(localX, localY);
@@ -311,10 +332,15 @@ public class Hex1bApp<TState> : IDisposable
             }
         }
         
-        // Check if the node has a mouse binding for this event
-        foreach (var mouseBinding in builder.MouseBindings)
+        // Check mouse bindings in order of decreasing click count
+        // This ensures double-click bindings are checked before single-click bindings
+        var sortedBindings = builder.MouseBindings
+            .OrderByDescending(b => b.ClickCount)
+            .ToList();
+        
+        foreach (var mouseBinding in sortedBindings)
         {
-            if (mouseBinding.Matches(mouseEvent))
+            if (mouseBinding.Matches(eventWithClickCount))
             {
                 mouseBinding.Execute();
                 return; // First match wins
@@ -322,7 +348,41 @@ public class Hex1bApp<TState> : IDisposable
         }
         
         // No binding matched - call the node's HandleMouseClick with local coordinates
-        hitNode.HandleMouseClick(localX, localY, mouseEvent);
+        hitNode.HandleMouseClick(localX, localY, eventWithClickCount);
+    }
+    
+    /// <summary>
+    /// Computes the click count for a mouse down event based on timing and position.
+    /// </summary>
+    private int ComputeClickCount(Hex1bMouseEvent mouseEvent)
+    {
+        var now = DateTime.UtcNow;
+        var timeSinceLastClick = (now - _lastClickTime).TotalMilliseconds;
+        var distanceX = Math.Abs(mouseEvent.X - _lastClickX);
+        var distanceY = Math.Abs(mouseEvent.Y - _lastClickY);
+        
+        // Check if this is a continuation of a multi-click sequence
+        if (mouseEvent.Button == _lastClickButton &&
+            timeSinceLastClick <= DoubleClickThresholdMs &&
+            distanceX <= DoubleClickDistance &&
+            distanceY <= DoubleClickDistance)
+        {
+            // Increment click count (cap at 3 for triple-click)
+            _currentClickCount = Math.Min(_currentClickCount + 1, 3);
+        }
+        else
+        {
+            // New click sequence
+            _currentClickCount = 1;
+        }
+        
+        // Update tracking state
+        _lastClickTime = now;
+        _lastClickX = mouseEvent.X;
+        _lastClickY = mouseEvent.Y;
+        _lastClickButton = mouseEvent.Button;
+        
+        return _currentClickCount;
     }
 
     /// <summary>

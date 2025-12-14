@@ -117,6 +117,164 @@ public class MouseBindingTests
     }
 }
 
+public class DoubleClickBindingTests
+{
+    [Fact]
+    public void MouseBinding_WithClickCount_MatchesCorrectEvent()
+    {
+        var binding = new MouseBinding(
+            MouseButton.Left, 
+            MouseAction.Down, 
+            Hex1bModifiers.None,
+            clickCount: 2,
+            () => { }, 
+            "Double-click");
+        
+        // Single click should NOT match a double-click binding
+        var singleClick = new Hex1bMouseEvent(MouseButton.Left, MouseAction.Down, 10, 10, Hex1bModifiers.None, ClickCount: 1);
+        Assert.False(binding.Matches(singleClick));
+        
+        // Double click should match
+        var doubleClick = new Hex1bMouseEvent(MouseButton.Left, MouseAction.Down, 10, 10, Hex1bModifiers.None, ClickCount: 2);
+        Assert.True(binding.Matches(doubleClick));
+        
+        // Triple click should also match (>= 2)
+        var tripleClick = new Hex1bMouseEvent(MouseButton.Left, MouseAction.Down, 10, 10, Hex1bModifiers.None, ClickCount: 3);
+        Assert.True(binding.Matches(tripleClick));
+    }
+    
+    [Fact]
+    public void MouseBinding_SingleClick_MatchesAllClickCounts()
+    {
+        var binding = new MouseBinding(
+            MouseButton.Left, 
+            MouseAction.Down, 
+            Hex1bModifiers.None, 
+            () => { }, 
+            "Click");
+        
+        // Single-click binding (default) should match all click counts
+        var singleClick = new Hex1bMouseEvent(MouseButton.Left, MouseAction.Down, 10, 10, Hex1bModifiers.None, ClickCount: 1);
+        var doubleClick = new Hex1bMouseEvent(MouseButton.Left, MouseAction.Down, 10, 10, Hex1bModifiers.None, ClickCount: 2);
+        var tripleClick = new Hex1bMouseEvent(MouseButton.Left, MouseAction.Down, 10, 10, Hex1bModifiers.None, ClickCount: 3);
+        
+        Assert.True(binding.Matches(singleClick));
+        Assert.True(binding.Matches(doubleClick));
+        Assert.True(binding.Matches(tripleClick));
+    }
+    
+    [Fact]
+    public void MouseBinding_TripleClick_RequiresThreeClicks()
+    {
+        var binding = new MouseBinding(
+            MouseButton.Left, 
+            MouseAction.Down, 
+            Hex1bModifiers.None,
+            clickCount: 3,
+            () => { }, 
+            "Triple-click");
+        
+        var singleClick = new Hex1bMouseEvent(MouseButton.Left, MouseAction.Down, 10, 10, Hex1bModifiers.None, ClickCount: 1);
+        var doubleClick = new Hex1bMouseEvent(MouseButton.Left, MouseAction.Down, 10, 10, Hex1bModifiers.None, ClickCount: 2);
+        var tripleClick = new Hex1bMouseEvent(MouseButton.Left, MouseAction.Down, 10, 10, Hex1bModifiers.None, ClickCount: 3);
+        
+        Assert.False(binding.Matches(singleClick));
+        Assert.False(binding.Matches(doubleClick));
+        Assert.True(binding.Matches(tripleClick));
+    }
+    
+    [Fact]
+    public void InputBindingsBuilder_DoubleClick_SetsClickCount()
+    {
+        var builder = new InputBindingsBuilder();
+        
+        builder.Mouse(MouseButton.Left).DoubleClick().Action(() => { }, "Double-click");
+        
+        var binding = builder.MouseBindings[0];
+        Assert.Equal(2, binding.ClickCount);
+    }
+    
+    [Fact]
+    public void InputBindingsBuilder_TripleClick_SetsClickCount()
+    {
+        var builder = new InputBindingsBuilder();
+        
+        builder.Mouse(MouseButton.Left).TripleClick().Action(() => { }, "Triple-click");
+        
+        var binding = builder.MouseBindings[0];
+        Assert.Equal(3, binding.ClickCount);
+    }
+    
+    [Fact]
+    public void InputBindingsBuilder_DoubleClick_WithModifiers()
+    {
+        var builder = new InputBindingsBuilder();
+        
+        builder.Mouse(MouseButton.Left).Ctrl().DoubleClick().Action(() => { }, "Ctrl+Double-click");
+        
+        var binding = builder.MouseBindings[0];
+        Assert.Equal(Hex1bModifiers.Control, binding.Modifiers);
+        Assert.Equal(2, binding.ClickCount);
+        
+        // Should match Ctrl+double-click
+        var ctrlDoubleClick = new Hex1bMouseEvent(MouseButton.Left, MouseAction.Down, 10, 10, Hex1bModifiers.Control, ClickCount: 2);
+        Assert.True(binding.Matches(ctrlDoubleClick));
+        
+        // Should NOT match plain double-click
+        var plainDoubleClick = new Hex1bMouseEvent(MouseButton.Left, MouseAction.Down, 10, 10, Hex1bModifiers.None, ClickCount: 2);
+        Assert.False(binding.Matches(plainDoubleClick));
+    }
+    
+    [Fact]
+    public void Hex1bMouseEvent_ClickCount_DefaultsToOne()
+    {
+        var mouseEvent = new Hex1bMouseEvent(MouseButton.Left, MouseAction.Down, 10, 10, Hex1bModifiers.None);
+        Assert.Equal(1, mouseEvent.ClickCount);
+    }
+    
+    [Fact]
+    public void Hex1bMouseEvent_IsDoubleClick_ReturnsTrueForClickCountTwo()
+    {
+        var singleClick = new Hex1bMouseEvent(MouseButton.Left, MouseAction.Down, 10, 10, Hex1bModifiers.None, ClickCount: 1);
+        var doubleClick = new Hex1bMouseEvent(MouseButton.Left, MouseAction.Down, 10, 10, Hex1bModifiers.None, ClickCount: 2);
+        var tripleClick = new Hex1bMouseEvent(MouseButton.Left, MouseAction.Down, 10, 10, Hex1bModifiers.None, ClickCount: 3);
+        
+        Assert.False(singleClick.IsDoubleClick);
+        Assert.True(doubleClick.IsDoubleClick);
+        Assert.False(tripleClick.IsDoubleClick);
+    }
+    
+    [Fact]
+    public void Hex1bMouseEvent_IsTripleClick_ReturnsTrueForClickCountThree()
+    {
+        var singleClick = new Hex1bMouseEvent(MouseButton.Left, MouseAction.Down, 10, 10, Hex1bModifiers.None, ClickCount: 1);
+        var doubleClick = new Hex1bMouseEvent(MouseButton.Left, MouseAction.Down, 10, 10, Hex1bModifiers.None, ClickCount: 2);
+        var tripleClick = new Hex1bMouseEvent(MouseButton.Left, MouseAction.Down, 10, 10, Hex1bModifiers.None, ClickCount: 3);
+        
+        Assert.False(singleClick.IsTripleClick);
+        Assert.False(doubleClick.IsTripleClick);
+        Assert.True(tripleClick.IsTripleClick);
+    }
+    
+    [Fact]
+    public void Hex1bMouseEvent_WithClickCount_CreatesNewEvent()
+    {
+        var original = new Hex1bMouseEvent(MouseButton.Left, MouseAction.Down, 5, 10, Hex1bModifiers.Control);
+        var modified = original.WithClickCount(2);
+        
+        // Original should be unchanged
+        Assert.Equal(1, original.ClickCount);
+        
+        // Modified should have new click count but same other properties
+        Assert.Equal(2, modified.ClickCount);
+        Assert.Equal(MouseButton.Left, modified.Button);
+        Assert.Equal(MouseAction.Down, modified.Action);
+        Assert.Equal(5, modified.X);
+        Assert.Equal(10, modified.Y);
+        Assert.Equal(Hex1bModifiers.Control, modified.Modifiers);
+    }
+}
+
 public class FocusRingHitTestTests
 {
     [Fact]

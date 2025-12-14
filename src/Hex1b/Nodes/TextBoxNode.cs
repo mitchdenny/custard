@@ -36,6 +36,9 @@ public sealed class TextBoxNode : Hex1bNode
         // Selection
         bindings.Ctrl().Key(Hex1bKey.A).Action(SelectAll, "Select all");
         
+        // Mouse: double-click to select all
+        bindings.Mouse(MouseButton.Left).DoubleClick().Action(SelectAll, "Select all");
+        
         // Character input - matches any printable text (including emojis)
         bindings.AnyCharacter().Action(InsertText, "Type text");
     }
@@ -177,6 +180,82 @@ public sealed class TextBoxNode : Hex1bNode
     }
 
     private void SelectAll() => State.SelectAll();
+
+    /// <summary>
+    /// Handles mouse click to position the cursor within the text.
+    /// </summary>
+    public override InputResult HandleMouseClick(int localX, int localY, Hex1bMouseEvent mouseEvent)
+    {
+        // Only handle left clicks that aren't double/triple clicks
+        // (double-click is handled by the binding for SelectAll)
+        if (mouseEvent.Button != MouseButton.Left || mouseEvent.ClickCount > 1)
+        {
+            return InputResult.NotHandled;
+        }
+
+        // The TextBox renders as "[text]" so localX=0 is '[', localX=1 is first char
+        // Convert click position to text cursor position
+        var textColumn = localX - 1; // Subtract 1 for the '[' bracket
+        
+        if (textColumn < 0)
+        {
+            // Clicked on or before the '[' - position at start
+            State.ClearSelection();
+            State.CursorPosition = 0;
+        }
+        else
+        {
+            // Find the cursor position that corresponds to this display column
+            var cursorPos = DisplayColumnToTextPosition(textColumn);
+            State.ClearSelection();
+            State.CursorPosition = cursorPos;
+        }
+
+        return InputResult.Handled;
+    }
+
+    /// <summary>
+    /// Converts a display column (0-based, relative to text start) to a text cursor position.
+    /// Accounts for variable-width characters (wide chars, emoji, etc.).
+    /// </summary>
+    private int DisplayColumnToTextPosition(int displayColumn)
+    {
+        if (string.IsNullOrEmpty(State.Text))
+            return 0;
+
+        int currentColumn = 0;
+        var enumerator = System.Globalization.StringInfo.GetTextElementEnumerator(State.Text);
+        int lastPosition = 0;
+
+        while (enumerator.MoveNext())
+        {
+            var grapheme = (string)enumerator.Current;
+            var graphemeWidth = DisplayWidth.GetGraphemeWidth(grapheme);
+            var graphemeStart = enumerator.ElementIndex;
+
+            // If the click is before or at the start of this grapheme
+            if (displayColumn < currentColumn + graphemeWidth)
+            {
+                // Click is in the first half of the grapheme - position before it
+                // Click is in the second half - position after it
+                var midpoint = currentColumn + (graphemeWidth / 2.0);
+                if (displayColumn < midpoint)
+                {
+                    return graphemeStart;
+                }
+                else
+                {
+                    return graphemeStart + grapheme.Length;
+                }
+            }
+
+            currentColumn += graphemeWidth;
+            lastPosition = graphemeStart + grapheme.Length;
+        }
+
+        // Click is past the end of the text
+        return State.Text.Length;
+    }
 
     public override Size Measure(Constraints constraints)
     {

@@ -21,6 +21,13 @@ public sealed class MouseBinding
     public Hex1bModifiers Modifiers { get; }
     
     /// <summary>
+    /// The minimum click count required to trigger this binding.
+    /// 1 = single click (default), 2 = double click, 3 = triple click.
+    /// A binding with ClickCount=2 will match events with ClickCount >= 2.
+    /// </summary>
+    public int ClickCount { get; }
+    
+    /// <summary>
     /// The action to execute when the binding is triggered.
     /// </summary>
     public Action Handler { get; }
@@ -31,22 +38,30 @@ public sealed class MouseBinding
     public string? Description { get; }
 
     public MouseBinding(MouseButton button, MouseAction action, Hex1bModifiers modifiers, Action handler, string? description)
+        : this(button, action, modifiers, clickCount: 1, handler, description)
+    {
+    }
+
+    public MouseBinding(MouseButton button, MouseAction action, Hex1bModifiers modifiers, int clickCount, Action handler, string? description)
     {
         Button = button;
         Action = action;
         Modifiers = modifiers;
+        ClickCount = clickCount;
         Handler = handler;
         Description = description;
     }
 
     /// <summary>
     /// Checks if this binding matches the given mouse event.
+    /// For click count: binding matches if event's click count is >= binding's required count.
     /// </summary>
     public bool Matches(Hex1bMouseEvent mouseEvent)
     {
         return mouseEvent.Button == Button && 
                mouseEvent.Action == Action && 
-               mouseEvent.Modifiers == Modifiers;
+               mouseEvent.Modifiers == Modifiers &&
+               mouseEvent.ClickCount >= ClickCount;
     }
 
     /// <summary>
@@ -64,6 +79,7 @@ public sealed class MouseStepBuilder
     private readonly MouseButton _button;
     private MouseAction _action = MouseAction.Down;
     private Hex1bModifiers _modifiers = Hex1bModifiers.None;
+    private int _clickCount = 1;
 
     internal MouseStepBuilder(InputBindingsBuilder parent, MouseButton button)
     {
@@ -108,11 +124,29 @@ public sealed class MouseStepBuilder
     }
 
     /// <summary>
+    /// Requires a double-click (two clicks within the system threshold).
+    /// </summary>
+    public MouseStepBuilder DoubleClick()
+    {
+        _clickCount = 2;
+        return this;
+    }
+
+    /// <summary>
+    /// Requires a triple-click (three clicks within the system threshold).
+    /// </summary>
+    public MouseStepBuilder TripleClick()
+    {
+        _clickCount = 3;
+        return this;
+    }
+
+    /// <summary>
     /// Binds the action to execute when this mouse event occurs.
     /// </summary>
     public InputBindingsBuilder Action(Action action, string? description = null)
     {
-        var binding = new MouseBinding(_button, _action, _modifiers, action, description);
+        var binding = new MouseBinding(_button, _action, _modifiers, _clickCount, action, description);
         _parent.AddMouseBinding(binding);
         return _parent;
     }

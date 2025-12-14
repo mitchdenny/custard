@@ -415,6 +415,152 @@ public class TextBoxNodeTests
 
     #endregion
 
+    #region Mouse Click Tests
+
+    [Fact]
+    public void HandleMouseClick_PositionsCursorAtClickLocation()
+    {
+        var node = new TextBoxNode { State = new TextBoxState { Text = "hello" } };
+        node.IsFocused = true;
+        node.Arrange(new Rect(0, 0, 10, 1));
+
+        // Click at localX=3, which is "ll" in "[hello]" (0='[', 1='h', 2='e', 3='l')
+        var mouseEvent = new Hex1bMouseEvent(MouseButton.Left, MouseAction.Down, 3, 0, Hex1bModifiers.None, ClickCount: 1);
+        var result = node.HandleMouseClick(3, 0, mouseEvent);
+
+        Assert.Equal(InputResult.Handled, result);
+        Assert.Equal(2, node.State.CursorPosition); // Position after 'he' (click on 'l')
+    }
+
+    [Fact]
+    public void HandleMouseClick_AtStart_PositionsCursorAtZero()
+    {
+        var node = new TextBoxNode { State = new TextBoxState { Text = "hello" } };
+        node.IsFocused = true;
+        node.Arrange(new Rect(0, 0, 10, 1));
+
+        // Click at localX=1, which is 'h' in "[hello]" (0='[', 1='h')
+        var mouseEvent = new Hex1bMouseEvent(MouseButton.Left, MouseAction.Down, 1, 0, Hex1bModifiers.None, ClickCount: 1);
+        var result = node.HandleMouseClick(1, 0, mouseEvent);
+
+        Assert.Equal(InputResult.Handled, result);
+        Assert.Equal(0, node.State.CursorPosition); // Click on first char positions at start
+    }
+
+    [Fact]
+    public void HandleMouseClick_AtEnd_PositionsCursorAtEnd()
+    {
+        var node = new TextBoxNode { State = new TextBoxState { Text = "hello" } };
+        node.IsFocused = true;
+        node.Arrange(new Rect(0, 0, 10, 1));
+
+        // Click at localX=6, which is ']' in "[hello]" (past the text)
+        var mouseEvent = new Hex1bMouseEvent(MouseButton.Left, MouseAction.Down, 6, 0, Hex1bModifiers.None, ClickCount: 1);
+        var result = node.HandleMouseClick(6, 0, mouseEvent);
+
+        Assert.Equal(InputResult.Handled, result);
+        Assert.Equal(5, node.State.CursorPosition); // End of "hello"
+    }
+
+    [Fact]
+    public void HandleMouseClick_OnBracket_PositionsCursorAtStart()
+    {
+        var node = new TextBoxNode { State = new TextBoxState { Text = "hello" } };
+        node.IsFocused = true;
+        node.Arrange(new Rect(0, 0, 10, 1));
+
+        // Click at localX=0, which is '[' in "[hello]"
+        var mouseEvent = new Hex1bMouseEvent(MouseButton.Left, MouseAction.Down, 0, 0, Hex1bModifiers.None, ClickCount: 1);
+        var result = node.HandleMouseClick(0, 0, mouseEvent);
+
+        Assert.Equal(InputResult.Handled, result);
+        Assert.Equal(0, node.State.CursorPosition);
+    }
+
+    [Fact]
+    public void HandleMouseClick_ClearsSelection()
+    {
+        var node = new TextBoxNode { State = new TextBoxState { Text = "hello" } };
+        node.State.SelectAll(); // Select all text
+        node.IsFocused = true;
+        node.Arrange(new Rect(0, 0, 10, 1));
+
+        Assert.True(node.State.HasSelection);
+
+        // Click anywhere - should clear selection
+        var mouseEvent = new Hex1bMouseEvent(MouseButton.Left, MouseAction.Down, 3, 0, Hex1bModifiers.None, ClickCount: 1);
+        node.HandleMouseClick(3, 0, mouseEvent);
+
+        Assert.False(node.State.HasSelection);
+    }
+
+    [Fact]
+    public void HandleMouseClick_DoubleClick_NotHandledByHandleMouseClick()
+    {
+        var node = new TextBoxNode { State = new TextBoxState { Text = "hello" } };
+        node.IsFocused = true;
+        node.Arrange(new Rect(0, 0, 10, 1));
+
+        // Double-click should NOT be handled by HandleMouseClick (it's handled by the binding)
+        var mouseEvent = new Hex1bMouseEvent(MouseButton.Left, MouseAction.Down, 3, 0, Hex1bModifiers.None, ClickCount: 2);
+        var result = node.HandleMouseClick(3, 0, mouseEvent);
+
+        Assert.Equal(InputResult.NotHandled, result);
+    }
+
+    [Fact]
+    public void HandleMouseClick_RightClick_NotHandled()
+    {
+        var node = new TextBoxNode { State = new TextBoxState { Text = "hello" } };
+        node.IsFocused = true;
+        node.Arrange(new Rect(0, 0, 10, 1));
+
+        // Right-click should not be handled
+        var mouseEvent = new Hex1bMouseEvent(MouseButton.Right, MouseAction.Down, 3, 0, Hex1bModifiers.None, ClickCount: 1);
+        var result = node.HandleMouseClick(3, 0, mouseEvent);
+
+        Assert.Equal(InputResult.NotHandled, result);
+    }
+
+    [Fact]
+    public void HandleMouseClick_WithEmoji_PositionsCorrectly()
+    {
+        // "😀ab" - emoji is 2 cells wide
+        var node = new TextBoxNode { State = new TextBoxState { Text = "😀ab" } };
+        node.IsFocused = true;
+        node.Arrange(new Rect(0, 0, 10, 1));
+
+        // Click at localX=3 which is after the emoji (column 1-2), on 'a' (column 3)
+        // "[😀ab]" - localX: 0='[', 1-2='😀', 3='a', 4='b', 5=']'
+        var mouseEvent = new Hex1bMouseEvent(MouseButton.Left, MouseAction.Down, 3, 0, Hex1bModifiers.None, ClickCount: 1);
+        var result = node.HandleMouseClick(3, 0, mouseEvent);
+
+        Assert.Equal(InputResult.Handled, result);
+        // After emoji (which is 2 chars in string), before 'a'
+        Assert.Equal(2, node.State.CursorPosition);
+    }
+
+    [Fact]
+    public void HandleMouseClick_OnWideChar_PositionsBasedOnMidpoint()
+    {
+        // Click on first half of emoji should position before it
+        var node = new TextBoxNode { State = new TextBoxState { Text = "😀" } };
+        node.IsFocused = true;
+        node.Arrange(new Rect(0, 0, 10, 1));
+
+        // Click at localX=1 (first half of emoji) "[😀]"
+        var mouseEvent1 = new Hex1bMouseEvent(MouseButton.Left, MouseAction.Down, 1, 0, Hex1bModifiers.None, ClickCount: 1);
+        node.HandleMouseClick(1, 0, mouseEvent1);
+        Assert.Equal(0, node.State.CursorPosition); // Before emoji
+
+        // Click at localX=2 (second half of emoji)
+        var mouseEvent2 = new Hex1bMouseEvent(MouseButton.Left, MouseAction.Down, 2, 0, Hex1bModifiers.None, ClickCount: 1);
+        node.HandleMouseClick(2, 0, mouseEvent2);
+        Assert.Equal(2, node.State.CursorPosition); // After emoji (emoji is 2 chars in string)
+    }
+
+    #endregion
+
     #region Layout Tests
 
     [Fact]

@@ -22,6 +22,7 @@ public class Hex1bApp<TState> : IDisposable
     private readonly Hex1bRenderContext _context;
     private readonly bool _ownsTerminal;
     private readonly RootContext<TState> _rootContext;
+    private readonly FocusRing _focusRing = new();
     private Hex1bNode? _rootNode;
     
     // Channel for signaling that a re-render is needed (from Invalidate() calls)
@@ -135,7 +136,7 @@ public class Hex1bApp<TState> : IDisposable
                         // Key events are routed to the focused node through the tree
                         case Hex1bKeyEvent keyEvent when _rootNode != null:
                             // Use input routing system - routes to focused node, checks bindings, then calls HandleInput
-                            InputRouter.RouteInput(_rootNode, keyEvent);
+                            InputRouter.RouteInput(_rootNode, keyEvent, _focusRing);
                             break;
                     }
                 }
@@ -183,7 +184,11 @@ public class Hex1bApp<TState> : IDisposable
             _rootNode.Arrange(Rect.FromSize(terminalSize));
         }
 
-        // Step 4: Render the node tree to the terminal
+        // Step 4: Rebuild focus ring from the current node tree
+        _focusRing.Rebuild(_rootNode);
+        _focusRing.EnsureFocus();
+
+        // Step 5: Render the node tree to the terminal
         _context.Clear();
         _rootNode?.Render(_context);
     }

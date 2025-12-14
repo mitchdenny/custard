@@ -42,8 +42,11 @@ public static class InputRouter
     /// 6. If leaf matched, execute action
     /// 7. If no match, fall through to HandleInput on focused node, then bubble up
     /// </summary>
-    public static InputResult RouteInput(Hex1bNode root, Hex1bKeyEvent keyEvent)
+    public static InputResult RouteInput(Hex1bNode root, Hex1bKeyEvent keyEvent, FocusRing focusRing)
     {
+        // Create the action context for this input routing
+        var actionContext = new ActionContext(focusRing);
+        
         // Build path from root to focused node
         var path = BuildPathToFocused(root);
         if (path.Count == 0)
@@ -69,7 +72,7 @@ public static class InputRouter
         // If mid-chord, continue from the anchored layer
         if (_chordNode != null)
         {
-            return ContinueChord(keyEvent, path);
+            return ContinueChord(keyEvent, path, actionContext);
         }
 
         // Build layers: focused first (index 0), root last
@@ -91,7 +94,7 @@ public static class InputRouter
                     if (result.IsLeaf)
                     {
                         // Leaf node - execute and done
-                        result.Execute();
+                        result.Execute(actionContext);
                         ResetChordState();
                         return InputResult.Handled;
                     }
@@ -137,7 +140,19 @@ public static class InputRouter
         return InputResult.NotHandled;
     }
     
-    private static InputResult ContinueChord(Hex1bKeyEvent keyEvent, List<Hex1bNode> path)
+    /// <summary>
+    /// Routes a key event through the node tree (legacy overload without FocusRing).
+    /// Creates an empty focus ring for backward compatibility.
+    /// </summary>
+    [Obsolete("Use RouteInput(root, keyEvent, focusRing) for full focus navigation support.")]
+    public static InputResult RouteInput(Hex1bNode root, Hex1bKeyEvent keyEvent)
+    {
+        var focusRing = new FocusRing();
+        focusRing.Rebuild(root);
+        return RouteInput(root, keyEvent, focusRing);
+    }
+    
+    private static InputResult ContinueChord(Hex1bKeyEvent keyEvent, List<Hex1bNode> path, ActionContext actionContext)
     {
         var result = _chordNode!.Lookup(keyEvent);
         
@@ -151,7 +166,7 @@ public static class InputRouter
         if (result.IsLeaf)
         {
             // Chord completed - execute
-            result.Execute();
+            result.Execute(actionContext);
             ResetChordState();
             return InputResult.Handled;
         }
@@ -168,7 +183,7 @@ public static class InputRouter
         // (rare case: ambiguous binding like 'g' with action and 'gg' chord)
         if (result.HasAction)
         {
-            result.Execute();
+            result.Execute(actionContext);
             ResetChordState();
             return InputResult.Handled;
         }
@@ -205,9 +220,14 @@ public static class InputRouter
     /// </summary>
     /// <param name="node">The node to route input to (assumed to be focused).</param>
     /// <param name="keyEvent">The key event to route.</param>
+    /// <param name="focusRing">Optional focus ring for context-aware bindings.</param>
     /// <returns>The result of input processing.</returns>
-    public static InputResult RouteInputToNode(Hex1bNode node, Hex1bKeyEvent keyEvent)
+    public static InputResult RouteInputToNode(Hex1bNode node, Hex1bKeyEvent keyEvent, FocusRing? focusRing = null)
     {
+        // Create focus ring if not provided
+        focusRing ??= new FocusRing();
+        var actionContext = new ActionContext(focusRing);
+        
         // Build bindings for this node and look up the key
         var builder = node.BuildBindings();
         var bindings = builder.Build();
@@ -219,7 +239,7 @@ public static class InputRouter
             
             if (result.IsLeaf)
             {
-                result.Execute();
+                result.Execute(actionContext);
                 return InputResult.Handled;
             }
             

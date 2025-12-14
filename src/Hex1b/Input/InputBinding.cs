@@ -13,9 +13,14 @@ public sealed class InputBinding
     public IReadOnlyList<KeyStep> Steps { get; }
 
     /// <summary>
-    /// The action to execute when the binding matches.
+    /// The action to execute when the binding matches (simple handler without context).
     /// </summary>
-    public Action Handler { get; }
+    private Action? Handler { get; }
+
+    /// <summary>
+    /// The action to execute when the binding matches (context-aware handler).
+    /// </summary>
+    private Action<ActionContext>? ContextHandler { get; }
 
     /// <summary>
     /// Optional description for this binding (for help/documentation).
@@ -23,7 +28,7 @@ public sealed class InputBinding
     public string? Description { get; }
 
     /// <summary>
-    /// Creates an input binding for a sequence of key steps.
+    /// Creates an input binding with a simple action handler.
     /// </summary>
     public InputBinding(IReadOnlyList<KeyStep> steps, Action handler, string? description = null)
     {
@@ -36,9 +41,39 @@ public sealed class InputBinding
     }
 
     /// <summary>
-    /// Executes the binding's handler.
+    /// Creates an input binding with a context-aware action handler.
+    /// The context provides access to app-level services like focus navigation.
     /// </summary>
-    public void Execute() => Handler();
+    public InputBinding(IReadOnlyList<KeyStep> steps, Action<ActionContext> handler, string? description = null)
+    {
+        if (steps.Count == 0)
+            throw new ArgumentException("At least one key step is required.", nameof(steps));
+        
+        Steps = steps;
+        ContextHandler = handler ?? throw new ArgumentNullException(nameof(handler));
+        Description = description;
+    }
+
+    /// <summary>
+    /// Executes the binding's handler with the given context.
+    /// </summary>
+    public void Execute(ActionContext context)
+    {
+        if (ContextHandler != null)
+        {
+            ContextHandler(context);
+        }
+        else
+        {
+            Handler?.Invoke();
+        }
+    }
+
+    /// <summary>
+    /// Executes the binding's handler without context (legacy support).
+    /// </summary>
+    [Obsolete("Use Execute(ActionContext) instead for full functionality.")]
+    public void Execute() => Handler?.Invoke();
 
     /// <summary>
     /// Gets the first key step of this binding (for trie insertion).

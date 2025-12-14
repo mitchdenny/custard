@@ -202,10 +202,11 @@ public class VStackNodeTests
             Children = new List<Hex1bNode> { textBox1, textBox2 }
         };
 
-        // Need to invalidate to refresh focusable cache
-        node.InvalidateFocusCache();
+        // Use FocusRing for focus navigation (the new pattern)
+        var focusRing = new FocusRing();
+        focusRing.Rebuild(node);
 
-        var result = InputRouter.RouteInputToNode(node, new Hex1bKeyEvent(Hex1bKey.Tab, '\t', Hex1bModifiers.None));
+        var result = InputRouter.RouteInput(node, new Hex1bKeyEvent(Hex1bKey.Tab, '\t', Hex1bModifiers.None), focusRing);
 
         Assert.Equal(InputResult.Handled, result);
         Assert.False(textBox1.IsFocused);
@@ -222,10 +223,12 @@ public class VStackNodeTests
         {
             Children = new List<Hex1bNode> { textBox1, textBox2 }
         };
-        node.InvalidateFocusCache();
+
+        var focusRing = new FocusRing();
+        focusRing.Rebuild(node);
 
         // textBox2 starts focused at index 1, shift-tab moves back to index 0
-        InputRouter.RouteInputToNode(node, new Hex1bKeyEvent(Hex1bKey.Tab, '\t', Hex1bModifiers.Shift));
+        InputRouter.RouteInput(node, new Hex1bKeyEvent(Hex1bKey.Tab, '\t', Hex1bModifiers.Shift), focusRing);
 
         Assert.True(textBox1.IsFocused);
         Assert.False(textBox2.IsFocused);
@@ -238,10 +241,12 @@ public class VStackNodeTests
         var textBox = new TextBoxNode { State = state, IsFocused = true };
 
         var node = new VStackNode { Children = new List<Hex1bNode> { textBox } };
-        node.InvalidateFocusCache();
+
+        var focusRing = new FocusRing();
+        focusRing.Rebuild(node);
 
         // Use InputRouter to route input to the focused child
-        InputRouter.RouteInput(node, new Hex1bKeyEvent(Hex1bKey.X, 'X', Hex1bModifiers.None));
+        InputRouter.RouteInput(node, new Hex1bKeyEvent(Hex1bKey.X, 'X', Hex1bModifiers.None), focusRing);
 
         Assert.Equal("helloX", state.Text);
     }
@@ -256,10 +261,12 @@ public class VStackNodeTests
         {
             Children = new List<Hex1bNode> { button1, button2 }
         };
-        node.InvalidateFocusCache();
+
+        var focusRing = new FocusRing();
+        focusRing.Rebuild(node);
 
         // button2 starts focused at index 1, one Tab wraps to index 0
-        InputRouter.RouteInputToNode(node, new Hex1bKeyEvent(Hex1bKey.Tab, '\t', Hex1bModifiers.None));
+        InputRouter.RouteInput(node, new Hex1bKeyEvent(Hex1bKey.Tab, '\t', Hex1bModifiers.None), focusRing);
 
         Assert.True(button1.IsFocused);
         Assert.False(button2.IsFocused);

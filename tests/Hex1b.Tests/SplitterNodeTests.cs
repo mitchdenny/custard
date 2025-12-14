@@ -498,9 +498,12 @@ public class SplitterNodeTests
             Left = leftButton,
             Right = rightButton
         };
-        node.SyncFocusIndex();
 
-        InputRouter.RouteInputToNode(node, new Hex1bKeyEvent(Hex1bKey.Tab, '\t', Hex1bModifiers.None));
+        // Use FocusRing for focus navigation
+        var focusRing = new FocusRing();
+        focusRing.Rebuild(node);
+
+        InputRouter.RouteInput(node, new Hex1bKeyEvent(Hex1bKey.Tab, '\t', Hex1bModifiers.None), focusRing);
 
         // Focus moves from left button to splitter itself
         Assert.False(leftButton.IsFocused);
@@ -517,9 +520,12 @@ public class SplitterNodeTests
             Left = leftButton,
             Right = rightButton
         };
-        node.SyncFocusIndex();
 
-        InputRouter.RouteInputToNode(node, new Hex1bKeyEvent(Hex1bKey.Tab, '\t', Hex1bModifiers.Shift));
+        // Use FocusRing for focus navigation
+        var focusRing = new FocusRing();
+        focusRing.Rebuild(node);
+
+        InputRouter.RouteInput(node, new Hex1bKeyEvent(Hex1bKey.Tab, '\t', Hex1bModifiers.Shift), focusRing);
 
         // Focus moves from right button to splitter
         Assert.False(rightButton.IsFocused);
@@ -536,9 +542,12 @@ public class SplitterNodeTests
             Left = leftButton,
             Right = rightButton
         };
-        node.SyncFocusIndex();
 
-        InputRouter.RouteInputToNode(node, new Hex1bKeyEvent(Hex1bKey.Tab, '\t', Hex1bModifiers.None));
+        // Use FocusRing for focus navigation
+        var focusRing = new FocusRing();
+        focusRing.Rebuild(node);
+
+        InputRouter.RouteInput(node, new Hex1bKeyEvent(Hex1bKey.Tab, '\t', Hex1bModifiers.None), focusRing);
 
         // Focus wraps from right button to left button
         Assert.True(leftButton.IsFocused);

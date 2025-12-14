@@ -7,8 +7,7 @@ namespace Hex1b.Input;
 public sealed class ChordTrie
 {
     private readonly Dictionary<KeyStep, ChordTrie> _children = [];
-    private Action? _action;
-    private string? _description;
+    private InputBinding? _binding;
 
     /// <summary>
     /// Registers a binding in the trie.
@@ -16,16 +15,15 @@ public sealed class ChordTrie
     /// </summary>
     public void Register(InputBinding binding)
     {
-        Register(binding.Steps, 0, binding.Handler, binding.Description);
+        Register(binding.Steps, 0, binding);
     }
 
-    private void Register(IReadOnlyList<KeyStep> steps, int index, Action action, string? description)
+    private void Register(IReadOnlyList<KeyStep> steps, int index, InputBinding binding)
     {
         if (index >= steps.Count)
         {
-            // Leaf node - store the action
-            _action = action;
-            _description = description;
+            // Leaf node - store the binding
+            _binding = binding;
             return;
         }
 
@@ -35,7 +33,7 @@ public sealed class ChordTrie
             child = new ChordTrie();
             _children[step] = child;
         }
-        child.Register(steps, index + 1, action, description);
+        child.Register(steps, index + 1, binding);
     }
 
     /// <summary>
@@ -61,7 +59,7 @@ public sealed class ChordTrie
     /// <summary>
     /// Gets whether this node has an action (is a valid endpoint).
     /// </summary>
-    public bool HasAction => _action != null;
+    public bool HasAction => _binding != null;
 
     /// <summary>
     /// Gets whether this node has children (more steps possible).
@@ -74,14 +72,14 @@ public sealed class ChordTrie
     public bool IsLeaf => HasAction && !HasChildren;
 
     /// <summary>
-    /// Executes the action if present.
+    /// Executes the action if present with the given context.
     /// </summary>
-    public void Execute() => _action?.Invoke();
+    public void Execute(ActionContext context) => _binding?.Execute(context);
 
     /// <summary>
     /// Gets the description if present.
     /// </summary>
-    public string? Description => _description;
+    public string? Description => _binding?.Description;
 
     /// <summary>
     /// Builds a trie from a collection of bindings.
@@ -143,7 +141,7 @@ public readonly struct ChordLookupResult
     public static ChordLookupResult NoMatch => default;
 
     /// <summary>
-    /// Executes the action if present.
+    /// Executes the action if present with the given context.
     /// </summary>
-    public void Execute() => Node?.Execute();
+    public void Execute(ActionContext context) => Node?.Execute(context);
 }

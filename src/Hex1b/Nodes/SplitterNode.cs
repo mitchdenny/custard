@@ -68,38 +68,10 @@ public sealed class SplitterNode : Hex1bNode
         bindings.Key(Hex1bKey.UpArrow).Action(ResizeUp, "Resize up");
         bindings.Key(Hex1bKey.DownArrow).Action(ResizeDown, "Resize down");
         
-        // Focus navigation
-        bindings.Key(Hex1bKey.Tab).Action(FocusNext, "Next focusable");
-        bindings.Shift().Key(Hex1bKey.Tab).Action(FocusPrevious, "Previous focusable");
+        // Focus navigation - delegated to app-level FocusRing via ActionContext
+        bindings.Key(Hex1bKey.Tab).Action(ctx => ctx.FocusNext(), "Next focusable");
+        bindings.Shift().Key(Hex1bKey.Tab).Action(ctx => ctx.FocusPrevious(), "Previous focusable");
         bindings.Key(Hex1bKey.Escape).Action(FocusFirst, "Jump to first focusable");
-    }
-
-    private void FocusNext() => MoveFocus(forward: true);
-    private void FocusPrevious() => MoveFocus(forward: false);
-
-    private void MoveFocus(bool forward)
-    {
-        var focusables = GetFocusableNodesList();
-        if (focusables.Count == 0) return;
-
-        // Clear old focus
-        if (_focusedIndex >= 0 && _focusedIndex < focusables.Count)
-        {
-            focusables[_focusedIndex].IsFocused = false;
-        }
-
-        // Move focus
-        if (forward)
-        {
-            _focusedIndex = (_focusedIndex + 1) % focusables.Count;
-        }
-        else
-        {
-            _focusedIndex = _focusedIndex <= 0 ? focusables.Count - 1 : _focusedIndex - 1;
-        }
-
-        // Set new focus
-        focusables[_focusedIndex].IsFocused = true;
     }
 
     private void FocusFirst()

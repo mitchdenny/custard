@@ -105,9 +105,6 @@ public sealed record VStackWidget(IReadOnlyList<Hex1bWidget> Children) : Hex1bWi
         }
         node.Children = newChildren;
 
-        // Invalidate focus cache since children changed
-        node.InvalidateFocusCache();
-
         // Set initial focus only if this is a new node AND we're at the root or parent doesn't manage focus
         if (context.IsNew && !context.ParentManagesFocus())
         {
@@ -142,9 +139,6 @@ public sealed record HStackWidget(IReadOnlyList<Hex1bWidget> Children) : Hex1bWi
             }
         }
         node.Children = newChildren;
-
-        // Invalidate focus cache since children changed
-        node.InvalidateFocusCache();
 
         // Set initial focus only if this is a new node AND we're at the root or parent doesn't manage focus
         if (context.IsNew && !context.ParentManagesFocus())

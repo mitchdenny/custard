@@ -1,0 +1,122 @@
+:root {
+  --vp-c-brand-1: #4ecdc4;
+  --vp-c-brand-2: #3dbdb5;
+  --vp-c-brand-3: #2cada5;
+  --vp-c-brand-soft: rgba(78, 205, 196, 0.14);
+
+  --vp-home-hero-name-color: transparent;
+  --vp-home-hero-name-background: linear-gradient(135deg, #4ecdc4 0%, #44a8b3 100%);
+  
+  --vp-home-hero-image-background-image: linear-gradient(135deg, rgba(78, 205, 196, 0.3) 0%, rgba(26, 26, 46, 0.3) 100%);
+  --vp-home-hero-image-filter: blur(44px);
+}
+
+.dark {
+  --vp-c-bg: #1a1a2e;
+  --vp-c-bg-alt: #16162a;
+  --vp-c-bg-elv: #0f0f1a;
+  --vp-c-bg-soft: #242438;
+}
+
+/* Terminal container styling */
+.terminal-container {
+  background: #0f0f1a;
+  border-radius: 12px;
+  padding: 16px;
+  box-shadow: 
+    0 4px 6px rgba(0, 0, 0, 0.3),
+    0 10px 40px rgba(0, 0, 0, 0.4),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  margin: 1.5rem 0;
+}
+
+.terminal-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  margin-bottom: 12px;
+}
+
+.terminal-dots {
+  display: flex;
+  gap: 6px;
+}
+
+.terminal-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+}
+
+.terminal-dot.red { background: #ff5f56; }
+.terminal-dot.yellow { background: #ffbd2e; }
+.terminal-dot.green { background: #27c93f; }
+
+.terminal-title {
+  color: #4ecdc4;
+  font-size: 14px;
+  font-weight: 500;
+  flex: 1;
+}
+
+.terminal-viewport {
+  width: fit-content;
+  height: fit-content;
+}
+
+/* Loading state */
+.terminal-loading {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 200px;
+  color: rgba(255, 255, 255, 0.4);
+  font-family: 'Cascadia Code', 'Fira Code', monospace;
+}
+
+/* Gallery page styles */
+.gallery-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 24px;
+  margin-top: 24px;
+}
+
+.gallery-card {
+  background: var(--vp-c-bg-elv);
+  border-radius: 12px;
+  border: 1px solid var(--vp-c-divider);
+  overflow: hidden;
+  transition: all 0.2s ease;
+  cursor: pointer;
+}
+
+.gallery-card:hover {
+  border-color: var(--vp-c-brand-1);
+  transform: translateY(-4px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+}
+
+.gallery-card-preview {
+  aspect-ratio: 16/10;
+  background: #0a0a12;
+  overflow: hidden;
+}
+
+.gallery-card-info {
+  padding: 16px;
+}
+
+.gallery-card-title {
+  color: var(--vp-c-text-1);
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.gallery-card-description {
+  color: var(--vp-c-text-2);
+  font-size: 14px;
+}

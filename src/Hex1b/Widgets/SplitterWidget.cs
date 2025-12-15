@@ -73,8 +73,9 @@ public sealed record SplitterWidget : Hex1bWidget
         // Invalidate focus cache since children may have changed
         node.InvalidateFocusCache();
         
-        // Set initial focus if this is a new node
-        if (context.IsNew)
+        // Set initial focus only if this is a new node AND we're at the root or parent doesn't manage focus
+        // This prevents nested splitters from each calling SetInitialFocus and leaving multiple nodes focused
+        if (context.IsNew && !context.ParentManagesFocus())
         {
             node.SetInitialFocus();
         }

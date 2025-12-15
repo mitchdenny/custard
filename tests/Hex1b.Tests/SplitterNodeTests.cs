@@ -216,9 +216,12 @@ public class SplitterNodeTests
         node.Arrange(new Rect(0, 0, 50, 5));
         node.Render(context);
 
-        // Count occurrences of divider in raw output - should be 5 (one per row)
+        // Count occurrences of divider chars in raw output - should be 5 (one per row)
+        // 3 regular dividers + 2 arrow characters (◀ and ▶) at midpoint
         var dividerCount = terminal.RawOutput.Split("│").Length - 1;
-        Assert.Equal(5, dividerCount);
+        var leftArrowCount = terminal.RawOutput.Split("◀").Length - 1;
+        var rightArrowCount = terminal.RawOutput.Split("▶").Length - 1;
+        Assert.Equal(5, dividerCount + leftArrowCount + rightArrowCount);
     }
 
     #endregion
@@ -1766,6 +1769,215 @@ public class SplitterNodeTests
         handler.OnMove?.Invoke(10, 0); // 20 + 10 = 30 (not 25 + 10 = 35)
 
         Assert.Equal(30, node.FirstSize);
+    }
+
+    #endregion
+
+    #region Nested Splitter Focus Tests
+
+    /// <summary>
+    /// Regression test: When splitters are nested, only the outermost splitter should set initial focus.
+    /// The inner splitter should NOT call SetInitialFocus because its parent (outer splitter)
+    /// has ManagesChildFocus = true.
+    /// </summary>
+    [Fact]
+    public async Task Integration_NestedSplitters_InnerSplitterDoesNotOverrideFocus()
+    {
+        using var terminal = new Hex1bTerminal(60, 20);
+        var outerLeftClicked = false;
+        
+        // The outer splitter's left pane has a button.
+        // The inner splitter (in right pane) also has a button.
+        // Focus should go to the OUTER left button (first focusable), not the inner splitter's button.
+        using var app = new Hex1bApp<object>(
+            new object(),
+            (ctx, ct) => Task.FromResult<Hex1bWidget>(
+                ctx.Splitter(
+                    // Outer left: button that should get initial focus
+                    ctx.Button("Outer Left", () => outerLeftClicked = true),
+                    // Outer right: inner splitter with its own button
+                    ctx.Splitter(
+                        ctx.Button("Inner Left", () => { }),
+                        ctx.Text("Inner Right"),
+                        leftWidth: 15
+                    ),
+                    leftWidth: 20
+                )
+            ),
+            new Hex1bAppOptions { Terminal = terminal }
+        );
+
+        // Just press Enter - should click the focused button
+        terminal.SendKey(ConsoleKey.Enter, '\r');
+        terminal.CompleteInput();
+        await app.RunAsync();
+
+        Assert.True(outerLeftClicked, "Initial focus should be on Outer Left button, not Inner Left");
+    }
+
+    /// <summary>
+    /// Regression test: Similar to above but with vertical splitters nested inside horizontal.
+    /// </summary>
+    [Fact]
+    public async Task Integration_NestedVSplitterInHSplitter_OuterGetsInitialFocus()
+    {
+        using var terminal = new Hex1bTerminal(60, 20);
+        var outerLeftClicked = false;
+        
+        using var app = new Hex1bApp<object>(
+            new object(),
+            (ctx, ct) => Task.FromResult<Hex1bWidget>(
+                ctx.Splitter(
+                    ctx.Button("Outer Left", () => outerLeftClicked = true),
+                    ctx.VSplitter(
+                        ctx.Button("Top", () => { }),
+                        ctx.Button("Bottom", () => { }),
+                        topHeight: 8
+                    ),
+                    leftWidth: 20
+                )
+            ),
+            new Hex1bAppOptions { Terminal = terminal }
+        );
+
+        terminal.SendKey(ConsoleKey.Enter, '\r');
+        terminal.CompleteInput();
+        await app.RunAsync();
+
+        Assert.True(outerLeftClicked, "Initial focus should be on Outer Left button");
+    }
+
+    /// <summary>
+    /// Regression test: Three levels of nested splitters - only the root should set focus.
+    /// </summary>
+    [Fact]
+    public async Task Integration_TripleNestedSplitters_OnlyRootSetsFocus()
+    {
+        using var terminal = new Hex1bTerminal(80, 25);
+        var level1Clicked = false;
+        
+        using var app = new Hex1bApp<object>(
+            new object(),
+            (ctx, ct) => Task.FromResult<Hex1bWidget>(
+                ctx.Splitter(
+                    ctx.Button("Level 1", () => level1Clicked = true),
+                    ctx.Splitter(
+                        ctx.Button("Level 2", () => { }),
+                        ctx.Splitter(
+                            ctx.Button("Level 3", () => { }),
+                            ctx.Text("Deepest"),
+                            leftWidth: 12
+                        ),
+                        leftWidth: 15
+                    ),
+                    leftWidth: 18
+                )
+            ),
+            new Hex1bAppOptions { Terminal = terminal }
+        );
+
+        terminal.SendKey(ConsoleKey.Enter, '\r');
+        terminal.CompleteInput();
+        await app.RunAsync();
+
+        Assert.True(level1Clicked, "Initial focus should be on Level 1 button (first focusable at root level)");
+    }
+
+    /// <summary>
+    /// Regression test: Directly verify that nested splitter nodes do not have IsFocused=true
+    /// when they shouldn't. The inner splitter's divider should NOT appear focused.
+    /// </summary>
+    [Fact]
+    public void DirectReconcile_NestedSplitters_OnlyOuterFirstFocusableIsFocused()
+    {
+        // Build widgets manually - outer splitter with inner splitter in second pane
+        var innerButton = new ButtonWidget("Inner Left", () => { });
+        var innerSplitter = new SplitterWidget(
+            innerButton,
+            new TextBlockWidget("Inner Right"),
+            firstSize: 15
+        );
+        var outerButton = new ButtonWidget("Outer Left", () => { });
+        var outerSplitter = new SplitterWidget(
+            outerButton,
+            innerSplitter,
+            firstSize: 20
+        );
+
+        // Reconcile from root
+        var context = Hex1b.Widgets.ReconcileContext.CreateRoot();
+        context.IsNew = true;
+        var rootNode = outerSplitter.Reconcile(null, context) as SplitterNode;
+
+        Assert.NotNull(rootNode);
+
+        // Find all the splitter nodes and buttons
+        var outerButtonNode = rootNode.First?.GetFocusableNodes().OfType<ButtonNode>().FirstOrDefault();
+        var innerSplitterNode = rootNode.Second?.GetFocusableNodes().OfType<SplitterNode>().FirstOrDefault() 
+                                ?? (rootNode.Second as LayoutNode)?.Child?.GetFocusableNodes().OfType<SplitterNode>().FirstOrDefault();
+        
+        // Get the actual inner splitter node by traversing the tree
+        var layoutNode = rootNode.Second as LayoutNode;
+        var actualInnerSplitter = layoutNode?.Child as SplitterNode;
+
+        Assert.NotNull(outerButtonNode);
+        Assert.NotNull(actualInnerSplitter);
+
+        // The outer button should be focused (it's first in the focus order)
+        Assert.True(outerButtonNode.IsFocused, "Outer button should be focused");
+        
+        // The inner splitter itself should NOT be focused
+        Assert.False(actualInnerSplitter.IsFocused, 
+            "Inner splitter should NOT be focused - only one element should have focus at a time");
+        
+        // The outer splitter should NOT be focused either (it's not first focusable)
+        Assert.False(rootNode.IsFocused, "Outer splitter should not be focused (button is first)");
+    }
+
+    /// <summary>
+    /// Regression test: Nested splitters with NO interactive children - only one should be focused.
+    /// This was the original bug: both splitter dividers would render as focused.
+    /// </summary>
+    [Fact]
+    public void DirectReconcile_NestedSplittersNoButtons_OnlyOneSplitterFocused()
+    {
+        // Build widgets with ONLY text (no buttons) - splitters are the only focusables
+        var innerSplitter = new SplitterWidget(
+            new TextBlockWidget("Inner Left"),
+            new TextBlockWidget("Inner Right"),
+            firstSize: 15
+        );
+        var outerSplitter = new SplitterWidget(
+            new TextBlockWidget("Outer Left"),
+            innerSplitter,
+            firstSize: 20
+        );
+
+        // Reconcile from root
+        var context = Hex1b.Widgets.ReconcileContext.CreateRoot();
+        context.IsNew = true;
+        var rootNode = outerSplitter.Reconcile(null, context) as SplitterNode;
+
+        Assert.NotNull(rootNode);
+
+        // Get the inner splitter node
+        var layoutNode = rootNode.Second as LayoutNode;
+        var innerSplitterNode = layoutNode?.Child as SplitterNode;
+
+        Assert.NotNull(innerSplitterNode);
+
+        // Count how many nodes have IsFocused = true
+        var allFocusables = rootNode.GetFocusableNodes().ToList();
+        var focusedCount = allFocusables.Count(n => n.IsFocused);
+
+        Assert.Equal(1, focusedCount);
+        
+        // The outer splitter should be focused (it's first in its own focus order)
+        Assert.True(rootNode.IsFocused, "Outer splitter should be focused (first focusable)");
+        
+        // The inner splitter should NOT be focused
+        Assert.False(innerSplitterNode.IsFocused, 
+            "Inner splitter should NOT be focused - this was the original bug!");
     }
 
     #endregion

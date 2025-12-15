@@ -379,18 +379,47 @@ public sealed class SplitterNode : Hex1bNode
     private void RenderHorizontalDivider(Hex1bRenderContext context, Hex1bColor dividerFg, Hex1bColor dividerBg, Hex1bTheme theme)
     {
         var dividerChar = theme.Get(SplitterTheme.DividerCharacter);
+        var leftArrow = theme.Get(SplitterTheme.LeftArrowCharacter);
+        var rightArrow = theme.Get(SplitterTheme.RightArrowCharacter);
+        var leftArrowColor = theme.Get(SplitterTheme.LeftArrowColor);
+        var rightArrowColor = theme.Get(SplitterTheme.RightArrowColor);
         var dividerX = Bounds.X + FirstSize + 1;
+        
+        // Calculate midpoint for arrow indicators (show arrows on 2 rows centered vertically)
+        var midRow = Bounds.Height / 2;
+        var topArrowRow = midRow - 1;
+        var bottomArrowRow = midRow;
         
         for (int row = 0; row < Bounds.Height; row++)
         {
             context.SetCursorPosition(dividerX, Bounds.Y + row);
-            if (IsFocused)
+            
+            // Determine which character and color to use for this row
+            string charToRender;
+            Hex1bColor fgColor;
+            if (Bounds.Height >= 3 && row == topArrowRow)
             {
-                context.Write($"{dividerFg.ToForegroundAnsi()}{dividerBg.ToBackgroundAnsi()}{dividerChar}\x1b[0m");
+                charToRender = leftArrow;
+                fgColor = leftArrowColor.IsDefault ? dividerFg : leftArrowColor;
+            }
+            else if (Bounds.Height >= 3 && row == bottomArrowRow)
+            {
+                charToRender = rightArrow;
+                fgColor = rightArrowColor.IsDefault ? dividerFg : rightArrowColor;
             }
             else
             {
-                context.Write($"{dividerFg.ToForegroundAnsi()}{dividerChar}\x1b[0m");
+                charToRender = dividerChar;
+                fgColor = dividerFg;
+            }
+            
+            if (IsFocused)
+            {
+                context.Write($"{fgColor.ToForegroundAnsi()}{dividerBg.ToBackgroundAnsi()}{charToRender}\x1b[0m");
+            }
+            else
+            {
+                context.Write($"{fgColor.ToForegroundAnsi()}{charToRender}\x1b[0m");
             }
         }
     }
@@ -398,18 +427,48 @@ public sealed class SplitterNode : Hex1bNode
     private void RenderVerticalDivider(Hex1bRenderContext context, Hex1bColor dividerFg, Hex1bColor dividerBg, Hex1bTheme theme)
     {
         var dividerChar = theme.Get(SplitterTheme.HorizontalDividerCharacter);
+        var upArrow = theme.Get(SplitterTheme.UpArrowCharacter);
+        var downArrow = theme.Get(SplitterTheme.DownArrowCharacter);
+        var upArrowColor = theme.Get(SplitterTheme.UpArrowColor);
+        var downArrowColor = theme.Get(SplitterTheme.DownArrowColor);
         var dividerY = Bounds.Y + FirstSize;
         
-        context.SetCursorPosition(Bounds.X, dividerY);
-        var dividerLine = new string(dividerChar[0], Bounds.Width);
+        // Calculate midpoint for arrow indicators
+        var midCol = Bounds.Width / 2;
+        var leftArrowCol = midCol - 1;
+        var rightArrowCol = midCol;
         
-        if (IsFocused)
+        context.SetCursorPosition(Bounds.X, dividerY);
+        
+        // Render character by character to insert arrows at midpoint
+        for (int col = 0; col < Bounds.Width; col++)
         {
-            context.Write($"{dividerFg.ToForegroundAnsi()}{dividerBg.ToBackgroundAnsi()}{dividerLine}\x1b[0m");
-        }
-        else
-        {
-            context.Write($"{dividerFg.ToForegroundAnsi()}{dividerLine}\x1b[0m");
+            string charToRender;
+            Hex1bColor fgColor;
+            if (Bounds.Width >= 4 && col == leftArrowCol)
+            {
+                charToRender = upArrow;
+                fgColor = upArrowColor.IsDefault ? dividerFg : upArrowColor;
+            }
+            else if (Bounds.Width >= 4 && col == rightArrowCol)
+            {
+                charToRender = downArrow;
+                fgColor = downArrowColor.IsDefault ? dividerFg : downArrowColor;
+            }
+            else
+            {
+                charToRender = dividerChar;
+                fgColor = dividerFg;
+            }
+            
+            if (IsFocused)
+            {
+                context.Write($"{fgColor.ToForegroundAnsi()}{dividerBg.ToBackgroundAnsi()}{charToRender}\x1b[0m");
+            }
+            else
+            {
+                context.Write($"{fgColor.ToForegroundAnsi()}{charToRender}\x1b[0m");
+            }
         }
     }
 

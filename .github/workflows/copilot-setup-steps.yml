@@ -1,0 +1,40 @@
+name: Copilot Setup Steps
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - .github/workflows/copilot-setup-steps.yml
+  pull_request:
+    paths:
+      - .github/workflows/copilot-setup-steps.yml
+
+jobs:
+  copilot-setup-steps:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 10 Preview
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+          dotnet-quality: 'preview'
+
+      - name: Download and install Aspire CLI (daily build)
+        run: |
+          curl -sSL https://aspire.dev/install.sh | bash -s -- -q dev
+          echo "$HOME/.aspire/bin" >> $GITHUB_PATH
+
+      - name: Show .NET version
+        run: |
+          dotnet --version
+          dotnet --info
+
+      - name: Show Aspire CLI version
+        run: |
+          aspire --version

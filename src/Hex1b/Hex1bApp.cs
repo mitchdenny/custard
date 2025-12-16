@@ -95,6 +95,12 @@ public class Hex1bApp<TState> : IDisposable
     
     // Track if we're subscribed to INotifyPropertyChanged for cleanup
     private readonly PropertyChangedEventHandler? _propertyChangedHandler;
+    
+    // Rescue (error boundary) support
+    private readonly bool _rescueEnabled;
+    private readonly Func<RescueState, Hex1bWidget>? _rescueFallbackBuilder;
+    private readonly IReadOnlyList<RescueAction> _rescueActions;
+    private readonly RescueState _rescueState = new();
 
     /// <summary>
     /// The application state, accessible for external state mutations.
@@ -132,6 +138,11 @@ public class Hex1bApp<TState> : IDisposable
         
         var initialTheme = options.ThemeProvider?.Invoke() ?? options.Theme;
         _context = new Hex1bRenderContext(_terminal, initialTheme);
+        
+        // Rescue (error boundary) options
+        _rescueEnabled = options.EnableRescue;
+        _rescueFallbackBuilder = options.RescueFallbackBuilder;
+        _rescueActions = options.RescueActions ?? [];
         
         // Auto-subscribe to INotifyPropertyChanged if state implements it
         if (state is INotifyPropertyChanged notifyPropertyChanged)
@@ -277,12 +288,28 @@ public class Hex1bApp<TState> : IDisposable
         }
 
         // Step 1: Call the root component to get the widget tree
-        var widgetTree = await _rootComponent(_rootContext, cancellationToken);
+        Hex1bWidget widgetTree;
+        try
+        {
+            widgetTree = await _rootComponent(_rootContext, cancellationToken);
+        }
+        catch (Exception ex) when (_rescueEnabled)
+        {
+            // Build phase failed - capture and use rescue fallback
+            _rescueState.SetError(ex, RescueErrorPhase.Build);
+            widgetTree = BuildRescueFallback();
+        }
+        
+        // Step 2: Wrap in rescue widget if enabled (catches Reconcile/Measure/Arrange/Render)
+        if (_rescueEnabled && !_rescueState.HasError)
+        {
+            widgetTree = new RescueWidget(widgetTree, _rescueState, _rescueFallbackBuilder, actions: _rescueActions);
+        }
 
-        // Step 2: Reconcile - update the node tree to match the widget tree
+        // Step 3: Reconcile - update the node tree to match the widget tree
         _rootNode = Reconcile(_rootNode, widgetTree);
 
-        // Step 3: Layout - measure and arrange the node tree
+        // Step 4: Layout - measure and arrange the node tree
         if (_rootNode != null)
         {
             var terminalSize = new Size(_context.Width, _context.Height);
@@ -291,20 +318,33 @@ public class Hex1bApp<TState> : IDisposable
             _rootNode.Arrange(Rect.FromSize(terminalSize));
         }
 
-        // Step 4: Rebuild focus ring from the current node tree
+        // Step 5: Rebuild focus ring from the current node tree
         _focusRing.Rebuild(_rootNode);
         _focusRing.EnsureFocus();
 
-        // Step 5: Update render context with mouse position for hover rendering
+        // Step 6: Update render context with mouse position for hover rendering
         _context.MouseX = _mouseX;
         _context.MouseY = _mouseY;
 
-        // Step 6: Render the node tree to the terminal
+        // Step 7: Render the node tree to the terminal
         _context.Clear();
         _rootNode?.Render(_context);
         
         // Step 7: Render mouse cursor overlay if enabled
         RenderMouseCursor();
+    }
+    
+    /// <summary>
+    /// Builds the fallback widget when the rescue catches an error.
+    /// </summary>
+    private Hex1bWidget BuildRescueFallback()
+    {
+        if (_rescueFallbackBuilder != null)
+        {
+            return _rescueFallbackBuilder(_rescueState);
+        }
+        
+        return RescueNode.BuildDefaultFallback(_rescueState, actions: _rescueActions);
     }
     
     /// <summary>

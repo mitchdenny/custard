@@ -1,4 +1,5 @@
 using Hex1b.Theming;
+using Hex1b.Widgets;
 
 namespace Hex1b;
 
@@ -34,4 +35,25 @@ public class Hex1bAppOptions
     /// Default is false.
     /// </summary>
     public bool EnableMouse { get; set; }
+    
+    /// <summary>
+    /// Whether to wrap the root widget in a RescueWidget for error recovery.
+    /// When enabled, exceptions during build/reconcile/measure/arrange/render
+    /// will be caught and a fallback UI will be displayed instead of crashing.
+    /// Default is true.
+    /// </summary>
+    public bool EnableRescue { get; set; } = true;
+    
+    /// <summary>
+    /// Custom fallback widget builder for the rescue widget.
+    /// If null, a default fallback will be used that shows exception details
+    /// in Debug mode and a friendly message in Release mode.
+    /// </summary>
+    public Func<RescueState, Hex1bWidget>? RescueFallbackBuilder { get; set; }
+    
+    /// <summary>
+    /// Actions to display on the rescue fallback screen.
+    /// These appear as buttons at the bottom of the error display.
+    /// </summary>
+    public IReadOnlyList<RescueAction>? RescueActions { get; set; }
 }

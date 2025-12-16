@@ -162,17 +162,17 @@ public sealed record RescueFallbackWidget(
         // Header
         mainChildren.AddRange(headerWidgets);
         
-        // Separator
-        mainChildren.Add(new TextBlockWidget("─────────────────────────────────────────────────────────────"));
+        // Separator (SeparatorWidget auto-detects orientation from VStack parent)
+        mainChildren.Add(new SeparatorWidget());
         
         // Buttons row (HStack) if present
         if (buttonWidgets.Count > 0)
         {
             mainChildren.Add(new HStackWidget([..buttonWidgets]));
-            mainChildren.Add(new TextBlockWidget("─────────────────────────────────────────────────────────────"));
+            mainChildren.Add(new SeparatorWidget());
         }
         
-        // Scrollable content
+        // Scrollable content - use Fill() to take remaining space
         mainChildren.Add(new ScrollWidget(
             new VStackWidget([..contentWidgets]),
             fallbackState.ScrollState

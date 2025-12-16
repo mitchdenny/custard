@@ -26,11 +26,18 @@ public sealed class ReconcileContext
     /// Whether this is a new node being created (vs updating an existing one).
     /// </summary>
     public bool IsNew { get; internal set; }
+    
+    /// <summary>
+    /// The layout axis of the parent container (if any).
+    /// Used by SeparatorWidget to determine orientation.
+    /// </summary>
+    public LayoutAxis? LayoutAxis { get; private set; }
 
-    private ReconcileContext(Hex1bNode? parent, IReadOnlyList<Hex1bNode>? ancestors = null)
+    private ReconcileContext(Hex1bNode? parent, IReadOnlyList<Hex1bNode>? ancestors = null, LayoutAxis? layoutAxis = null)
     {
         Parent = parent;
         _ancestors = ancestors ?? Array.Empty<Hex1bNode>();
+        LayoutAxis = layoutAxis;
     }
 
     /// <summary>
@@ -47,7 +54,16 @@ public sealed class ReconcileContext
         // Build the new ancestor list: [parent, ...current ancestors]
         var newAncestors = new List<Hex1bNode>(_ancestors.Count + 1) { parent };
         newAncestors.AddRange(_ancestors);
-        return new ReconcileContext(parent, newAncestors);
+        return new ReconcileContext(parent, newAncestors, LayoutAxis);
+    }
+    
+    /// <summary>
+    /// Creates a new context with the specified layout axis.
+    /// Used by VStack and HStack to inform children of the layout direction.
+    /// </summary>
+    public ReconcileContext WithLayoutAxis(LayoutAxis axis)
+    {
+        return new ReconcileContext(Parent, _ancestors.ToList(), axis) { IsNew = IsNew };
     }
 
     /// <summary>

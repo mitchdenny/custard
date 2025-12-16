@@ -92,12 +92,15 @@ public sealed record VStackWidget(IReadOnlyList<Hex1bWidget> Children) : Hex1bWi
     {
         var node = existingNode as VStackNode ?? new VStackNode();
 
+        // Create child context with vertical layout axis
+        var childContext = context.WithLayoutAxis(LayoutAxis.Vertical);
+        
         // Reconcile children
         var newChildren = new List<Hex1bNode>();
         for (int i = 0; i < Children.Count; i++)
         {
             var existingChild = i < node.Children.Count ? node.Children[i] : null;
-            var reconciledChild = context.ReconcileChild(existingChild, Children[i], node);
+            var reconciledChild = childContext.ReconcileChild(existingChild, Children[i], node);
             if (reconciledChild != null)
             {
                 newChildren.Add(reconciledChild);
@@ -127,12 +130,15 @@ public sealed record HStackWidget(IReadOnlyList<Hex1bWidget> Children) : Hex1bWi
     {
         var node = existingNode as HStackNode ?? new HStackNode();
 
+        // Create child context with horizontal layout axis
+        var childContext = context.WithLayoutAxis(LayoutAxis.Horizontal);
+        
         // Reconcile children
         var newChildren = new List<Hex1bNode>();
         for (int i = 0; i < Children.Count; i++)
         {
             var existingChild = i < node.Children.Count ? node.Children[i] : null;
-            var reconciledChild = context.ReconcileChild(existingChild, Children[i], node);
+            var reconciledChild = childContext.ReconcileChild(existingChild, Children[i], node);
             if (reconciledChild != null)
             {
                 newChildren.Add(reconciledChild);

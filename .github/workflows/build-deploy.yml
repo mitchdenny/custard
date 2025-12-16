@@ -10,6 +10,32 @@ on:
   workflow_dispatch:
 
 jobs:
+  publish-nuget:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Build and pack
+        run: |
+          VERSION="0.1.0-preview.${{ github.run_id }}.${{ github.run_attempt }}.${{ github.sha }}"
+          dotnet pack src/Hex1b/Hex1b.csproj -c Release -p:PackageVersion=$VERSION -o ./artifacts
+
+      - name: Push to GitHub Packages
+        run: |
+          dotnet nuget push ./artifacts/*.nupkg \
+            --source "https://nuget.pkg.github.com/${{ github.repository_owner }}/index.json" \
+            --api-key ${{ secrets.GITHUB_TOKEN }}
   # deploy-pullrequest:
   #   runs-on: ubuntu-latest
   #   if: github.event_name == 'pull_request'

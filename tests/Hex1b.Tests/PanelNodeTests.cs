@@ -188,19 +188,19 @@ public class PanelNodeTests
     }
 
     [Fact]
-    public void HandleInput_PassesToChild()
+    public async Task HandleInput_PassesToChild()
     {
         var clicked = false;
         var button = new ButtonNode
         {
             Label = "Click",
             IsFocused = true,
-            ClickAction = () => clicked = true
+            ClickAction = _ => { clicked = true; return Task.CompletedTask; }
         };
         var node = new PanelNode { Child = button };
 
         // Use InputRouter to route input to the focused child
-        var result = InputRouter.RouteInput(node, new Hex1bKeyEvent(Hex1bKey.Enter, '\r', Hex1bModifiers.None));
+        var result = await InputRouter.RouteInputAsync(node, new Hex1bKeyEvent(Hex1bKey.Enter, '\r', Hex1bModifiers.None));
 
         Assert.Equal(InputResult.Handled, result);
         Assert.True(clicked);
@@ -321,7 +321,7 @@ public class PanelNodeTests
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
-                ctx.Panel(ctx.Button("Click Me", () => clicked = true))
+                ctx.Panel(ctx.Button("Click Me", _ => { clicked = true; return Task.CompletedTask; }))
             ),
             new Hex1bAppOptions { Terminal = terminal }
         );

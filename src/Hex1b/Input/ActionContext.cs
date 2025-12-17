@@ -7,11 +7,19 @@ namespace Hex1b.Input;
 public sealed class ActionContext
 {
     private readonly FocusRing _focusRing;
+    private readonly Action? _requestStop;
 
-    internal ActionContext(FocusRing focusRing)
+    internal ActionContext(FocusRing focusRing, Action? requestStop = null)
     {
         _focusRing = focusRing;
+        _requestStop = requestStop;
     }
+
+    /// <summary>
+    /// Requests the application to stop. The RunAsync call will exit gracefully
+    /// after the current frame completes.
+    /// </summary>
+    public void RequestStop() => _requestStop?.Invoke();
 
     /// <summary>
     /// Moves focus to the next focusable widget in the ring.

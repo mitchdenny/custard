@@ -265,8 +265,8 @@ public class ResponsiveNodeTests
         {
             Branches =
             [
-                new ConditionalWidget((w, h) => false, new ButtonWidget("Hidden", () => { })),
-                new ConditionalWidget((w, h) => true, new ButtonWidget("Visible", () => { }))
+                new ConditionalWidget((w, h) => false, new ButtonWidget("Hidden") { OnClick = _ => Task.CompletedTask }),
+                new ConditionalWidget((w, h) => true, new ButtonWidget("Visible") { OnClick = _ => Task.CompletedTask })
             ],
             ChildNodes = [button1, button2]
         };
@@ -289,7 +289,7 @@ public class ResponsiveNodeTests
         {
             Branches =
             [
-                new ConditionalWidget((w, h) => false, new ButtonWidget("Hidden", () => { }))
+                new ConditionalWidget((w, h) => false, new ButtonWidget("Hidden") { OnClick = _ => Task.CompletedTask })
             ],
             ChildNodes = [button]
         };
@@ -301,27 +301,27 @@ public class ResponsiveNodeTests
     }
 
     [Fact]
-    public void HandleInput_PassesToActiveChild()
+    public async Task HandleInput_PassesToActiveChild()
     {
         var clicked = false;
         var button = new ButtonNode
         {
             Label = "Click",
             IsFocused = true,
-            ClickAction = () => clicked = true
+            ClickAction = _ => { clicked = true; return Task.CompletedTask; }
         };
         var node = new ResponsiveNode
         {
             Branches =
             [
-                new ConditionalWidget((w, h) => true, new ButtonWidget("Click", () => clicked = true))
+                new ConditionalWidget((w, h) => true, new ButtonWidget("Click") { OnClick = _ => { clicked = true; return Task.CompletedTask; } })
             ],
             ChildNodes = [button]
         };
 
         node.Measure(Constraints.Unbounded);
         // Use InputRouter to route input to the focused child
-        var result = InputRouter.RouteInput(node, new Hex1bKeyEvent(Hex1bKey.Enter, '\r', Hex1bModifiers.None));
+        var result = await InputRouter.RouteInputAsync(node, new Hex1bKeyEvent(Hex1bKey.Enter, '\r', Hex1bModifiers.None));
 
         Assert.Equal(InputResult.Handled, result);
         Assert.True(clicked);
@@ -611,7 +611,7 @@ public class ResponsiveNodeTests
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.Responsive(r => [
-                    r.WhenMinWidth(50, r => r.Button("Click Me", () => clicked = true)),
+                    r.WhenMinWidth(50, r => r.Button("Click Me", _ => { clicked = true; return Task.CompletedTask; })),
                     r.Otherwise(r => r.Text("Too narrow"))
                 ])
             ),

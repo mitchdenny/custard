@@ -284,104 +284,104 @@ public class TextBoxNodeTests
     #region Input Handling Tests
 
     [Fact]
-    public void HandleInput_WhenFocused_UpdatesState()
+    public async Task HandleInput_WhenFocused_UpdatesState()
     {
         var state = new TextBoxState { Text = "hello", CursorPosition = 5 };
         var node = new TextBoxNode { State = state, IsFocused = true };
 
-        var result = InputRouter.RouteInputToNode(node, new Hex1bKeyEvent(Hex1bKey.X, 'X', Hex1bModifiers.None));
+        var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.X, 'X', Hex1bModifiers.None));
 
         Assert.Equal(InputResult.Handled, result);
         Assert.Equal("helloX", state.Text);
     }
 
     [Fact]
-    public void HandleInput_WhenNotFocused_DoesNotHandle()
+    public async Task HandleInput_WhenNotFocused_DoesNotHandle()
     {
         var state = new TextBoxState { Text = "hello" };
         var node = new TextBoxNode { State = state, IsFocused = false };
 
-        var result = InputRouter.RouteInputToNode(node, new Hex1bKeyEvent(Hex1bKey.X, 'X', Hex1bModifiers.None));
+        var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.X, 'X', Hex1bModifiers.None));
 
         Assert.Equal(InputResult.NotHandled, result);
         Assert.Equal("hello", state.Text);
     }
 
     [Fact]
-    public void HandleInput_Backspace_DeletesCharacter()
+    public async Task HandleInput_Backspace_DeletesCharacter()
     {
         var state = new TextBoxState { Text = "hello", CursorPosition = 5 };
         var node = new TextBoxNode { State = state, IsFocused = true };
 
-        InputRouter.RouteInputToNode(node, new Hex1bKeyEvent(Hex1bKey.Backspace, '\b', Hex1bModifiers.None));
+        await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.Backspace, '\b', Hex1bModifiers.None));
 
         Assert.Equal("hell", state.Text);
         Assert.Equal(4, state.CursorPosition);
     }
 
     [Fact]
-    public void HandleInput_Delete_DeletesCharacterAhead()
+    public async Task HandleInput_Delete_DeletesCharacterAhead()
     {
         var state = new TextBoxState { Text = "hello", CursorPosition = 0 };
         var node = new TextBoxNode { State = state, IsFocused = true };
 
-        InputRouter.RouteInputToNode(node, new Hex1bKeyEvent(Hex1bKey.Delete, '\0', Hex1bModifiers.None));
+        await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.Delete, '\0', Hex1bModifiers.None));
 
         Assert.Equal("ello", state.Text);
         Assert.Equal(0, state.CursorPosition);
     }
 
     [Fact]
-    public void HandleInput_LeftArrow_MovesCursorLeft()
+    public async Task HandleInput_LeftArrow_MovesCursorLeft()
     {
         var state = new TextBoxState { Text = "hello", CursorPosition = 3 };
         var node = new TextBoxNode { State = state, IsFocused = true };
 
-        InputRouter.RouteInputToNode(node, new Hex1bKeyEvent(Hex1bKey.LeftArrow, '\0', Hex1bModifiers.None));
+        await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.LeftArrow, '\0', Hex1bModifiers.None));
 
         Assert.Equal(2, state.CursorPosition);
     }
 
     [Fact]
-    public void HandleInput_RightArrow_MovesCursorRight()
+    public async Task HandleInput_RightArrow_MovesCursorRight()
     {
         var state = new TextBoxState { Text = "hello", CursorPosition = 3 };
         var node = new TextBoxNode { State = state, IsFocused = true };
 
-        InputRouter.RouteInputToNode(node, new Hex1bKeyEvent(Hex1bKey.RightArrow, '\0', Hex1bModifiers.None));
+        await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.RightArrow, '\0', Hex1bModifiers.None));
 
         Assert.Equal(4, state.CursorPosition);
     }
 
     [Fact]
-    public void HandleInput_Home_MovesCursorToStart()
+    public async Task HandleInput_Home_MovesCursorToStart()
     {
         var state = new TextBoxState { Text = "hello", CursorPosition = 3 };
         var node = new TextBoxNode { State = state, IsFocused = true };
 
-        InputRouter.RouteInputToNode(node, new Hex1bKeyEvent(Hex1bKey.Home, '\0', Hex1bModifiers.None));
+        await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.Home, '\0', Hex1bModifiers.None));
 
         Assert.Equal(0, state.CursorPosition);
     }
 
     [Fact]
-    public void HandleInput_End_MovesCursorToEnd()
+    public async Task HandleInput_End_MovesCursorToEnd()
     {
         var state = new TextBoxState { Text = "hello", CursorPosition = 2 };
         var node = new TextBoxNode { State = state, IsFocused = true };
 
-        InputRouter.RouteInputToNode(node, new Hex1bKeyEvent(Hex1bKey.End, '\0', Hex1bModifiers.None));
+        await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.End, '\0', Hex1bModifiers.None));
 
         Assert.Equal(5, state.CursorPosition);
     }
 
     [Fact]
-    public void HandleInput_ShiftLeftArrow_CreatesSelection()
+    public async Task HandleInput_ShiftLeftArrow_CreatesSelection()
     {
         var state = new TextBoxState { Text = "hello", CursorPosition = 3 };
         var node = new TextBoxNode { State = state, IsFocused = true };
 
-        InputRouter.RouteInputToNode(node, new Hex1bKeyEvent(Hex1bKey.LeftArrow, '\0', Hex1bModifiers.Shift));
+        await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.LeftArrow, '\0', Hex1bModifiers.Shift));
 
         Assert.Equal(2, state.CursorPosition);
         Assert.True(state.HasSelection);
@@ -389,12 +389,12 @@ public class TextBoxNodeTests
     }
 
     [Fact]
-    public void HandleInput_CtrlA_SelectsAll()
+    public async Task HandleInput_CtrlA_SelectsAll()
     {
         var state = new TextBoxState { Text = "hello", CursorPosition = 2 };
         var node = new TextBoxNode { State = state, IsFocused = true };
 
-        InputRouter.RouteInputToNode(node, new Hex1bKeyEvent(Hex1bKey.A, 'a', Hex1bModifiers.Control));
+        await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.A, 'a', Hex1bModifiers.Control));
 
         Assert.True(state.HasSelection);
         Assert.Equal(0, state.SelectionAnchor);

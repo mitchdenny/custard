@@ -423,78 +423,78 @@ public class ListNodeTests
     #region Input Handling - Navigation Tests
 
     [Fact]
-    public void HandleInput_DownArrow_MovesSelection()
+    public async Task HandleInput_DownArrow_MovesSelection()
     {
         var state = CreateListState("Item 1", "Item 2", "Item 3");
         state.SelectedIndex = 0;
         var node = new ListNode { State = state, IsFocused = true };
         
-        var result = InputRouter.RouteInputToNode(node, new Hex1bKeyEvent(Hex1bKey.DownArrow, '\0', Hex1bModifiers.None));
+        var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.DownArrow, '\0', Hex1bModifiers.None));
         
         Assert.Equal(InputResult.Handled, result);
         Assert.Equal(1, state.SelectedIndex);
     }
 
     [Fact]
-    public void HandleInput_UpArrow_MovesSelection()
+    public async Task HandleInput_UpArrow_MovesSelection()
     {
         var state = CreateListState("Item 1", "Item 2", "Item 3");
         state.SelectedIndex = 2;
         var node = new ListNode { State = state, IsFocused = true };
         
-        var result = InputRouter.RouteInputToNode(node, new Hex1bKeyEvent(Hex1bKey.UpArrow, '\0', Hex1bModifiers.None));
+        var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.UpArrow, '\0', Hex1bModifiers.None));
         
         Assert.Equal(InputResult.Handled, result);
         Assert.Equal(1, state.SelectedIndex);
     }
 
     [Fact]
-    public void HandleInput_DownArrow_WrapsAround()
+    public async Task HandleInput_DownArrow_WrapsAround()
     {
         var state = CreateListState("Item 1", "Item 2");
         state.SelectedIndex = 1;
         var node = new ListNode { State = state, IsFocused = true };
         
-        InputRouter.RouteInputToNode(node, new Hex1bKeyEvent(Hex1bKey.DownArrow, '\0', Hex1bModifiers.None));
+        await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.DownArrow, '\0', Hex1bModifiers.None));
         
         Assert.Equal(0, state.SelectedIndex);
     }
 
     [Fact]
-    public void HandleInput_UpArrow_WrapsAround()
+    public async Task HandleInput_UpArrow_WrapsAround()
     {
         var state = CreateListState("Item 1", "Item 2");
         state.SelectedIndex = 0;
         var node = new ListNode { State = state, IsFocused = true };
         
-        InputRouter.RouteInputToNode(node, new Hex1bKeyEvent(Hex1bKey.UpArrow, '\0', Hex1bModifiers.None));
+        await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.UpArrow, '\0', Hex1bModifiers.None));
         
         Assert.Equal(1, state.SelectedIndex);
     }
 
     [Fact]
-    public void HandleInput_MultipleDownArrows_NavigatesCorrectly()
+    public async Task HandleInput_MultipleDownArrows_NavigatesCorrectly()
     {
         var state = CreateListState("A", "B", "C", "D");
         state.SelectedIndex = 0;
         var node = new ListNode { State = state, IsFocused = true };
         
-        InputRouter.RouteInputToNode(node, new Hex1bKeyEvent(Hex1bKey.DownArrow, '\0', Hex1bModifiers.None));
-        InputRouter.RouteInputToNode(node, new Hex1bKeyEvent(Hex1bKey.DownArrow, '\0', Hex1bModifiers.None));
-        InputRouter.RouteInputToNode(node, new Hex1bKeyEvent(Hex1bKey.DownArrow, '\0', Hex1bModifiers.None));
+        await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.DownArrow, '\0', Hex1bModifiers.None));
+        await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.DownArrow, '\0', Hex1bModifiers.None));
+        await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.DownArrow, '\0', Hex1bModifiers.None));
         
         Assert.Equal(3, state.SelectedIndex);
     }
 
     [Fact]
-    public void HandleInput_MultipleUpArrows_NavigatesCorrectly()
+    public async Task HandleInput_MultipleUpArrows_NavigatesCorrectly()
     {
         var state = CreateListState("A", "B", "C", "D");
         state.SelectedIndex = 3;
         var node = new ListNode { State = state, IsFocused = true };
         
-        InputRouter.RouteInputToNode(node, new Hex1bKeyEvent(Hex1bKey.UpArrow, '\0', Hex1bModifiers.None));
-        InputRouter.RouteInputToNode(node, new Hex1bKeyEvent(Hex1bKey.UpArrow, '\0', Hex1bModifiers.None));
+        await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.UpArrow, '\0', Hex1bModifiers.None));
+        await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.UpArrow, '\0', Hex1bModifiers.None));
         
         Assert.Equal(1, state.SelectedIndex);
     }
@@ -504,7 +504,7 @@ public class ListNodeTests
     #region Input Handling - Activation Tests
 
     [Fact]
-    public void HandleInput_Enter_InvokesOnItemActivated()
+    public async Task HandleInput_Enter_InvokesOnItemActivated()
     {
         var state = CreateListState("Item 1", "Item 2");
         ListItem? activatedItem = null;
@@ -512,7 +512,7 @@ public class ListNodeTests
         state.SelectedIndex = 1;
         var node = new ListNode { State = state, IsFocused = true };
         
-        var result = InputRouter.RouteInputToNode(node, new Hex1bKeyEvent(Hex1bKey.Enter, '\r', Hex1bModifiers.None));
+        var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.Enter, '\r', Hex1bModifiers.None));
         
         Assert.Equal(InputResult.Handled, result);
         Assert.NotNull(activatedItem);
@@ -520,7 +520,7 @@ public class ListNodeTests
     }
 
     [Fact]
-    public void HandleInput_Space_InvokesOnItemActivated()
+    public async Task HandleInput_Space_InvokesOnItemActivated()
     {
         var state = CreateListState("Item 1", "Item 2");
         ListItem? activatedItem = null;
@@ -528,7 +528,7 @@ public class ListNodeTests
         state.SelectedIndex = 0;
         var node = new ListNode { State = state, IsFocused = true };
         
-        var result = InputRouter.RouteInputToNode(node, new Hex1bKeyEvent(Hex1bKey.Spacebar, ' ', Hex1bModifiers.None));
+        var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.Spacebar, ' ', Hex1bModifiers.None));
         
         Assert.Equal(InputResult.Handled, result);
         Assert.NotNull(activatedItem);
@@ -536,27 +536,27 @@ public class ListNodeTests
     }
 
     [Fact]
-    public void HandleInput_Enter_WithoutCallback_StillReturnsHandled()
+    public async Task HandleInput_Enter_WithoutCallback_StillReturnsHandled()
     {
         var state = CreateListState("Item 1");
         state.SelectedIndex = 0;
         // No OnItemActivated callback set
         var node = new ListNode { State = state, IsFocused = true };
         
-        var result = InputRouter.RouteInputToNode(node, new Hex1bKeyEvent(Hex1bKey.Enter, '\r', Hex1bModifiers.None));
+        var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.Enter, '\r', Hex1bModifiers.None));
         
         Assert.Equal(InputResult.Handled, result);
     }
 
     [Fact]
-    public void HandleInput_Enter_OnEmptyList_ReturnsHandled()
+    public async Task HandleInput_Enter_OnEmptyList_ReturnsHandled()
     {
         var state = new ListState { Items = [] };
         ListItem? activatedItem = null;
         state.OnItemActivated = item => activatedItem = item;
         var node = new ListNode { State = state, IsFocused = true };
         
-        var result = InputRouter.RouteInputToNode(node, new Hex1bKeyEvent(Hex1bKey.Enter, '\r', Hex1bModifiers.None));
+        var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.Enter, '\r', Hex1bModifiers.None));
         
         Assert.Equal(InputResult.Handled, result);
         Assert.Null(activatedItem); // No item to activate
@@ -567,7 +567,7 @@ public class ListNodeTests
     #region Input Handling - Selection Changed Callback Tests
 
     [Fact]
-    public void HandleInput_DownArrow_InvokesOnSelectionChanged()
+    public async Task HandleInput_DownArrow_InvokesOnSelectionChanged()
     {
         var state = CreateListState("Item 1", "Item 2");
         ListItem? selectedItem = null;
@@ -575,14 +575,14 @@ public class ListNodeTests
         state.SelectedIndex = 0;
         var node = new ListNode { State = state, IsFocused = true };
         
-        InputRouter.RouteInputToNode(node, new Hex1bKeyEvent(Hex1bKey.DownArrow, '\0', Hex1bModifiers.None));
+        await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.DownArrow, '\0', Hex1bModifiers.None));
         
         Assert.NotNull(selectedItem);
         Assert.Equal("Item 2", selectedItem.Text);
     }
 
     [Fact]
-    public void HandleInput_UpArrow_InvokesOnSelectionChanged()
+    public async Task HandleInput_UpArrow_InvokesOnSelectionChanged()
     {
         var state = CreateListState("Item 1", "Item 2");
         ListItem? selectedItem = null;
@@ -590,7 +590,7 @@ public class ListNodeTests
         state.SelectedIndex = 1;
         var node = new ListNode { State = state, IsFocused = true };
         
-        InputRouter.RouteInputToNode(node, new Hex1bKeyEvent(Hex1bKey.UpArrow, '\0', Hex1bModifiers.None));
+        await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.UpArrow, '\0', Hex1bModifiers.None));
         
         Assert.NotNull(selectedItem);
         Assert.Equal("Item 1", selectedItem.Text);
@@ -601,7 +601,7 @@ public class ListNodeTests
     #region Input Handling - Edge Cases
 
     [Fact]
-    public void HandleInput_WhenNotFocused_BindingsStillExecute()
+    public async Task HandleInput_WhenNotFocused_BindingsStillExecute()
     {
         // Note: With the new input binding architecture, bindings execute at the node level
         // regardless of focus. Focus is a tree concept handled by InputRouter.RouteInput().
@@ -610,7 +610,7 @@ public class ListNodeTests
         state.SelectedIndex = 0;
         var node = new ListNode { State = state, IsFocused = false };
         
-        var result = InputRouter.RouteInputToNode(node, new Hex1bKeyEvent(Hex1bKey.DownArrow, '\0', Hex1bModifiers.None));
+        var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.DownArrow, '\0', Hex1bModifiers.None));
         
         // Bindings execute regardless of focus state when using RouteInputToNode
         Assert.Equal(InputResult.Handled, result);
@@ -618,34 +618,34 @@ public class ListNodeTests
     }
 
     [Fact]
-    public void HandleInput_OtherKey_DoesNotHandle()
+    public async Task HandleInput_OtherKey_DoesNotHandle()
     {
         var state = CreateListState("Item 1", "Item 2");
         var node = new ListNode { State = state, IsFocused = true };
         
-        var result = InputRouter.RouteInputToNode(node, new Hex1bKeyEvent(Hex1bKey.A, 'a', Hex1bModifiers.None));
+        var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.A, 'a', Hex1bModifiers.None));
         
         Assert.Equal(InputResult.NotHandled, result);
     }
 
     [Fact]
-    public void HandleInput_Tab_DoesNotHandle()
+    public async Task HandleInput_Tab_DoesNotHandle()
     {
         var state = CreateListState("Item 1", "Item 2");
         var node = new ListNode { State = state, IsFocused = true };
         
-        var result = InputRouter.RouteInputToNode(node, new Hex1bKeyEvent(Hex1bKey.Tab, '\t', Hex1bModifiers.None));
+        var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.Tab, '\t', Hex1bModifiers.None));
         
         Assert.Equal(InputResult.NotHandled, result);
     }
 
     [Fact]
-    public void HandleInput_Escape_DoesNotHandle()
+    public async Task HandleInput_Escape_DoesNotHandle()
     {
         var state = CreateListState("Item 1", "Item 2");
         var node = new ListNode { State = state, IsFocused = true };
         
-        var result = InputRouter.RouteInputToNode(node, new Hex1bKeyEvent(Hex1bKey.Escape, '\x1b', Hex1bModifiers.None));
+        var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.Escape, '\x1b', Hex1bModifiers.None));
         
         Assert.Equal(InputResult.NotHandled, result);
     }
@@ -863,7 +863,7 @@ public class ListNodeTests
                 ctx.VStack(v => [
                     v.Text("Welcome"),
                     v.Border(ctx.List(listState), "Options"),
-                    v.Button("OK", () => { })
+                    v.Button("OK", _ => Task.CompletedTask)
                 ])
             ),
             new Hex1bAppOptions { Terminal = terminal }

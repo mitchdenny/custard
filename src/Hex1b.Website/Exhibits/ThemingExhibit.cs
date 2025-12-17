@@ -98,7 +98,7 @@ public class ThemingExhibit(ILogger<ThemingExhibit> logger) : Hex1bExhibit
                                 right.Text("Button:"),
                                 right.Button(
                                     state.ButtonClicked ? "Clicked!" : "Click Me",
-                                    () => state.ButtonClicked = !state.ButtonClicked),
+                                    _ => state.ButtonClicked = !state.ButtonClicked),
                                 right.Text(""),
                                 right.Text("Toggle Switch (←/→ to change):"),
                                 right.ToggleSwitch(s => s.ModeSwitch),

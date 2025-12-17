@@ -190,7 +190,7 @@ public class ToggleSwitchNodeTests
     #region Input Handling Tests
 
     [Fact]
-    public void HandleInput_RightArrow_MovesToNextOption()
+    public async Task HandleInput_RightArrow_MovesToNextOption()
     {
         var node = new ToggleSwitchNode
         {
@@ -202,14 +202,14 @@ public class ToggleSwitchNodeTests
             IsFocused = true
         };
 
-        var result = InputRouter.RouteInputToNode(node, new Hex1bKeyEvent(Hex1bKey.RightArrow, '\0', Hex1bModifiers.None));
+        var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.RightArrow, '\0', Hex1bModifiers.None));
 
         Assert.Equal(InputResult.Handled, result);
         Assert.Equal(1, node.State.SelectedIndex);
     }
 
     [Fact]
-    public void HandleInput_LeftArrow_MovesToPreviousOption()
+    public async Task HandleInput_LeftArrow_MovesToPreviousOption()
     {
         var node = new ToggleSwitchNode
         {
@@ -221,14 +221,14 @@ public class ToggleSwitchNodeTests
             IsFocused = true
         };
 
-        var result = InputRouter.RouteInputToNode(node, new Hex1bKeyEvent(Hex1bKey.LeftArrow, '\0', Hex1bModifiers.None));
+        var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.LeftArrow, '\0', Hex1bModifiers.None));
 
         Assert.Equal(InputResult.Handled, result);
         Assert.Equal(1, node.State.SelectedIndex);
     }
 
     [Fact]
-    public void HandleInput_RightArrow_WrapsToFirstOption()
+    public async Task HandleInput_RightArrow_WrapsToFirstOption()
     {
         var node = new ToggleSwitchNode
         {
@@ -240,14 +240,14 @@ public class ToggleSwitchNodeTests
             IsFocused = true
         };
 
-        var result = InputRouter.RouteInputToNode(node, new Hex1bKeyEvent(Hex1bKey.RightArrow, '\0', Hex1bModifiers.None));
+        var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.RightArrow, '\0', Hex1bModifiers.None));
 
         Assert.Equal(InputResult.Handled, result);
         Assert.Equal(0, node.State.SelectedIndex);
     }
 
     [Fact]
-    public void HandleInput_LeftArrow_WrapsToLastOption()
+    public async Task HandleInput_LeftArrow_WrapsToLastOption()
     {
         var node = new ToggleSwitchNode
         {
@@ -259,14 +259,14 @@ public class ToggleSwitchNodeTests
             IsFocused = true
         };
 
-        var result = InputRouter.RouteInputToNode(node, new Hex1bKeyEvent(Hex1bKey.LeftArrow, '\0', Hex1bModifiers.None));
+        var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.LeftArrow, '\0', Hex1bModifiers.None));
 
         Assert.Equal(InputResult.Handled, result);
         Assert.Equal(2, node.State.SelectedIndex);
     }
 
     [Fact]
-    public void HandleInput_OtherKey_NotHandled()
+    public async Task HandleInput_OtherKey_NotHandled()
     {
         var node = new ToggleSwitchNode
         {
@@ -278,14 +278,14 @@ public class ToggleSwitchNodeTests
             IsFocused = true
         };
 
-        var result = InputRouter.RouteInputToNode(node, new Hex1bKeyEvent(Hex1bKey.Enter, '\r', Hex1bModifiers.None));
+        var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.Enter, '\r', Hex1bModifiers.None));
 
         Assert.Equal(InputResult.NotHandled, result);
         Assert.Equal(0, node.State.SelectedIndex);
     }
 
     [Fact]
-    public void HandleInput_WhenNotFocused_BindingsStillExecute()
+    public async Task HandleInput_WhenNotFocused_BindingsStillExecute()
     {
         // Note: With the new input binding architecture, bindings execute at the node level
         // regardless of focus. Focus is a tree concept handled by InputRouter.RouteInput().
@@ -299,7 +299,7 @@ public class ToggleSwitchNodeTests
             IsFocused = false
         };
 
-        var result = InputRouter.RouteInputToNode(node, new Hex1bKeyEvent(Hex1bKey.RightArrow, '\0', Hex1bModifiers.None));
+        var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.RightArrow, '\0', Hex1bModifiers.None));
 
         // Bindings execute regardless of focus state when using RouteInputToNode
         Assert.Equal(InputResult.Handled, result);
@@ -307,7 +307,7 @@ public class ToggleSwitchNodeTests
     }
 
     [Fact]
-    public void HandleInput_SelectionChanged_CallsCallback()
+    public async Task HandleInput_SelectionChanged_CallsCallback()
     {
         var callbackInvoked = false;
         var callbackIndex = -1;
@@ -329,7 +329,7 @@ public class ToggleSwitchNodeTests
             IsFocused = true
         };
 
-        InputRouter.RouteInputToNode(node, new Hex1bKeyEvent(Hex1bKey.RightArrow, '\0', Hex1bModifiers.None));
+        await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.RightArrow, '\0', Hex1bModifiers.None));
 
         Assert.True(callbackInvoked);
         Assert.Equal(1, callbackIndex);
@@ -529,7 +529,7 @@ public class ToggleSwitchNodeTests
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.VStack(v => [
                     v.ToggleSwitch(toggleState),
-                    v.Button("Click", () => buttonClicked = true)
+                    v.Button("Click", _ => { buttonClicked = true; return Task.CompletedTask; })
                 ])
             ),
             new Hex1bAppOptions { Terminal = terminal }

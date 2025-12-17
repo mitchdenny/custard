@@ -185,68 +185,68 @@ public class ButtonNodeTests
     #region Input Handling Tests
 
     [Fact]
-    public void HandleInput_Enter_TriggersClickAction()
+    public async Task HandleInput_Enter_TriggersClickAction()
     {
         var clicked = false;
         var node = new ButtonNode
         {
             Label = "Click Me",
             IsFocused = true,
-            ClickAction = () => clicked = true
+            ClickAction = _ => { clicked = true; return Task.CompletedTask; }
         };
 
-        var result = InputRouter.RouteInputToNode(node, new Hex1bKeyEvent(Hex1bKey.Enter, '\r', Hex1bModifiers.None));
+        var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.Enter, '\r', Hex1bModifiers.None));
 
         Assert.Equal(InputResult.Handled, result);
         Assert.True(clicked);
     }
 
     [Fact]
-    public void HandleInput_Space_TriggersClickAction()
+    public async Task HandleInput_Space_TriggersClickAction()
     {
         var clicked = false;
         var node = new ButtonNode
         {
             Label = "Click Me",
             IsFocused = true,
-            ClickAction = () => clicked = true
+            ClickAction = _ => { clicked = true; return Task.CompletedTask; }
         };
 
-        var result = InputRouter.RouteInputToNode(node, new Hex1bKeyEvent(Hex1bKey.Spacebar, ' ', Hex1bModifiers.None));
+        var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.Spacebar, ' ', Hex1bModifiers.None));
 
         Assert.Equal(InputResult.Handled, result);
         Assert.True(clicked);
     }
 
     [Fact]
-    public void HandleInput_OtherKey_DoesNotClick()
+    public async Task HandleInput_OtherKey_DoesNotClick()
     {
         var clicked = false;
         var node = new ButtonNode
         {
             Label = "Click Me",
             IsFocused = true,
-            ClickAction = () => clicked = true
+            ClickAction = _ => { clicked = true; return Task.CompletedTask; }
         };
 
-        var result = InputRouter.RouteInputToNode(node, new Hex1bKeyEvent(Hex1bKey.A, 'a', Hex1bModifiers.None));
+        var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.A, 'a', Hex1bModifiers.None));
 
         Assert.Equal(InputResult.NotHandled, result);
         Assert.False(clicked);
     }
 
     [Fact]
-    public void HandleInput_NotFocused_DoesNotClick()
+    public async Task HandleInput_NotFocused_DoesNotClick()
     {
         var clicked = false;
         var node = new ButtonNode
         {
             Label = "Click Me",
             IsFocused = false,
-            ClickAction = () => clicked = true
+            ClickAction = _ => { clicked = true; return Task.CompletedTask; }
         };
 
-        var result = InputRouter.RouteInputToNode(node, new Hex1bKeyEvent(Hex1bKey.Enter, '\r', Hex1bModifiers.None));
+        var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.Enter, '\r', Hex1bModifiers.None));
 
         // Bindings execute regardless of focus (focus check is for HandleInput fallback)
         // But the action should still fire since bindings don't check focus
@@ -255,7 +255,7 @@ public class ButtonNodeTests
     }
 
     [Fact]
-    public void HandleInput_NullClickAction_DoesNotThrow()
+    public async Task HandleInput_NullClickAction_DoesNotThrow()
     {
         var node = new ButtonNode
         {
@@ -265,23 +265,23 @@ public class ButtonNodeTests
         };
 
         // With no ClickAction, no bindings are registered, so Enter falls through
-        var result = InputRouter.RouteInputToNode(node, new Hex1bKeyEvent(Hex1bKey.Enter, '\r', Hex1bModifiers.None));
+        var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.Enter, '\r', Hex1bModifiers.None));
 
         Assert.Equal(InputResult.NotHandled, result);
     }
 
     [Fact]
-    public void HandleInput_Tab_DoesNotTriggerClick()
+    public async Task HandleInput_Tab_DoesNotTriggerClick()
     {
         var clicked = false;
         var node = new ButtonNode
         {
             Label = "Click",
             IsFocused = true,
-            ClickAction = () => clicked = true
+            ClickAction = _ => { clicked = true; return Task.CompletedTask; }
         };
 
-        var result = InputRouter.RouteInputToNode(node, new Hex1bKeyEvent(Hex1bKey.Tab, '\t', Hex1bModifiers.None));
+        var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.Tab, '\t', Hex1bModifiers.None));
 
         Assert.Equal(InputResult.NotHandled, result);
         Assert.False(clicked);
@@ -326,7 +326,7 @@ public class ButtonNodeTests
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.VStack(v => [
-                    v.Button("Click Me", () => { })
+                    v.Button("Click Me", _ => Task.CompletedTask)
                 ])
             ),
             new Hex1bAppOptions { Terminal = terminal }
@@ -347,7 +347,7 @@ public class ButtonNodeTests
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.VStack(v => [
-                    v.Button("Submit", () => clicked = true)
+                    v.Button("Submit", _ => { clicked = true; return Task.CompletedTask; })
                 ])
             ),
             new Hex1bAppOptions { Terminal = terminal }
@@ -370,7 +370,7 @@ public class ButtonNodeTests
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.VStack(v => [
-                    v.Button("Submit", () => clicked = true)
+                    v.Button("Submit", _ => { clicked = true; return Task.CompletedTask; })
                 ])
             ),
             new Hex1bAppOptions { Terminal = terminal }
@@ -394,7 +394,7 @@ public class ButtonNodeTests
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.VStack(v => [
                     v.Text($"Count: {counter}"),
-                    v.Button("Increment", () => counter++)
+                    v.Button("Increment", _ => { counter++; return Task.CompletedTask; })
                 ])
             ),
             new Hex1bAppOptions { Terminal = terminal }
@@ -422,8 +422,8 @@ public class ButtonNodeTests
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.VStack(v => [
-                    v.Button("Button 1", () => button1Clicked = true),
-                    v.Button("Button 2", () => button2Clicked = true)
+                    v.Button("Button 1", _ => { button1Clicked = true; return Task.CompletedTask; }),
+                    v.Button("Button 2", _ => { button2Clicked = true; return Task.CompletedTask; })
                 ])
             ),
             new Hex1bAppOptions { Terminal = terminal }
@@ -449,7 +449,7 @@ public class ButtonNodeTests
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.VStack(v => [
-                    v.Button("OK", () => clicked = true)
+                    v.Button("OK", _ => { clicked = true; return Task.CompletedTask; })
                 ])
             ),
             new Hex1bAppOptions { Terminal = terminal }
@@ -472,7 +472,7 @@ public class ButtonNodeTests
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.VStack(v => [
-                    v.Button("Click Here Now", () => { })
+                    v.Button("Click Here Now", _ => Task.CompletedTask)
                 ])
             ),
             new Hex1bAppOptions { Terminal = terminal }
@@ -496,7 +496,7 @@ public class ButtonNodeTests
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.VStack(v => [
                     v.TextBox(textState),
-                    v.Button("Submit", () => buttonClicked = true)
+                    v.Button("Submit", _ => { buttonClicked = true; return Task.CompletedTask; })
                 ])
             ),
             new Hex1bAppOptions { Terminal = terminal }
@@ -526,7 +526,7 @@ public class ButtonNodeTests
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.VStack(v => [
-                    v.Button("Click", () => clickCount++)
+                    v.Button("Click", _ => { clickCount++; return Task.CompletedTask; })
                 ])
             ),
             new Hex1bAppOptions { Terminal = terminal }
@@ -553,7 +553,7 @@ public class ButtonNodeTests
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.VStack(v => [
-                    v.Button($"Clicked {counter} times", () => counter++)
+                    v.Button($"Clicked {counter} times", _ => { counter++; return Task.CompletedTask; })
                 ])
             ),
             new Hex1bAppOptions { Terminal = terminal }

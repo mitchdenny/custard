@@ -192,7 +192,7 @@ public class VStackNodeTests
     }
 
     [Fact]
-    public void HandleInput_Tab_MovesFocus()
+    public async Task HandleInput_Tab_MovesFocus()
     {
         var textBox1 = new TextBoxNode { State = new TextBoxState(), IsFocused = true };
         var textBox2 = new TextBoxNode { State = new TextBoxState(), IsFocused = false };
@@ -206,7 +206,7 @@ public class VStackNodeTests
         var focusRing = new FocusRing();
         focusRing.Rebuild(node);
 
-        var result = InputRouter.RouteInput(node, new Hex1bKeyEvent(Hex1bKey.Tab, '\t', Hex1bModifiers.None), focusRing);
+        var result = await InputRouter.RouteInputAsync(node, new Hex1bKeyEvent(Hex1bKey.Tab, '\t', Hex1bModifiers.None), focusRing);
 
         Assert.Equal(InputResult.Handled, result);
         Assert.False(textBox1.IsFocused);
@@ -214,7 +214,7 @@ public class VStackNodeTests
     }
 
     [Fact]
-    public void HandleInput_ShiftTab_MovesFocusBackward()
+    public async Task HandleInput_ShiftTab_MovesFocusBackward()
     {
         var textBox1 = new TextBoxNode { State = new TextBoxState(), IsFocused = false };
         var textBox2 = new TextBoxNode { State = new TextBoxState(), IsFocused = true };
@@ -228,14 +228,14 @@ public class VStackNodeTests
         focusRing.Rebuild(node);
 
         // textBox2 starts focused at index 1, shift-tab moves back to index 0
-        InputRouter.RouteInput(node, new Hex1bKeyEvent(Hex1bKey.Tab, '\t', Hex1bModifiers.Shift), focusRing);
+        await InputRouter.RouteInputAsync(node, new Hex1bKeyEvent(Hex1bKey.Tab, '\t', Hex1bModifiers.Shift), focusRing);
 
         Assert.True(textBox1.IsFocused);
         Assert.False(textBox2.IsFocused);
     }
 
     [Fact]
-    public void HandleInput_DispatchesToFocusedChild()
+    public async Task HandleInput_DispatchesToFocusedChild()
     {
         var state = new TextBoxState { Text = "hello", CursorPosition = 5 };
         var textBox = new TextBoxNode { State = state, IsFocused = true };
@@ -246,13 +246,13 @@ public class VStackNodeTests
         focusRing.Rebuild(node);
 
         // Use InputRouter to route input to the focused child
-        InputRouter.RouteInput(node, new Hex1bKeyEvent(Hex1bKey.X, 'X', Hex1bModifiers.None), focusRing);
+        await InputRouter.RouteInputAsync(node, new Hex1bKeyEvent(Hex1bKey.X, 'X', Hex1bModifiers.None), focusRing);
 
         Assert.Equal("helloX", state.Text);
     }
 
     [Fact]
-    public void HandleInput_Tab_WrapsAroundToFirst()
+    public async Task HandleInput_Tab_WrapsAroundToFirst()
     {
         var button1 = new ButtonNode { Label = "1", IsFocused = false };
         var button2 = new ButtonNode { Label = "2", IsFocused = true };
@@ -266,7 +266,7 @@ public class VStackNodeTests
         focusRing.Rebuild(node);
 
         // button2 starts focused at index 1, one Tab wraps to index 0
-        InputRouter.RouteInput(node, new Hex1bKeyEvent(Hex1bKey.Tab, '\t', Hex1bModifiers.None), focusRing);
+        await InputRouter.RouteInputAsync(node, new Hex1bKeyEvent(Hex1bKey.Tab, '\t', Hex1bModifiers.None), focusRing);
 
         Assert.True(button1.IsFocused);
         Assert.False(button2.IsFocused);
@@ -477,7 +477,7 @@ public class VStackNodeTests
                 ctx.VStack(v => [
                     v.Text("Title"),
                     v.TextBox(textState),
-                    v.Button("Submit", () => clicked = true)
+                    v.Button("Submit", _ => { clicked = true; return Task.CompletedTask; })
                 ])
             ),
             new Hex1bAppOptions { Terminal = terminal }

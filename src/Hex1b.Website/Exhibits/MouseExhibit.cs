@@ -43,16 +43,17 @@ public class MouseExhibit : IGalleryExhibit
                     new TextBlockWidget("Click buttons to activate them:"),
                     new TextBlockWidget(""),
                     new HStackWidget([
-                        new ButtonWidget("Count++", () => _clickCount++),
+                        new ButtonWidget("Count++") { OnClick = _ => { _clickCount++; return Task.CompletedTask; } },
                         new TextBlockWidget($"  Clicks: {_clickCount}")
                     ]),
                     new TextBlockWidget(""),
-                    new ButtonWidget("Reset", () => {
+                    new ButtonWidget("Reset") { OnClick = _ => {
                         _clickCount = 0;
                         _textBox1.Text = "Click me!";
                         _textBox2.Text = "Or me!";
                         _textBox3.Text = "Type here...";
-                    }),
+                        return Task.CompletedTask;
+                    }},
                     new TextBlockWidget(""),
                     new TextBlockWidget("The yellow cursor shows mouse position.")
                 ]),

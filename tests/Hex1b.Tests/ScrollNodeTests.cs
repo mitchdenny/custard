@@ -628,7 +628,7 @@ public class ScrollNodeTests
     #region Input Handling - Vertical Scroll
 
     [Fact]
-    public void HandleInput_DownArrow_WhenFocused_ScrollsDown()
+    public async Task HandleInput_DownArrow_WhenFocused_ScrollsDown()
     {
         var state = new ScrollState { ContentSize = 20, ViewportSize = 10 };
         var node = new ScrollNode
@@ -641,14 +641,14 @@ public class ScrollNodeTests
         node.Measure(Constraints.Unbounded);
         node.Arrange(new Rect(0, 0, 40, 10));
 
-        var result = InputRouter.RouteInputToNode(node, new Hex1bKeyEvent(Hex1bKey.DownArrow, '\0', Hex1bModifiers.None));
+        var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.DownArrow, '\0', Hex1bModifiers.None));
 
         Assert.Equal(InputResult.Handled, result);
         Assert.Equal(1, state.Offset);
     }
 
     [Fact]
-    public void HandleInput_UpArrow_WhenFocused_ScrollsUp()
+    public async Task HandleInput_UpArrow_WhenFocused_ScrollsUp()
     {
         var state = new ScrollState { ContentSize = 20, ViewportSize = 10, Offset = 5 };
         var node = new ScrollNode
@@ -661,14 +661,14 @@ public class ScrollNodeTests
         node.Measure(Constraints.Unbounded);
         node.Arrange(new Rect(0, 0, 40, 10));
 
-        var result = InputRouter.RouteInputToNode(node, new Hex1bKeyEvent(Hex1bKey.UpArrow, '\0', Hex1bModifiers.None));
+        var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.UpArrow, '\0', Hex1bModifiers.None));
 
         Assert.Equal(InputResult.Handled, result);
         Assert.Equal(4, state.Offset);
     }
 
     [Fact]
-    public void HandleInput_PageDown_WhenFocused_ScrollsByViewportSize()
+    public async Task HandleInput_PageDown_WhenFocused_ScrollsByViewportSize()
     {
         var state = new ScrollState { ContentSize = 50, ViewportSize = 10 };
         var node = new ScrollNode
@@ -681,14 +681,14 @@ public class ScrollNodeTests
         node.Measure(Constraints.Unbounded);
         node.Arrange(new Rect(0, 0, 40, 10));
 
-        var result = InputRouter.RouteInputToNode(node, new Hex1bKeyEvent(Hex1bKey.PageDown, '\0', Hex1bModifiers.None));
+        var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.PageDown, '\0', Hex1bModifiers.None));
 
         Assert.Equal(InputResult.Handled, result);
         Assert.Equal(9, state.Offset);
     }
 
     [Fact]
-    public void HandleInput_Home_WhenFocused_ScrollsToStart()
+    public async Task HandleInput_Home_WhenFocused_ScrollsToStart()
     {
         var state = new ScrollState { ContentSize = 50, ViewportSize = 10, Offset = 25 };
         var node = new ScrollNode
@@ -701,14 +701,14 @@ public class ScrollNodeTests
         node.Measure(Constraints.Unbounded);
         node.Arrange(new Rect(0, 0, 40, 10));
 
-        var result = InputRouter.RouteInputToNode(node, new Hex1bKeyEvent(Hex1bKey.Home, '\0', Hex1bModifiers.None));
+        var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.Home, '\0', Hex1bModifiers.None));
 
         Assert.Equal(InputResult.Handled, result);
         Assert.Equal(0, state.Offset);
     }
 
     [Fact]
-    public void HandleInput_End_WhenFocused_ScrollsToEnd()
+    public async Task HandleInput_End_WhenFocused_ScrollsToEnd()
     {
         var state = new ScrollState { ContentSize = 50, ViewportSize = 10 };
         var node = new ScrollNode
@@ -721,14 +721,14 @@ public class ScrollNodeTests
         node.Measure(Constraints.Unbounded);
         node.Arrange(new Rect(0, 0, 40, 10));
 
-        var result = InputRouter.RouteInputToNode(node, new Hex1bKeyEvent(Hex1bKey.End, '\0', Hex1bModifiers.None));
+        var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.End, '\0', Hex1bModifiers.None));
 
         Assert.Equal(InputResult.Handled, result);
         Assert.Equal(40, state.Offset);
     }
 
     [Fact]
-    public void HandleInput_NotFocused_DoesNotScroll()
+    public async Task HandleInput_NotFocused_DoesNotScroll()
     {
         var state = new ScrollState { ContentSize = 20, ViewportSize = 10 };
         var node = new ScrollNode
@@ -741,7 +741,7 @@ public class ScrollNodeTests
         node.Measure(Constraints.Unbounded);
         node.Arrange(new Rect(0, 0, 40, 10));
 
-        InputRouter.RouteInputToNode(node, new Hex1bKeyEvent(Hex1bKey.DownArrow, '\0', Hex1bModifiers.None));
+        await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.DownArrow, '\0', Hex1bModifiers.None));
 
         Assert.Equal(0, state.Offset);
     }
@@ -751,7 +751,7 @@ public class ScrollNodeTests
     #region Input Handling - Horizontal Scroll
 
     [Fact]
-    public void HandleInput_RightArrow_WhenFocused_ScrollsRight()
+    public async Task HandleInput_RightArrow_WhenFocused_ScrollsRight()
     {
         var state = new ScrollState { ContentSize = 100, ViewportSize = 30 };
         var node = new ScrollNode
@@ -764,14 +764,14 @@ public class ScrollNodeTests
         node.Measure(Constraints.Unbounded);
         node.Arrange(new Rect(0, 0, 30, 10));
 
-        var result = InputRouter.RouteInputToNode(node, new Hex1bKeyEvent(Hex1bKey.RightArrow, '\0', Hex1bModifiers.None));
+        var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.RightArrow, '\0', Hex1bModifiers.None));
 
         Assert.Equal(InputResult.Handled, result);
         Assert.Equal(1, state.Offset);
     }
 
     [Fact]
-    public void HandleInput_LeftArrow_WhenFocused_ScrollsLeft()
+    public async Task HandleInput_LeftArrow_WhenFocused_ScrollsLeft()
     {
         var state = new ScrollState { ContentSize = 100, ViewportSize = 30, Offset = 10 };
         var node = new ScrollNode
@@ -784,14 +784,14 @@ public class ScrollNodeTests
         node.Measure(Constraints.Unbounded);
         node.Arrange(new Rect(0, 0, 30, 10));
 
-        var result = InputRouter.RouteInputToNode(node, new Hex1bKeyEvent(Hex1bKey.LeftArrow, '\0', Hex1bModifiers.None));
+        var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.LeftArrow, '\0', Hex1bModifiers.None));
 
         Assert.Equal(InputResult.Handled, result);
         Assert.Equal(9, state.Offset);
     }
 
     [Fact]
-    public void HandleInput_Horizontal_UpDownArrows_DoNotScroll()
+    public async Task HandleInput_Horizontal_UpDownArrows_DoNotScroll()
     {
         var state = new ScrollState { ContentSize = 100, ViewportSize = 30 };
         var node = new ScrollNode
@@ -805,7 +805,7 @@ public class ScrollNodeTests
         node.Arrange(new Rect(0, 0, 30, 10));
 
         // Up/down arrows match bindings but don't scroll horizontal
-        var result = InputRouter.RouteInputToNode(node, new Hex1bKeyEvent(Hex1bKey.UpArrow, '\0', Hex1bModifiers.None));
+        var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.UpArrow, '\0', Hex1bModifiers.None));
 
         Assert.Equal(InputResult.Handled, result);
         Assert.Equal(0, state.Offset); // No scroll
@@ -961,7 +961,7 @@ public class ScrollNodeTests
                 ctx.VScroll(
                     v => [
                         v.Text("Content"),
-                        v.Button("Click Me", () => buttonClicked = true),
+                        v.Button("Click Me", _ => { buttonClicked = true; return Task.CompletedTask; }),
                     ]
                 )
             ),

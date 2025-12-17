@@ -389,7 +389,7 @@ public class SplitterNodeTests
     #region Input Handling - Resize Tests
 
     [Fact]
-    public void HandleInput_LeftArrow_WhenFocused_DecreasesLeftWidth()
+    public async Task HandleInput_LeftArrow_WhenFocused_DecreasesLeftWidth()
     {
         var node = new SplitterNode
         {
@@ -402,14 +402,14 @@ public class SplitterNodeTests
         node.Measure(Constraints.Unbounded);
         node.Arrange(new Rect(0, 0, 50, 10));
 
-        var result = InputRouter.RouteInputToNode(node, new Hex1bKeyEvent(Hex1bKey.LeftArrow, '\0', Hex1bModifiers.None));
+        var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.LeftArrow, '\0', Hex1bModifiers.None));
 
         Assert.Equal(InputResult.Handled, result);
         Assert.Equal(18, node.LeftWidth);
     }
 
     [Fact]
-    public void HandleInput_RightArrow_WhenFocused_IncreasesLeftWidth()
+    public async Task HandleInput_RightArrow_WhenFocused_IncreasesLeftWidth()
     {
         var node = new SplitterNode
         {
@@ -422,14 +422,14 @@ public class SplitterNodeTests
         node.Measure(Constraints.Unbounded);
         node.Arrange(new Rect(0, 0, 50, 10));
 
-        var result = InputRouter.RouteInputToNode(node, new Hex1bKeyEvent(Hex1bKey.RightArrow, '\0', Hex1bModifiers.None));
+        var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.RightArrow, '\0', Hex1bModifiers.None));
 
         Assert.Equal(InputResult.Handled, result);
         Assert.Equal(22, node.LeftWidth);
     }
 
     [Fact]
-    public void HandleInput_LeftArrow_RespectsMinLeftWidth()
+    public async Task HandleInput_LeftArrow_RespectsMinLeftWidth()
     {
         var node = new SplitterNode
         {
@@ -443,13 +443,13 @@ public class SplitterNodeTests
         node.Measure(Constraints.Unbounded);
         node.Arrange(new Rect(0, 0, 50, 10));
 
-        InputRouter.RouteInputToNode(node, new Hex1bKeyEvent(Hex1bKey.LeftArrow, '\0', Hex1bModifiers.None));
+        await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.LeftArrow, '\0', Hex1bModifiers.None));
 
         Assert.Equal(5, node.LeftWidth); // Clamped to MinLeftWidth
     }
 
     [Fact]
-    public void HandleInput_RightArrow_RespectsMaxWidth()
+    public async Task HandleInput_RightArrow_RespectsMaxWidth()
     {
         var node = new SplitterNode
         {
@@ -463,13 +463,13 @@ public class SplitterNodeTests
         node.Measure(Constraints.Unbounded);
         node.Arrange(new Rect(0, 0, 50, 10)); // Total 50, max left = 50 - 3 - 5 = 42
 
-        InputRouter.RouteInputToNode(node, new Hex1bKeyEvent(Hex1bKey.RightArrow, '\0', Hex1bModifiers.None));
+        await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.RightArrow, '\0', Hex1bModifiers.None));
 
         Assert.True(node.LeftWidth <= 42);
     }
 
     [Fact]
-    public void HandleInput_NotFocused_DoesNotResize()
+    public async Task HandleInput_NotFocused_DoesNotResize()
     {
         var node = new SplitterNode
         {
@@ -482,7 +482,7 @@ public class SplitterNodeTests
         node.Arrange(new Rect(0, 0, 50, 10));
 
         // Arrow keys won't resize when not focused
-        InputRouter.RouteInputToNode(node, new Hex1bKeyEvent(Hex1bKey.LeftArrow, '\0', Hex1bModifiers.None));
+        await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.LeftArrow, '\0', Hex1bModifiers.None));
 
         Assert.Equal(20, node.LeftWidth);
     }
@@ -492,7 +492,7 @@ public class SplitterNodeTests
     #region Input Handling - Tab Navigation Tests
 
     [Fact]
-    public void HandleInput_Tab_MovesFocusToNextFocusable()
+    public async Task HandleInput_Tab_MovesFocusToNextFocusable()
     {
         var leftButton = new ButtonNode { Label = "Left", IsFocused = true };
         var rightButton = new ButtonNode { Label = "Right" };
@@ -506,7 +506,7 @@ public class SplitterNodeTests
         var focusRing = new FocusRing();
         focusRing.Rebuild(node);
 
-        InputRouter.RouteInput(node, new Hex1bKeyEvent(Hex1bKey.Tab, '\t', Hex1bModifiers.None), focusRing);
+        await InputRouter.RouteInputAsync(node, new Hex1bKeyEvent(Hex1bKey.Tab, '\t', Hex1bModifiers.None), focusRing);
 
         // Focus moves from left button to splitter itself
         Assert.False(leftButton.IsFocused);
@@ -514,7 +514,7 @@ public class SplitterNodeTests
     }
 
     [Fact]
-    public void HandleInput_ShiftTab_MovesFocusToPreviousFocusable()
+    public async Task HandleInput_ShiftTab_MovesFocusToPreviousFocusable()
     {
         var leftButton = new ButtonNode { Label = "Left" };
         var rightButton = new ButtonNode { Label = "Right", IsFocused = true };
@@ -528,7 +528,7 @@ public class SplitterNodeTests
         var focusRing = new FocusRing();
         focusRing.Rebuild(node);
 
-        InputRouter.RouteInput(node, new Hex1bKeyEvent(Hex1bKey.Tab, '\t', Hex1bModifiers.Shift), focusRing);
+        await InputRouter.RouteInputAsync(node, new Hex1bKeyEvent(Hex1bKey.Tab, '\t', Hex1bModifiers.Shift), focusRing);
 
         // Focus moves from right button to splitter
         Assert.False(rightButton.IsFocused);
@@ -536,7 +536,7 @@ public class SplitterNodeTests
     }
 
     [Fact]
-    public void HandleInput_Tab_WrapsAround()
+    public async Task HandleInput_Tab_WrapsAround()
     {
         var leftButton = new ButtonNode { Label = "Left" };
         var rightButton = new ButtonNode { Label = "Right", IsFocused = true };
@@ -550,7 +550,7 @@ public class SplitterNodeTests
         var focusRing = new FocusRing();
         focusRing.Rebuild(node);
 
-        InputRouter.RouteInput(node, new Hex1bKeyEvent(Hex1bKey.Tab, '\t', Hex1bModifiers.None), focusRing);
+        await InputRouter.RouteInputAsync(node, new Hex1bKeyEvent(Hex1bKey.Tab, '\t', Hex1bModifiers.None), focusRing);
 
         // Focus wraps from right button to left button
         Assert.True(leftButton.IsFocused);
@@ -558,7 +558,7 @@ public class SplitterNodeTests
     }
 
     [Fact]
-    public void HandleInput_Escape_JumpsToFirstFocusable()
+    public async Task HandleInput_Escape_JumpsToFirstFocusable()
     {
         var leftButton = new ButtonNode { Label = "Left" };
         var rightButton = new ButtonNode { Label = "Right", IsFocused = true };
@@ -569,7 +569,7 @@ public class SplitterNodeTests
         };
         node.SyncFocusIndex();
 
-        var result = InputRouter.RouteInputToNode(node, new Hex1bKeyEvent(Hex1bKey.Escape, '\x1b', Hex1bModifiers.None));
+        var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.Escape, '\x1b', Hex1bModifiers.None));
 
         Assert.Equal(InputResult.Handled, result);
         Assert.True(leftButton.IsFocused);
@@ -581,14 +581,14 @@ public class SplitterNodeTests
     #region Input Handling - Child Input Tests
 
     [Fact]
-    public void HandleInput_Enter_PassesToFocusedChild()
+    public async Task HandleInput_Enter_PassesToFocusedChild()
     {
         var clicked = false;
         var button = new ButtonNode
         {
             Label = "Click",
             IsFocused = true,
-            ClickAction = () => clicked = true
+            ClickAction = _ => { clicked = true; return Task.CompletedTask; }
         };
         var node = new SplitterNode
         {
@@ -598,14 +598,14 @@ public class SplitterNodeTests
         node.SyncFocusIndex();
 
         // Use InputRouter to route input to the focused child
-        var result = InputRouter.RouteInput(node, new Hex1bKeyEvent(Hex1bKey.Enter, '\r', Hex1bModifiers.None));
+        var result = await InputRouter.RouteInputAsync(node, new Hex1bKeyEvent(Hex1bKey.Enter, '\r', Hex1bModifiers.None));
 
         Assert.Equal(InputResult.Handled, result);
         Assert.True(clicked);
     }
 
     [Fact]
-    public void HandleInput_Typing_PassesToFocusedTextBox()
+    public async Task HandleInput_Typing_PassesToFocusedTextBox()
     {
         var textBoxState = new TextBoxState();
         var textBox = new TextBoxNode
@@ -621,9 +621,9 @@ public class SplitterNodeTests
         node.SyncFocusIndex();
 
         // Use InputRouter to route input to the focused child
-        InputRouter.RouteInput(node, new Hex1bKeyEvent(Hex1bKey.A, 'a', Hex1bModifiers.None));
-        InputRouter.RouteInput(node, new Hex1bKeyEvent(Hex1bKey.B, 'b', Hex1bModifiers.None));
-        InputRouter.RouteInput(node, new Hex1bKeyEvent(Hex1bKey.C, 'c', Hex1bModifiers.None));
+        await InputRouter.RouteInputAsync(node, new Hex1bKeyEvent(Hex1bKey.A, 'a', Hex1bModifiers.None));
+        await InputRouter.RouteInputAsync(node, new Hex1bKeyEvent(Hex1bKey.B, 'b', Hex1bModifiers.None));
+        await InputRouter.RouteInputAsync(node, new Hex1bKeyEvent(Hex1bKey.C, 'c', Hex1bModifiers.None));
 
         Assert.Equal("abc", textBoxState.Text);
     }
@@ -690,7 +690,7 @@ public class SplitterNodeTests
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.Splitter(
-                    ctx.Button("Left", () => leftClicked = true),
+                    ctx.Button("Left", _ => { leftClicked = true; return Task.CompletedTask; }),
                     ctx.Text("Right"),
                     leftWidth: 20
                 )
@@ -715,8 +715,8 @@ public class SplitterNodeTests
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.Splitter(
-                    ctx.Button("Left", () => { }),
-                    ctx.Button("Right", () => rightClicked = true),
+                    ctx.Button("Left", _ => Task.CompletedTask),
+                    ctx.Button("Right", _ => { rightClicked = true; return Task.CompletedTask; }),
                     leftWidth: 20
                 )
             ),
@@ -1109,7 +1109,7 @@ public class SplitterNodeTests
     #region Vertical Splitter - Input Handling Tests
 
     [Fact]
-    public void HandleInput_Vertical_UpArrow_WhenFocused_DecreasesFirstSize()
+    public async Task HandleInput_Vertical_UpArrow_WhenFocused_DecreasesFirstSize()
     {
         var node = new SplitterNode
         {
@@ -1123,14 +1123,14 @@ public class SplitterNodeTests
         node.Measure(Constraints.Unbounded);
         node.Arrange(new Rect(0, 0, 30, 20));
 
-        var result = InputRouter.RouteInputToNode(node, new Hex1bKeyEvent(Hex1bKey.UpArrow, '\0', Hex1bModifiers.None));
+        var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.UpArrow, '\0', Hex1bModifiers.None));
 
         Assert.Equal(InputResult.Handled, result);
         Assert.Equal(8, node.FirstSize);
     }
 
     [Fact]
-    public void HandleInput_Vertical_DownArrow_WhenFocused_IncreasesFirstSize()
+    public async Task HandleInput_Vertical_DownArrow_WhenFocused_IncreasesFirstSize()
     {
         var node = new SplitterNode
         {
@@ -1144,14 +1144,14 @@ public class SplitterNodeTests
         node.Measure(Constraints.Unbounded);
         node.Arrange(new Rect(0, 0, 30, 20));
 
-        var result = InputRouter.RouteInputToNode(node, new Hex1bKeyEvent(Hex1bKey.DownArrow, '\0', Hex1bModifiers.None));
+        var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.DownArrow, '\0', Hex1bModifiers.None));
 
         Assert.Equal(InputResult.Handled, result);
         Assert.Equal(12, node.FirstSize);
     }
 
     [Fact]
-    public void HandleInput_Vertical_UpArrow_RespectsMinFirstSize()
+    public async Task HandleInput_Vertical_UpArrow_RespectsMinFirstSize()
     {
         var node = new SplitterNode
         {
@@ -1166,13 +1166,13 @@ public class SplitterNodeTests
         node.Measure(Constraints.Unbounded);
         node.Arrange(new Rect(0, 0, 30, 20));
 
-        InputRouter.RouteInputToNode(node, new Hex1bKeyEvent(Hex1bKey.UpArrow, '\0', Hex1bModifiers.None));
+        await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.UpArrow, '\0', Hex1bModifiers.None));
 
         Assert.Equal(5, node.FirstSize); // Clamped to MinFirstSize
     }
 
     [Fact]
-    public void HandleInput_Vertical_DownArrow_RespectsMaxHeight()
+    public async Task HandleInput_Vertical_DownArrow_RespectsMaxHeight()
     {
         var node = new SplitterNode
         {
@@ -1187,13 +1187,13 @@ public class SplitterNodeTests
         node.Measure(Constraints.Unbounded);
         node.Arrange(new Rect(0, 0, 30, 20)); // Total 20, max first = 20 - 1 - 5 = 14
 
-        InputRouter.RouteInputToNode(node, new Hex1bKeyEvent(Hex1bKey.DownArrow, '\0', Hex1bModifiers.None));
+        await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.DownArrow, '\0', Hex1bModifiers.None));
 
         Assert.True(node.FirstSize <= 14);
     }
 
     [Fact]
-    public void HandleInput_Vertical_LeftRightArrows_DoNotResize()
+    public async Task HandleInput_Vertical_LeftRightArrows_DoNotResize()
     {
         var node = new SplitterNode
         {
@@ -1207,7 +1207,7 @@ public class SplitterNodeTests
         node.Arrange(new Rect(0, 0, 30, 20));
 
         // Left/right arrows match bindings but don't resize vertical splitter
-        var result = InputRouter.RouteInputToNode(node, new Hex1bKeyEvent(Hex1bKey.LeftArrow, '\0', Hex1bModifiers.None));
+        var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.LeftArrow, '\0', Hex1bModifiers.None));
 
         // Binding matches and executes, but action checks orientation and does nothing
         Assert.Equal(InputResult.Handled, result);
@@ -1215,7 +1215,7 @@ public class SplitterNodeTests
     }
 
     [Fact]
-    public void HandleInput_Horizontal_UpDownArrows_DoNotResize()
+    public async Task HandleInput_Horizontal_UpDownArrows_DoNotResize()
     {
         var node = new SplitterNode
         {
@@ -1229,7 +1229,7 @@ public class SplitterNodeTests
         node.Arrange(new Rect(0, 0, 50, 10));
 
         // Up/down arrows match bindings but don't resize horizontal splitter
-        var result = InputRouter.RouteInputToNode(node, new Hex1bKeyEvent(Hex1bKey.UpArrow, '\0', Hex1bModifiers.None));
+        var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.UpArrow, '\0', Hex1bModifiers.None));
 
         // Binding matches and executes, but action checks orientation and does nothing
         Assert.Equal(InputResult.Handled, result);
@@ -1298,7 +1298,7 @@ public class SplitterNodeTests
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.VSplitter(
-                    ctx.Button("Top", () => topClicked = true),
+                    ctx.Button("Top", _ => { topClicked = true; return Task.CompletedTask; }),
                     ctx.Text("Bottom"),
                     topHeight: 5
                 )
@@ -1323,8 +1323,8 @@ public class SplitterNodeTests
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.VSplitter(
-                    ctx.Button("Top", () => { }),
-                    ctx.Button("Bottom", () => bottomClicked = true),
+                    ctx.Button("Top", _ => Task.CompletedTask),
+                    ctx.Button("Bottom", _ => { bottomClicked = true; return Task.CompletedTask; }),
                     topHeight: 5
                 )
             ),
@@ -1450,7 +1450,7 @@ public class SplitterNodeTests
                     // Left pane: VStack containing a List (this is the key scenario)
                     v => [v.Text("Theme List"), v.List(listState)],
                     // Right pane: VStack with Button that we want to Tab to
-                    v => [v.Button("Right Button", () => rightButtonClicked = true)],
+                    v => [v.Button("Right Button", _ => { rightButtonClicked = true; return Task.CompletedTask; })],
                     leftWidth: 20
                 )
             ),
@@ -1481,9 +1481,9 @@ public class SplitterNodeTests
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.Splitter(
                     // Left pane: VStack containing two Buttons
-                    v => [v.Button("First", () => { }), v.Button("Second", () => { })],
+                    v => [v.Button("First", _ => Task.CompletedTask), v.Button("Second", _ => Task.CompletedTask)],
                     // Right pane: VStack with Button
-                    v => [v.Button("Right", () => rightButtonClicked = true)],
+                    v => [v.Button("Right", _ => { rightButtonClicked = true; return Task.CompletedTask; })],
                     leftWidth: 25
                 )
             ),
@@ -1514,8 +1514,8 @@ public class SplitterNodeTests
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.Splitter(
-                    v => [v.Text("Left Pane"), v.Button("Left Button", () => leftButtonClicked = true)],
-                    v => [v.Text("Right Pane"), v.Button("Right Button", () => { })],
+                    v => [v.Text("Left Pane"), v.Button("Left Button", _ => { leftButtonClicked = true; return Task.CompletedTask; })],
+                    v => [v.Text("Right Pane"), v.Button("Right Button", _ => Task.CompletedTask)],
                     leftWidth: 20
                 )
             ),
@@ -1564,7 +1564,7 @@ public class SplitterNodeTests
                     ctx.Panel(p => [
                         p.VStack(v => [
                             v.Text("═══ Preview ═══"),
-                            v.Button("Click Me", () => rightButtonClicked = true)
+                            v.Button("Click Me", _ => { rightButtonClicked = true; return Task.CompletedTask; })
                         ])
                     ]),
                     leftWidth: 25
@@ -1774,10 +1774,10 @@ public class SplitterNodeTests
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.Splitter(
                     // Outer left: button that should get initial focus
-                    ctx.Button("Outer Left", () => outerLeftClicked = true),
+                    ctx.Button("Outer Left", _ => { outerLeftClicked = true; return Task.CompletedTask; }),
                     // Outer right: inner splitter with its own button
                     ctx.Splitter(
-                        ctx.Button("Inner Left", () => { }),
+                        ctx.Button("Inner Left", _ => Task.CompletedTask),
                         ctx.Text("Inner Right"),
                         leftWidth: 15
                     ),
@@ -1807,10 +1807,10 @@ public class SplitterNodeTests
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.Splitter(
-                    ctx.Button("Outer Left", () => outerLeftClicked = true),
+                    ctx.Button("Outer Left", _ => { outerLeftClicked = true; return Task.CompletedTask; }),
                     ctx.VSplitter(
-                        ctx.Button("Top", () => { }),
-                        ctx.Button("Bottom", () => { }),
+                        ctx.Button("Top", _ => Task.CompletedTask),
+                        ctx.Button("Bottom", _ => Task.CompletedTask),
                         topHeight: 8
                     ),
                     leftWidth: 20
@@ -1838,11 +1838,11 @@ public class SplitterNodeTests
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.Splitter(
-                    ctx.Button("Level 1", () => level1Clicked = true),
+                    ctx.Button("Level 1", _ => { level1Clicked = true; return Task.CompletedTask; }),
                     ctx.Splitter(
-                        ctx.Button("Level 2", () => { }),
+                        ctx.Button("Level 2", _ => Task.CompletedTask),
                         ctx.Splitter(
-                            ctx.Button("Level 3", () => { }),
+                            ctx.Button("Level 3", _ => Task.CompletedTask),
                             ctx.Text("Deepest"),
                             leftWidth: 12
                         ),
@@ -1869,13 +1869,13 @@ public class SplitterNodeTests
     public void DirectReconcile_NestedSplitters_OnlyOuterFirstFocusableIsFocused()
     {
         // Build widgets manually - outer splitter with inner splitter in second pane
-        var innerButton = new ButtonWidget("Inner Left", () => { });
+        var innerButton = new ButtonWidget("Inner Left") { OnClick = _ => Task.CompletedTask };
         var innerSplitter = new SplitterWidget(
             innerButton,
             new TextBlockWidget("Inner Right"),
             firstSize: 15
         );
-        var outerButton = new ButtonWidget("Outer Left", () => { });
+        var outerButton = new ButtonWidget("Outer Left") { OnClick = _ => Task.CompletedTask };
         var outerSplitter = new SplitterWidget(
             outerButton,
             innerSplitter,

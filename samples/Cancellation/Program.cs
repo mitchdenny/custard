@@ -104,14 +104,14 @@ static Task<Hex1bWidget> App(
                 detail.HStack(h => [h.Text("Name:  "), h.TextBox(nameState)]),
                 detail.HStack(h => [h.Text("Email: "), h.TextBox(emailState)]),
                 detail.Text(""),
-                detail.Button("Save", onSave),
-                detail.Button("Close", () => cts.Cancel())
+                detail.Button("Save", _ => onSave()),
+                detail.Button("Close", _ => cts.Cancel())
             ]),
             leftWidth: 25
         ).FillHeight().WithInputBindings(bindings =>
         {
-            bindings.Ctrl().Key(Hex1bKey.S).Action(onSave, "Save contact");
-            bindings.Ctrl().Key(Hex1bKey.Q).Action(() => cts.Cancel(), "Quit application");
+            bindings.Ctrl().Key(Hex1bKey.S).Action(_ => onSave(), "Save contact");
+            bindings.Ctrl().Key(Hex1bKey.Q).Action(_ => cts.Cancel(), "Quit application");
         }),
         v.HStack(h => [h.Text(statusText)])
     ]);

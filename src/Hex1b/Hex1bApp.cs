@@ -101,6 +101,9 @@ public class Hex1bApp<TState> : IDisposable where TState : class
     private readonly Func<RescueState, Hex1bWidget>? _rescueFallbackBuilder;
     private readonly IReadOnlyList<RescueAction> _rescueActions;
     private readonly RescueState _rescueState = new();
+    
+    // Stop request flag - set by ActionContext.RequestStop()
+    private volatile bool _stopRequested;
 
     /// <summary>
     /// The application state, accessible for external state mutations.
@@ -180,6 +183,17 @@ public class Hex1bApp<TState> : IDisposable where TState : class
     }
 
     /// <summary>
+    /// Requests the application to stop. The RunAsync call will exit gracefully
+    /// after the current frame completes.
+    /// </summary>
+    public void RequestStop()
+    {
+        _stopRequested = true;
+        // Also signal invalidation to wake up the main loop immediately
+        Invalidate();
+    }
+
+    /// <summary>
     /// Runs the application until cancellation is requested.
     /// </summary>
     public async Task RunAsync(CancellationToken cancellationToken = default)
@@ -191,7 +205,7 @@ public class Hex1bApp<TState> : IDisposable where TState : class
             await RenderFrameAsync(cancellationToken);
 
             // React to input events and invalidation signals
-            while (!cancellationToken.IsCancellationRequested)
+            while (!cancellationToken.IsCancellationRequested && !_stopRequested)
             {
                 // Wait for either an input event or an invalidation signal
                 var inputTask = _terminal.InputEvents.ReadAsync(cancellationToken).AsTask();
@@ -220,7 +234,7 @@ public class Hex1bApp<TState> : IDisposable where TState : class
                         // Key events are routed to the focused node through the tree
                         case Hex1bKeyEvent keyEvent when _rootNode != null:
                             // Use input routing system - routes to focused node, checks bindings, then calls HandleInput
-                            InputRouter.RouteInput(_rootNode, keyEvent, _focusRing);
+                            await InputRouter.RouteInputAsync(_rootNode, keyEvent, _focusRing, RequestStop);
                             break;
                         
                         // Mouse events: update cursor position and handle clicks/drags
@@ -253,7 +267,7 @@ public class Hex1bApp<TState> : IDisposable where TState : class
                             // Handle click events (button down) - may start a drag
                             if (mouseEvent.Action == MouseAction.Down && mouseEvent.Button != MouseButton.None)
                             {
-                                HandleMouseClick(mouseEvent);
+                                await HandleMouseClickAsync(mouseEvent);
                             }
                             break;
                     }
@@ -381,7 +395,7 @@ public class Hex1bApp<TState> : IDisposable where TState : class
     /// Handles a mouse click by hit testing and routing through bindings.
     /// May initiate a drag if a drag binding matches.
     /// </summary>
-    private void HandleMouseClick(Hex1bMouseEvent mouseEvent)
+    private async Task HandleMouseClickAsync(Hex1bMouseEvent mouseEvent)
     {
         // Compute click count for double/triple click detection
         var clickCount = ComputeClickCount(mouseEvent);
@@ -401,6 +415,9 @@ public class Hex1bApp<TState> : IDisposable where TState : class
         // Calculate local coordinates for this node
         var localX = mouseEvent.X - hitNode.Bounds.X;
         var localY = mouseEvent.Y - hitNode.Bounds.Y;
+        
+        // Create action context for mouse bindings
+        var actionContext = new ActionContext(_focusRing, RequestStop);
         
         // Check if the node has a drag binding for this event (checked first)
         var builder = hitNode.BuildBindings();
@@ -426,7 +443,7 @@ public class Hex1bApp<TState> : IDisposable where TState : class
         {
             if (mouseBinding.Matches(eventWithClickCount))
             {
-                mouseBinding.Execute();
+                await mouseBinding.ExecuteAsync(actionContext);
                 return; // First match wins
             }
         }

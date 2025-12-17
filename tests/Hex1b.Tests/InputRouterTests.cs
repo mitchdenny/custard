@@ -68,7 +68,7 @@ public class InputRouterTests
     }
 
     [Fact]
-    public void RouteInput_ToFocusedNode_RoutesSuccessfully()
+    public async Task RouteInput_ToFocusedNode_RoutesSuccessfully()
     {
         // Arrange
         var focusedNode = new MockFocusableNode { IsFocused = true };
@@ -79,7 +79,7 @@ public class InputRouterTests
         var keyEvent = Hex1bKeyEvent.Plain(Hex1bKey.A, 'a');
         
         // Act
-        var result = InputRouter.RouteInput(container, keyEvent);
+        var result = await InputRouter.RouteInputAsync(container, keyEvent);
         
         // Assert
         Assert.Equal(InputResult.Handled, result);
@@ -88,14 +88,14 @@ public class InputRouterTests
     }
 
     [Fact]
-    public void RouteInput_WithMatchingBinding_ExecutesBinding()
+    public async Task RouteInput_WithMatchingBinding_ExecutesBinding()
     {
         // Arrange
         var bindingExecuted = false;
         var focusedNode = new MockFocusableNode { IsFocused = true };
         focusedNode.BindingsConfig = bindings =>
         {
-            bindings.Ctrl().Key(Hex1bKey.S).Action(() => bindingExecuted = true, "Save");
+            bindings.Ctrl().Key(Hex1bKey.S).Action(_ => { bindingExecuted = true; return Task.CompletedTask; }, "Save");
         };
         
         var container = new MockContainerNode();
@@ -105,7 +105,7 @@ public class InputRouterTests
         var keyEvent = Hex1bKeyEvent.WithCtrl(Hex1bKey.S);
         
         // Act
-        var result = InputRouter.RouteInput(container, keyEvent);
+        var result = await InputRouter.RouteInputAsync(container, keyEvent);
         
         // Assert
         Assert.Equal(InputResult.Handled, result);
@@ -114,7 +114,7 @@ public class InputRouterTests
     }
 
     [Fact]
-    public void RouteInput_ChildBindingOverridesParentBinding()
+    public async Task RouteInput_ChildBindingOverridesParentBinding()
     {
         // Arrange
         var parentBindingExecuted = false;
@@ -123,13 +123,13 @@ public class InputRouterTests
         var focusedNode = new MockFocusableNode { IsFocused = true };
         focusedNode.BindingsConfig = bindings =>
         {
-            bindings.Ctrl().Key(Hex1bKey.S).Action(() => childBindingExecuted = true, "Child Save");
+            bindings.Ctrl().Key(Hex1bKey.S).Action(_ => { childBindingExecuted = true; return Task.CompletedTask; }, "Child Save");
         };
         
         var container = new MockContainerNode();
         container.BindingsConfig = bindings =>
         {
-            bindings.Ctrl().Key(Hex1bKey.S).Action(() => parentBindingExecuted = true, "Parent Save");
+            bindings.Ctrl().Key(Hex1bKey.S).Action(_ => { parentBindingExecuted = true; return Task.CompletedTask; }, "Parent Save");
         };
         container.Children.Add(focusedNode);
         focusedNode.Parent = container;
@@ -137,7 +137,7 @@ public class InputRouterTests
         var keyEvent = Hex1bKeyEvent.WithCtrl(Hex1bKey.S);
         
         // Act
-        var result = InputRouter.RouteInput(container, keyEvent);
+        var result = await InputRouter.RouteInputAsync(container, keyEvent);
         
         // Assert
         Assert.Equal(InputResult.Handled, result);
@@ -146,7 +146,7 @@ public class InputRouterTests
     }
 
     [Fact]
-    public void RouteInput_ParentBindingUsedWhenChildHasNone()
+    public async Task RouteInput_ParentBindingUsedWhenChildHasNone()
     {
         // Arrange
         var parentBindingExecuted = false;
@@ -157,7 +157,7 @@ public class InputRouterTests
         var container = new MockContainerNode();
         container.BindingsConfig = bindings =>
         {
-            bindings.Ctrl().Key(Hex1bKey.Q).Action(() => parentBindingExecuted = true, "Quit");
+            bindings.Ctrl().Key(Hex1bKey.Q).Action(_ => { parentBindingExecuted = true; return Task.CompletedTask; }, "Quit");
         };
         container.Children.Add(focusedNode);
         focusedNode.Parent = container;
@@ -165,7 +165,7 @@ public class InputRouterTests
         var keyEvent = Hex1bKeyEvent.WithCtrl(Hex1bKey.Q);
         
         // Act
-        var result = InputRouter.RouteInput(container, keyEvent);
+        var result = await InputRouter.RouteInputAsync(container, keyEvent);
         
         // Assert
         Assert.Equal(InputResult.Handled, result);
@@ -173,7 +173,7 @@ public class InputRouterTests
     }
 
     [Fact]
-    public void RouteInput_NoFocusedNode_ReturnsNotHandled()
+    public async Task RouteInput_NoFocusedNode_ReturnsNotHandled()
     {
         // Arrange
         var unfocusedNode = new MockFocusableNode { IsFocused = false };
@@ -183,14 +183,14 @@ public class InputRouterTests
         var keyEvent = Hex1bKeyEvent.Plain(Hex1bKey.A, 'a');
         
         // Act
-        var result = InputRouter.RouteInput(container, keyEvent);
+        var result = await InputRouter.RouteInputAsync(container, keyEvent);
         
         // Assert
         Assert.Equal(InputResult.NotHandled, result);
     }
 
     [Fact]
-    public void RouteInput_NestedContainers_CollectsBindingsFromPath()
+    public async Task RouteInput_NestedContainers_CollectsBindingsFromPath()
     {
         // Arrange - 3 levels: root -> middle -> focused
         var rootBindingExecuted = false;
@@ -201,7 +201,7 @@ public class InputRouterTests
         var middleContainer = new MockContainerNode();
         middleContainer.BindingsConfig = bindings =>
         {
-            bindings.Ctrl().Key(Hex1bKey.M).Action(() => middleBindingExecuted = true, "Middle");
+            bindings.Ctrl().Key(Hex1bKey.M).Action(_ => { middleBindingExecuted = true; return Task.CompletedTask; }, "Middle");
         };
         middleContainer.Children.Add(focusedNode);
         focusedNode.Parent = middleContainer;
@@ -209,18 +209,18 @@ public class InputRouterTests
         var rootContainer = new MockContainerNode();
         rootContainer.BindingsConfig = bindings =>
         {
-            bindings.Ctrl().Key(Hex1bKey.R).Action(() => rootBindingExecuted = true, "Root");
+            bindings.Ctrl().Key(Hex1bKey.R).Action(_ => { rootBindingExecuted = true; return Task.CompletedTask; }, "Root");
         };
         rootContainer.Children.Add(middleContainer);
         middleContainer.Parent = rootContainer;
         
         // Act - trigger root binding
         var rootKeyEvent = Hex1bKeyEvent.WithCtrl(Hex1bKey.R);
-        var rootResult = InputRouter.RouteInput(rootContainer, rootKeyEvent);
+        var rootResult = await InputRouter.RouteInputAsync(rootContainer, rootKeyEvent);
         
         // Act - trigger middle binding
         var middleKeyEvent = Hex1bKeyEvent.WithCtrl(Hex1bKey.M);
-        var middleResult = InputRouter.RouteInput(rootContainer, middleKeyEvent);
+        var middleResult = await InputRouter.RouteInputAsync(rootContainer, middleKeyEvent);
         
         // Assert
         Assert.Equal(InputResult.Handled, rootResult);
@@ -234,11 +234,11 @@ public class InputRouterTests
     {
         // Test InputBindingsBuilder creates correct key/modifier combinations
         var builder = new InputBindingsBuilder();
-        builder.Key(Hex1bKey.A).Action(() => { });
-        builder.Ctrl().Key(Hex1bKey.S).Action(() => { });
-        builder.Alt().Key(Hex1bKey.F).Action(() => { });
-        builder.Shift().Key(Hex1bKey.Tab).Action(() => { });
-        builder.Ctrl().Shift().Key(Hex1bKey.Z).Action(() => { });
+        builder.Key(Hex1bKey.A).Action(_ => Task.CompletedTask);
+        builder.Ctrl().Key(Hex1bKey.S).Action(_ => Task.CompletedTask);
+        builder.Alt().Key(Hex1bKey.F).Action(_ => Task.CompletedTask);
+        builder.Shift().Key(Hex1bKey.Tab).Action(_ => Task.CompletedTask);
+        builder.Ctrl().Shift().Key(Hex1bKey.Z).Action(_ => Task.CompletedTask);
         
         var bindings = builder.Bindings;
         
@@ -304,14 +304,14 @@ public class InputRouterTests
     }
 
     [Fact]
-    public void RouteInputToNode_TextBoxBackspace_DeletesAndPositionsCursor()
+    public async Task RouteInputToNode_TextBoxBackspace_DeletesAndPositionsCursor()
     {
         // Arrange
         var state = new TextBoxState { Text = "hello", CursorPosition = 5 };
         var node = new TextBoxNode { State = state, IsFocused = true };
 
         // Act
-        var result = InputRouter.RouteInputToNode(node, new Hex1bKeyEvent(Hex1bKey.Backspace, '\b', Hex1bModifiers.None));
+        var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.Backspace, '\b', Hex1bModifiers.None));
 
         // Assert
         Assert.Equal(InputResult.Handled, result);
@@ -320,15 +320,15 @@ public class InputRouterTests
     }
 
     [Fact]
-    public void RouteInputToNode_TextBoxDoubleBackspace_DeletesTwoCharacters()
+    public async Task RouteInputToNode_TextBoxDoubleBackspace_DeletesTwoCharacters()
     {
         // Arrange
         var state = new TextBoxState { Text = "hello", CursorPosition = 5 };
         var node = new TextBoxNode { State = state, IsFocused = true };
 
         // Act - two backspaces
-        InputRouter.RouteInputToNode(node, new Hex1bKeyEvent(Hex1bKey.Backspace, '\b', Hex1bModifiers.None));
-        InputRouter.RouteInputToNode(node, new Hex1bKeyEvent(Hex1bKey.Backspace, '\b', Hex1bModifiers.None));
+        await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.Backspace, '\b', Hex1bModifiers.None));
+        await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.Backspace, '\b', Hex1bModifiers.None));
 
         // Assert
         Assert.Equal("hel", state.Text);
@@ -441,14 +441,14 @@ public class InputRouterTests
     }
 
     [Fact]
-    public void RouteInputToNode_CharacterBinding_InsertsCharacter()
+    public async Task RouteInputToNode_CharacterBinding_InsertsCharacter()
     {
         // Arrange
         var state = new TextBoxState { Text = "hello", CursorPosition = 5 };
         var node = new TextBoxNode { State = state, IsFocused = true };
 
         // Act
-        var result = InputRouter.RouteInputToNode(node, new Hex1bKeyEvent(Hex1bKey.X, 'X', Hex1bModifiers.None));
+        var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.X, 'X', Hex1bModifiers.None));
 
         // Assert
         Assert.Equal(InputResult.Handled, result);
@@ -457,16 +457,16 @@ public class InputRouterTests
     }
 
     [Fact]
-    public void RouteInputToNode_CharacterBinding_MultipleCharacters()
+    public async Task RouteInputToNode_CharacterBinding_MultipleCharacters()
     {
         // Arrange
         var state = new TextBoxState { Text = "", CursorPosition = 0 };
         var node = new TextBoxNode { State = state, IsFocused = true };
 
         // Act
-        InputRouter.RouteInputToNode(node, new Hex1bKeyEvent(Hex1bKey.H, 'H', Hex1bModifiers.None));
-        InputRouter.RouteInputToNode(node, new Hex1bKeyEvent(Hex1bKey.I, 'i', Hex1bModifiers.None));
-        InputRouter.RouteInputToNode(node, new Hex1bKeyEvent(Hex1bKey.None, '!', Hex1bModifiers.None));
+        await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.H, 'H', Hex1bModifiers.None));
+        await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.I, 'i', Hex1bModifiers.None));
+        await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.None, '!', Hex1bModifiers.None));
 
         // Assert
         Assert.Equal("Hi!", state.Text);
@@ -474,14 +474,14 @@ public class InputRouterTests
     }
 
     [Fact]
-    public void RouteInputToNode_CharacterBinding_NotFocused_NotHandled()
+    public async Task RouteInputToNode_CharacterBinding_NotFocused_NotHandled()
     {
         // Arrange
         var state = new TextBoxState { Text = "hello", CursorPosition = 5 };
         var node = new TextBoxNode { State = state, IsFocused = false };
 
         // Act
-        var result = InputRouter.RouteInputToNode(node, new Hex1bKeyEvent(Hex1bKey.X, 'X', Hex1bModifiers.None));
+        var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.X, 'X', Hex1bModifiers.None));
 
         // Assert
         Assert.Equal(InputResult.NotHandled, result);
@@ -489,7 +489,7 @@ public class InputRouterTests
     }
 
     [Fact]
-    public void RouteInputToNode_KeyBindingTakesPrecedence_OverCharacterBinding()
+    public async Task RouteInputToNode_KeyBindingTakesPrecedence_OverCharacterBinding()
     {
         // Arrange - node with both a key binding for 'A' and a character binding
         bool keyBindingCalled = false;
@@ -498,12 +498,12 @@ public class InputRouterTests
         var node = new MockFocusableNode { IsFocused = true };
         node.BindingsConfig = bindings =>
         {
-            bindings.Key(Hex1bKey.A).Action(() => keyBindingCalled = true, "A key");
+            bindings.Key(Hex1bKey.A).Action(_ => { keyBindingCalled = true; return Task.CompletedTask; }, "A key");
             bindings.AnyCharacter().Action(text => textReceived = text, "Type");
         };
 
         // Act
-        var result = InputRouter.RouteInputToNode(node, new Hex1bKeyEvent(Hex1bKey.A, 'a', Hex1bModifiers.None));
+        var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.A, 'a', Hex1bModifiers.None));
 
         // Assert - key binding should win
         Assert.Equal(InputResult.Handled, result);
@@ -512,7 +512,7 @@ public class InputRouterTests
     }
 
     [Fact]
-    public void RouteInputToNode_CharacterBinding_FallsBackWhenNoKeyBinding()
+    public async Task RouteInputToNode_CharacterBinding_FallsBackWhenNoKeyBinding()
     {
         // Arrange - node with key binding for Enter, but typing 'x'
         bool enterPressed = false;
@@ -521,12 +521,12 @@ public class InputRouterTests
         var node = new MockFocusableNode { IsFocused = true };
         node.BindingsConfig = bindings =>
         {
-            bindings.Key(Hex1bKey.Enter).Action(() => enterPressed = true, "Submit");
+            bindings.Key(Hex1bKey.Enter).Action(_ => { enterPressed = true; return Task.CompletedTask; }, "Submit");
             bindings.AnyCharacter().Action(text => textReceived = text, "Type");
         };
 
         // Act
-        var result = InputRouter.RouteInputToNode(node, new Hex1bKeyEvent(Hex1bKey.X, 'x', Hex1bModifiers.None));
+        var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.X, 'x', Hex1bModifiers.None));
 
         // Assert - character binding should handle it
         Assert.Equal(InputResult.Handled, result);
@@ -535,7 +535,7 @@ public class InputRouterTests
     }
 
     [Fact]
-    public void RouteInputToNode_CharacterBinding_EmptyText_NotHandled()
+    public async Task RouteInputToNode_CharacterBinding_EmptyText_NotHandled()
     {
         // Arrange - key event with no text
         string textReceived = "";
@@ -547,7 +547,7 @@ public class InputRouterTests
         };
 
         // Act - F1 key has no text
-        var result = InputRouter.RouteInputToNode(node, new Hex1bKeyEvent(Hex1bKey.F1, '\0', Hex1bModifiers.None));
+        var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.F1, '\0', Hex1bModifiers.None));
 
         // Assert - character binding should not match
         Assert.Equal(InputResult.Handled, result);  // Handled by HandleInput fallback
@@ -555,7 +555,7 @@ public class InputRouterTests
     }
 
     [Fact]
-    public void RouteInputToNode_CharacterBinding_FirstMatchWins()
+    public async Task RouteInputToNode_CharacterBinding_FirstMatchWins()
     {
         // Arrange - multiple character bindings, first matching one wins
         string handler = "";
@@ -568,7 +568,7 @@ public class InputRouterTests
         };
 
         // Act - '5' matches both, but digit comes first
-        var result = InputRouter.RouteInputToNode(node, new Hex1bKeyEvent(Hex1bKey.D5, '5', Hex1bModifiers.None));
+        var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.D5, '5', Hex1bModifiers.None));
 
         // Assert
         Assert.Equal(InputResult.Handled, result);
@@ -576,7 +576,7 @@ public class InputRouterTests
     }
 
     [Fact]
-    public void RouteInputToNode_CharacterBinding_SecondMatchWhenFirstFails()
+    public async Task RouteInputToNode_CharacterBinding_SecondMatchWhenFirstFails()
     {
         // Arrange - digit binding first, but typing a letter
         string handler = "";
@@ -589,7 +589,7 @@ public class InputRouterTests
         };
 
         // Act - 'a' doesn't match digit, falls through to any
-        var result = InputRouter.RouteInputToNode(node, new Hex1bKeyEvent(Hex1bKey.A, 'a', Hex1bModifiers.None));
+        var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.A, 'a', Hex1bModifiers.None));
 
         // Assert
         Assert.Equal(InputResult.Handled, result);
@@ -597,7 +597,7 @@ public class InputRouterTests
     }
 
     [Fact]
-    public void RouteInput_CharacterBinding_OnlyOnFocusedNode()
+    public async Task RouteInput_CharacterBinding_OnlyOnFocusedNode()
     {
         // Arrange - parent has character binding, child is focused
         string parentReceived = "";
@@ -619,7 +619,7 @@ public class InputRouterTests
         child.Parent = container;
 
         // Act
-        var result = InputRouter.RouteInput(container, new Hex1bKeyEvent(Hex1bKey.X, 'x', Hex1bModifiers.None));
+        var result = await InputRouter.RouteInputAsync(container, new Hex1bKeyEvent(Hex1bKey.X, 'x', Hex1bModifiers.None));
 
         // Assert - only child's character binding should fire (not parent's)
         Assert.Equal(InputResult.Handled, result);
@@ -628,14 +628,14 @@ public class InputRouterTests
     }
 
     [Fact]
-    public void RouteInputToNode_CharacterBinding_Emoji()
+    public async Task RouteInputToNode_CharacterBinding_Emoji()
     {
         // Arrange - emoji as a full string (not surrogate pair chars)
         var state = new TextBoxState { Text = "hello", CursorPosition = 5 };
         var node = new TextBoxNode { State = state, IsFocused = true };
 
         // Act - insert an emoji using FromText (simulating paste or input method)
-        var result = InputRouter.RouteInputToNode(node, Hex1bKeyEvent.FromText("😀"));
+        var result = await InputRouter.RouteInputToNodeAsync(node, Hex1bKeyEvent.FromText("😀"));
 
         // Assert
         Assert.Equal(InputResult.Handled, result);
@@ -644,33 +644,33 @@ public class InputRouterTests
     }
 
     [Fact]
-    public void RouteInputToNode_CharacterBinding_MultipleEmojis()
+    public async Task RouteInputToNode_CharacterBinding_MultipleEmojis()
     {
         // Arrange
         var state = new TextBoxState { Text = "", CursorPosition = 0 };
         var node = new TextBoxNode { State = state, IsFocused = true };
 
         // Act - insert multiple emojis
-        InputRouter.RouteInputToNode(node, Hex1bKeyEvent.FromText("👍"));
-        InputRouter.RouteInputToNode(node, Hex1bKeyEvent.FromText("🎉"));
-        InputRouter.RouteInputToNode(node, Hex1bKeyEvent.FromText("🚀"));
+        await InputRouter.RouteInputToNodeAsync(node, Hex1bKeyEvent.FromText("👍"));
+        await InputRouter.RouteInputToNodeAsync(node, Hex1bKeyEvent.FromText("🎉"));
+        await InputRouter.RouteInputToNodeAsync(node, Hex1bKeyEvent.FromText("🚀"));
 
         // Assert
         Assert.Equal("👍🎉🚀", state.Text);
     }
 
     [Fact]
-    public void RouteInputToNode_CharacterBinding_UnicodeCharacters()
+    public async Task RouteInputToNode_CharacterBinding_UnicodeCharacters()
     {
         // Arrange
         var state = new TextBoxState { Text = "", CursorPosition = 0 };
         var node = new TextBoxNode { State = state, IsFocused = true };
 
         // Act - insert various Unicode characters
-        InputRouter.RouteInputToNode(node, new Hex1bKeyEvent(Hex1bKey.None, 'é', Hex1bModifiers.None));
-        InputRouter.RouteInputToNode(node, new Hex1bKeyEvent(Hex1bKey.None, 'ñ', Hex1bModifiers.None));
-        InputRouter.RouteInputToNode(node, new Hex1bKeyEvent(Hex1bKey.None, '中', Hex1bModifiers.None));
-        InputRouter.RouteInputToNode(node, new Hex1bKeyEvent(Hex1bKey.None, '日', Hex1bModifiers.None));
+        await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.None, 'é', Hex1bModifiers.None));
+        await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.None, 'ñ', Hex1bModifiers.None));
+        await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.None, '中', Hex1bModifiers.None));
+        await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.None, '日', Hex1bModifiers.None));
 
         // Assert
         Assert.Equal("éñ中日", state.Text);
@@ -678,14 +678,14 @@ public class InputRouterTests
     }
 
     [Fact]
-    public void RouteInputToNode_CharacterBinding_PastedText()
+    public async Task RouteInputToNode_CharacterBinding_PastedText()
     {
         // Arrange - simulating paste of multiple characters at once
         var state = new TextBoxState { Text = "Hello ", CursorPosition = 6 };
         var node = new TextBoxNode { State = state, IsFocused = true };
 
         // Act - paste "World!" as a single event
-        var result = InputRouter.RouteInputToNode(node, Hex1bKeyEvent.FromText("World!"));
+        var result = await InputRouter.RouteInputToNodeAsync(node, Hex1bKeyEvent.FromText("World!"));
 
         // Assert
         Assert.Equal(InputResult.Handled, result);

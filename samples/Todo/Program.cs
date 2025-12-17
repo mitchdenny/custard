@@ -106,7 +106,7 @@ using var app = new Hex1bApp(
                             new BorderWidget(new VStackWidget([
                                 new TextBlockWidget("➕ Add Task"),
                                 new TextBoxWidget(newItemInput),
-                                new ButtonWidget("Add", AddItem)
+                                new ButtonWidget("Add") { OnClick = _ => { AddItem(); return Task.CompletedTask; } }
                             ]), "New"),
                             new BorderWidget(new VStackWidget([
                                 new TextBlockWidget($"Total: {totalCount} items"),
@@ -115,7 +115,7 @@ using var app = new Hex1bApp(
                                 new TextBlockWidget(""),
                                 new TextBlockWidget(GetProgressBar())
                             ]), "Stats") { HeightHint = SizeHint.Fill },
-                            new ButtonWidget("Quit", () => cts.Cancel())
+                            new ButtonWidget("Quit") { OnClick = _ => { cts.Cancel(); return Task.CompletedTask; } }
                         ]) { WidthHint = SizeHint.Weighted(1) }
                     ])),
 
@@ -129,10 +129,10 @@ using var app = new Hex1bApp(
                         new TextBlockWidget(""),
                         new HStackWidget([
                             new TextBoxWidget(newItemInput) { WidthHint = SizeHint.Fill },
-                            new ButtonWidget("[+]", AddItem)
+                            new ButtonWidget("[+]") { OnClick = _ => { AddItem(); return Task.CompletedTask; } }
                         ]),
                         new TextBlockWidget(""),
-                        new ButtonWidget("Quit", () => cts.Cancel()),
+                        new ButtonWidget("Quit") { OnClick = _ => { cts.Cancel(); return Task.CompletedTask; } },
                         new TextBlockWidget(""),
                         new TextBlockWidget("↑↓:Move  Space:Toggle  Del:Remove  Tab:Focus")
                     ]))
@@ -140,7 +140,7 @@ using var app = new Hex1bApp(
             $"Hex1b Todo ({terminalSize})"
         ).WithInputBindings(bindings =>
         {
-            bindings.Key(Hex1bKey.Delete).Action(DeleteSelected, "Delete selected item");
+            bindings.Key(Hex1bKey.Delete).Action(_ => DeleteSelected(), "Delete selected item");
         });
     }
 );

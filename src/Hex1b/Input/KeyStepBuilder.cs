@@ -80,6 +80,15 @@ public sealed class KeyStepBuilder
         _parent.AddBinding(new InputBinding([.. _completedSteps], handler, description));
     }
 
+    /// <summary>
+    /// Completes the binding with an async context-aware action handler.
+    /// </summary>
+    public void Action(Func<ActionContext, Task> handler, string? description = null)
+    {
+        CommitCurrentStep();
+        _parent.AddBinding(new InputBinding([.. _completedSteps], handler, description));
+    }
+
     private void CommitCurrentStep()
     {
         if (_currentKey is null)

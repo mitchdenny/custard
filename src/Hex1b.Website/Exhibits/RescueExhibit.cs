@@ -194,7 +194,7 @@ public class RescueExhibit(ILogger<RescueExhibit> logger) : Hex1bExhibit
                 v.Text("Press the button to trigger a catastrophic"),
                 v.Text("error that replaces this entire view:"),
                 v.Text(""),
-                ctx.Button("Trigger Global Rescue", () => { state.TriggerGlobalError = true; }),
+                ctx.Button("Trigger Global Rescue", _ => { state.TriggerGlobalError = true; }),
             ]),
             "Global Rescue"
         );
@@ -239,7 +239,7 @@ public class RescueExhibit(ILogger<RescueExhibit> logger) : Hex1bExhibit
                 v.Text("Press the button to trigger an error"),
                 v.Text("confined to this panel:"),
                 v.Text(""),
-                ctx.Button("Trigger Local Rescue", () => { state.TriggerLocalError = true; }),
+                ctx.Button("Trigger Local Rescue", _ => { state.TriggerLocalError = true; }),
             ]),
             "Local Rescue"
         );

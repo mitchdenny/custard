@@ -217,13 +217,13 @@ public class SixelNodeTests : IDisposable
     }
 
     [Fact]
-    public void HandleInput_WhenShowingFallback_DelegatesToFallback()
+    public async Task HandleInput_WhenShowingFallback_DelegatesToFallback()
     {
         var clickedCount = 0;
         var buttonNode = new ButtonNode 
         { 
             Label = "Test",
-            ClickAction = () => clickedCount++,
+            ClickAction = _ => { clickedCount++; return Task.CompletedTask; },
             IsFocused = true
         };
         
@@ -232,7 +232,7 @@ public class SixelNodeTests : IDisposable
         
         // Use InputRouter to route input to the focused child in the fallback
         var enterEvent = new Hex1bKeyEvent(Hex1bKey.Enter, '\r', Hex1bModifiers.None);
-        var result = InputRouter.RouteInput(node, enterEvent);
+        var result = await InputRouter.RouteInputAsync(node, enterEvent);
         
         Assert.Equal(InputResult.Handled, result);
         Assert.Equal(1, clickedCount);

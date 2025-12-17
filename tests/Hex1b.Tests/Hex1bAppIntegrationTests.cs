@@ -81,7 +81,7 @@ public class Hex1bAppIntegrationTests
             ctx => Task.FromResult<Hex1bWidget>(
                 new VStackWidget(new Hex1bWidget[]
                 {
-                    new ButtonWidget("Click Me", () => clicked = true)
+                    new ButtonWidget("Click Me") { OnClick = _ => { clicked = true; return Task.CompletedTask; } }
                 })
             ),
             new Hex1bAppOptions { Terminal = terminal }
@@ -222,7 +222,7 @@ public class Hex1bAppIntegrationTests
                 var widget = new VStackWidget(new Hex1bWidget[]
                 {
                     new TextBlockWidget($"Count: {counter}"),
-                    new ButtonWidget("Increment", () => counter++)
+                    new ButtonWidget("Increment") { OnClick = _ => { counter++; return Task.CompletedTask; } }
                 });
                 return Task.FromResult<Hex1bWidget>(widget);
             },

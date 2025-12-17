@@ -9,10 +9,10 @@ public sealed class ButtonNode : Hex1bNode
     public string Label { get; set; } = "";
     
     /// <summary>
-    /// The action to execute when the button is activated.
-    /// This is registered as an input binding during ConfigureDefaultBindings.
+    /// The async action to execute when the button is activated.
+    /// Sync handlers are normalized to async at the widget level.
     /// </summary>
-    public Action? ClickAction { get; set; }
+    public Func<ActionContext, Task>? ClickAction { get; set; }
     
     private bool _isFocused;
     public override bool IsFocused { get => _isFocused; set => _isFocused = value; }

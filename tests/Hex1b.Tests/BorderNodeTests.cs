@@ -588,14 +588,14 @@ public class BorderNodeTests
     #region Input Handling Tests
 
     [Fact]
-    public void HandleInput_PassesToChild()
+    public async Task HandleInput_PassesToChild()
     {
         var state = new TextBoxState { Text = "test", CursorPosition = 4 };
         var textBox = new TextBoxNode { State = state, IsFocused = true };
         var node = new BorderNode { Child = textBox };
 
         // Use InputRouter to dispatch input through the node tree
-        var result = InputRouter.RouteInput(node, new Hex1bKeyEvent(Hex1bKey.A, 'A', Hex1bModifiers.None));
+        var result = await InputRouter.RouteInputAsync(node, new Hex1bKeyEvent(Hex1bKey.A, 'A', Hex1bModifiers.None));
 
         Assert.Equal(InputResult.Handled, result);
         Assert.Equal("testA", state.Text);
@@ -794,7 +794,7 @@ public class BorderNodeTests
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
-                ctx.Border(ctx.Button("Click Me", () => clicked = true), title: "Action")
+                ctx.Border(ctx.Button("Click Me", _ => { clicked = true; return Task.CompletedTask; }), title: "Action")
             ),
             new Hex1bAppOptions { Terminal = terminal }
         );
@@ -817,8 +817,8 @@ public class BorderNodeTests
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.Border(v => [
-                    v.Button("First", () => clickedButton = "First"),
-                    v.Button("Second", () => clickedButton = "Second")
+                    v.Button("First", _ => { clickedButton = "First"; return Task.CompletedTask; }),
+                    v.Button("Second", _ => { clickedButton = "Second"; return Task.CompletedTask; })
                 ], title: "Buttons")
             ),
             new Hex1bAppOptions { Terminal = terminal }

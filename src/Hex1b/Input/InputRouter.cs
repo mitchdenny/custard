@@ -42,10 +42,10 @@ public static class InputRouter
     /// 6. If leaf matched, execute action
     /// 7. If no match, fall through to HandleInput on focused node, then bubble up
     /// </summary>
-    public static InputResult RouteInput(Hex1bNode root, Hex1bKeyEvent keyEvent, FocusRing focusRing)
+    public static async Task<InputResult> RouteInputAsync(Hex1bNode root, Hex1bKeyEvent keyEvent, FocusRing focusRing, Action? requestStop = null)
     {
         // Create the action context for this input routing
-        var actionContext = new ActionContext(focusRing);
+        var actionContext = new ActionContext(focusRing, requestStop);
         
         // Build path from root to focused node
         var path = BuildPathToFocused(root);
@@ -72,7 +72,7 @@ public static class InputRouter
         // If mid-chord, continue from the anchored layer
         if (_chordNode != null)
         {
-            return ContinueChord(keyEvent, path, actionContext);
+            return await ContinueChordAsync(keyEvent, path, actionContext);
         }
 
         // Build layers: focused first (index 0), root last
@@ -94,7 +94,7 @@ public static class InputRouter
                     if (result.IsLeaf)
                     {
                         // Leaf node - execute and done
-                        result.Execute(actionContext);
+                        await result.ExecuteAsync(actionContext);
                         ResetChordState();
                         return InputResult.Handled;
                     }
@@ -144,15 +144,15 @@ public static class InputRouter
     /// Routes a key event through the node tree (legacy overload without FocusRing).
     /// Creates an empty focus ring for backward compatibility.
     /// </summary>
-    [Obsolete("Use RouteInput(root, keyEvent, focusRing) for full focus navigation support.")]
-    public static InputResult RouteInput(Hex1bNode root, Hex1bKeyEvent keyEvent)
+    [Obsolete("Use RouteInputAsync(root, keyEvent, focusRing, requestStop) for full functionality.")]
+    public static Task<InputResult> RouteInputAsync(Hex1bNode root, Hex1bKeyEvent keyEvent)
     {
         var focusRing = new FocusRing();
         focusRing.Rebuild(root);
-        return RouteInput(root, keyEvent, focusRing);
+        return RouteInputAsync(root, keyEvent, focusRing, null);
     }
     
-    private static InputResult ContinueChord(Hex1bKeyEvent keyEvent, List<Hex1bNode> path, ActionContext actionContext)
+    private static async Task<InputResult> ContinueChordAsync(Hex1bKeyEvent keyEvent, List<Hex1bNode> path, ActionContext actionContext)
     {
         var result = _chordNode!.Lookup(keyEvent);
         
@@ -166,7 +166,7 @@ public static class InputRouter
         if (result.IsLeaf)
         {
             // Chord completed - execute
-            result.Execute(actionContext);
+            await result.ExecuteAsync(actionContext);
             ResetChordState();
             return InputResult.Handled;
         }
@@ -183,7 +183,7 @@ public static class InputRouter
         // (rare case: ambiguous binding like 'g' with action and 'gg' chord)
         if (result.HasAction)
         {
-            result.Execute(actionContext);
+            await result.ExecuteAsync(actionContext);
             ResetChordState();
             return InputResult.Handled;
         }
@@ -221,12 +221,13 @@ public static class InputRouter
     /// <param name="node">The node to route input to (assumed to be focused).</param>
     /// <param name="keyEvent">The key event to route.</param>
     /// <param name="focusRing">Optional focus ring for context-aware bindings.</param>
+    /// <param name="requestStop">Optional callback to request application stop.</param>
     /// <returns>The result of input processing.</returns>
-    public static InputResult RouteInputToNode(Hex1bNode node, Hex1bKeyEvent keyEvent, FocusRing? focusRing = null)
+    public static async Task<InputResult> RouteInputToNodeAsync(Hex1bNode node, Hex1bKeyEvent keyEvent, FocusRing? focusRing = null, Action? requestStop = null)
     {
         // Create focus ring if not provided
         focusRing ??= new FocusRing();
-        var actionContext = new ActionContext(focusRing);
+        var actionContext = new ActionContext(focusRing, requestStop);
         
         // Build bindings for this node and look up the key
         var builder = node.BuildBindings();
@@ -239,7 +240,7 @@ public static class InputRouter
             
             if (result.IsLeaf)
             {
-                result.Execute(actionContext);
+                await result.ExecuteAsync(actionContext);
                 return InputResult.Handled;
             }
             

@@ -190,7 +190,7 @@ public class HStackNodeTests
     }
 
     [Fact]
-    public void HandleInput_Tab_MovesFocus()
+    public async Task HandleInput_Tab_MovesFocus()
     {
         var button1 = new ButtonNode { Label = "1", IsFocused = true };
         var button2 = new ButtonNode { Label = "2", IsFocused = false };
@@ -203,7 +203,7 @@ public class HStackNodeTests
         var focusRing = new FocusRing();
         focusRing.Rebuild(node);
 
-        var result = InputRouter.RouteInput(node, new Hex1bKeyEvent(Hex1bKey.Tab, '\t', Hex1bModifiers.None), focusRing);
+        var result = await InputRouter.RouteInputAsync(node, new Hex1bKeyEvent(Hex1bKey.Tab, '\t', Hex1bModifiers.None), focusRing);
 
         Assert.Equal(InputResult.Handled, result);
         Assert.False(button1.IsFocused);
@@ -211,7 +211,7 @@ public class HStackNodeTests
     }
 
     [Fact]
-    public void HandleInput_ShiftTab_MovesFocusBackward()
+    public async Task HandleInput_ShiftTab_MovesFocusBackward()
     {
         var button1 = new ButtonNode { Label = "1", IsFocused = true };
         var button2 = new ButtonNode { Label = "2", IsFocused = false };
@@ -225,17 +225,17 @@ public class HStackNodeTests
         focusRing.Rebuild(node);
 
         // Shift-tab from button1 should wrap to button2
-        InputRouter.RouteInput(node, new Hex1bKeyEvent(Hex1bKey.Tab, '\t', Hex1bModifiers.Shift), focusRing);
+        await InputRouter.RouteInputAsync(node, new Hex1bKeyEvent(Hex1bKey.Tab, '\t', Hex1bModifiers.Shift), focusRing);
 
         Assert.False(button1.IsFocused);
         Assert.True(button2.IsFocused);
     }
 
     [Fact]
-    public void HandleInput_DispatchesToFocusedChild()
+    public async Task HandleInput_DispatchesToFocusedChild()
     {
         var clicked = false;
-        var button = new ButtonNode { Label = "Click", IsFocused = true, ClickAction = () => clicked = true };
+        var button = new ButtonNode { Label = "Click", IsFocused = true, ClickAction = _ => { clicked = true; return Task.CompletedTask; } };
 
         var node = new HStackNode { Children = new List<Hex1bNode> { button } };
 
@@ -243,7 +243,7 @@ public class HStackNodeTests
         focusRing.Rebuild(node);
 
         // Use InputRouter to route input to the focused child
-        InputRouter.RouteInput(node, new Hex1bKeyEvent(Hex1bKey.Enter, '\r', Hex1bModifiers.None), focusRing);
+        await InputRouter.RouteInputAsync(node, new Hex1bKeyEvent(Hex1bKey.Enter, '\r', Hex1bModifiers.None), focusRing);
 
         Assert.True(clicked);
     }
@@ -362,9 +362,9 @@ public class HStackNodeTests
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.HStack(h => [
-                    h.Button("Btn1", () => button1Clicked = true),
+                    h.Button("Btn1", _ => { button1Clicked = true; return Task.CompletedTask; }),
                     h.Text(" | "),
-                    h.Button("Btn2", () => button2Clicked = true)
+                    h.Button("Btn2", _ => { button2Clicked = true; return Task.CompletedTask; })
                 ])
             ),
             new Hex1bAppOptions { Terminal = terminal }
@@ -447,7 +447,7 @@ public class HStackNodeTests
                 ctx.HStack(h => [
                     h.Text("Label: "),
                     h.TextBox(textState),
-                    h.Button("Submit", () => clicked = true)
+                    h.Button("Submit", _ => { clicked = true; return Task.CompletedTask; })
                 ])
             ),
             new Hex1bAppOptions { Terminal = terminal }
@@ -544,7 +544,7 @@ public class HStackNodeTests
                     // Left VStack: only one focusable (List)
                     h.VStack(v => [v.Text("Header"), v.List(listState)]),
                     // Right VStack: only one focusable (Button)
-                    h.VStack(v => [v.Text("Actions"), v.Button("Add", () => rightButtonClicked = true)])
+                    h.VStack(v => [v.Text("Actions"), v.Button("Add", _ => { rightButtonClicked = true; return Task.CompletedTask; })])
                 ])
             ),
             new Hex1bAppOptions { Terminal = terminal }
@@ -570,8 +570,8 @@ public class HStackNodeTests
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.VStack(v => [
-                    v.Button("Button 1", () => button1Clicked = true),
-                    v.Button("Button 2", () => button2Clicked = true)
+                    v.Button("Button 1", _ => { button1Clicked = true; return Task.CompletedTask; }),
+                    v.Button("Button 2", _ => { button2Clicked = true; return Task.CompletedTask; })
                 ])
             ),
             new Hex1bAppOptions { Terminal = terminal }
@@ -603,15 +603,15 @@ public class HStackNodeTests
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.HStack(h => [
                     // Left: List
-                    h.Button("List", () => listClicked = true),
+                    h.Button("List", _ => { listClicked = true; return Task.CompletedTask; }),
                     // Middle: VStack with TextBox + Button (like "New" panel)
                     h.VStack(v => [
                         v.Text("New Task"),
                         v.TextBox(textBoxState),
-                        v.Button("Add", () => addButtonClicked = true)
+                        v.Button("Add", _ => { addButtonClicked = true; return Task.CompletedTask; })
                     ]),
                     // Right: Another button
-                    h.Button("Other", () => otherButtonClicked = true)
+                    h.Button("Other", _ => { otherButtonClicked = true; return Task.CompletedTask; })
                 ])
             ),
             new Hex1bAppOptions { Terminal = terminal }
@@ -642,12 +642,12 @@ public class HStackNodeTests
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.HStack(h => [
                     // Left: Button
-                    h.Button("List", () => listClicked = true),
+                    h.Button("List", _ => { listClicked = true; return Task.CompletedTask; }),
                     // Right: VStack with TextBox + Button
                     h.VStack(v => [
                         v.Text("New Task"),
                         v.TextBox(textBoxState),
-                        v.Button("Add", () => { })
+                        v.Button("Add", _ => Task.CompletedTask)
                     ])
                 ])
             ),

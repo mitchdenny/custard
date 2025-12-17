@@ -109,7 +109,7 @@ public class NavigatorExhibit(ILogger<NavigatorExhibit> logger) : Hex1bExhibit
                 v.Text("To get started, you'll need to create"),
                 v.Text("your first customer record."),
                 v.Text(""),
-                v.Button("Create First Customer →", () => 
+                v.Button("Create First Customer →", _ => 
                     nav.Push("new-customer", n => BuildNewCustomer(ctx, n)))
             ]);
         }
@@ -130,7 +130,7 @@ public class NavigatorExhibit(ILogger<NavigatorExhibit> logger) : Hex1bExhibit
                 v.Text("Email:"),
                 v.TextBox(s => s.EmailInput),
                 v.Text(""),
-                v.Button("Save Customer", () => SaveNewCustomer(nav))
+                v.Button("Save Customer", _ => SaveNewCustomer(nav))
             ]).WithInputBindings(bindings =>
             {
                 bindings.Key(Hex1bKey.Escape).Action(() => nav.Pop(), "Cancel");
@@ -173,7 +173,7 @@ public class NavigatorExhibit(ILogger<NavigatorExhibit> logger) : Hex1bExhibit
                     left.Text("─────────────────"),
                     left.List(s => s.CustomerList),
                     left.Text(""),
-                    left.Button("+ New", () => 
+                    left.Button("+ New", _ => 
                         nav.Push("new-customer", n => BuildNewCustomer(ctx, n)))
                 ]),
                 BuildCustomerDetail(ctx, selectedCustomer, nav),
@@ -217,9 +217,9 @@ public class NavigatorExhibit(ILogger<NavigatorExhibit> logger) : Hex1bExhibit
                 v.Text("────────────────────────"),
                 v.List(_ => oppList),
                 v.HStack(h => [
-                    h.Button("+ Add", () => 
+                    h.Button("+ Add", _ => 
                         nav.Push("new-opportunity", n => BuildNewOpportunity(ctx, n, customer))),
-                    h.Button("Delete", () => 
+                    h.Button("Delete", _ => 
                         DeleteSelectedOpportunity(customer, oppList))
                 ])
             ]));
@@ -244,7 +244,7 @@ public class NavigatorExhibit(ILogger<NavigatorExhibit> logger) : Hex1bExhibit
                 v.Text("Amount ($):"),
                 v.TextBox(s => s.OpportunityAmountInput),
                 v.Text(""),
-                v.Button("Save Opportunity", () => SaveNewOpportunity(nav, customer))
+                v.Button("Save Opportunity", _ => SaveNewOpportunity(nav, customer))
             ]).WithInputBindings(bindings =>
             {
                 bindings.Key(Hex1bKey.Escape).Action(() => nav.Pop(), "Cancel");

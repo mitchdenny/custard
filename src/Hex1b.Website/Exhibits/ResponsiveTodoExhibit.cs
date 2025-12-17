@@ -148,7 +148,7 @@ public class ResponsiveTodoExhibit(ILogger<ResponsiveTodoExhibit> logger) : Hex1
                 b.Text(""),
                 b.TextBox(s => s.NewItemInput),
                 b.Text(""),
-                b.Button("Add Task", () => state.AddItem()),
+                b.Button("Add Task", _ => state.AddItem()),
                 b.Text(""),
                 b.Text("Type and click Add")
             ], title: "New Task").FillWidth(1),
@@ -190,7 +190,7 @@ public class ResponsiveTodoExhibit(ILogger<ResponsiveTodoExhibit> logger) : Hex1
                 v.Border(b => [
                     b.Text("➕ Add Task"),
                     b.TextBox(s => s.NewItemInput),
-                    b.Button("Add", () => state.AddItem())
+                    b.Button("Add", _ => state.AddItem())
                 ], title: "New"),
                 v.Border(b => [
                     b.Text($"Done: {completedCount}/{totalCount}"),
@@ -221,7 +221,7 @@ public class ResponsiveTodoExhibit(ILogger<ResponsiveTodoExhibit> logger) : Hex1
             
             v.HStack(h => [
                 h.TextBox(s => s.NewItemInput).FillWidth(),
-                h.Button("[+]", () => state.AddItem())
+                h.Button("[+]", _ => state.AddItem())
             ]),
             
             v.Text("↑↓:Move  Space:Toggle  Tab:Focus")
@@ -243,7 +243,7 @@ public class ResponsiveTodoExhibit(ILogger<ResponsiveTodoExhibit> logger) : Hex1
             v.List(s => s.ListState).FillHeight(),
             v.Text("────────────────────"),
             v.TextBox(s => s.NewItemInput),
-            v.Button("+ Add", () => state.AddItem())
+            v.Button("+ Add", _ => state.AddItem())
         ]);
     }
 

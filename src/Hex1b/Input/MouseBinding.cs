@@ -28,27 +28,53 @@ public sealed class MouseBinding
     public int ClickCount { get; }
     
     /// <summary>
-    /// The action to execute when the binding is triggered.
+    /// The async action to execute when the binding is triggered.
+    /// All handlers are normalized to async for consistency.
     /// </summary>
-    public Action Handler { get; }
+    private Func<ActionContext, Task> AsyncHandler { get; }
     
     /// <summary>
     /// Human-readable description of what this binding does.
     /// </summary>
     public string? Description { get; }
 
+    /// <summary>
+    /// Creates a mouse binding with a simple action handler (no context).
+    /// </summary>
     public MouseBinding(MouseButton button, MouseAction action, Hex1bModifiers modifiers, Action handler, string? description)
-        : this(button, action, modifiers, clickCount: 1, handler, description)
+        : this(button, action, modifiers, 1, _ => { handler(); return Task.CompletedTask; }, description)
     {
+        ArgumentNullException.ThrowIfNull(handler);
     }
 
+    /// <summary>
+    /// Creates a mouse binding with a simple action handler and click count (no context).
+    /// </summary>
     public MouseBinding(MouseButton button, MouseAction action, Hex1bModifiers modifiers, int clickCount, Action handler, string? description)
+        : this(button, action, modifiers, clickCount, _ => { handler(); return Task.CompletedTask; }, description)
+    {
+        ArgumentNullException.ThrowIfNull(handler);
+    }
+
+    /// <summary>
+    /// Creates a mouse binding with a synchronous context-aware handler.
+    /// </summary>
+    public MouseBinding(MouseButton button, MouseAction action, Hex1bModifiers modifiers, int clickCount, Action<ActionContext> handler, string? description)
+        : this(button, action, modifiers, clickCount, ctx => { handler(ctx); return Task.CompletedTask; }, description)
+    {
+        ArgumentNullException.ThrowIfNull(handler);
+    }
+
+    /// <summary>
+    /// Creates a mouse binding with an async context-aware handler.
+    /// </summary>
+    public MouseBinding(MouseButton button, MouseAction action, Hex1bModifiers modifiers, int clickCount, Func<ActionContext, Task> handler, string? description)
     {
         Button = button;
         Action = action;
         Modifiers = modifiers;
         ClickCount = clickCount;
-        Handler = handler;
+        AsyncHandler = handler ?? throw new ArgumentNullException(nameof(handler));
         Description = description;
     }
 
@@ -67,7 +93,7 @@ public sealed class MouseBinding
     /// <summary>
     /// Executes the handler for this binding.
     /// </summary>
-    public void Execute() => Handler();
+    public Task ExecuteAsync(ActionContext context) => AsyncHandler(context);
 }
 
 /// <summary>
@@ -145,6 +171,26 @@ public sealed class MouseStepBuilder
     /// Binds the action to execute when this mouse event occurs.
     /// </summary>
     public InputBindingsBuilder Action(Action action, string? description = null)
+    {
+        var binding = new MouseBinding(_button, _action, _modifiers, _clickCount, action, description);
+        _parent.AddMouseBinding(binding);
+        return _parent;
+    }
+
+    /// <summary>
+    /// Binds a context-aware action to execute when this mouse event occurs.
+    /// </summary>
+    public InputBindingsBuilder Action(Action<ActionContext> action, string? description = null)
+    {
+        var binding = new MouseBinding(_button, _action, _modifiers, _clickCount, action, description);
+        _parent.AddMouseBinding(binding);
+        return _parent;
+    }
+
+    /// <summary>
+    /// Binds an async context-aware action to execute when this mouse event occurs.
+    /// </summary>
+    public InputBindingsBuilder Action(Func<ActionContext, Task> action, string? description = null)
     {
         var binding = new MouseBinding(_button, _action, _modifiers, _clickCount, action, description);
         _parent.AddMouseBinding(binding);

@@ -13,7 +13,7 @@ var app = host.Services.GetRequiredService<Hex1bApp<AppState>>();
 var pendingHostRun = host.RunAsync();
 var pendingAppRun = app.RunAsync();
 
-await Task.WhenAll(pendingHostRun, pendingAppRun);
+await Task.WhenAny(pendingHostRun, pendingAppRun);
 
 public class AppState
 {
@@ -41,7 +41,7 @@ public static class AppExtensions
                 var vstack = context.VStack(v => [
                     v.ContentPanel().Fill(),
                     v.InfoBar("Skeetterm"),
-                    v.Button("Exit", () => Environment.Exit(0))
+                    v.Button("Exit", c => c.RequestStop())
                 ]);
                 return vstack;
             }

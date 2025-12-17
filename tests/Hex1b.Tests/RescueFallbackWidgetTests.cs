@@ -120,7 +120,7 @@ public class RescueFallbackWidgetTests
     }
     
     [Fact]
-    public void RescueFallbackWidget_InputRouting_TabNavigatesToScrollNode()
+    public async Task RescueFallbackWidget_InputRouting_TabNavigatesToScrollNode()
     {
         // This test uses the full input routing stack like Hex1bApp does
         
@@ -163,7 +163,7 @@ public class RescueFallbackWidgetTests
         // Route Tab 4 times to get from button 1 to button 4
         for (int i = 0; i < 4; i++)
         {
-            var result = InputRouter.RouteInput(node, tabEvent, focusRing);
+            var result = await InputRouter.RouteInputAsync(node, tabEvent, focusRing);
             System.Console.WriteLine($"Tab {i+1}: result={result}, focused={focusRing.FocusedNode?.GetType().Name}");
             Assert.Equal(InputResult.Handled, result);
         }
@@ -173,7 +173,7 @@ public class RescueFallbackWidgetTests
     }
     
     [Fact]
-    public void RescueFallbackWidget_ArrowDown_ScrollsWhenFocused()
+    public async Task RescueFallbackWidget_ArrowDown_ScrollsWhenFocused()
     {
         // This test verifies that ArrowDown scrolls when ScrollNode has focus
         
@@ -208,7 +208,7 @@ public class RescueFallbackWidgetTests
         var tabEvent = new Hex1bKeyEvent(Hex1bKey.Tab, '\t', Hex1bModifiers.None);
         for (int i = 0; i < 4; i++)
         {
-            InputRouter.RouteInput(node, tabEvent, focusRing);
+            await InputRouter.RouteInputAsync(node, tabEvent, focusRing);
         }
         
         // Verify we're on ScrollNode
@@ -222,7 +222,7 @@ public class RescueFallbackWidgetTests
         
         // Press ArrowDown
         var downEvent = new Hex1bKeyEvent(Hex1bKey.DownArrow, '\0', Hex1bModifiers.None);
-        var result = InputRouter.RouteInput(node, downEvent, focusRing);
+        var result = await InputRouter.RouteInputAsync(node, downEvent, focusRing);
         
         System.Console.WriteLine($"ArrowDown result: {result}, new offset: {scrollNode.State.Offset}");
         

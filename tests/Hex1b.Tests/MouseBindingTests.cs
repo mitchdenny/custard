@@ -13,8 +13,9 @@ public class MouseBindingTests
         var binding = new MouseBinding(
             MouseButton.Left, 
             MouseAction.Down, 
-            Hex1bModifiers.None, 
-            () => executed = true, 
+            Hex1bModifiers.None,
+            1,
+            _ => { executed = true; return Task.CompletedTask; }, 
             "Test");
         
         var matchingEvent = new Hex1bMouseEvent(MouseButton.Left, MouseAction.Down, 10, 10, Hex1bModifiers.None);
@@ -25,17 +26,19 @@ public class MouseBindingTests
     }
     
     [Fact]
-    public void MouseBinding_Execute_InvokesHandler()
+    public async Task MouseBinding_Execute_InvokesHandler()
     {
         var executed = false;
         var binding = new MouseBinding(
             MouseButton.Left, 
             MouseAction.Down, 
-            Hex1bModifiers.None, 
-            () => executed = true, 
+            Hex1bModifiers.None,
+            1,
+            _ => { executed = true; return Task.CompletedTask; }, 
             "Test");
         
-        binding.Execute();
+        var actionContext = new ActionContext(new FocusRing());
+        await binding.ExecuteAsync(actionContext);
         
         Assert.True(executed);
     }
@@ -46,8 +49,9 @@ public class MouseBindingTests
         var binding = new MouseBinding(
             MouseButton.Left, 
             MouseAction.Down, 
-            Hex1bModifiers.Control, 
-            () => { }, 
+            Hex1bModifiers.Control,
+            1,
+            _ => Task.CompletedTask, 
             "Ctrl+Click");
         
         var ctrlClick = new Hex1bMouseEvent(MouseButton.Left, MouseAction.Down, 10, 10, Hex1bModifiers.Control);
@@ -63,7 +67,7 @@ public class MouseBindingTests
         var builder = new InputBindingsBuilder();
         var executed = false;
         
-        builder.Mouse(MouseButton.Left).Action(() => executed = true, "Click");
+        builder.Mouse(MouseButton.Left).Action(_ => { executed = true; return Task.CompletedTask; }, "Click");
         
         Assert.Single(builder.MouseBindings);
         Assert.Equal(MouseButton.Left, builder.MouseBindings[0].Button);
@@ -76,7 +80,7 @@ public class MouseBindingTests
     {
         var builder = new InputBindingsBuilder();
         
-        builder.Mouse(MouseButton.Left).Ctrl().Shift().Action(() => { }, "Ctrl+Shift+Click");
+        builder.Mouse(MouseButton.Left).Ctrl().Shift().Action(_ => Task.CompletedTask, "Ctrl+Shift+Click");
         
         var binding = builder.MouseBindings[0];
         Assert.Equal(Hex1bModifiers.Control | Hex1bModifiers.Shift, binding.Modifiers);
@@ -87,7 +91,7 @@ public class MouseBindingTests
     {
         var builder = new InputBindingsBuilder();
         
-        builder.Mouse(MouseButton.Left).OnRelease().Action(() => { }, "Release");
+        builder.Mouse(MouseButton.Left).OnRelease().Action(_ => Task.CompletedTask, "Release");
         
         var binding = builder.MouseBindings[0];
         Assert.Equal(MouseAction.Up, binding.Action);
@@ -98,9 +102,9 @@ public class MouseBindingTests
     {
         var builder = new InputBindingsBuilder();
         
-        builder.Mouse(MouseButton.Left).Action(() => { }, "Left");
-        builder.Mouse(MouseButton.Right).Ctrl().Action(() => { }, "Ctrl+Right");
-        builder.Mouse(MouseButton.Middle).OnRelease().Action(() => { }, "Middle Release");
+        builder.Mouse(MouseButton.Left).Action(_ => Task.CompletedTask, "Left");
+        builder.Mouse(MouseButton.Right).Ctrl().Action(_ => Task.CompletedTask, "Ctrl+Right");
+        builder.Mouse(MouseButton.Middle).OnRelease().Action(_ => Task.CompletedTask, "Middle Release");
         
         Assert.Equal(3, builder.MouseBindings.Count);
         
@@ -128,7 +132,7 @@ public class DoubleClickBindingTests
             MouseAction.Down, 
             Hex1bModifiers.None,
             clickCount: 2,
-            () => { }, 
+            _ => Task.CompletedTask, 
             "Double-click");
         
         // Single click should NOT match a double-click binding
@@ -150,8 +154,9 @@ public class DoubleClickBindingTests
         var binding = new MouseBinding(
             MouseButton.Left, 
             MouseAction.Down, 
-            Hex1bModifiers.None, 
-            () => { }, 
+            Hex1bModifiers.None,
+            1,
+            _ => Task.CompletedTask, 
             "Click");
         
         // Single-click binding (default) should match all click counts
@@ -172,7 +177,7 @@ public class DoubleClickBindingTests
             MouseAction.Down, 
             Hex1bModifiers.None,
             clickCount: 3,
-            () => { }, 
+            _ => Task.CompletedTask, 
             "Triple-click");
         
         var singleClick = new Hex1bMouseEvent(MouseButton.Left, MouseAction.Down, 10, 10, Hex1bModifiers.None, ClickCount: 1);
@@ -189,7 +194,7 @@ public class DoubleClickBindingTests
     {
         var builder = new InputBindingsBuilder();
         
-        builder.Mouse(MouseButton.Left).DoubleClick().Action(() => { }, "Double-click");
+        builder.Mouse(MouseButton.Left).DoubleClick().Action(_ => Task.CompletedTask, "Double-click");
         
         var binding = builder.MouseBindings[0];
         Assert.Equal(2, binding.ClickCount);
@@ -200,7 +205,7 @@ public class DoubleClickBindingTests
     {
         var builder = new InputBindingsBuilder();
         
-        builder.Mouse(MouseButton.Left).TripleClick().Action(() => { }, "Triple-click");
+        builder.Mouse(MouseButton.Left).TripleClick().Action(_ => Task.CompletedTask, "Triple-click");
         
         var binding = builder.MouseBindings[0];
         Assert.Equal(3, binding.ClickCount);
@@ -211,7 +216,7 @@ public class DoubleClickBindingTests
     {
         var builder = new InputBindingsBuilder();
         
-        builder.Mouse(MouseButton.Left).Ctrl().DoubleClick().Action(() => { }, "Ctrl+Double-click");
+        builder.Mouse(MouseButton.Left).Ctrl().DoubleClick().Action(_ => Task.CompletedTask, "Ctrl+Double-click");
         
         var binding = builder.MouseBindings[0];
         Assert.Equal(Hex1bModifiers.Control, binding.Modifiers);

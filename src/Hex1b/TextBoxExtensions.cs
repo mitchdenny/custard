@@ -1,5 +1,6 @@
 namespace Hex1b;
 
+using Hex1b.Events;
 using Hex1b.Widgets;
 
 /// <summary>
@@ -42,4 +43,24 @@ public static class TextBoxExtensions
         Func<TState, TextBoxState> stateSelector)
         where TParent : Hex1bWidget
         => new(State: stateSelector(ctx.State));
+
+    /// <summary>
+    /// Creates a TextBox with explicit state and a synchronous submit handler.
+    /// </summary>
+    public static TextBoxWidget TextBox<TParent, TState>(
+        this WidgetContext<TParent, TState> ctx,
+        TextBoxState state,
+        Action<TextSubmittedEventArgs> onSubmit)
+        where TParent : Hex1bWidget
+        => new(State: state) { OnSubmit = args => { onSubmit(args); return Task.CompletedTask; } };
+
+    /// <summary>
+    /// Creates a TextBox with explicit state and an asynchronous submit handler.
+    /// </summary>
+    public static TextBoxWidget TextBox<TParent, TState>(
+        this WidgetContext<TParent, TState> ctx,
+        TextBoxState state,
+        Func<TextSubmittedEventArgs, Task> onSubmit)
+        where TParent : Hex1bWidget
+        => new(State: state) { OnSubmit = onSubmit };
 }

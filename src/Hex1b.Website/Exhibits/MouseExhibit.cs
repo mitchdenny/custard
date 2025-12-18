@@ -29,15 +29,15 @@ public class MouseExhibit : IGalleryExhibit
                     new TextBlockWidget(""),
                     new HStackWidget([
                         new TextBlockWidget("Name:    "),
-                        new TextBoxWidget(_textBox1) { WidthHint = Hex1b.Layout.SizeHint.Fixed(20) }
+                        new TextBoxWidget(State: _textBox1) { WidthHint = Hex1b.Layout.SizeHint.Fixed(20) }
                     ]),
                     new HStackWidget([
                         new TextBlockWidget("Email:   "),
-                        new TextBoxWidget(_textBox2) { WidthHint = Hex1b.Layout.SizeHint.Fixed(20) }
+                        new TextBoxWidget(State: _textBox2) { WidthHint = Hex1b.Layout.SizeHint.Fixed(20) }
                     ]),
                     new HStackWidget([
                         new TextBlockWidget("Message: "),
-                        new TextBoxWidget(_textBox3) { WidthHint = Hex1b.Layout.SizeHint.Fixed(20) }
+                        new TextBoxWidget(State: _textBox3) { WidthHint = Hex1b.Layout.SizeHint.Fixed(20) }
                     ]),
                     new TextBlockWidget(""),
                     new TextBlockWidget("Click buttons to activate them:"),

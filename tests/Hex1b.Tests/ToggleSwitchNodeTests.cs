@@ -1,3 +1,4 @@
+using Hex1b.Events;
 using Hex1b.Input;
 using Hex1b.Layout;
 using Hex1b.Theming;
@@ -318,15 +319,17 @@ public class ToggleSwitchNodeTests
             State = new ToggleSwitchState
             {
                 Options = ["Manual", "Auto", "Delayed"],
-                SelectedIndex = 0,
-                OnSelectionChanged = (index, value) =>
-                {
-                    callbackInvoked = true;
-                    callbackIndex = index;
-                    callbackValue = value;
-                }
+                SelectedIndex = 0
             },
             IsFocused = true
+        };
+        
+        node.SelectionChangedAction = _ =>
+        {
+            callbackInvoked = true;
+            callbackIndex = node.State.SelectedIndex;
+            callbackValue = node.State.Options.ElementAtOrDefault(node.State.SelectedIndex) ?? "";
+            return Task.CompletedTask;
         };
 
         await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.RightArrow, '\0', Hex1bModifiers.None));
@@ -554,14 +557,16 @@ public class ToggleSwitchNodeTests
         var lastSelectedValue = "";
         var state = new ToggleSwitchState
         {
-            Options = ["Mode1", "Mode2"],
-            OnSelectionChanged = (idx, val) => lastSelectedValue = val
+            Options = ["Mode1", "Mode2"]
         };
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.VStack(v => [
-                    v.ToggleSwitch(state)
+                    v.ToggleSwitch(
+                        state.Options, 
+                        state.SelectedIndex, 
+                        args => lastSelectedValue = args.SelectedOption)
                 ])
             ),
             new Hex1bAppOptions { Terminal = terminal }

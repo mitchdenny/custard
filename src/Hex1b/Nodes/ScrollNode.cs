@@ -148,7 +148,7 @@ public sealed class ScrollNode : Hex1bNode, ILayoutProvider
         bindings.Key(Hex1bKey.Home).Action(ScrollToStart, "Scroll to start");
         bindings.Key(Hex1bKey.End).Action(ScrollToEnd, "Scroll to end");
         
-        // Focus navigation - delegated to app-level FocusRing via ActionContext
+        // Focus navigation - delegated to app-level FocusRing via InputBindingActionContext
         bindings.Key(Hex1bKey.Tab).Action(ctx => ctx.FocusNext(), "Next focusable");
         bindings.Shift().Key(Hex1bKey.Tab).Action(ctx => ctx.FocusPrevious(), "Previous focusable");
         bindings.Key(Hex1bKey.Escape).Action(FocusFirst, "Jump to first focusable");

@@ -97,7 +97,7 @@ public class Hex1bApp<TState> : IDisposable where TState : class
     private readonly IReadOnlyList<RescueAction> _rescueActions;
     private readonly RescueState _rescueState = new();
     
-    // Stop request flag - set by ActionContext.RequestStop()
+    // Stop request flag - set by InputBindingActionContext.RequestStop()
     private volatile bool _stopRequested;
 
     /// <summary>
@@ -229,7 +229,7 @@ public class Hex1bApp<TState> : IDisposable where TState : class
                         // Key events are routed to the focused node through the tree
                         case Hex1bKeyEvent keyEvent when _rootNode != null:
                             // Use input routing system - routes to focused node, checks bindings, then calls HandleInput
-                            await InputRouter.RouteInputAsync(_rootNode, keyEvent, _focusRing, RequestStop);
+                            await InputRouter.RouteInputAsync(_rootNode, keyEvent, _focusRing, RequestStop, cancellationToken);
                             break;
                         
                         // Mouse events: update cursor position and handle clicks/drags
@@ -262,7 +262,7 @@ public class Hex1bApp<TState> : IDisposable where TState : class
                             // Handle click events (button down) - may start a drag
                             if (mouseEvent.Action == MouseAction.Down && mouseEvent.Button != MouseButton.None)
                             {
-                                await HandleMouseClickAsync(mouseEvent);
+                                await HandleMouseClickAsync(mouseEvent, cancellationToken);
                             }
                             break;
                     }
@@ -390,7 +390,7 @@ public class Hex1bApp<TState> : IDisposable where TState : class
     /// Handles a mouse click by hit testing and routing through bindings.
     /// May initiate a drag if a drag binding matches.
     /// </summary>
-    private async Task HandleMouseClickAsync(Hex1bMouseEvent mouseEvent)
+    private async Task HandleMouseClickAsync(Hex1bMouseEvent mouseEvent, CancellationToken cancellationToken)
     {
         // Compute click count for double/triple click detection
         var clickCount = ComputeClickCount(mouseEvent);
@@ -412,7 +412,7 @@ public class Hex1bApp<TState> : IDisposable where TState : class
         var localY = mouseEvent.Y - hitNode.Bounds.Y;
         
         // Create action context for mouse bindings
-        var actionContext = new ActionContext(_focusRing, RequestStop);
+        var actionContext = new InputBindingActionContext(_focusRing, RequestStop, cancellationToken);
         
         // Check if the node has a drag binding for this event (checked first)
         var builder = hitNode.BuildBindings();

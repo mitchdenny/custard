@@ -1,3 +1,4 @@
+using Hex1b.Events;
 using Hex1b.Input;
 using Hex1b.Layout;
 using Hex1b.Nodes;
@@ -61,24 +62,19 @@ public enum TextOverflow
     Ellipsis,
 }
 
-public sealed record TextBlockWidget(string Text, TextOverflow Overflow = TextOverflow.Overflow) : Hex1bWidget
-{
-    internal override Hex1bNode Reconcile(Hex1bNode? existingNode, ReconcileContext context)
-    {
-        var node = existingNode as TextBlockNode ?? new TextBlockNode();
-        node.Text = Text;
-        node.Overflow = Overflow;
-        return node;
-    }
-
-    internal override Type GetExpectedNodeType() => typeof(TextBlockNode);
-}
-
 public sealed record TextBoxWidget(string? InitialText = null, TextBoxState? State = null) : Hex1bWidget
 {
+    /// <summary>
+    /// Called when Enter is pressed in the text box.
+    /// </summary>
+    public Func<TextSubmittedEventArgs, Task>? OnSubmit { get; init; }
+
     internal override Hex1bNode Reconcile(Hex1bNode? existingNode, ReconcileContext context)
     {
         var node = existingNode as TextBoxNode ?? new TextBoxNode();
+        
+        // Store reference to source widget for event args
+        node.SourceWidget = this;
         
         // Controlled mode: if State is provided, use it
         if (State != null)
@@ -89,6 +85,20 @@ public sealed record TextBoxWidget(string? InitialText = null, TextBoxState? Sta
         else if (context.IsNew && InitialText != null)
         {
             node.Text = InitialText;
+        }
+        
+        // Set up event handlers - wrap to convert InputBindingActionContext to typed event args
+        if (OnSubmit != null)
+        {
+            node.SubmitAction = ctx =>
+            {
+                var args = new TextSubmittedEventArgs(this, node, ctx, node.Text);
+                return OnSubmit(args);
+            };
+        }
+        else
+        {
+            node.SubmitAction = null;
         }
         
         return node;

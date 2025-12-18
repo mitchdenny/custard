@@ -74,7 +74,7 @@ public sealed class KeyStepBuilder
     /// Completes the binding with a context-aware action handler.
     /// The context provides access to app-level services like focus navigation.
     /// </summary>
-    public void Action(Action<ActionContext> handler, string? description = null)
+    public void Action(Action<InputBindingActionContext> handler, string? description = null)
     {
         CommitCurrentStep();
         _parent.AddBinding(new InputBinding([.. _completedSteps], handler, description));
@@ -83,7 +83,7 @@ public sealed class KeyStepBuilder
     /// <summary>
     /// Completes the binding with an async context-aware action handler.
     /// </summary>
-    public void Action(Func<ActionContext, Task> handler, string? description = null)
+    public void Action(Func<InputBindingActionContext, Task> handler, string? description = null)
     {
         CommitCurrentStep();
         _parent.AddBinding(new InputBinding([.. _completedSteps], handler, description));

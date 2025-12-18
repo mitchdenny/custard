@@ -92,7 +92,7 @@ public sealed class SplitterNode : Hex1bNode
         bindings.Key(Hex1bKey.UpArrow).Action(ResizeUp, "Resize up");
         bindings.Key(Hex1bKey.DownArrow).Action(ResizeDown, "Resize down");
         
-        // Focus navigation - delegated to app-level FocusRing via ActionContext
+        // Focus navigation - delegated to app-level FocusRing via InputBindingActionContext
         bindings.Key(Hex1bKey.Tab).Action(ctx => ctx.FocusNext(), "Next focusable");
         bindings.Shift().Key(Hex1bKey.Tab).Action(ctx => ctx.FocusPrevious(), "Previous focusable");
         bindings.Key(Hex1bKey.Escape).Action(FocusFirst, "Jump to first focusable");

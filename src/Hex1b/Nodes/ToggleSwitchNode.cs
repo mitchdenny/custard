@@ -11,7 +11,17 @@ namespace Hex1b;
 /// </summary>
 public sealed class ToggleSwitchNode : Hex1bNode
 {
+    /// <summary>
+    /// The source widget that was reconciled into this node.
+    /// </summary>
+    public ToggleSwitchWidget? SourceWidget { get; set; }
+
     public ToggleSwitchState State { get; set; } = new();
+
+    /// <summary>
+    /// Internal action invoked when selection changes.
+    /// </summary>
+    internal Func<InputBindingActionContext, Task>? SelectionChangedAction { get; set; }
     
     private bool _isFocused;
     public override bool IsFocused { get => _isFocused; set => _isFocused = value; }
@@ -23,12 +33,27 @@ public sealed class ToggleSwitchNode : Hex1bNode
 
     public override void ConfigureDefaultBindings(InputBindingsBuilder bindings)
     {
-        bindings.Key(Hex1bKey.LeftArrow).Action(MovePrevious, "Previous option");
-        bindings.Key(Hex1bKey.RightArrow).Action(MoveNext, "Next option");
+        bindings.Key(Hex1bKey.LeftArrow).Action(MovePreviousWithEvent, "Previous option");
+        bindings.Key(Hex1bKey.RightArrow).Action(MoveNextWithEvent, "Next option");
     }
 
-    private void MovePrevious() => State.MovePrevious();
-    private void MoveNext() => State.MoveNext();
+    private async Task MovePreviousWithEvent(InputBindingActionContext ctx)
+    {
+        State.MovePrevious();
+        if (SelectionChangedAction != null)
+        {
+            await SelectionChangedAction(ctx);
+        }
+    }
+
+    private async Task MoveNextWithEvent(InputBindingActionContext ctx)
+    {
+        State.MoveNext();
+        if (SelectionChangedAction != null)
+        {
+            await SelectionChangedAction(ctx);
+        }
+    }
 
     /// <summary>
     /// Handles mouse click by selecting the option at the clicked X position.

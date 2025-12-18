@@ -1,6 +1,6 @@
 namespace Hex1b;
 
-using Hex1b.Input;
+using Hex1b.Events;
 using Hex1b.Widgets;
 
 /// <summary>
@@ -23,9 +23,9 @@ public static class ButtonExtensions
     public static ButtonWidget Button<TParent, TState>(
         this WidgetContext<TParent, TState> ctx,
         string label,
-        Action<ActionContext> onClick)
+        Action<ButtonClickedEventArgs> onClick)
         where TParent : Hex1bWidget
-        => new(label) { OnClick = ctx => { onClick(ctx); return Task.CompletedTask; } };
+        => new(label) { OnClick = args => { onClick(args); return Task.CompletedTask; } };
 
     /// <summary>
     /// Creates a ButtonWidget with the specified label and asynchronous click handler.
@@ -33,7 +33,7 @@ public static class ButtonExtensions
     public static ButtonWidget Button<TParent, TState>(
         this WidgetContext<TParent, TState> ctx,
         string label,
-        Func<ActionContext, Task> onClick)
+        Func<ButtonClickedEventArgs, Task> onClick)
         where TParent : Hex1bWidget
         => new(label) { OnClick = onClick };
 }

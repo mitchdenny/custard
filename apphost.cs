@@ -1,6 +1,6 @@
-﻿#:sdk Aspire.AppHost.Sdk@13.2.0-preview.1.25615.6
-#:package Aspire.Hosting.JavaScript@13.2.0-preview.1.25615.6
-#:package Aspire.Hosting.Azure.AppContainers@13.2.0-preview.1.25615.6
+﻿#:sdk Aspire.AppHost.Sdk@13.1.0
+#:package Aspire.Hosting.JavaScript@13.1.0
+#:package Aspire.Hosting.Azure.AppContainers@13.1.0
 
 #pragma warning disable ASPIRECSHARPAPPS001
 #pragma warning disable ASPIREACADOMAINS001
@@ -29,7 +29,6 @@ var website = builder.AddCSharpApp("website", "./src/Hex1b.Website")
             app.ConfigureCustomDomain(customDomain, certificateName);
         }
     });
-
 
 var content = builder.AddViteApp("content", "./src/content")
     .WithViteConfig("./src/content/docs/.vitepress/config.ts")

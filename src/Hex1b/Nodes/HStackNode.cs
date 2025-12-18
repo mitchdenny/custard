@@ -112,7 +112,7 @@ public sealed class HStackNode : Hex1bNode
 
     public override void ConfigureDefaultBindings(InputBindingsBuilder bindings)
     {
-        // Tab navigation is handled by the app-level FocusRing via ActionContext.
+        // Tab navigation is handled by the app-level FocusRing via InputBindingActionContext.
         // HStack just provides Tab/Shift+Tab bindings that delegate to the context.
         bindings.Key(Hex1bKey.Tab).Action(ctx => ctx.FocusNext(), "Next focusable");
         bindings.Shift().Key(Hex1bKey.Tab).Action(ctx => ctx.FocusPrevious(), "Previous focusable");

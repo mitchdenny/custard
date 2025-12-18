@@ -1,6 +1,7 @@
 using Hex1b.Input;
 using Hex1b.Layout;
 using Hex1b.Theming;
+using Hex1b.Widgets;
 
 namespace Hex1b;
 
@@ -9,10 +10,16 @@ public sealed class ButtonNode : Hex1bNode
     public string Label { get; set; } = "";
     
     /// <summary>
-    /// The async action to execute when the button is activated.
-    /// Sync handlers are normalized to async at the widget level.
+    /// The source widget that was reconciled into this node.
+    /// Used to create typed event args.
     /// </summary>
-    public Func<ActionContext, Task>? ClickAction { get; set; }
+    public ButtonWidget? SourceWidget { get; set; }
+    
+    /// <summary>
+    /// The async action to execute when the button is activated.
+    /// This is the wrapped handler that receives InputBindingActionContext.
+    /// </summary>
+    public Func<InputBindingActionContext, Task>? ClickAction { get; set; }
     
     private bool _isFocused;
     public override bool IsFocused { get => _isFocused; set => _isFocused = value; }

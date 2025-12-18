@@ -1,4 +1,4 @@
-using Hex1b.Input;
+using Hex1b.Events;
 using Hex1b.Widgets;
 
 namespace Hex1b;
@@ -17,7 +17,7 @@ public static class Hex1bWidgets
 
     public static Task<Hex1bWidget> HStackAsync(CancellationToken cancellationToken = default, params Hex1bWidget[] children) => Task.FromResult<Hex1bWidget>(new HStackWidget(children));
 
-    public static Task<Hex1bWidget> ButtonAsync(string label, Action<ActionContext> onClick, CancellationToken cancellationToken = default) => Task.FromResult<Hex1bWidget>(new ButtonWidget(label) { OnClick = ctx => { onClick(ctx); return Task.CompletedTask; } });
+    public static Task<Hex1bWidget> ButtonAsync(string label, Action<ButtonClickedEventArgs> onClick, CancellationToken cancellationToken = default) => Task.FromResult<Hex1bWidget>(new ButtonWidget(label) { OnClick = args => { onClick(args); return Task.CompletedTask; } });
     
-    public static Task<Hex1bWidget> ButtonAsync(string label, Func<ActionContext, Task> onClick, CancellationToken cancellationToken = default) => Task.FromResult<Hex1bWidget>(new ButtonWidget(label) { OnClick = onClick });
+    public static Task<Hex1bWidget> ButtonAsync(string label, Func<ButtonClickedEventArgs, Task> onClick, CancellationToken cancellationToken = default) => Task.FromResult<Hex1bWidget>(new ButtonWidget(label) { OnClick = onClick });
 }

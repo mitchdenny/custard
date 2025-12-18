@@ -1,3 +1,4 @@
+using Hex1b.Events;
 using Hex1b.Input;
 using Hex1b.Layout;
 using Hex1b.Theming;
@@ -508,9 +509,9 @@ public class ListNodeTests
     {
         var state = CreateListState("Item 1", "Item 2");
         ListItem? activatedItem = null;
-        state.OnItemActivated = item => activatedItem = item;
         state.SelectedIndex = 1;
         var node = new ListNode { State = state, IsFocused = true };
+        node.ItemActivatedAction = _ => { activatedItem = state.SelectedItem; return Task.CompletedTask; };
         
         var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.Enter, '\r', Hex1bModifiers.None));
         
@@ -524,9 +525,9 @@ public class ListNodeTests
     {
         var state = CreateListState("Item 1", "Item 2");
         ListItem? activatedItem = null;
-        state.OnItemActivated = item => activatedItem = item;
         state.SelectedIndex = 0;
         var node = new ListNode { State = state, IsFocused = true };
+        node.ItemActivatedAction = _ => { activatedItem = state.SelectedItem; return Task.CompletedTask; };
         
         var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.Spacebar, ' ', Hex1bModifiers.None));
         
@@ -553,8 +554,8 @@ public class ListNodeTests
     {
         var state = new ListState { Items = [] };
         ListItem? activatedItem = null;
-        state.OnItemActivated = item => activatedItem = item;
         var node = new ListNode { State = state, IsFocused = true };
+        node.ItemActivatedAction = _ => { activatedItem = state.SelectedItem; return Task.CompletedTask; };
         
         var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.Enter, '\r', Hex1bModifiers.None));
         
@@ -571,9 +572,9 @@ public class ListNodeTests
     {
         var state = CreateListState("Item 1", "Item 2");
         ListItem? selectedItem = null;
-        state.OnSelectionChanged = item => selectedItem = item;
         state.SelectedIndex = 0;
         var node = new ListNode { State = state, IsFocused = true };
+        node.SelectionChangedAction = _ => { selectedItem = state.SelectedItem; return Task.CompletedTask; };
         
         await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.DownArrow, '\0', Hex1bModifiers.None));
         
@@ -586,9 +587,9 @@ public class ListNodeTests
     {
         var state = CreateListState("Item 1", "Item 2");
         ListItem? selectedItem = null;
-        state.OnSelectionChanged = item => selectedItem = item;
         state.SelectedIndex = 1;
         var node = new ListNode { State = state, IsFocused = true };
+        node.SelectionChangedAction = _ => { selectedItem = state.SelectedItem; return Task.CompletedTask; };
         
         await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.UpArrow, '\0', Hex1bModifiers.None));
         
@@ -768,12 +769,13 @@ public class ListNodeTests
         using var terminal = new Hex1bTerminal(40, 10);
         var listState = CreateListState("Action 1", "Action 2");
         string? activatedAction = null;
-        listState.OnItemActivated = item => activatedAction = item.Text;
         listState.SelectedIndex = 0;
         
         using var app = new Hex1bApp<ListState>(
             listState,
-            ctx => Task.FromResult<Hex1bWidget>(ctx.List(s => s)),
+            ctx => Task.FromResult<Hex1bWidget>(ctx.List(
+                s => s, 
+                (ListItemActivatedEventArgs args) => activatedAction = args.ActivatedItem?.Text)),
             new Hex1bAppOptions { Terminal = terminal }
         );
         
@@ -886,12 +888,12 @@ public class ListNodeTests
     [Fact]
     public void HandleMouseClick_SelectsClickedItem()
     {
-        string? activatedItem = null;
+        // Note: Mouse click is synchronous so it cannot fire async events.
+        // It only changes the selection.
         var node = new ListNode
         {
             State = CreateListState("First", "Second", "Third")
         };
-        node.State.OnItemActivated = item => activatedItem = item?.Text;
         node.Measure(Constraints.Unbounded);
         node.Arrange(new Rect(0, 0, 20, 3));
 
@@ -901,7 +903,6 @@ public class ListNodeTests
 
         Assert.Equal(InputResult.Handled, result);
         Assert.Equal(1, node.State.SelectedIndex);
-        Assert.Equal("Second", activatedItem);
     }
 
     [Fact]

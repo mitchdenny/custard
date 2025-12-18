@@ -1,18 +1,28 @@
 namespace Hex1b.Input;
 
 /// <summary>
-/// Context passed to input binding action handlers.
-/// Provides app-level services for focus navigation and other common operations.
+/// Context passed to input binding action handlers and widget event handlers.
+/// Provides app-level services for focus navigation, cancellation, and other common operations.
 /// </summary>
-public sealed class ActionContext
+public sealed class InputBindingActionContext
 {
     private readonly FocusRing _focusRing;
     private readonly Action? _requestStop;
 
-    internal ActionContext(FocusRing focusRing, Action? requestStop = null)
+    /// <summary>
+    /// Cancellation token from the application run loop.
+    /// Use this for async operations that should be cancelled when the app stops.
+    /// </summary>
+    public CancellationToken CancellationToken { get; }
+
+    internal InputBindingActionContext(
+        FocusRing focusRing, 
+        Action? requestStop = null, 
+        CancellationToken cancellationToken = default)
     {
         _focusRing = focusRing;
         _requestStop = requestStop;
+        CancellationToken = cancellationToken;
     }
 
     /// <summary>

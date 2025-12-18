@@ -74,7 +74,7 @@ public sealed class ChordTrie
     /// <summary>
     /// Executes the action if present with the given context.
     /// </summary>
-    public Task ExecuteAsync(ActionContext context) => _binding?.ExecuteAsync(context) ?? Task.CompletedTask;
+    public Task ExecuteAsync(InputBindingActionContext context) => _binding?.ExecuteAsync(context) ?? Task.CompletedTask;
 
     /// <summary>
     /// Gets the description if present.
@@ -143,5 +143,5 @@ public readonly struct ChordLookupResult
     /// <summary>
     /// Executes the action if present with the given context.
     /// </summary>
-    public Task ExecuteAsync(ActionContext context) => Node?.ExecuteAsync(context) ?? Task.CompletedTask;
+    public Task ExecuteAsync(InputBindingActionContext context) => Node?.ExecuteAsync(context) ?? Task.CompletedTask;
 }

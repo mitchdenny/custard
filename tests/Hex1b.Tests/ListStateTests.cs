@@ -99,30 +99,26 @@ public class ListStateTests
     }
 
     [Fact]
-    public void MoveDown_InvokesOnSelectionChanged()
+    public void MoveDown_ChangesSelectedIndex()
     {
         var state = CreateListWithItems("Item 1", "Item 2");
-        ListItem? changedItem = null;
-        state.OnSelectionChanged = item => changedItem = item;
         
         state.MoveDown();
         
-        Assert.NotNull(changedItem);
-        Assert.Equal("Item 2", changedItem.Text);
+        Assert.Equal(1, state.SelectedIndex);
+        Assert.Equal("Item 2", state.SelectedItem?.Text);
     }
 
     [Fact]
-    public void MoveUp_InvokesOnSelectionChanged()
+    public void MoveUp_ChangesSelectedIndex()
     {
         var state = CreateListWithItems("Item 1", "Item 2");
         state.SelectedIndex = 1;
-        ListItem? changedItem = null;
-        state.OnSelectionChanged = item => changedItem = item;
         
         state.MoveUp();
         
-        Assert.NotNull(changedItem);
-        Assert.Equal("Item 1", changedItem.Text);
+        Assert.Equal(0, state.SelectedIndex);
+        Assert.Equal("Item 1", state.SelectedItem?.Text);
     }
 
     [Fact]

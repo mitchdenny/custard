@@ -105,7 +105,7 @@ using var app = new Hex1bApp(
                         new VStackWidget([
                             new BorderWidget(new VStackWidget([
                                 new TextBlockWidget("➕ Add Task"),
-                                new TextBoxWidget(newItemInput),
+                                new TextBoxWidget(State: newItemInput),
                                 new ButtonWidget("Add") { OnClick = _ => { AddItem(); return Task.CompletedTask; } }
                             ]), "New"),
                             new BorderWidget(new VStackWidget([
@@ -128,7 +128,7 @@ using var app = new Hex1bApp(
                         new ListWidget(listState) { HeightHint = SizeHint.Fill },
                         new TextBlockWidget(""),
                         new HStackWidget([
-                            new TextBoxWidget(newItemInput) { WidthHint = SizeHint.Fill },
+                            new TextBoxWidget(State: newItemInput) { WidthHint = SizeHint.Fill },
                             new ButtonWidget("[+]") { OnClick = _ => { AddItem(); return Task.CompletedTask; } }
                         ]),
                         new TextBlockWidget(""),

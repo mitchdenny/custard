@@ -7,7 +7,22 @@ namespace Hex1b;
 
 public sealed class ListNode : Hex1bNode
 {
+    /// <summary>
+    /// The source widget that was reconciled into this node.
+    /// </summary>
+    public ListWidget? SourceWidget { get; set; }
+
     public ListState State { get; set; } = new();
+
+    /// <summary>
+    /// Internal action invoked when selection changes.
+    /// </summary>
+    internal Func<InputBindingActionContext, Task>? SelectionChangedAction { get; set; }
+
+    /// <summary>
+    /// Internal action invoked when an item is activated.
+    /// </summary>
+    internal Func<InputBindingActionContext, Task>? ItemActivatedAction { get; set; }
     
     private bool _isFocused;
     public override bool IsFocused { get => _isFocused; set => _isFocused = value; }
@@ -19,23 +34,38 @@ public sealed class ListNode : Hex1bNode
 
     public override void ConfigureDefaultBindings(InputBindingsBuilder bindings)
     {
-        // Navigation
-        bindings.Key(Hex1bKey.UpArrow).Action(MoveUp, "Move up");
-        bindings.Key(Hex1bKey.DownArrow).Action(MoveDown, "Move down");
+        // Navigation with selection changed events
+        bindings.Key(Hex1bKey.UpArrow).Action(MoveUpWithEvent, "Move up");
+        bindings.Key(Hex1bKey.DownArrow).Action(MoveDownWithEvent, "Move down");
         
-        // Activation
-        bindings.Key(Hex1bKey.Enter).Action(ActivateItem, "Activate item");
-        bindings.Key(Hex1bKey.Spacebar).Action(ActivateItem, "Activate item");
+        // Activation - always bind Enter/Space so focused lists consume these keys
+        bindings.Key(Hex1bKey.Enter).Action(ActivateItemWithEvent, "Activate item");
+        bindings.Key(Hex1bKey.Spacebar).Action(ActivateItemWithEvent, "Activate item");
     }
 
-    private void MoveUp() => State.MoveUp();
-    private void MoveDown() => State.MoveDown();
-    
-    private void ActivateItem()
+    private async Task ActivateItemWithEvent(InputBindingActionContext ctx)
     {
-        if (State.SelectedItem != null)
+        if (ItemActivatedAction != null)
         {
-            State.OnItemActivated?.Invoke(State.SelectedItem);
+            await ItemActivatedAction(ctx);
+        }
+    }
+
+    private async Task MoveUpWithEvent(InputBindingActionContext ctx)
+    {
+        State.MoveUp();
+        if (SelectionChangedAction != null)
+        {
+            await SelectionChangedAction(ctx);
+        }
+    }
+
+    private async Task MoveDownWithEvent(InputBindingActionContext ctx)
+    {
+        State.MoveDown();
+        if (SelectionChangedAction != null)
+        {
+            await SelectionChangedAction(ctx);
         }
     }
 
@@ -47,8 +77,8 @@ public sealed class ListNode : Hex1bNode
         var items = State.Items;
         if (localY >= 0 && localY < items.Count)
         {
-            State.SelectedIndex = localY;
-            ActivateItem();
+            State.SetSelection(localY);
+            // Note: Can't fire async event from sync method; consider HandleMouseClickAsync
             return InputResult.Handled;
         }
         return InputResult.NotHandled;

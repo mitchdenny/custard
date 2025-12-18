@@ -9,6 +9,12 @@ namespace Hex1b;
 public sealed class TextBoxNode : Hex1bNode
 {
     /// <summary>
+    /// The source widget that was reconciled into this node.
+    /// Used to create typed event args.
+    /// </summary>
+    public TextBoxWidget? SourceWidget { get; set; }
+
+    /// <summary>
     /// The text box state containing text, cursor position, and selection.
     /// </summary>
     public TextBoxState State { get; set; } = new();
@@ -21,6 +27,11 @@ public sealed class TextBoxNode : Hex1bNode
         get => State.Text;
         set => State.Text = value;
     }
+
+    /// <summary>
+    /// Internal action invoked when Enter is pressed.
+    /// </summary>
+    internal Func<InputBindingActionContext, Task>? SubmitAction { get; set; }
     
     private bool _isFocused;
     public override bool IsFocused { get => _isFocused; set => _isFocused = value; }
@@ -47,6 +58,12 @@ public sealed class TextBoxNode : Hex1bNode
         // Editing
         bindings.Key(Hex1bKey.Backspace).Action(DeleteBackward, "Delete backward");
         bindings.Key(Hex1bKey.Delete).Action(DeleteForward, "Delete forward");
+        
+        // Submit (Enter key)
+        if (SubmitAction != null)
+        {
+            bindings.Key(Hex1bKey.Enter).Action(SubmitAction, "Submit");
+        }
         
         // Selection
         bindings.Ctrl().Key(Hex1bKey.A).Action(SelectAll, "Select all");

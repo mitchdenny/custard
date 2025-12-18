@@ -37,7 +37,7 @@ public class MouseBindingTests
             _ => { executed = true; return Task.CompletedTask; }, 
             "Test");
         
-        var actionContext = new ActionContext(new FocusRing());
+        var actionContext = new InputBindingActionContext(new FocusRing());
         await binding.ExecuteAsync(actionContext);
         
         Assert.True(executed);

@@ -42,10 +42,15 @@ public static class InputRouter
     /// 6. If leaf matched, execute action
     /// 7. If no match, fall through to HandleInput on focused node, then bubble up
     /// </summary>
-    public static async Task<InputResult> RouteInputAsync(Hex1bNode root, Hex1bKeyEvent keyEvent, FocusRing focusRing, Action? requestStop = null)
+    public static async Task<InputResult> RouteInputAsync(
+        Hex1bNode root, 
+        Hex1bKeyEvent keyEvent, 
+        FocusRing focusRing, 
+        Action? requestStop = null,
+        CancellationToken cancellationToken = default)
     {
         // Create the action context for this input routing
-        var actionContext = new ActionContext(focusRing, requestStop);
+        var actionContext = new InputBindingActionContext(focusRing, requestStop, cancellationToken);
         
         // Build path from root to focused node
         var path = BuildPathToFocused(root);
@@ -152,7 +157,7 @@ public static class InputRouter
         return RouteInputAsync(root, keyEvent, focusRing, null);
     }
     
-    private static async Task<InputResult> ContinueChordAsync(Hex1bKeyEvent keyEvent, List<Hex1bNode> path, ActionContext actionContext)
+    private static async Task<InputResult> ContinueChordAsync(Hex1bKeyEvent keyEvent, List<Hex1bNode> path, InputBindingActionContext actionContext)
     {
         var result = _chordNode!.Lookup(keyEvent);
         
@@ -222,12 +227,18 @@ public static class InputRouter
     /// <param name="keyEvent">The key event to route.</param>
     /// <param name="focusRing">Optional focus ring for context-aware bindings.</param>
     /// <param name="requestStop">Optional callback to request application stop.</param>
+    /// <param name="cancellationToken">Cancellation token for async operations.</param>
     /// <returns>The result of input processing.</returns>
-    public static async Task<InputResult> RouteInputToNodeAsync(Hex1bNode node, Hex1bKeyEvent keyEvent, FocusRing? focusRing = null, Action? requestStop = null)
+    public static async Task<InputResult> RouteInputToNodeAsync(
+        Hex1bNode node, 
+        Hex1bKeyEvent keyEvent, 
+        FocusRing? focusRing = null, 
+        Action? requestStop = null,
+        CancellationToken cancellationToken = default)
     {
         // Create focus ring if not provided
         focusRing ??= new FocusRing();
-        var actionContext = new ActionContext(focusRing, requestStop);
+        var actionContext = new InputBindingActionContext(focusRing, requestStop, cancellationToken);
         
         // Build bindings for this node and look up the key
         var builder = node.BuildBindings();

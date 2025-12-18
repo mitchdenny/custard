@@ -16,7 +16,7 @@ public sealed class InputBinding
     /// The action to execute when the binding matches.
     /// All handlers are normalized to async for consistency.
     /// </summary>
-    private Func<ActionContext, Task> Handler { get; }
+    private Func<InputBindingActionContext, Task> Handler { get; }
 
     /// <summary>
     /// Optional description for this binding (for help/documentation).
@@ -35,7 +35,7 @@ public sealed class InputBinding
     /// <summary>
     /// Creates an input binding with a synchronous context-aware action handler.
     /// </summary>
-    public InputBinding(IReadOnlyList<KeyStep> steps, Action<ActionContext> action, string? description = null)
+    public InputBinding(IReadOnlyList<KeyStep> steps, Action<InputBindingActionContext> action, string? description = null)
         : this(steps, ctx => { action(ctx); return Task.CompletedTask; }, description)
     {
         ArgumentNullException.ThrowIfNull(action);
@@ -44,7 +44,7 @@ public sealed class InputBinding
     /// <summary>
     /// Creates an input binding with an async context-aware action handler.
     /// </summary>
-    public InputBinding(IReadOnlyList<KeyStep> steps, Func<ActionContext, Task> handler, string? description = null)
+    public InputBinding(IReadOnlyList<KeyStep> steps, Func<InputBindingActionContext, Task> handler, string? description = null)
     {
         if (steps.Count == 0)
             throw new ArgumentException("At least one key step is required.", nameof(steps));
@@ -57,7 +57,7 @@ public sealed class InputBinding
     /// <summary>
     /// Executes the binding's handler with the given context.
     /// </summary>
-    public Task ExecuteAsync(ActionContext context) => Handler(context);
+    public Task ExecuteAsync(InputBindingActionContext context) => Handler(context);
 
     /// <summary>
     /// Gets the first key step of this binding (for trie insertion).

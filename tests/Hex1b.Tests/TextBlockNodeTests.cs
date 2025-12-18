@@ -437,7 +437,7 @@ public class TextBlockNodeTests
                 return Task.FromResult<Hex1bWidget>(
                     ctx.VStack(v => [
                         v.Text($"Counter: {counter}"),
-                        v.Button("Increment", _ => Task.CompletedTask /* counter increments on next render */)
+                        v.Button("Increment").OnClick(_ => Task.CompletedTask /* counter increments on next render */)
                     ])
                 );
             },

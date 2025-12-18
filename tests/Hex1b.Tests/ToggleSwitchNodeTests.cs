@@ -532,7 +532,7 @@ public class ToggleSwitchNodeTests
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.VStack(v => [
                     v.ToggleSwitch(toggleState),
-                    v.Button("Click", _ => { buttonClicked = true; return Task.CompletedTask; })
+                    v.Button("Click").OnClick(_ => { buttonClicked = true; return Task.CompletedTask; })
                 ])
             ),
             new Hex1bAppOptions { Terminal = terminal }
@@ -565,8 +565,8 @@ public class ToggleSwitchNodeTests
                 ctx.VStack(v => [
                     v.ToggleSwitch(
                         state.Options, 
-                        state.SelectedIndex, 
-                        args => lastSelectedValue = args.SelectedOption)
+                        state.SelectedIndex)
+                        .OnSelectionChanged(args => lastSelectedValue = args.SelectedOption)
                 ])
             ),
             new Hex1bAppOptions { Terminal = terminal }

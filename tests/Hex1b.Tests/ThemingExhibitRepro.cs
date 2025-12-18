@@ -253,8 +253,8 @@ public class ThemingExhibitRepro
                                     right.Text(""),
                                     right.Text("Button:"),
                                     right.Button(
-                                        buttonClicked ? "Clicked!" : "Click Me",
-                                        _ => { buttonClicked = !buttonClicked; return Task.CompletedTask; })
+                                        buttonClicked ? "Clicked!" : "Click Me")
+                                        .OnClick(_ => { buttonClicked = !buttonClicked; return Task.CompletedTask; })
                                 ])
                             ]),
                             ClipMode.Clip

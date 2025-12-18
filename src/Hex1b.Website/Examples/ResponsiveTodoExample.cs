@@ -122,7 +122,7 @@ public class ResponsiveTodoExample(ILogger<ResponsiveTodoExample> logger) : Hex1
             h.Border(b => [
                 b.Text("📋 Todo Items"),
                 b.Text(""),
-                b.List(listItems, e => state.SelectedIndex = e.SelectedIndex, _ => state.ToggleSelected()),
+                b.List(listItems).OnSelectionChanged(e => state.SelectedIndex = e.SelectedIndex).OnItemActivated(_ => state.ToggleSelected()),
                 b.Text(""),
                 b.Text("↑↓ Navigate  Space: Toggle")
             ], title: "Tasks").FillWidth(2),
@@ -131,9 +131,9 @@ public class ResponsiveTodoExample(ILogger<ResponsiveTodoExample> logger) : Hex1
             h.Border(b => [
                 b.Text("➕ Add New Task"),
                 b.Text(""),
-                b.TextBox(state.NewItemText, args => state.NewItemText = args.NewText),
+                b.TextBox(state.NewItemText).OnTextChanged(args => state.NewItemText = args.NewText),
                 b.Text(""),
-                b.Button("Add Task", _ => state.AddItem()),
+                b.Button("Add Task").OnClick(_ => state.AddItem()),
                 b.Text(""),
                 b.Text("Type and click Add")
             ], title: "New Task").FillWidth(1),
@@ -164,7 +164,7 @@ public class ResponsiveTodoExample(ILogger<ResponsiveTodoExample> logger) : Hex1
             h.Border(b => [
                 b.Text("📋 Todo Items"),
                 b.Text(""),
-                b.List(listItems, e => state.SelectedIndex = e.SelectedIndex, _ => state.ToggleSelected()),
+                b.List(listItems).OnSelectionChanged(e => state.SelectedIndex = e.SelectedIndex).OnItemActivated(_ => state.ToggleSelected()),
                 b.Text(""),
                 b.Text("↑↓ Nav  Space: Toggle")
             ], title: "Tasks").FillWidth(2),
@@ -173,8 +173,8 @@ public class ResponsiveTodoExample(ILogger<ResponsiveTodoExample> logger) : Hex1
             h.VStack(v => [
                 v.Border(b => [
                     b.Text("➕ Add Task"),
-                    b.TextBox(state.NewItemText, args => state.NewItemText = args.NewText),
-                    b.Button("Add", _ => state.AddItem())
+                    b.TextBox(state.NewItemText).OnTextChanged(args => state.NewItemText = args.NewText),
+                    b.Button("Add").OnClick(_ => state.AddItem())
                 ], title: "New"),
                 v.Border(b => [
                     b.Text($"Done: {completedCount}/{totalCount}"),
@@ -199,12 +199,12 @@ public class ResponsiveTodoExample(ILogger<ResponsiveTodoExample> logger) : Hex1
             ], title: "Todo"),
             
             v.Border(b => [
-                b.List(listItems, e => state.SelectedIndex = e.SelectedIndex, _ => state.ToggleSelected())
+                b.List(listItems).OnSelectionChanged(e => state.SelectedIndex = e.SelectedIndex).OnItemActivated(_ => state.ToggleSelected())
             ], title: "Items").FillHeight(),
             
             v.HStack(h => [
-                h.TextBox(state.NewItemText, args => state.NewItemText = args.NewText).FillWidth(),
-                h.Button("[+]", _ => state.AddItem())
+                h.TextBox(state.NewItemText).OnTextChanged(args => state.NewItemText = args.NewText).FillWidth(),
+                h.Button("[+]").OnClick(_ => state.AddItem())
             ]),
             
             v.Text("↑↓:Move  Space:Toggle  Tab:Focus")
@@ -222,10 +222,10 @@ public class ResponsiveTodoExample(ILogger<ResponsiveTodoExample> logger) : Hex1
         return ctx.VStack(v => [
             v.Text($"Todo [{completedCount}/{totalCount}]"),
             v.Text("────────────────────"),
-            v.List(listItems, e => state.SelectedIndex = e.SelectedIndex, _ => state.ToggleSelected()).FillHeight(),
+            v.List(listItems).OnSelectionChanged(e => state.SelectedIndex = e.SelectedIndex).OnItemActivated(_ => state.ToggleSelected()).FillHeight(),
             v.Text("────────────────────"),
-            v.TextBox(state.NewItemText, args => state.NewItemText = args.NewText),
-            v.Button("+ Add", _ => state.AddItem())
+            v.TextBox(state.NewItemText).OnTextChanged(args => state.NewItemText = args.NewText),
+            v.Button("+ Add").OnClick(_ => state.AddItem())
         ]);
     }
 

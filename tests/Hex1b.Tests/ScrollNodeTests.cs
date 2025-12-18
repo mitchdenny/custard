@@ -961,7 +961,7 @@ public class ScrollNodeTests
                 ctx.VScroll(
                     v => [
                         v.Text("Content"),
-                        v.Button("Click Me", _ => { buttonClicked = true; return Task.CompletedTask; }),
+                        v.Button("Click Me").OnClick(_ => { buttonClicked = true; return Task.CompletedTask; }),
                     ]
                 )
             ),

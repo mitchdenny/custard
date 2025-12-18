@@ -606,7 +606,7 @@ public class TextBoxNodeTests
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.VStack(v => [
-                    v.TextBox(capturedText, onTextChanged: args => capturedText = args.NewText)
+                    v.TextBox(capturedText).OnTextChanged(args => capturedText = args.NewText)
                 ])
             ),
             new Hex1bAppOptions { Terminal = terminal }
@@ -633,7 +633,7 @@ public class TextBoxNodeTests
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.VStack(v => [
-                    v.TextBox(capturedText, args => capturedText = args.NewText)
+                    v.TextBox(capturedText).OnTextChanged(args => capturedText = args.NewText)
                 ])
             ),
             new Hex1bAppOptions { Terminal = terminal }
@@ -658,8 +658,8 @@ public class TextBoxNodeTests
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.VStack(v => [
-                    v.TextBox(text1, args => text1 = args.NewText),
-                    v.TextBox(text2, args => text2 = args.NewText)
+                    v.TextBox(text1).OnTextChanged(args => text1 = args.NewText),
+                    v.TextBox(text2).OnTextChanged(args => text2 = args.NewText)
                 ])
             ),
             new Hex1bAppOptions { Terminal = terminal }
@@ -690,7 +690,7 @@ public class TextBoxNodeTests
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.VStack(v => [
-                    v.TextBox(text, args => text = args.NewText)
+                    v.TextBox(text).OnTextChanged(args => text = args.NewText)
                 ])
             ),
             new Hex1bAppOptions { Terminal = terminal }
@@ -715,7 +715,7 @@ public class TextBoxNodeTests
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.VStack(v => [
-                    v.TextBox(text, args => text = args.NewText)
+                    v.TextBox(text).OnTextChanged(args => text = args.NewText)
                 ])
             ),
             new Hex1bAppOptions { Terminal = terminal }
@@ -741,7 +741,7 @@ public class TextBoxNodeTests
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.VStack(v => [
-                    v.TextBox(text, args => text = args.NewText)
+                    v.TextBox(text).OnTextChanged(args => text = args.NewText)
                 ])
             ),
             new Hex1bAppOptions { Terminal = terminal }
@@ -857,7 +857,7 @@ public class TextBoxNodeTests
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.VStack(v => [
-                    v.TextBox(text, args => text = args.NewText)
+                    v.TextBox(text).OnTextChanged(args => text = args.NewText)
                 ])
             ),
             new Hex1bAppOptions { Terminal = terminal }

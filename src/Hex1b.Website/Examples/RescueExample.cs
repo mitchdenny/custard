@@ -143,7 +143,7 @@ public class RescueExample(ILogger<RescueExample> logger) : Hex1bExample
                     leftPanel.VStack(left => [
                         left.Text("Rescue Examples"),
                         left.Text("─────────────────"),
-                        left.List(state.ExampleItems, e => state.SelectedExampleIndex = e.SelectedIndex, null),
+                        left.List(state.ExampleItems).OnSelectionChanged(e => state.SelectedExampleIndex = e.SelectedIndex),
                         left.Text(""),
                         left.Text("RescueWidget is an"),
                         left.Text("error boundary that"),
@@ -193,7 +193,7 @@ public class RescueExample(ILogger<RescueExample> logger) : Hex1bExample
                 v.Text("Press the button to trigger a catastrophic"),
                 v.Text("error that replaces this entire view:"),
                 v.Text(""),
-                ctx.Button("Trigger Global Rescue", _ => { state.TriggerGlobalError = true; }),
+                ctx.Button("Trigger Global Rescue").OnClick(_ => { state.TriggerGlobalError = true; }),
             ]),
             "Global Rescue"
         );
@@ -238,7 +238,7 @@ public class RescueExample(ILogger<RescueExample> logger) : Hex1bExample
                 v.Text("Press the button to trigger an error"),
                 v.Text("confined to this panel:"),
                 v.Text(""),
-                ctx.Button("Trigger Local Rescue", _ => { state.TriggerLocalError = true; }),
+                ctx.Button("Trigger Local Rescue").OnClick(_ => { state.TriggerLocalError = true; }),
             ]),
             "Local Rescue"
         );

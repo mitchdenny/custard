@@ -28,7 +28,7 @@ public class CanonicalExample(ILogger<CanonicalExample> logger) : ReactiveExampl
             ctx => ctx.VStack(v => [
                 v.Text("Hello, Hex1b!"),
                 v.Text($"Clicks: {clickCount}"),
-                v.Button("Click me", _ => clickCount++)
+                v.Button("Click me").OnClick(_ => clickCount++)
             ]),
             new Hex1bAppOptions { Terminal = terminal }
         );

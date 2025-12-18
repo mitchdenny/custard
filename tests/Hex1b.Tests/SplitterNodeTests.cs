@@ -690,7 +690,7 @@ public class SplitterNodeTests
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.Splitter(
-                    ctx.Button("Left", _ => { leftClicked = true; return Task.CompletedTask; }),
+                    ctx.Button("Left").OnClick(_ => { leftClicked = true; return Task.CompletedTask; }),
                     ctx.Text("Right"),
                     leftWidth: 20
                 )
@@ -715,8 +715,8 @@ public class SplitterNodeTests
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.Splitter(
-                    ctx.Button("Left", _ => Task.CompletedTask),
-                    ctx.Button("Right", _ => { rightClicked = true; return Task.CompletedTask; }),
+                    ctx.Button("Left").OnClick(_ => Task.CompletedTask),
+                    ctx.Button("Right").OnClick(_ => { rightClicked = true; return Task.CompletedTask; }),
                     leftWidth: 20
                 )
             ),
@@ -797,7 +797,7 @@ public class SplitterNodeTests
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.Splitter(
-                    ctx.TextBox(text, onTextChanged: args => text = args.NewText),
+                    ctx.TextBox(text).OnTextChanged(args => text = args.NewText),
                     ctx.Text("Right"),
                     leftWidth: 25
                 )
@@ -1295,7 +1295,7 @@ public class SplitterNodeTests
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.VSplitter(
-                    ctx.Button("Top", _ => { topClicked = true; return Task.CompletedTask; }),
+                    ctx.Button("Top").OnClick(_ => { topClicked = true; return Task.CompletedTask; }),
                     ctx.Text("Bottom"),
                     topHeight: 5
                 )
@@ -1320,8 +1320,8 @@ public class SplitterNodeTests
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.VSplitter(
-                    ctx.Button("Top", _ => Task.CompletedTask),
-                    ctx.Button("Bottom", _ => { bottomClicked = true; return Task.CompletedTask; }),
+                    ctx.Button("Top").OnClick(_ => Task.CompletedTask),
+                    ctx.Button("Bottom").OnClick(_ => { bottomClicked = true; return Task.CompletedTask; }),
                     topHeight: 5
                 )
             ),
@@ -1444,7 +1444,7 @@ public class SplitterNodeTests
                     // Left pane: VStack containing a List (this is the key scenario)
                     v => [v.Text("Theme List"), v.List(items)],
                     // Right pane: VStack with Button that we want to Tab to
-                    v => [v.Button("Right Button", _ => { rightButtonClicked = true; return Task.CompletedTask; })],
+                    v => [v.Button("Right Button").OnClick(_ => { rightButtonClicked = true; return Task.CompletedTask; })],
                     leftWidth: 20
                 )
             ),
@@ -1475,9 +1475,9 @@ public class SplitterNodeTests
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.Splitter(
                     // Left pane: VStack containing two Buttons
-                    v => [v.Button("First", _ => Task.CompletedTask), v.Button("Second", _ => Task.CompletedTask)],
+                    v => [v.Button("First").OnClick(_ => Task.CompletedTask), v.Button("Second").OnClick(_ => Task.CompletedTask)],
                     // Right pane: VStack with Button
-                    v => [v.Button("Right", _ => { rightButtonClicked = true; return Task.CompletedTask; })],
+                    v => [v.Button("Right").OnClick(_ => { rightButtonClicked = true; return Task.CompletedTask; })],
                     leftWidth: 25
                 )
             ),
@@ -1508,8 +1508,8 @@ public class SplitterNodeTests
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.Splitter(
-                    v => [v.Text("Left Pane"), v.Button("Left Button", _ => { leftButtonClicked = true; return Task.CompletedTask; })],
-                    v => [v.Text("Right Pane"), v.Button("Right Button", _ => Task.CompletedTask)],
+                    v => [v.Text("Left Pane"), v.Button("Left Button").OnClick(_ => { leftButtonClicked = true; return Task.CompletedTask; })],
+                    v => [v.Text("Right Pane"), v.Button("Right Button").OnClick(_ => Task.CompletedTask)],
                     leftWidth: 20
                 )
             ),
@@ -1555,7 +1555,7 @@ public class SplitterNodeTests
                     ctx.Panel(p => [
                         p.VStack(v => [
                             v.Text("═══ Preview ═══"),
-                            v.Button("Click Me", _ => { rightButtonClicked = true; return Task.CompletedTask; })
+                            v.Button("Click Me").OnClick(_ => { rightButtonClicked = true; return Task.CompletedTask; })
                         ])
                     ]),
                     leftWidth: 25
@@ -1765,10 +1765,10 @@ public class SplitterNodeTests
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.Splitter(
                     // Outer left: button that should get initial focus
-                    ctx.Button("Outer Left", _ => { outerLeftClicked = true; return Task.CompletedTask; }),
+                    ctx.Button("Outer Left").OnClick(_ => { outerLeftClicked = true; return Task.CompletedTask; }),
                     // Outer right: inner splitter with its own button
                     ctx.Splitter(
-                        ctx.Button("Inner Left", _ => Task.CompletedTask),
+                        ctx.Button("Inner Left").OnClick(_ => Task.CompletedTask),
                         ctx.Text("Inner Right"),
                         leftWidth: 15
                     ),
@@ -1798,10 +1798,10 @@ public class SplitterNodeTests
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.Splitter(
-                    ctx.Button("Outer Left", _ => { outerLeftClicked = true; return Task.CompletedTask; }),
+                    ctx.Button("Outer Left").OnClick(_ => { outerLeftClicked = true; return Task.CompletedTask; }),
                     ctx.VSplitter(
-                        ctx.Button("Top", _ => Task.CompletedTask),
-                        ctx.Button("Bottom", _ => Task.CompletedTask),
+                        ctx.Button("Top").OnClick(_ => Task.CompletedTask),
+                        ctx.Button("Bottom").OnClick(_ => Task.CompletedTask),
                         topHeight: 8
                     ),
                     leftWidth: 20
@@ -1829,11 +1829,11 @@ public class SplitterNodeTests
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.Splitter(
-                    ctx.Button("Level 1", _ => { level1Clicked = true; return Task.CompletedTask; }),
+                    ctx.Button("Level 1").OnClick(_ => { level1Clicked = true; return Task.CompletedTask; }),
                     ctx.Splitter(
-                        ctx.Button("Level 2", _ => Task.CompletedTask),
+                        ctx.Button("Level 2").OnClick(_ => Task.CompletedTask),
                         ctx.Splitter(
-                            ctx.Button("Level 3", _ => Task.CompletedTask),
+                            ctx.Button("Level 3").OnClick(_ => Task.CompletedTask),
                             ctx.Text("Deepest"),
                             leftWidth: 12
                         ),
@@ -1860,13 +1860,13 @@ public class SplitterNodeTests
     public void DirectReconcile_NestedSplitters_OnlyOuterFirstFocusableIsFocused()
     {
         // Build widgets manually - outer splitter with inner splitter in second pane
-        var innerButton = new ButtonWidget("Inner Left") { OnClick = _ => Task.CompletedTask };
+        var innerButton = new ButtonWidget("Inner Left").OnClick(_ => Task.CompletedTask);
         var innerSplitter = new SplitterWidget(
             innerButton,
             new TextBlockWidget("Inner Right"),
             firstSize: 15
         );
-        var outerButton = new ButtonWidget("Outer Left") { OnClick = _ => Task.CompletedTask };
+        var outerButton = new ButtonWidget("Outer Left").OnClick(_ => Task.CompletedTask);
         var outerSplitter = new SplitterWidget(
             outerButton,
             innerSplitter,

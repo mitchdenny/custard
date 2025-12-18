@@ -10,14 +10,38 @@ namespace Hex1b.Widgets;
 public sealed record ListWidget(IReadOnlyList<string> Items) : Hex1bWidget
 {
     /// <summary>
-    /// Called when the selection changes.
+    /// The selection changed handler.
     /// </summary>
-    public Func<ListSelectionChangedEventArgs, Task>? OnSelectionChanged { get; init; }
+    internal Func<ListSelectionChangedEventArgs, Task>? SelectionChangedHandler { get; init; }
 
     /// <summary>
-    /// Called when an item is activated (Enter, Space, or click).
+    /// The item activated handler.
     /// </summary>
-    public Func<ListItemActivatedEventArgs, Task>? OnItemActivated { get; init; }
+    internal Func<ListItemActivatedEventArgs, Task>? ItemActivatedHandler { get; init; }
+
+    /// <summary>
+    /// Attaches a synchronous selection changed handler.
+    /// </summary>
+    public ListWidget OnSelectionChanged(Action<ListSelectionChangedEventArgs> handler)
+        => this with { SelectionChangedHandler = args => { handler(args); return Task.CompletedTask; } };
+
+    /// <summary>
+    /// Attaches an asynchronous selection changed handler.
+    /// </summary>
+    public ListWidget OnSelectionChanged(Func<ListSelectionChangedEventArgs, Task> handler)
+        => this with { SelectionChangedHandler = handler };
+
+    /// <summary>
+    /// Attaches a synchronous item activated handler (called on Enter, Space, or click).
+    /// </summary>
+    public ListWidget OnItemActivated(Action<ListItemActivatedEventArgs> handler)
+        => this with { ItemActivatedHandler = args => { handler(args); return Task.CompletedTask; } };
+
+    /// <summary>
+    /// Attaches an asynchronous item activated handler (called on Enter, Space, or click).
+    /// </summary>
+    public ListWidget OnItemActivated(Func<ListItemActivatedEventArgs, Task> handler)
+        => this with { ItemActivatedHandler = handler };
 
     internal override Hex1bNode Reconcile(Hex1bNode? existingNode, ReconcileContext context)
     {
@@ -36,14 +60,14 @@ public sealed record ListWidget(IReadOnlyList<string> Items) : Hex1bWidget
         }
         
         // Set up event handlers
-        if (OnSelectionChanged != null)
+        if (SelectionChangedHandler != null)
         {
             node.SelectionChangedAction = ctx =>
             {
                 if (node.SelectedText != null)
                 {
                     var args = new ListSelectionChangedEventArgs(this, node, ctx, node.SelectedIndex, node.SelectedText);
-                    return OnSelectionChanged(args);
+                    return SelectionChangedHandler(args);
                 }
                 return Task.CompletedTask;
             };
@@ -53,14 +77,14 @@ public sealed record ListWidget(IReadOnlyList<string> Items) : Hex1bWidget
             node.SelectionChangedAction = null;
         }
 
-        if (OnItemActivated != null)
+        if (ItemActivatedHandler != null)
         {
             node.ItemActivatedAction = ctx =>
             {
                 if (node.SelectedText != null)
                 {
                     var args = new ListItemActivatedEventArgs(this, node, ctx, node.SelectedIndex, node.SelectedText);
-                    return OnItemActivated(args);
+                    return ItemActivatedHandler(args);
                 }
                 return Task.CompletedTask;
             };

@@ -5,21 +5,21 @@ using Microsoft.Extensions.Logging;
 namespace Hex1b.Website.Examples;
 
 /// <summary>
-/// The canonical "Hello World" example for Hex1b.
+/// The minimal "Hello World" example for Hex1b.
 /// Shows a complete, minimal app with Hex1bApp instantiation.
 /// This is the first example on the homepage.
 /// </summary>
-public class CanonicalExample(ILogger<CanonicalExample> logger) : ReactiveExample
+public class MinimalExample(ILogger<MinimalExample> logger) : ReactiveExample
 {
-    private readonly ILogger<CanonicalExample> _logger = logger;
+    private readonly ILogger<MinimalExample> _logger = logger;
 
-    public override string Id => "canonical";
+    public override string Id => "minimal";
     public override string Title => "Hello World";
     public override string Description => "The most basic Hex1b application - a complete, runnable example.";
 
     public override async Task RunAsync(IHex1bTerminal terminal, CancellationToken cancellationToken)
     {
-        _logger.LogInformation("Starting canonical example");
+        _logger.LogInformation("Starting minimal example");
 
         // --- BEGIN: Code shown on homepage ---
         var clickCount = 0;

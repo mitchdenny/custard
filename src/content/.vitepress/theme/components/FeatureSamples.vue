@@ -19,7 +19,7 @@ const samples: FeatureSample[] = [
     id: 'declarative',
     title: 'A simple API for describing TUIs',
     description: 'Describe your TUI app using a simple expressive API. Hex1b takes care of the complexity of layout. It\`s a bit like React but for TUIs!',
-    example: 'canonical',
+    example: 'minimal',
     code: `var clickCount = 0;
 
 using var app = new Hex1bApp(
@@ -34,21 +34,32 @@ await app.RunAsync();`
   },
   {
     id: 'layout',
-    title: 'Flexible Layouts',
-    description: 'Build complex UIs with HStack, VStack, Splitter, and constraint-based sizing. Responsive layouts that adapt to terminal size.',
-    example: 'layout',
-    code: `ctx.Splitter(
-    ctx.Panel(left => [
-        left.List(items, onSelect, null)
-    ]),
-    ctx.Panel(right => [
-        right.VStack(v => [
-            v.Text("Content area"),
-            v.Border(b => [...], title: "Nested")
-        ])
-    ]),
-    leftWidth: 22
-)`
+    title: 'Layout your user interface',
+    description: 'Layout your UI using flexible containers like vertical and horizontal stacks and let Hex1b take care of exact positioning and responding to terminal size changes.',
+    example: 'todo',
+    code: `var items = new List<(string Text, bool Done)>
+{
+    ("Learn Hex1b", true),
+    ("Build a TUI", false)
+};
+
+IReadOnlyList<string> Format() =>
+    items.Select(i => $"[{(i.Done ? "✓" : " ")}] {i.Text}").ToList();
+
+using var app = new Hex1bApp(
+    ctx => ctx.Border(b => [
+        b.HStack(h => [
+            h.Text("New task: "),
+            h.TextBox(newItem, e => newItem = e.NewText),
+            h.Button("Add", _ => items.Add((newItem, false)))
+        ]),
+        new SeparatorWidget(),
+        b.List(Format(), null, e =>
+            items[e.ActivatedIndex] = (items[e.ActivatedIndex].Text, !items[e.ActivatedIndex].Done))
+    ], title: "📋 Todo")
+);
+
+await app.RunAsync();`
   },
   {
     id: 'input',
@@ -102,6 +113,18 @@ function openDemo(sampleId: string) {
   }
 }
 
+const copiedId = ref<string | null>(null)
+
+async function copyCode(sampleId: string, code: string) {
+  await navigator.clipboard.writeText(code)
+  copiedId.value = sampleId
+  setTimeout(() => {
+    if (copiedId.value === sampleId) {
+      copiedId.value = null
+    }
+  }, 2000)
+}
+
 async function highlightSamples() {
   for (const sample of samples) {
     highlightedCode.value[sample.id] = await codeToHtml(sample.code, {
@@ -148,6 +171,15 @@ onMounted(() => {
       <div class="code-container">
         <div class="code-header">
           <span class="code-lang">C#</span>
+          <button class="copy-button" @click="copyCode(sample.id, sample.code)" :title="copiedId === sample.id ? 'Copied!' : 'Copy code'">
+            <svg v-if="copiedId !== sample.id" class="copy-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+              <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+            </svg>
+            <svg v-else class="copy-icon check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="20 6 9 17 4 12"></polyline>
+            </svg>
+          </button>
         </div>
         <div 
           v-if="highlightedCode[sample.id]" 
@@ -212,7 +244,7 @@ onMounted(() => {
   flex-direction: column;
   gap: 12px;
   padding: 32px;
-  justify-content: center;
+  justify-content: flex-start;
 }
 
 .sample-title {
@@ -304,17 +336,46 @@ onMounted(() => {
   letter-spacing: 0.5px;
 }
 
+.copy-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  padding: 4px;
+  cursor: pointer;
+  border-radius: 4px;
+  transition: all 0.2s ease;
+}
+
+.copy-button:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.copy-icon {
+  width: 16px;
+  height: 16px;
+  color: rgba(255, 255, 255, 0.5);
+  transition: color 0.2s ease;
+}
+
+.copy-button:hover .copy-icon {
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.copy-icon.check {
+  color: #4ecdc4;
+}
+
 .code-block {
   margin: 0;
   padding: 20px;
   overflow-x: auto;
   font-family: 'Cascadia Code', 'Fira Code', 'JetBrains Mono', monospace;
   font-size: 13px;
-  line-height: 1.6;
+  line-height: 1.0;
   color: #e0e0e0;
   flex: 1;
-  display: flex;
-  align-items: center;
 }
 
 .code-block code {
@@ -325,12 +386,55 @@ onMounted(() => {
   margin: 0;
   padding: 0;
   background: transparent !important;
+  counter-reset: line;
 }
 
 .code-block.highlighted :deep(code) {
   font-family: 'Cascadia Code', 'Fira Code', 'JetBrains Mono', monospace;
   font-size: 13px;
-  line-height: 1.6;
+  line-height: 1.0;
+  display: block;
+}
+
+.code-block.highlighted :deep(code .line) {
+  display: block;
+}
+
+.code-block.highlighted :deep(code .line::before) {
+  counter-increment: line;
+  content: counter(line);
+  display: inline-block;
+  width: 2em;
+  margin-right: 12px;
+  padding-right: 8px;
+  text-align: right;
+  color: rgba(255, 255, 255, 0.3);
+  border-right: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* Custom scrollbar styling for code blocks */
+.code-block::-webkit-scrollbar {
+  height: 8px;
+}
+
+.code-block::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 4px;
+}
+
+.code-block::-webkit-scrollbar-thumb {
+  background: rgba(78, 205, 196, 0.4);
+  border-radius: 4px;
+}
+
+.code-block::-webkit-scrollbar-thumb:hover {
+  background: rgba(78, 205, 196, 0.6);
+}
+
+/* Firefox scrollbar */
+.code-block {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(78, 205, 196, 0.4) rgba(0, 0, 0, 0.2);
 }
 
 /* Completely hide the terminal trigger cards */

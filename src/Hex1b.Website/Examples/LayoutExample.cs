@@ -2,22 +2,22 @@ using Hex1b;
 using Hex1b.Widgets;
 using Microsoft.Extensions.Logging;
 
-namespace Hex1b.Website.Exhibits;
+namespace Hex1b.Website.Examples;
 
 /// <summary>
-/// An exhibit for exploring clipping and wrapping behavior of child widgets
+/// An example for exploring clipping and wrapping behavior of child widgets
 /// when there is not enough horizontal or vertical space.
 /// </summary>
-public class LayoutExhibit(ILogger<LayoutExhibit> logger) : Hex1bExhibit
+public class LayoutExample(ILogger<LayoutExample> logger) : Hex1bExample
 {
-    private readonly ILogger<LayoutExhibit> _logger = logger;
+    private readonly ILogger<LayoutExample> _logger = logger;
 
     public override string Id => "layout";
     public override string Title => "Layout";
     public override string Description => "Explore clipping and wrapping behavior when space is constrained.";
 
     /// <summary>
-    /// State for the layout exhibit.
+    /// State for the layout example.
     /// </summary>
     private class LayoutState
     {
@@ -38,7 +38,7 @@ public class LayoutExhibit(ILogger<LayoutExhibit> logger) : Hex1bExhibit
 
     public override Func<Hex1bWidget> CreateWidgetBuilder()
     {
-        _logger.LogInformation("Creating layout exhibit widget builder");
+        _logger.LogInformation("Creating layout example widget builder");
 
         var state = new LayoutState();
 

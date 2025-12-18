@@ -158,8 +158,8 @@
             color: rgba(255, 255, 255, 0.4);
         }
 
-        /* Exhibit dock at bottom - takes 1/6 of screen */
-        .exhibit-dock {
+        /* Example dock at bottom - takes 1/6 of screen */
+        .example-dock {
             flex: 1;
             min-height: 0;
             background: rgba(0, 0, 0, 0.4);
@@ -172,7 +172,7 @@
             align-items: stretch;
         }
 
-        .exhibit-card {
+        .example-card {
             background: #0f0f1a;
             border-radius: 8px;
             border: 1px solid rgba(255, 255, 255, 0.08);
@@ -185,18 +185,18 @@
             flex-direction: column;
         }
 
-        .exhibit-card:hover {
+        .example-card:hover {
             border-color: rgba(78, 205, 196, 0.5);
             transform: translateY(-4px);
             box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
         }
 
-        .exhibit-card.active {
+        .example-card.active {
             border-color: #4ecdc4;
             box-shadow: 0 0 20px rgba(78, 205, 196, 0.3);
         }
 
-        .exhibit-mini-terminal {
+        .example-mini-terminal {
             flex: 1;
             min-height: 40px;
             overflow: hidden;
@@ -204,7 +204,7 @@
             position: relative;
         }
 
-        .exhibit-mini-terminal::after {
+        .example-mini-terminal::after {
             content: '';
             position: absolute;
             bottom: 0;
@@ -214,12 +214,12 @@
             background: linear-gradient(transparent, #0a0a12);
         }
 
-        .exhibit-info {
+        .example-info {
             padding: 6px 10px;
             flex-shrink: 0;
         }
 
-        .exhibit-title {
+        .example-title {
             color: #e0e0e0;
             font-size: clamp(10px, 1vw, 13px);
             font-weight: 500;
@@ -229,7 +229,7 @@
             text-overflow: ellipsis;
         }
 
-        .exhibit-description {
+        .example-description {
             color: rgba(255, 255, 255, 0.4);
             font-size: clamp(9px, 0.8vw, 11px);
             line-height: 1.3;
@@ -479,13 +479,13 @@
     <div class="main-area">
         <div class="welcome-message" id="welcome">
             <h1>Hex1b Gallery</h1>
-            <p>Click an exhibit below to view it</p>
+            <p>Click an example below to view it</p>
         </div>
         <div id="main-terminals"></div>
     </div>
 
-    <div class="exhibit-dock" id="exhibit-dock">
-        <div class="loading">Loading exhibits...</div>
+    <div class="example-dock" id="example-dock">
+        <div class="loading">Loading examples...</div>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/lib/xterm.min.js"></script>
@@ -523,36 +523,36 @@
             { name: '160×50', cols: 160, rows: 50 }
         ];
 
-        let exhibits = [];
-        let activeExhibit = null;
+        let examples = [];
+        let activeExample = null;
         let mainTerminals = {};
         let miniTerminals = {};
         let websockets = {};
         let terminalSizes = {};
 
-        async function loadExhibits() {
+        async function loadExamples() {
             const response = await fetch('/apps');
-            exhibits = await response.json();
-            renderExhibitDock();
+            examples = await response.json();
+            renderExampleDock();
             initializeMiniTerminals();
         }
 
-        function renderExhibitDock() {
-            const dock = document.getElementById('exhibit-dock');
-            dock.innerHTML = exhibits.map(exhibit => `
-                <div class="exhibit-card" data-id="${exhibit.id}" onclick="selectExhibit('${exhibit.id}')">
-                    <div class="exhibit-mini-terminal" id="mini-${exhibit.id}"></div>
-                    <div class="exhibit-info">
-                        <div class="exhibit-title">${exhibit.title}</div>
-                        <div class="exhibit-description">${exhibit.description}</div>
+        function renderExampleDock() {
+            const dock = document.getElementById('example-dock');
+            dock.innerHTML = examples.map(example => `
+                <div class="example-card" data-id="${example.id}" onclick="selectExample('${example.id}')">
+                    <div class="example-mini-terminal" id="mini-${example.id}"></div>
+                    <div class="example-info">
+                        <div class="example-title">${example.title}</div>
+                        <div class="example-description">${example.description}</div>
                     </div>
                 </div>
             `).join('');
         }
 
         function initializeMiniTerminals() {
-            exhibits.forEach(exhibit => {
-                const container = document.getElementById(`mini-${exhibit.id}`);
+            examples.forEach(example => {
+                const container = document.getElementById(`mini-${example.id}`);
                 if (!container) return;
 
                 const term = new Terminal({
@@ -567,20 +567,20 @@
                 });
 
                 term.open(container);
-                miniTerminals[exhibit.id] = term;
+                miniTerminals[example.id] = term;
 
                 // Connect mini terminal to websocket
-                connectMiniTerminal(exhibit);
+                connectMiniTerminal(example);
             });
         }
 
-        function connectMiniTerminal(exhibit) {
+        function connectMiniTerminal(example) {
             const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-            const wsUrl = `${protocol}//${window.location.host}/apps/${exhibit.id}`;
+            const wsUrl = `${protocol}//${window.location.host}/apps/${example.id}`;
             const ws = new WebSocket(wsUrl);
 
             ws.onmessage = (event) => {
-                const term = miniTerminals[exhibit.id];
+                const term = miniTerminals[example.id];
                 if (term) {
                     term.write(event.data);
                 }
@@ -588,16 +588,16 @@
 
             ws.onclose = () => {
                 // Reconnect after a delay
-                setTimeout(() => connectMiniTerminal(exhibit), 3000);
+                setTimeout(() => connectMiniTerminal(example), 3000);
             };
         }
 
-        function selectExhibit(id) {
-            const exhibit = exhibits.find(e => e.id === id);
-            if (!exhibit) return;
+        function selectExample(id) {
+            const example = examples.find(e => e.id === id);
+            if (!example) return;
 
             // Update active state
-            document.querySelectorAll('.exhibit-card').forEach(card => {
+            document.querySelectorAll('.example-card').forEach(card => {
                 card.classList.toggle('active', card.dataset.id === id);
             });
 
@@ -614,12 +614,12 @@
 
             // Create or show main terminal
             if (!mainTerminals[id]) {
-                createMainTerminal(exhibit);
+                createMainTerminal(example);
             } else {
                 document.getElementById(`main-wrapper-${id}`).classList.add('active');
             }
 
-            activeExhibit = id;
+            activeExample = id;
 
             // Focus the terminal after a short delay to ensure it's visible
             setTimeout(() => focusTerminal(id), 100);
@@ -648,17 +648,17 @@
             }, 700);
         }
 
-        function createMainTerminal(exhibit) {
+        function createMainTerminal(example) {
             const wrapper = document.createElement('div');
-            wrapper.id = `main-wrapper-${exhibit.id}`;
+            wrapper.id = `main-wrapper-${example.id}`;
             wrapper.className = 'terminal-wrapper main active';
 
             const sizeButtonsHtml = TERMINAL_SIZES.map((size, idx) => 
-                `<button class="size-btn${idx === 0 ? ' active' : ''}" data-size-idx="${idx}" onmousedown="resizeTerminal('${exhibit.id}', ${idx}, event)">${size.name}</button>`
+                `<button class="size-btn${idx === 0 ? ' active' : ''}" data-size-idx="${idx}" onmousedown="resizeTerminal('${example.id}', ${idx}, event)">${size.name}</button>`
             ).join('');
 
             wrapper.innerHTML = `
-                <div class="terminal-container" id="main-container-${exhibit.id}">
+                <div class="terminal-container" id="main-container-${example.id}">
                     <div class="resize-handle resize-handle-n" data-direction="n"></div>
                     <div class="resize-handle resize-handle-s" data-direction="s"></div>
                     <div class="resize-handle resize-handle-e" data-direction="e"></div>
@@ -667,20 +667,20 @@
                     <div class="resize-handle resize-handle-ne" data-direction="ne"></div>
                     <div class="resize-handle resize-handle-sw" data-direction="sw"></div>
                     <div class="resize-handle resize-handle-se" data-direction="se"></div>
-                    <div class="resize-overlay" id="resize-overlay-${exhibit.id}">
-                        <div class="resize-overlay-info" id="resize-info-${exhibit.id}">80×24</div>
+                    <div class="resize-overlay" id="resize-overlay-${example.id}">
+                        <div class="resize-overlay-info" id="resize-info-${example.id}">80×24</div>
                     </div>
                     <div class="terminal-header">
-                        <div class="terminal-title">${exhibit.title}</div>
+                        <div class="terminal-title">${example.title}</div>
                         <div class="header-spacer"></div>
                         <div class="header-controls">
-                            <div class="size-buttons" id="size-buttons-${exhibit.id}">
+                            <div class="size-buttons" id="size-buttons-${example.id}">
                                 ${sizeButtonsHtml}
                             </div>
-                            <button class="refresh-btn" onclick="refreshTerminal('${exhibit.id}')" title="Refresh">↻</button>
+                            <button class="refresh-btn" onclick="refreshTerminal('${example.id}')" title="Refresh">↻</button>
                         </div>
                     </div>
-                    <div id="main-term-${exhibit.id}" class="terminal-viewport"></div>
+                    <div id="main-term-${example.id}" class="terminal-viewport"></div>
                 </div>
             `;
 
@@ -701,7 +701,7 @@
             // The server will send escape sequences to enable mouse tracking
             // xterm.js will then report mouse events via onData/onBinary
 
-            term.open(document.getElementById(`main-term-${exhibit.id}`));
+            term.open(document.getElementById(`main-term-${example.id}`));
             
             // Load Unicode11 addon for proper wide character width handling (emoji, CJK)
             if (window.Unicode11Addon) {
@@ -716,11 +716,11 @@
                 term.loadAddon(imageAddon);
             }
             
-            mainTerminals[exhibit.id] = term;
+            mainTerminals[example.id] = term;
 
             // Connect to websocket
             const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-            const wsUrl = `${protocol}//${window.location.host}/apps/${exhibit.id}`;
+            const wsUrl = `${protocol}//${window.location.host}/apps/${example.id}`;
             const ws = new WebSocket(wsUrl);
 
             ws.onmessage = (event) => {
@@ -756,27 +756,27 @@
             term.onBinary((data) => {
                 if (ws.readyState === WebSocket.OPEN) {
                     // Check if this is an SGR mouse sequence and adjust for scale
-                    const adjusted = adjustMouseCoordinatesForScale(data, exhibit.id);
+                    const adjusted = adjustMouseCoordinatesForScale(data, example.id);
                     ws.send(adjusted);
                 }
             });
 
-            websockets[exhibit.id] = ws;
-            terminalSizes[exhibit.id] = 0; // Default to first size
+            websockets[example.id] = ws;
+            terminalSizes[example.id] = 0; // Default to first size
 
             // Initialize resize handles
-            initResizeHandles(exhibit.id);
+            initResizeHandles(example.id);
 
             // Scale to fit initially, then focus
             setTimeout(() => {
-                scaleTerminalToFit(exhibit.id);
-                focusTerminal(exhibit.id);
+                scaleTerminalToFit(example.id);
+                focusTerminal(example.id);
             }, 50);
         }
         
         // Pass through mouse coordinates without adjustment.
         // CSS scaling is disabled to avoid xterm.js mouse coordinate issues.
-        function adjustMouseCoordinatesForScale(data, exhibitId) {
+        function adjustMouseCoordinatesForScale(data, exampleId) {
             return data;
         }
 
@@ -834,8 +834,8 @@
         }
 
         function refreshTerminal(id) {
-            const exhibit = exhibits.find(e => e.id === id);
-            if (!exhibit) return;
+            const example = examples.find(e => e.id === id);
+            if (!example) return;
 
             // Close existing websocket
             if (websockets[id]) {
@@ -884,17 +884,17 @@
         }
 
         // Initialize
-        loadExhibits().then(() => {
-            // Auto-select first exhibit
-            if (exhibits.length > 0) {
-                selectExhibit(exhibits[0].id);
+        loadExamples().then(() => {
+            // Auto-select first example
+            if (examples.length > 0) {
+                selectExample(examples[0].id);
             }
         });
 
         // Handle window resize
         window.addEventListener('resize', () => {
-            if (activeExhibit) {
-                scaleTerminalToFit(activeExhibit);
+            if (activeExample) {
+                scaleTerminalToFit(activeExample);
             }
         });
 
@@ -902,8 +902,8 @@
         document.querySelector('.main-area').addEventListener('click', (e) => {
             // Don't focus if clicking on buttons or controls
             if (e.target.closest('button') || e.target.closest('.header-controls')) return;
-            if (activeExhibit) {
-                focusTerminal(activeExhibit);
+            if (activeExample) {
+                focusTerminal(activeExample);
             }
         });
 
@@ -928,30 +928,30 @@
             return { cellWidth: 8.4, cellHeight: 17 };
         }
 
-        function initResizeHandles(exhibitId) {
-            const container = document.getElementById(`main-container-${exhibitId}`);
+        function initResizeHandles(exampleId) {
+            const container = document.getElementById(`main-container-${exampleId}`);
             if (!container) return;
 
             const handles = container.querySelectorAll('.resize-handle');
             handles.forEach(handle => {
-                handle.addEventListener('mousedown', (e) => startResize(e, exhibitId, handle.dataset.direction));
+                handle.addEventListener('mousedown', (e) => startResize(e, exampleId, handle.dataset.direction));
             });
         }
 
-        function startResize(e, exhibitId, direction) {
+        function startResize(e, exampleId, direction) {
             e.preventDefault();
             e.stopPropagation();
 
-            const term = mainTerminals[exhibitId];
-            const container = document.getElementById(`main-container-${exhibitId}`);
-            const overlay = document.getElementById(`resize-overlay-${exhibitId}`);
-            const info = document.getElementById(`resize-info-${exhibitId}`);
-            const wrapper = document.getElementById(`main-wrapper-${exhibitId}`);
+            const term = mainTerminals[exampleId];
+            const container = document.getElementById(`main-container-${exampleId}`);
+            const overlay = document.getElementById(`resize-overlay-${exampleId}`);
+            const info = document.getElementById(`resize-info-${exampleId}`);
+            const wrapper = document.getElementById(`main-wrapper-${exampleId}`);
 
             if (!term || !container || !overlay) return;
 
             // Get current dimensions
-            const { cellWidth, cellHeight } = getTerminalCellSize(exhibitId);
+            const { cellWidth, cellHeight } = getTerminalCellSize(exampleId);
             const startCols = term.cols;
             const startRows = term.rows;
 
@@ -961,7 +961,7 @@
             const scale = matrix.a || 1;
 
             resizeState = {
-                exhibitId,
+                exampleId,
                 direction,
                 startX: e.clientX,
                 startY: e.clientY,
@@ -1007,7 +1007,7 @@
         function onResizeMove(e) {
             if (!resizeState) return;
 
-            const { direction, startX, startY, startCols, startRows, cellWidth, cellHeight, scale, exhibitId } = resizeState;
+            const { direction, startX, startY, startCols, startRows, cellWidth, cellHeight, scale, exampleId } = resizeState;
             
             // Calculate mouse delta, accounting for scale
             const deltaX = (e.clientX - startX) / scale;
@@ -1034,7 +1034,7 @@
             resizeState.rows = newRows;
 
             // Update overlay position to follow the mouse/edge
-            const overlay = document.getElementById(`resize-overlay-${exhibitId}`);
+            const overlay = document.getElementById(`resize-overlay-${exampleId}`);
             if (overlay) {
                 // Calculate pixel offsets based on column/row changes
                 const colDelta = newCols - startCols;
@@ -1064,7 +1064,7 @@
             }
 
             // Update overlay info
-            const info = document.getElementById(`resize-info-${resizeState.exhibitId}`);
+            const info = document.getElementById(`resize-info-${resizeState.exampleId}`);
             if (info) {
                 info.textContent = `${newCols}×${newRows}`;
             }
@@ -1073,10 +1073,10 @@
         function onResizeEnd(e) {
             if (!resizeState) return;
 
-            const { exhibitId, cols, rows, handle } = resizeState;
+            const { exampleId, cols, rows, handle } = resizeState;
 
             // Hide overlay and reset its position
-            const overlay = document.getElementById(`resize-overlay-${exhibitId}`);
+            const overlay = document.getElementById(`resize-overlay-${exampleId}`);
             if (overlay) {
                 overlay.classList.remove('active');
                 overlay.style.top = '0';
@@ -1095,12 +1095,12 @@
             document.body.style.cursor = '';
 
             // Apply the new size
-            const term = mainTerminals[exhibitId];
+            const term = mainTerminals[exampleId];
             if (term && (cols !== term.cols || rows !== term.rows)) {
                 term.resize(cols, rows);
 
                 // Clear size button active states since we're using custom size
-                const buttonsContainer = document.getElementById(`size-buttons-${exhibitId}`);
+                const buttonsContainer = document.getElementById(`size-buttons-${exampleId}`);
                 if (buttonsContainer) {
                     buttonsContainer.querySelectorAll('.size-btn').forEach(btn => {
                         btn.classList.remove('active');
@@ -1109,13 +1109,13 @@
                     TERMINAL_SIZES.forEach((size, idx) => {
                         if (size.cols === cols && size.rows === rows) {
                             buttonsContainer.querySelectorAll('.size-btn')[idx]?.classList.add('active');
-                            terminalSizes[exhibitId] = idx;
+                            terminalSizes[exampleId] = idx;
                         }
                     });
                 }
 
                 // Send resize to server
-                const ws = websockets[exhibitId];
+                const ws = websockets[exampleId];
                 if (ws && ws.readyState === WebSocket.OPEN) {
                     ws.send(JSON.stringify({
                         type: 'resize',
@@ -1126,8 +1126,8 @@
 
                 // Re-scale to fit
                 setTimeout(() => {
-                    scaleTerminalToFit(exhibitId);
-                    focusTerminal(exhibitId);
+                    scaleTerminalToFit(exampleId);
+                    focusTerminal(exampleId);
                 }, 50);
             }
 

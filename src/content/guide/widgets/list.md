@@ -50,4 +50,4 @@ new ListWidget(items, onSelect).Fill()
 
 ## Live Demo
 
-<TerminalDemo exhibit="responsive-todo" title="List Demo" />
+<TerminalDemo example="responsive-todo" title="List Demo" />

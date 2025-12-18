@@ -4,23 +4,23 @@ using Hex1b.Nodes;
 using Hex1b.Widgets;
 using Microsoft.Extensions.Logging;
 
-namespace Hex1b.Website.Exhibits;
+namespace Hex1b.Website.Examples;
 
 /// <summary>
-/// An exhibit demonstrating the RescueWidget error boundary.
+/// An example demonstrating the RescueWidget error boundary.
 /// </summary>
-public class RescueExhibit(ILogger<RescueExhibit> logger) : Hex1bExhibit
+public class RescueExample(ILogger<RescueExample> logger) : Hex1bExample
 {
-    private readonly ILogger<RescueExhibit> _logger = logger;
+    private readonly ILogger<RescueExample> _logger = logger;
 
     public override string Id => "rescue";
     public override string Title => "Rescue";
     public override string Description => "Error boundary widget that catches exceptions and shows fallback content.";
 
     /// <summary>
-    /// State for the rescue exhibit.
+    /// State for the rescue example.
     /// </summary>
-    private class RescueExhibitState
+    private class RescueExampleState
     {
         private static readonly string[] ExampleIds = ["global", "local"];
         
@@ -111,9 +111,9 @@ public class RescueExhibit(ILogger<RescueExhibit> logger) : Hex1bExhibit
 
     public override Func<Hex1bWidget> CreateWidgetBuilder()
     {
-        _logger.LogInformation("Creating rescue exhibit widget builder");
+        _logger.LogInformation("Creating rescue example widget builder");
 
-        var state = new RescueExhibitState();
+        var state = new RescueExampleState();
 
         return () =>
         {
@@ -159,7 +159,7 @@ public class RescueExhibit(ILogger<RescueExhibit> logger) : Hex1bExhibit
         };
     }
 
-    private static Hex1bWidget BuildExampleContent(RootContext ctx, RescueExhibitState state)
+    private static Hex1bWidget BuildExampleContent(RootContext ctx, RescueExampleState state)
     {
         return state.SelectedExampleId switch
         {
@@ -169,7 +169,7 @@ public class RescueExhibit(ILogger<RescueExhibit> logger) : Hex1bExhibit
         };
     }
 
-    private static Hex1bWidget BuildGlobalRescueExample(RootContext ctx, RescueExhibitState state)
+    private static Hex1bWidget BuildGlobalRescueExample(RootContext ctx, RescueExampleState state)
     {
         return ctx.Border(
             ctx.VStack(v => [
@@ -199,7 +199,7 @@ public class RescueExhibit(ILogger<RescueExhibit> logger) : Hex1bExhibit
         );
     }
 
-    private static Hex1bWidget BuildLocalRescueExample(RootContext ctx, RescueExhibitState state)
+    private static Hex1bWidget BuildLocalRescueExample(RootContext ctx, RescueExampleState state)
     {
         // Create actions for the local rescue widget
         var localActions = new List<RescueAction>

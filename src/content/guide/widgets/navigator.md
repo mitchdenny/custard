@@ -64,4 +64,4 @@ public record NavigatorState(
 
 ## Live Demo
 
-<TerminalDemo exhibit="navigator" title="Navigator Demo" />
+<TerminalDemo example="navigator" title="Navigator Demo" />

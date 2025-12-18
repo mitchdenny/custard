@@ -2,11 +2,11 @@ using Hex1b;
 using Hex1b.Widgets;
 using Microsoft.Extensions.Logging;
 
-namespace Hex1b.Website.Exhibits;
+namespace Hex1b.Website.Examples;
 
-public class TextInputExhibit(ILogger<TextInputExhibit> logger) : Hex1bExhibit
+public class TextInputExample(ILogger<TextInputExample> logger) : Hex1bExample
 {
-    private readonly ILogger<TextInputExhibit> _logger = logger;
+    private readonly ILogger<TextInputExample> _logger = logger;
 
     public override string Id => "text-input";
     public override string Title => "Text Input";

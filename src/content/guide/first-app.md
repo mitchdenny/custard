@@ -124,7 +124,7 @@ You should see a fully interactive todo list!
 
 ## Live Demo
 
-<TerminalDemo exhibit="responsive-todo" title="Todo App" />
+<TerminalDemo example="responsive-todo" title="Todo App" />
 
 ## Next Steps
 

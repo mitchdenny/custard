@@ -1,34 +1,34 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 
-interface Exhibit {
+interface Example {
   id: string
   title: string
   description: string
   websocketUrl: string
 }
 
-const exhibits = ref<Exhibit[]>([])
+const examples = ref<Example[]>([])
 const isLoading = ref(true)
 const error = ref<string | null>(null)
 
-async function loadExhibits() {
+async function loadExamples() {
   try {
-    const response = await fetch('/apps')
+    const response = await fetch('/examples')
     if (!response.ok) {
-      throw new Error('Failed to load exhibits')
+      throw new Error('Failed to load examples')
     }
-    exhibits.value = await response.json()
+    examples.value = await response.json()
     isLoading.value = false
   } catch (err) {
-    console.error('Failed to load exhibits:', err)
-    error.value = 'Failed to load gallery exhibits. Make sure the backend is running.'
+    console.error('Failed to load examples:', err)
+    error.value = 'Failed to load gallery examples. Make sure the backend is running.'
     isLoading.value = false
   }
 }
 
 onMounted(() => {
-  loadExhibits()
+  loadExamples()
 })
 </script>
 
@@ -48,16 +48,16 @@ onMounted(() => {
       <!-- Gallery grid with FloatingTerminal triggers -->
       <div v-else class="gallery-grid">
         <div 
-          v-for="exhibit in exhibits" 
-          :key="exhibit.id"
+          v-for="example in examples" 
+          :key="example.id"
           class="gallery-card-wrapper"
         >
           <FloatingTerminal 
-            :exhibit="exhibit.id" 
-            :title="exhibit.title" 
+            :example="example.id" 
+            :title="example.title" 
           />
           <div class="gallery-card-info">
-            <div class="gallery-card-description">{{ exhibit.description }}</div>
+            <div class="gallery-card-description">{{ example.description }}</div>
           </div>
         </div>
       </div>

@@ -2,7 +2,7 @@
 import { ref, onMounted, onUnmounted, watch, nextTick, computed } from 'vue'
 
 const props = defineProps<{
-  exhibit: string
+  example: string
   title?: string
   cols?: number
   rows?: number
@@ -245,7 +245,7 @@ async function initTerminal() {
 
 function connectWebSocket() {
   const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-  const wsUrl = `${protocol}//${window.location.host}/apps/${props.exhibit}`
+  const wsUrl = `${protocol}//${window.location.host}/examples/${props.example}`
   
   websocket = new WebSocket(wsUrl)
   
@@ -510,7 +510,7 @@ onUnmounted(() => {
   window.removeEventListener('resize', handleWindowResize)
 })
 
-watch(() => props.exhibit, () => {
+watch(() => props.example, () => {
   if (isOpen.value) {
     websocket?.close()
     terminal?.reset()
@@ -525,7 +525,7 @@ watch(() => props.exhibit, () => {
     <div class="terminal-trigger" @click="openTerminal">
       <div class="trigger-preview">
         <div class="trigger-icon">▶</div>
-        <span class="trigger-text">{{ title || exhibit }}</span>
+        <span class="trigger-text">{{ title || example }}</span>
       </div>
       <div class="trigger-hint">Click to open terminal</div>
     </div>
@@ -570,7 +570,7 @@ watch(() => props.exhibit, () => {
               <span class="terminal-dot yellow"></span>
               <span class="terminal-dot green"></span>
             </div>
-            <span class="terminal-title">{{ title || exhibit }}</span>
+            <span class="terminal-title">{{ title || example }}</span>
             <div class="terminal-controls">
               <div class="size-buttons">
                 <button 

@@ -3,18 +3,18 @@ using Hex1b.Layout;
 using Hex1b.Widgets;
 using Microsoft.Extensions.Logging;
 
-namespace Hex1b.Website.Exhibits;
+namespace Hex1b.Website.Examples;
 
 /// <summary>
-/// An exhibit demonstrating Sixel graphics support with fallback for terminals
+/// An example demonstrating Sixel graphics support with fallback for terminals
 /// that don't support Sixel.
 /// </summary>
-public class SixelExhibit : Hex1bExhibit
+public class SixelExample : Hex1bExample
 {
-    private readonly ILogger<SixelExhibit> _logger;
+    private readonly ILogger<SixelExample> _logger;
     private readonly IWebHostEnvironment _environment;
 
-    public SixelExhibit(ILogger<SixelExhibit> logger, IWebHostEnvironment environment)
+    public SixelExample(ILogger<SixelExample> logger, IWebHostEnvironment environment)
     {
         _logger = logger;
         _environment = environment;
@@ -55,7 +55,7 @@ public class SixelExhibit : Hex1bExhibit
 
     public override Func<Hex1bWidget> CreateWidgetBuilder()
     {
-        _logger.LogInformation("Creating widget builder for Sixel exhibit");
+        _logger.LogInformation("Creating widget builder for Sixel example");
 
         var state = new SixelState();
         var imagesPath = Path.Combine(_environment.WebRootPath, "images");

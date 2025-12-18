@@ -139,7 +139,7 @@ Supported editing:
 
 Try the input handling:
 
-<TerminalDemo exhibit="text-input" title="Input Demo" />
+<TerminalDemo example="text-input" title="Input Demo" />
 
 ## Next Steps
 

@@ -3,21 +3,21 @@ using Hex1b.Layout;
 using Hex1b.Widgets;
 using Microsoft.Extensions.Logging;
 
-namespace Hex1b.Website.Exhibits;
+namespace Hex1b.Website.Examples;
 
 /// <summary>
-/// An exhibit demonstrating horizontal and vertical splitters.
+/// An example demonstrating horizontal and vertical splitters.
 /// </summary>
-public class SplittersExhibit(ILogger<SplittersExhibit> logger) : Hex1bExhibit
+public class SplittersExample(ILogger<SplittersExample> logger) : Hex1bExample
 {
-    private readonly ILogger<SplittersExhibit> _logger = logger;
+    private readonly ILogger<SplittersExample> _logger = logger;
 
     public override string Id => "splitters";
     public override string Title => "Splitters";
     public override string Description => "Horizontal and vertical splitters with resizable panes.";
 
     /// <summary>
-    /// State for the splitters exhibit.
+    /// State for the splitters example.
     /// </summary>
     private class SplittersState
     {
@@ -38,7 +38,7 @@ public class SplittersExhibit(ILogger<SplittersExhibit> logger) : Hex1bExhibit
 
     public override Func<Hex1bWidget> CreateWidgetBuilder()
     {
-        _logger.LogInformation("Creating splitters exhibit widget builder");
+        _logger.LogInformation("Creating splitters example widget builder");
 
         var state = new SplittersState();
 

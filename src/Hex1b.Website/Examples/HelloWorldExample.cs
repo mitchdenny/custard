@@ -2,14 +2,14 @@ using Hex1b;
 using Hex1b.Widgets;
 using Microsoft.Extensions.Logging;
 
-namespace Hex1b.Website.Exhibits;
+namespace Hex1b.Website.Examples;
 
 /// <summary>
 /// A simple hello world using the fluent context-based API.
 /// </summary>
-public class HelloWorldExhibit(ILogger<HelloWorldExhibit> logger) : Hex1bExhibit
+public class HelloWorldExample(ILogger<HelloWorldExample> logger) : Hex1bExample
 {
-    private readonly ILogger<HelloWorldExhibit> _logger = logger;
+    private readonly ILogger<HelloWorldExample> _logger = logger;
 
     public override string Id => "hello-world";
     public override string Title => "Hello World";

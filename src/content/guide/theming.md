@@ -127,7 +127,7 @@ void ToggleDarkMode(WidgetContext<AppState> ctx)
 
 ## Live Demo
 
-<TerminalDemo exhibit="theming" title="Theming Demo" />
+<TerminalDemo example="theming" title="Theming Demo" />
 
 ## Next Steps
 

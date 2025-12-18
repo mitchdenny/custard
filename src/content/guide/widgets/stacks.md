@@ -56,4 +56,4 @@ new HStackWidget([...]).Spacing(2)  // 2 column gap between children
 
 ## Live Demo
 
-<TerminalDemo exhibit="layout" title="Stack Layout Demo" />
+<TerminalDemo example="layout" title="Stack Layout Demo" />

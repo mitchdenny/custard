@@ -6,14 +6,14 @@ using Microsoft.Extensions.Logging;
 
 #pragma warning disable HEX1B001 // Experimental Navigator API
 
-namespace Hex1b.Website.Exhibits;
+namespace Hex1b.Website.Examples;
 
 /// <summary>
 /// A CRM demo using the fluent context-based API demonstrating stack-based navigation.
 /// </summary>
-public class NavigatorExhibit(ILogger<NavigatorExhibit> logger) : Hex1bExhibit
+public class NavigatorExample(ILogger<NavigatorExample> logger) : Hex1bExample
 {
-    private readonly ILogger<NavigatorExhibit> _logger = logger;
+    private readonly ILogger<NavigatorExample> _logger = logger;
 
     public override string Id => "navigation";
     public override string Title => "Navigation";

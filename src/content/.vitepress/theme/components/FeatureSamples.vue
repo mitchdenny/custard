@@ -8,7 +8,7 @@ interface FeatureSample {
   title: string
   description: string
   feature: string
-  exhibit: string
+  example: string
   code: string
 }
 
@@ -20,7 +20,7 @@ const samples: FeatureSample[] = [
     title: 'Declarative UI',
     description: 'Describe your UI as a tree of widgets. Hex1b handles rendering, state management, and reconciliation automatically.',
     feature: '🎯 Declarative API',
-    exhibit: 'hello-world',
+    example: 'hello-world',
     code: `var ctx = new RootContext();
 
 var widget = ctx.VStack(v => [
@@ -34,7 +34,7 @@ var widget = ctx.VStack(v => [
     title: 'Flexible Layouts',
     description: 'Build complex UIs with HStack, VStack, Splitter, and constraint-based sizing. Responsive layouts that adapt to terminal size.',
     feature: '📐 Layout System',
-    exhibit: 'layout',
+    example: 'layout',
     code: `ctx.Splitter(
     ctx.Panel(left => [
         left.List(items, onSelect, null)
@@ -53,7 +53,7 @@ var widget = ctx.VStack(v => [
     title: 'Interactive Input',
     description: 'Built-in text input, keyboard navigation, and focus management. Tab between controls, type in text boxes, and respond to key events.',
     feature: '⌨️ Smart Input',
-    exhibit: 'text-input',
+    example: 'text-input',
     code: `ctx.VStack(v => [
     v.Text("Enter your name:"),
     v.TextBox(
@@ -68,7 +68,7 @@ var widget = ctx.VStack(v => [
     title: 'Theming Support',
     description: 'Customize colors and styles with a powerful theming system. Switch themes dynamically and create your own custom themes.',
     feature: '🎨 Theming',
-    exhibit: 'theming',
+    example: 'theming',
     code: `new Hex1bTheme("Custom")
     .Set(ButtonTheme.FocusedBackgroundColor, 
          Hex1bColor.FromRgb(34, 139, 34))
@@ -162,7 +162,7 @@ onMounted(() => {
         <div v-if="backendAvailable" class="hidden-terminal">
           <FloatingTerminal 
             :ref="(el: any) => setTerminalRef(sample.id, el)"
-            :exhibit="sample.exhibit"
+            :example="sample.example"
             :title="sample.title"
           />
         </div>

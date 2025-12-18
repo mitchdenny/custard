@@ -43,4 +43,4 @@ new TextBoxWidget(value, onChange)
 
 ## Live Demo
 
-<TerminalDemo exhibit="text-input" title="TextBox Demo" />
+<TerminalDemo example="text-input" title="TextBox Demo" />

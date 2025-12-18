@@ -67,7 +67,15 @@ public sealed class ListNode : Hex1bNode
         var localY = ctx.MouseY - Bounds.Y;
         if (localY >= 0 && localY < Items.Count)
         {
+            var previousIndex = SelectedIndex;
             SetSelection(localY);
+            
+            // Fire selection changed if the selection actually changed
+            if (previousIndex != SelectedIndex && SelectionChangedAction != null)
+            {
+                await SelectionChangedAction(ctx);
+            }
+            
             if (ItemActivatedAction != null)
             {
                 await ItemActivatedAction(ctx);

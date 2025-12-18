@@ -171,7 +171,7 @@ new VStackWidget([
 
 ## Live Demo
 
-<TerminalDemo exhibit="layout" title="Layout Demo" />
+<TerminalDemo example="layout" title="Layout Demo" />
 
 ## Next Steps
 

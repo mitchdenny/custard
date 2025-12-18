@@ -2,22 +2,22 @@ using Hex1b;
 using Hex1b.Widgets;
 using Microsoft.Extensions.Logging;
 
-namespace Hex1b.Website.Exhibits;
+namespace Hex1b.Website.Examples;
 
 /// <summary>
 /// A responsive todo list that adapts its layout based on available terminal width.
 /// Demonstrates the ResponsiveWidget with different layouts for different sizes.
 /// </summary>
-public class ResponsiveTodoExhibit(ILogger<ResponsiveTodoExhibit> logger) : Hex1bExhibit
+public class ResponsiveTodoExample(ILogger<ResponsiveTodoExample> logger) : Hex1bExample
 {
-    private readonly ILogger<ResponsiveTodoExhibit> _logger = logger;
+    private readonly ILogger<ResponsiveTodoExample> _logger = logger;
 
     public override string Id => "responsive-todo";
     public override string Title => "Responsive Todo";
     public override string Description => "Todo list that adapts layout based on terminal size.";
 
     /// <summary>
-    /// State for the todo list exhibit.
+    /// State for the todo list example.
     /// </summary>
     private class TodoState
     {

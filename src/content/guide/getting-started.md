@@ -55,7 +55,7 @@ var app = new Hex1bApp<int>(
 await app.RunAsync();
 ```
 
-<TerminalDemo exhibit="hello-world" title="Hello World Demo" />
+<TerminalDemo example="hello-world" title="Hello World Demo" />
 
 ## Next Steps
 

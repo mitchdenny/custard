@@ -4,15 +4,15 @@ using Hex1b.Theming;
 using Hex1b.Widgets;
 using Microsoft.Extensions.Logging;
 
-namespace Hex1b.Website.Exhibits;
+namespace Hex1b.Website.Examples;
 
 /// <summary>
 /// Demonstrates reactive rendering with external events (timer-based updates).
 /// Shows a bar chart that updates automatically every second without user input.
 /// </summary>
-public class ReactiveBarChartExhibit(ILogger<ReactiveBarChartExhibit> logger) : ReactiveExhibit
+public class ReactiveBarChartExample(ILogger<ReactiveBarChartExample> logger) : ReactiveExample
 {
-    private readonly ILogger<ReactiveBarChartExhibit> _logger = logger;
+    private readonly ILogger<ReactiveBarChartExample> _logger = logger;
 
     public override string Id => "reactive-bar-chart";
     public override string Title => "Reactive Bar Chart";
@@ -97,7 +97,7 @@ public class ReactiveBarChartExhibit(ILogger<ReactiveBarChartExhibit> logger) : 
 
     public override async Task RunAsync(IHex1bTerminal terminal, CancellationToken cancellationToken)
     {
-        _logger.LogInformation("Starting reactive bar chart exhibit");
+        _logger.LogInformation("Starting reactive bar chart example");
 
         var state = new ChartState();
 

@@ -3,23 +3,23 @@ using Hex1b.Layout;
 using Hex1b.Widgets;
 using Microsoft.Extensions.Logging;
 
-namespace Hex1b.Website.Exhibits;
+namespace Hex1b.Website.Examples;
 
 /// <summary>
-/// An exhibit demonstrating vertical and horizontal scrolling.
+/// An example demonstrating vertical and horizontal scrolling.
 /// </summary>
-public class ScrollExhibit(ILogger<ScrollExhibit> logger) : Hex1bExhibit
+public class ScrollExample(ILogger<ScrollExample> logger) : Hex1bExample
 {
-    private readonly ILogger<ScrollExhibit> _logger = logger;
+    private readonly ILogger<ScrollExample> _logger = logger;
 
     public override string Id => "scroll";
     public override string Title => "Scroll";
     public override string Description => "Vertical and horizontal scrolling with scrollbar indicators.";
 
     /// <summary>
-    /// State for the scroll exhibit.
+    /// State for the scroll example.
     /// </summary>
-    private class ScrollExhibitState
+    private class ScrollExampleState
     {
         private static readonly string[] ExampleIds = ["vertical", "horizontal", "large-content", "with-buttons", "no-scrollbar", "nested"];
         
@@ -43,9 +43,9 @@ public class ScrollExhibit(ILogger<ScrollExhibit> logger) : Hex1bExhibit
 
     public override Func<Hex1bWidget> CreateWidgetBuilder()
     {
-        _logger.LogInformation("Creating scroll exhibit widget builder");
+        _logger.LogInformation("Creating scroll example widget builder");
 
-        var state = new ScrollExhibitState();
+        var state = new ScrollExampleState();
 
         return () =>
         {
@@ -73,7 +73,7 @@ public class ScrollExhibit(ILogger<ScrollExhibit> logger) : Hex1bExhibit
         };
     }
 
-    private static Hex1bWidget BuildExampleContent(RootContext ctx, ScrollExhibitState state, string exampleId)
+    private static Hex1bWidget BuildExampleContent(RootContext ctx, ScrollExampleState state, string exampleId)
     {
         return exampleId switch
         {
@@ -87,7 +87,7 @@ public class ScrollExhibit(ILogger<ScrollExhibit> logger) : Hex1bExhibit
         };
     }
 
-    private static Hex1bWidget BuildVerticalExample(RootContext ctx, ScrollExhibitState state)
+    private static Hex1bWidget BuildVerticalExample(RootContext ctx, ScrollExampleState state)
     {
         return ctx.Border(
             ctx.VScroll(
@@ -124,7 +124,7 @@ public class ScrollExhibit(ILogger<ScrollExhibit> logger) : Hex1bExhibit
         );
     }
 
-    private static Hex1bWidget BuildHorizontalExample(RootContext ctx, ScrollExhibitState state)
+    private static Hex1bWidget BuildHorizontalExample(RootContext ctx, ScrollExampleState state)
     {
         return ctx.Border(
             ctx.VStack(v => [
@@ -146,7 +146,7 @@ public class ScrollExhibit(ILogger<ScrollExhibit> logger) : Hex1bExhibit
         );
     }
 
-    private static Hex1bWidget BuildLargeContentExample(RootContext ctx, ScrollExhibitState state)
+    private static Hex1bWidget BuildLargeContentExample(RootContext ctx, ScrollExampleState state)
     {
         return ctx.Border(
             ctx.VScroll(
@@ -188,7 +188,7 @@ public class ScrollExhibit(ILogger<ScrollExhibit> logger) : Hex1bExhibit
         return widgets.ToArray();
     }
 
-    private static Hex1bWidget BuildWithButtonsExample(RootContext ctx, ScrollExhibitState state)
+    private static Hex1bWidget BuildWithButtonsExample(RootContext ctx, ScrollExampleState state)
     {
         return ctx.Border(
             ctx.VScroll(

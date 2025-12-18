@@ -4,22 +4,22 @@ using Hex1b.Theming;
 using Hex1b.Widgets;
 using Microsoft.Extensions.Logging;
 
-namespace Hex1b.Website.Exhibits;
+namespace Hex1b.Website.Examples;
 
 /// <summary>
-/// An exhibit that demonstrates Hex1b theming by showing a theme selector on the left
+/// An example that demonstrates Hex1b theming by showing a theme selector on the left
 /// and widget examples on the right that update dynamically as themes are selected.
 /// </summary>
-public class ThemingExhibit(ILogger<ThemingExhibit> logger) : Hex1bExhibit
+public class ThemingExample(ILogger<ThemingExample> logger) : Hex1bExample
 {
-    private readonly ILogger<ThemingExhibit> _logger = logger;
+    private readonly ILogger<ThemingExample> _logger = logger;
 
     public override string Id => "theming";
     public override string Title => "Theming";
     public override string Description => "Dynamic theme switching with live widget preview.";
 
     /// <summary>
-    /// State for the theming exhibit.
+    /// State for the theming example.
     /// </summary>
     private class ThemingState
     {

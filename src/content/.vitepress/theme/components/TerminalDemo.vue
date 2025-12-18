@@ -2,7 +2,7 @@
 import { ref, onMounted, onUnmounted, watch, nextTick } from 'vue'
 
 const props = defineProps<{
-  exhibit: string
+  example: string
   title?: string
   cols?: number
   rows?: number
@@ -101,7 +101,7 @@ async function initTerminal() {
 
 function connectWebSocket() {
   const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-  const wsUrl = `${protocol}//${window.location.host}/apps/${props.exhibit}`
+  const wsUrl = `${protocol}//${window.location.host}/examples/${props.example}`
   
   websocket = new WebSocket(wsUrl)
   
@@ -154,8 +154,8 @@ onUnmounted(() => {
   terminal?.dispose()
 })
 
-// Watch for exhibit changes
-watch(() => props.exhibit, () => {
+// Watch for example changes
+watch(() => props.example, () => {
   if (websocket) {
     websocket.close()
   }
@@ -173,7 +173,7 @@ watch(() => props.exhibit, () => {
           <span class="terminal-dot yellow"></span>
           <span class="terminal-dot green"></span>
         </div>
-        <span class="terminal-title">{{ title || exhibit }}</span>
+        <span class="terminal-title">{{ title || example }}</span>
         <button class="terminal-refresh" @click="refresh" title="Refresh">↻</button>
       </div>
       

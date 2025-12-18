@@ -1,12 +1,12 @@
 using Hex1b;
 using Hex1b.Widgets;
 
-namespace Hex1b.Website.Exhibits;
+namespace Hex1b.Website.Examples;
 
 /// <summary>
 /// Demonstrates mouse tracking and click-to-focus support in Hex1b.
 /// </summary>
-public class MouseExhibit : IGalleryExhibit
+public class MouseExample : IGalleryExample
 {
     public string Id => "mouse";
     public string Title => "Mouse Tracking";

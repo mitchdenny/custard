@@ -100,6 +100,13 @@ export default defineConfig({
           ws: true,
           secure: false,
           rewriteWsOrigin: true
+        },
+        '/examples': {
+          target: process.env.WEBSITE_HTTPS || process.env.WEBSITE_HTTP || 'http://localhost:5000',
+          changeOrigin: true,
+          ws: true,
+          secure: false,
+          rewriteWsOrigin: true
         }
       }
     }

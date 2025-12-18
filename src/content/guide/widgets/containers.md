@@ -47,4 +47,4 @@ new BorderWidget(content)
 
 ## Live Demo
 
-<TerminalDemo exhibit="layout" title="Container Demo" />
+<TerminalDemo example="layout" title="Container Demo" />

@@ -41,4 +41,4 @@ The exact appearance depends on your theme.
 
 ## Live Demo
 
-<TerminalDemo exhibit="hello-world" title="Button Demo" />
+<TerminalDemo example="hello-world" title="Button Demo" />

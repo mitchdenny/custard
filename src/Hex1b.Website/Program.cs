@@ -1,25 +1,25 @@
 using System.Net.WebSockets;
 using Hex1b.Website;
-using Hex1b.Website.Exhibits;
+using Hex1b.Website.Examples;
 using Hex1b;
 
 var builder = WebApplication.CreateBuilder(args);
 
 builder.AddServiceDefaults();
 
-// Register all gallery exhibits
-builder.Services.AddSingleton<IGalleryExhibit, HelloWorldExhibit>();
-builder.Services.AddSingleton<IGalleryExhibit, TextInputExhibit>();
-builder.Services.AddSingleton<IGalleryExhibit, ThemingExhibit>();
-builder.Services.AddSingleton<IGalleryExhibit, NavigatorExhibit>();
-builder.Services.AddSingleton<IGalleryExhibit, SixelExhibit>();
-builder.Services.AddSingleton<IGalleryExhibit, ResponsiveTodoExhibit>();
-builder.Services.AddSingleton<IGalleryExhibit, LayoutExhibit>();
-builder.Services.AddSingleton<IGalleryExhibit, SplittersExhibit>();
-builder.Services.AddSingleton<IGalleryExhibit, ScrollExhibit>();
-builder.Services.AddSingleton<IGalleryExhibit, RescueExhibit>();
-builder.Services.AddSingleton<IGalleryExhibit, ReactiveBarChartExhibit>();
-builder.Services.AddSingleton<IGalleryExhibit, MouseExhibit>();
+// Register all gallery examples
+builder.Services.AddSingleton<IGalleryExample, HelloWorldExample>();
+builder.Services.AddSingleton<IGalleryExample, TextInputExample>();
+builder.Services.AddSingleton<IGalleryExample, ThemingExample>();
+builder.Services.AddSingleton<IGalleryExample, NavigatorExample>();
+builder.Services.AddSingleton<IGalleryExample, SixelExample>();
+builder.Services.AddSingleton<IGalleryExample, ResponsiveTodoExample>();
+builder.Services.AddSingleton<IGalleryExample, LayoutExample>();
+builder.Services.AddSingleton<IGalleryExample, SplittersExample>();
+builder.Services.AddSingleton<IGalleryExample, ScrollExample>();
+builder.Services.AddSingleton<IGalleryExample, RescueExample>();
+builder.Services.AddSingleton<IGalleryExample, ReactiveBarChartExample>();
+builder.Services.AddSingleton<IGalleryExample, MouseExample>();
 
 var app = builder.Build();
 
@@ -30,13 +30,28 @@ app.UseWebSockets();
 app.UseDefaultFiles();
 app.UseStaticFiles();
 
-// API endpoint to list all exhibits
-app.MapGet("/apps", (IEnumerable<IGalleryExhibit> exhibits, HttpRequest request) =>
+// API endpoint to list all examples (new URL)
+app.MapGet("/examples", (IEnumerable<IGalleryExample> examples, HttpRequest request) =>
 {
     var baseUrl = $"{request.Scheme}://{request.Host}";
     var wsScheme = request.Scheme == "https" ? "wss" : "ws";
 
-    return exhibits.Select(e => new
+    return examples.Select(e => new
+    {
+        id = e.Id,
+        title = e.Title,
+        description = e.Description,
+        websocketUrl = $"{wsScheme}://{request.Host}/examples/{e.Id}"
+    });
+});
+
+// Legacy API endpoint (backwards compatibility for existing gallery)
+app.MapGet("/apps", (IEnumerable<IGalleryExample> examples, HttpRequest request) =>
+{
+    var baseUrl = $"{request.Scheme}://{request.Host}";
+    var wsScheme = request.Scheme == "https" ? "wss" : "ws";
+
+    return examples.Select(e => new
     {
         id = e.Id,
         title = e.Title,
@@ -45,8 +60,8 @@ app.MapGet("/apps", (IEnumerable<IGalleryExhibit> exhibits, HttpRequest request)
     });
 });
 
-// WebSocket endpoint for terminal apps
-app.Map("/apps/{exhibitId}", async (HttpContext context, string exhibitId, IEnumerable<IGalleryExhibit> exhibits) =>
+// WebSocket endpoint for terminal apps (new URL)
+app.Map("/examples/{exampleId}", async (HttpContext context, string exampleId, IEnumerable<IGalleryExample> examples) =>
 {
     if (!context.WebSockets.IsWebSocketRequest)
     {
@@ -55,50 +70,74 @@ app.Map("/apps/{exhibitId}", async (HttpContext context, string exhibitId, IEnum
         return;
     }
 
-    var exhibit = exhibits.FirstOrDefault(e => e.Id == exhibitId);
-    if (exhibit == null)
+    var example = examples.FirstOrDefault(e => e.Id == exampleId);
+    if (example == null)
     {
         context.Response.StatusCode = 404;
-        await context.Response.WriteAsync($"Exhibit '{exhibitId}' not found");
+        await context.Response.WriteAsync($"Example '{exampleId}' not found");
         return;
     }
 
     using var webSocket = await context.WebSockets.AcceptWebSocketAsync();
 
-    // Handle Hex1b-based exhibit
-    await HandleHex1bExhibitAsync(webSocket, exhibit, context.RequestAborted);
+    // Handle Hex1b-based example
+    await HandleHex1bExampleAsync(webSocket, example, context.RequestAborted);
+});
+
+// Legacy WebSocket endpoint (backwards compatibility for existing gallery)
+app.Map("/apps/{exampleId}", async (HttpContext context, string exampleId, IEnumerable<IGalleryExample> examples) =>
+{
+    if (!context.WebSockets.IsWebSocketRequest)
+    {
+        context.Response.StatusCode = 400;
+        await context.Response.WriteAsync("WebSocket connection required");
+        return;
+    }
+
+    var example = examples.FirstOrDefault(e => e.Id == exampleId);
+    if (example == null)
+    {
+        context.Response.StatusCode = 404;
+        await context.Response.WriteAsync($"Example '{exampleId}' not found");
+        return;
+    }
+
+    using var webSocket = await context.WebSockets.AcceptWebSocketAsync();
+
+    // Handle Hex1b-based example
+    await HandleHex1bExampleAsync(webSocket, example, context.RequestAborted);
 });
 
 app.MapDefaultEndpoints();
 
 app.Run();
 
-async Task HandleHex1bExhibitAsync(WebSocket webSocket, IGalleryExhibit exhibit, CancellationToken cancellationToken)
+async Task HandleHex1bExampleAsync(WebSocket webSocket, IGalleryExample example, CancellationToken cancellationToken)
 {
     var logger = app.Services.GetRequiredService<ILogger<Program>>();
     
     using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-    using var terminal = new WebSocketHex1bTerminal(webSocket, 80, 24, enableMouse: exhibit.EnableMouse);
+    using var terminal = new WebSocketHex1bTerminal(webSocket, 80, 24, enableMouse: example.EnableMouse);
     
-    // Check if the exhibit manages its own app lifecycle
-    var runTask = exhibit.RunAsync(terminal, cts.Token);
+    // Check if the example manages its own app lifecycle
+    var runTask = example.RunAsync(terminal, cts.Token);
     
     Task appTask;
     if (runTask != null)
     {
-        // Exhibit manages its own Hex1bApp
+        // Example manages its own Hex1bApp
         appTask = runTask;
     }
     else
     {
         // Use the traditional widget builder pattern
-        var widgetBuilder = exhibit.CreateWidgetBuilder()!;
-        var themeProvider = exhibit.CreateThemeProvider();
+        var widgetBuilder = example.CreateWidgetBuilder()!;
+        var themeProvider = example.CreateThemeProvider();
         var options = new Hex1bAppOptions 
         { 
             Terminal = terminal, 
             ThemeProvider = themeProvider,
-            EnableMouse = exhibit.EnableMouse
+            EnableMouse = example.EnableMouse
         };
         var hex1bApp = new Hex1bApp(ctx => widgetBuilder(), options);
         
@@ -124,7 +163,7 @@ async Task HandleHex1bExhibitAsync(WebSocket webSocket, IGalleryExhibit exhibit,
     }
     catch (Exception ex)
     {
-        logger.LogError(ex, "Error in exhibit {ExhibitId}", exhibit.Id);
+        logger.LogError(ex, "Error in example {ExampleId}", example.Id);
         throw;
     }
     finally

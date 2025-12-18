@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed } from 'vue'
+import { codeToHtml } from 'shiki'
 import FloatingTerminal from './FloatingTerminal.vue'
 
 interface FeatureSample {
@@ -10,6 +11,8 @@ interface FeatureSample {
   exhibit: string
   code: string
 }
+
+const highlightedCode = ref<Record<string, string>>({})
 
 const samples: FeatureSample[] = [
   {
@@ -99,8 +102,18 @@ function openDemo(sampleId: string) {
   }
 }
 
+async function highlightSamples() {
+  for (const sample of samples) {
+    highlightedCode.value[sample.id] = await codeToHtml(sample.code, {
+      lang: 'csharp',
+      theme: 'github-dark'
+    })
+  }
+}
+
 onMounted(() => {
   checkBackend()
+  highlightSamples()
 })
 </script>
 
@@ -113,7 +126,6 @@ onMounted(() => {
       :class="{ 'reversed': index % 2 === 1 }"
     >
       <div class="sample-info">
-        <span class="feature-badge">{{ sample.feature }}</span>
         <h3 class="sample-title">{{ sample.title }}</h3>
         <p class="sample-description">{{ sample.description }}</p>
         <ClientOnly>
@@ -132,7 +144,12 @@ onMounted(() => {
         <div class="code-header">
           <span class="code-lang">C#</span>
         </div>
-        <pre class="code-block"><code>{{ sample.code }}</code></pre>
+        <div 
+          v-if="highlightedCode[sample.id]" 
+          class="code-block highlighted"
+          v-html="highlightedCode[sample.id]"
+        ></div>
+        <pre v-else class="code-block"><code>{{ sample.code }}</code></pre>
       </div>
       
       <!-- Hidden FloatingTerminal for each sample -->
@@ -161,7 +178,7 @@ onMounted(() => {
   display: grid;
   grid-template-columns: 40% 60%;
   background: var(--vp-c-bg-soft);
-  border: 1px solid var(--vp-c-divider);
+  border: 3px solid var(--vp-c-brand-1);
   border-radius: 16px;
   overflow: hidden;
   transition: all 0.3s ease;
@@ -191,17 +208,6 @@ onMounted(() => {
   gap: 12px;
   padding: 32px;
   justify-content: center;
-}
-
-.feature-badge {
-  display: inline-block;
-  width: fit-content;
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--vp-c-brand-1);
-  background: var(--vp-c-brand-soft);
-  padding: 6px 14px;
-  border-radius: 20px;
 }
 
 .sample-title {
@@ -289,6 +295,18 @@ onMounted(() => {
 
 .code-block code {
   white-space: pre;
+}
+
+.code-block.highlighted :deep(pre) {
+  margin: 0;
+  padding: 0;
+  background: transparent !important;
+}
+
+.code-block.highlighted :deep(code) {
+  font-family: 'Cascadia Code', 'Fira Code', 'JetBrains Mono', monospace;
+  font-size: 13px;
+  line-height: 1.6;
 }
 
 /* Completely hide the terminal trigger cards */

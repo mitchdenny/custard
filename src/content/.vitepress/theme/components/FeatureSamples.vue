@@ -17,9 +17,8 @@ const highlightedCode = ref<Record<string, string>>({})
 const samples: FeatureSample[] = [
   {
     id: 'declarative',
-    title: 'React-like API for rendering UI',
-    description: 'Describe your UI as a tree of widgets. Hex1b handles rendering, state management, and reconciliation automatically.',
-    feature: '🎯 Declarative API',
+    title: 'A simple API for describing TUIs',
+    description: 'Describe your TUI app using a simple expressive API. Hex1b takes care of the complexity of layout. It\`s a bit like React but for TUIs!',
     example: 'canonical',
     code: `var clickCount = 0;
 
@@ -37,7 +36,6 @@ await app.RunAsync();`
     id: 'layout',
     title: 'Flexible Layouts',
     description: 'Build complex UIs with HStack, VStack, Splitter, and constraint-based sizing. Responsive layouts that adapt to terminal size.',
-    feature: '📐 Layout System',
     example: 'layout',
     code: `ctx.Splitter(
     ctx.Panel(left => [
@@ -56,7 +54,6 @@ await app.RunAsync();`
     id: 'input',
     title: 'Interactive Input',
     description: 'Built-in text input, keyboard navigation, and focus management. Tab between controls, type in text boxes, and respond to key events.',
-    feature: '⌨️ Smart Input',
     example: 'text-input',
     code: `ctx.VStack(v => [
     v.Text("Enter your name:"),
@@ -71,7 +68,6 @@ await app.RunAsync();`
     id: 'theming',
     title: 'Theming Support',
     description: 'Customize colors and styles with a powerful theming system. Switch themes dynamically and create your own custom themes.',
-    feature: '🎨 Theming',
     example: 'theming',
     code: `new Hex1bTheme("Custom")
     .Set(ButtonTheme.FocusedBackgroundColor, 

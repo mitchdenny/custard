@@ -1,46 +1,10 @@
-# Getting Started
-
-Hex1b is a .NET library for building terminal user interfaces (TUI). If you are familiiar with the way that React is used in the browser to construct a virtual DOM which is then synchronized with the real browser DOM then this should feel familiar.
-
-## Prerequisites
-
-- .NET 10 or later
-- A terminal that supports ANSI escape sequences (most modern terminals do)
-
-## Create a New Console Application
-
-First, create a new console application:
-
-<TerminalCommand command="dotnet new console -n MyTodoApp && cd MyTodoApp" />
-
-## Install Hex1b
-
-Add the Hex1b package to your project:
-
-<TerminalCommand command="dotnet add package Hex1b" />
-
-## Step 1: Hello World
-
-Let's start with a simple "Hello World" example. Replace the contents of `Program.cs`:
-
-```csharp
-using Hex1b;
+<script setup>
+const step1Code = `using Hex1b;
 
 var app = new Hex1bApp(ctx => ctx.Text("Hello, Hex1b!"));
-await app.RunAsync();
-```
-<TerminalCommand command="dotnet run" example="getting-started-step1" title="Step 1: Hello World" />
+await app.RunAsync();`
 
-Press `Ctrl+C` to exit.
-
-The fluent API uses the `ctx` (context) parameter to create widgets. In this case, `ctx.Text()` creates a text widget.
-
-## Step 2: Adding State and Interactivity
-
-Now let's add a button and some state to track clicks:
-
-```csharp
-using Hex1b;
+const step2Code = `using Hex1b;
 
 // Define a simple state class to hold our counter
 class CounterState
@@ -58,23 +22,9 @@ var app = new Hex1bApp(ctx =>
     ], title: "Counter Demo")
 );
 
-await app.RunAsync();
-```
+await app.RunAsync();`
 
-<TerminalCommand command="dotnet run" example="getting-started-step2" title="Step 2: Interactive Counter" />
-
-Key concepts:
-- **State**: We created a `CounterState` class to hold mutable data
-- **Border**: The `ctx.Border()` creates a widget with a border and optional title
-- **Collection expressions**: `[...]` syntax creates an array of child widgets
-- **Button**: The `ctx.Button()` creates an interactive button; use `.OnClick()` for the click handler
-
-## Step 3: Building a Todo List
-
-Let's build a simple todo list that displays items and lets you toggle them:
-
-```csharp
-using Hex1b;
+const step3Code = `using Hex1b;
 
 class TodoState
 {
@@ -107,22 +57,9 @@ var app = new Hex1bApp(ctx =>
     ], title: "Todo List")
 );
 
-await app.RunAsync();
-```
+await app.RunAsync();`
 
-<TerminalCommand command="dotnet run" example="getting-started-step3" title="Step 3: Simple Todo List" />
-
-New concepts:
-- **List widget**: `ctx.List()` creates a scrollable, selectable list
-- **Event handlers**: The second parameter to `List()` is called when an item is activated (Space/Enter)
-- **Navigation**: Use arrow keys to navigate, Space or Enter to toggle items
-
-## Step 4: Adding New Items
-
-Let's add the ability to create new todo items with a text input:
-
-```csharp
-using Hex1b;
+const step4Code = `using Hex1b;
 using Hex1b.Widgets;
 
 class TodoState
@@ -170,23 +107,9 @@ var app = new Hex1bApp(ctx =>
     ], title: "📋 Todo")
 );
 
-await app.RunAsync();
-```
+await app.RunAsync();`
 
-<TerminalCommand command="dotnet run" example="getting-started-step4" title="Step 4: Todo with Input" />
-
-New concepts:
-- **HStack**: `ctx.HStack()` arranges children horizontally
-- **TextBox**: `ctx.TextBox()` creates an editable text input
-- **Separator**: `new SeparatorWidget()` creates a horizontal line divider
-- **Focus**: Use Tab to move focus between interactive widgets
-
-## Step 5: Complete Todo Application
-
-Let's add a few more features to complete our todo app:
-
-```csharp
-using Hex1b;
+const step5Code = `using Hex1b;
 using Hex1b.Widgets;
 
 class TodoState
@@ -258,10 +181,80 @@ var app = new Hex1bApp(ctx =>
     ], title: "My Todos")
 );
 
-await app.RunAsync();
-```
+await app.RunAsync();`
+</script>
 
-<TerminalCommand command="dotnet run" example="getting-started-step5" title="Step 5: Complete Todo App" />
+# Getting Started
+
+Hex1b is a .NET library for building terminal user interfaces (TUI). If you are familiiar with the way that React is used in the browser to construct a virtual DOM which is then synchronized with the real browser DOM then this should feel familiar.
+
+## Prerequisites
+
+- .NET 10 or later
+- A terminal that supports ANSI escape sequences (most modern terminals do)
+
+## Create a New Console Application
+
+First, create a new console application:
+
+<TerminalCommand command="dotnet new console -n MyTodoApp && cd MyTodoApp" />
+
+## Install Hex1b
+
+Add the Hex1b package to your project:
+
+<TerminalCommand command="dotnet add package Hex1b" />
+
+## Step 1: Hello World
+
+Let's start with a simple "Hello World" example. Replace the contents of `Program.cs`:
+
+<CodeBlock lang="csharp" :code="step1Code" command="dotnet run" example="getting-started-step1" exampleTitle="Step 1: Hello World" />
+
+Press `Ctrl+C` to exit.
+
+The fluent API uses the `ctx` (context) parameter to create widgets. In this case, `ctx.Text()` creates a text widget.
+
+## Step 2: Adding State and Interactivity
+
+Now let's add a button and some state to track clicks:
+
+<CodeBlock lang="csharp" :code="step2Code" command="dotnet run" example="getting-started-step2" exampleTitle="Step 2: Interactive Counter" />
+
+Key concepts:
+- **State**: We created a `CounterState` class to hold mutable data
+- **Border**: The `ctx.Border()` creates a widget with a border and optional title
+- **Collection expressions**: `[...]` syntax creates an array of child widgets
+- **Button**: The `ctx.Button()` creates an interactive button; use `.OnClick()` for the click handler
+
+## Step 3: Building a Todo List
+
+Let's build a simple todo list that displays items and lets you toggle them:
+
+<CodeBlock lang="csharp" :code="step3Code" command="dotnet run" example="getting-started-step3" exampleTitle="Step 3: Simple Todo List" />
+
+New concepts:
+- **List widget**: `ctx.List()` creates a scrollable, selectable list
+- **Event handlers**: The second parameter to `List()` is called when an item is activated (Space/Enter)
+- **Navigation**: Use arrow keys to navigate, Space or Enter to toggle items
+
+## Step 4: Adding New Items
+
+Let's add the ability to create new todo items with a text input:
+
+<CodeBlock lang="csharp" :code="step4Code" command="dotnet run" example="getting-started-step4" exampleTitle="Step 4: Todo with Input" />
+
+New concepts:
+- **HStack**: `ctx.HStack()` arranges children horizontally
+- **TextBox**: `ctx.TextBox()` creates an editable text input
+- **Separator**: `new SeparatorWidget()` creates a horizontal line divider
+- **Focus**: Use Tab to move focus between interactive widgets
+
+## Step 5: Complete Todo Application
+
+Let's add a few more features to complete our todo app:
+
+<CodeBlock lang="csharp" :code="step5Code" command="dotnet run" example="getting-started-step5" exampleTitle="Step 5: Complete Todo App" />
 
 Final features:
 - **Remaining count**: Shows how many items are not yet complete

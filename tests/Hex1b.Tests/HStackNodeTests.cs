@@ -362,9 +362,9 @@ public class HStackNodeTests
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.HStack(h => [
-                    h.Button("Btn1", _ => { button1Clicked = true; return Task.CompletedTask; }),
+                    h.Button("Btn1").OnClick(_ => { button1Clicked = true; return Task.CompletedTask; }),
                     h.Text(" | "),
-                    h.Button("Btn2", _ => { button2Clicked = true; return Task.CompletedTask; })
+                    h.Button("Btn2").OnClick(_ => { button2Clicked = true; return Task.CompletedTask; })
                 ])
             ),
             new Hex1bAppOptions { Terminal = terminal }
@@ -446,8 +446,8 @@ public class HStackNodeTests
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.HStack(h => [
                     h.Text("Label: "),
-                    h.TextBox(text, onTextChanged: args => text = args.NewText),
-                    h.Button("Submit", _ => { clicked = true; return Task.CompletedTask; })
+                    h.TextBox(text).OnTextChanged(args => text = args.NewText),
+                    h.Button("Submit").OnClick(_ => { clicked = true; return Task.CompletedTask; })
                 ])
             ),
             new Hex1bAppOptions { Terminal = terminal }
@@ -544,7 +544,7 @@ public class HStackNodeTests
                     // Left VStack: only one focusable (List)
                     h.VStack(v => [v.Text("Header"), v.List(items)]),
                     // Right VStack: only one focusable (Button)
-                    h.VStack(v => [v.Text("Actions"), v.Button("Add", _ => { rightButtonClicked = true; return Task.CompletedTask; })])
+                    h.VStack(v => [v.Text("Actions"), v.Button("Add").OnClick(_ => { rightButtonClicked = true; return Task.CompletedTask; })])
                 ])
             ),
             new Hex1bAppOptions { Terminal = terminal }
@@ -570,8 +570,8 @@ public class HStackNodeTests
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.VStack(v => [
-                    v.Button("Button 1", _ => { button1Clicked = true; return Task.CompletedTask; }),
-                    v.Button("Button 2", _ => { button2Clicked = true; return Task.CompletedTask; })
+                    v.Button("Button 1").OnClick(_ => { button1Clicked = true; return Task.CompletedTask; }),
+                    v.Button("Button 2").OnClick(_ => { button2Clicked = true; return Task.CompletedTask; })
                 ])
             ),
             new Hex1bAppOptions { Terminal = terminal }
@@ -603,15 +603,15 @@ public class HStackNodeTests
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.HStack(h => [
                     // Left: List
-                    h.Button("List", _ => { listClicked = true; return Task.CompletedTask; }),
+                    h.Button("List").OnClick(_ => { listClicked = true; return Task.CompletedTask; }),
                     // Middle: VStack with TextBox + Button (like "New" panel)
                     h.VStack(v => [
                         v.Text("New Task"),
-                        v.TextBox(text, onTextChanged: args => text = args.NewText),
-                        v.Button("Add", _ => { addButtonClicked = true; return Task.CompletedTask; })
+                        v.TextBox(text).OnTextChanged(args => text = args.NewText),
+                        v.Button("Add").OnClick(_ => { addButtonClicked = true; return Task.CompletedTask; })
                     ]),
                     // Right: Another button
-                    h.Button("Other", _ => { otherButtonClicked = true; return Task.CompletedTask; })
+                    h.Button("Other").OnClick(_ => { otherButtonClicked = true; return Task.CompletedTask; })
                 ])
             ),
             new Hex1bAppOptions { Terminal = terminal }
@@ -642,12 +642,12 @@ public class HStackNodeTests
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.HStack(h => [
                     // Left: Button
-                    h.Button("List", _ => { listClicked = true; return Task.CompletedTask; }),
+                    h.Button("List").OnClick(_ => { listClicked = true; return Task.CompletedTask; }),
                     // Right: VStack with TextBox + Button
                     h.VStack(v => [
                         v.Text("New Task"),
-                        v.TextBox(text, onTextChanged: args => text = args.NewText),
-                        v.Button("Add", _ => Task.CompletedTask)
+                        v.TextBox(text).OnTextChanged(args => text = args.NewText),
+                        v.Button("Add").OnClick(_ => Task.CompletedTask)
                     ])
                 ])
             ),

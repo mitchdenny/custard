@@ -98,14 +98,14 @@ static Task<Hex1bWidget> App(
     var widget = ctx.VStack(v => [
         v.Splitter(
             v.VStack(master => [
-                master.List(getListItems(), onSelectionChanged, null)
+                master.List(getListItems()).OnSelectionChanged(onSelectionChanged)
             ]),
             v.VStack(detail => [
-                detail.HStack(h => [h.Text("Name:  "), h.TextBox(getName(), args => setName(args.NewText))]),
-                detail.HStack(h => [h.Text("Email: "), h.TextBox(getEmail(), args => setEmail(args.NewText))]),
+                detail.HStack(h => [h.Text("Name:  "), h.TextBox(getName()).OnTextChanged(args => setName(args.NewText))]),
+                detail.HStack(h => [h.Text("Email: "), h.TextBox(getEmail()).OnTextChanged(args => setEmail(args.NewText))]),
                 detail.Text(""),
-                detail.Button("Save", _ => onSave()),
-                detail.Button("Close", _ => cts.Cancel())
+                detail.Button("Save").OnClick(_ => onSave()),
+                detail.Button("Close").OnClick(_ => cts.Cancel())
             ]),
             leftWidth: 25
         ).FillHeight().WithInputBindings(bindings =>

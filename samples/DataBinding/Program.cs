@@ -7,7 +7,7 @@ using var app = new Hex1bApp(c => c.VStack(c => [
         c.Text("Customer ID: "),
         c.Text(customer.Id.ToString())
         ]),
-    c.Button("Save", async c => {
+    c.Button("Save").OnClick(async c => {
         await customer.SaveAsync(c.CancellationToken);
         c.Context.RequestStop();
     })

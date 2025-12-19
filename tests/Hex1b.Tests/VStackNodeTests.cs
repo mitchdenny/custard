@@ -386,10 +386,10 @@ public class VStackNodeTests
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.VStack(v => [
-                    v.TextBox(text1, args => text1 = args.NewText),
+                    v.TextBox(text1).OnTextChanged(args => text1 = args.NewText),
                     v.Text("Non-focusable label"),
-                    v.TextBox(text2, args => text2 = args.NewText),
-                    v.TextBox(text3, args => text3 = args.NewText)
+                    v.TextBox(text2).OnTextChanged(args => text2 = args.NewText),
+                    v.TextBox(text3).OnTextChanged(args => text3 = args.NewText)
                 ])
             ),
             new Hex1bAppOptions { Terminal = terminal }
@@ -422,8 +422,8 @@ public class VStackNodeTests
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.VStack(v => [
-                    v.TextBox(text1, args => text1 = args.NewText),
-                    v.TextBox(text2, args => text2 = args.NewText)
+                    v.TextBox(text1).OnTextChanged(args => text1 = args.NewText),
+                    v.TextBox(text2).OnTextChanged(args => text2 = args.NewText)
                 ])
             ),
             new Hex1bAppOptions { Terminal = terminal }
@@ -476,7 +476,7 @@ public class VStackNodeTests
                 ctx.VStack(v => [
                     v.Text("Title"),
                     v.TextBox("editable"),
-                    v.Button("Submit", _ => { clicked = true; return Task.CompletedTask; })
+                    v.Button("Submit").OnClick(_ => { clicked = true; return Task.CompletedTask; })
                 ])
             ),
             new Hex1bAppOptions { Terminal = terminal }

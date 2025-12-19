@@ -265,8 +265,8 @@ public class ResponsiveNodeTests
         {
             Branches =
             [
-                new ConditionalWidget((w, h) => false, new ButtonWidget("Hidden") { OnClick = _ => Task.CompletedTask }),
-                new ConditionalWidget((w, h) => true, new ButtonWidget("Visible") { OnClick = _ => Task.CompletedTask })
+                new ConditionalWidget((w, h) => false, new ButtonWidget("Hidden").OnClick(_ => Task.CompletedTask)),
+                new ConditionalWidget((w, h) => true, new ButtonWidget("Visible").OnClick(_ => Task.CompletedTask))
             ],
             ChildNodes = [button1, button2]
         };
@@ -289,7 +289,7 @@ public class ResponsiveNodeTests
         {
             Branches =
             [
-                new ConditionalWidget((w, h) => false, new ButtonWidget("Hidden") { OnClick = _ => Task.CompletedTask })
+                new ConditionalWidget((w, h) => false, new ButtonWidget("Hidden").OnClick(_ => Task.CompletedTask))
             ],
             ChildNodes = [button]
         };
@@ -314,7 +314,7 @@ public class ResponsiveNodeTests
         {
             Branches =
             [
-                new ConditionalWidget((w, h) => true, new ButtonWidget("Click") { OnClick = _ => { clicked = true; return Task.CompletedTask; } })
+                new ConditionalWidget((w, h) => true, new ButtonWidget("Click").OnClick(_ => { clicked = true; return Task.CompletedTask; }))
             ],
             ChildNodes = [button]
         };
@@ -611,7 +611,7 @@ public class ResponsiveNodeTests
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.Responsive(r => [
-                    r.WhenMinWidth(50, r => r.Button("Click Me", _ => { clicked = true; return Task.CompletedTask; })),
+                    r.WhenMinWidth(50, r => r.Button("Click Me").OnClick(_ => { clicked = true; return Task.CompletedTask; })),
                     r.Otherwise(r => r.Text("Too narrow"))
                 ])
             ),
@@ -634,7 +634,7 @@ public class ResponsiveNodeTests
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.Responsive(r => [
-                    r.WhenMinWidth(50, r => r.TextBox(text, onTextChanged: args => text = args.NewText)),
+                    r.WhenMinWidth(50, r => r.TextBox(text).OnTextChanged(args => text = args.NewText)),
                     r.Otherwise(r => r.Text("Too narrow"))
                 ])
             ),

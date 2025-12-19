@@ -32,7 +32,7 @@ public class TextInputExample(ILogger<TextInputExample> logger) : Hex1bExample
                 v.Text("Interactive Text Input"),
                 v.Text("─────────────────────────"),
                 v.Text(""),
-                v.TextBox(state.Input, args => state.Input = args.NewText),
+                v.TextBox(state.Input).OnTextChanged(args => state.Input = args.NewText),
                 v.Text(""),
                 v.Text("Type something! Use Backspace to delete.")
             ]);

@@ -34,7 +34,7 @@ public class GettingStartedStep2Example(ILogger<GettingStartedStep2Example> logg
             return ctx.Border(b => [
                 b.Text($"Button pressed {state.Count} times"),
                 b.Text(""),
-                b.Button("Click me!", _ => state.Count++)
+                b.Button("Click me!").OnClick(_ => state.Count++)
             ], title: "Counter Demo");
         };
     }

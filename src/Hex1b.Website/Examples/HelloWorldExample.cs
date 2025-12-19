@@ -44,7 +44,7 @@ public class HelloWorldExample(ILogger<HelloWorldExample> logger) : Hex1bExample
                 v.Text(""),
                 v.Text($"Click count: {state.ClickCount}"),
                 v.Text(""),
-                v.Button("Click me!", _ => state.ClickCount++)
+                v.Button("Click me!").OnClick(_ => state.ClickCount++)
             ]);
 
             return widget;

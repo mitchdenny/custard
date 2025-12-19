@@ -150,7 +150,7 @@ public class SixelExample : Hex1bExample
                 ctx.Layout(leftPanel => [
                     leftPanel.Text("═══ Images ═══"),
                     leftPanel.Text(""),
-                    leftPanel.List(state.ImageItems, e => state.SelectedImageIndex = e.SelectedIndex, null),
+                    leftPanel.List(state.ImageItems).OnSelectionChanged(e => state.SelectedImageIndex = e.SelectedIndex),
                     leftPanel.Text(""),
                     leftPanel.Text("Use ↑↓ to select"),
                     leftPanel.Text("Tab to switch panels")

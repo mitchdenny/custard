@@ -705,7 +705,7 @@ public class BorderNodeTests
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
-                ctx.Border(ctx.TextBox(text, onTextChanged: args => text = args.NewText), title: "Input")
+                ctx.Border(ctx.TextBox(text).OnTextChanged(args => text = args.NewText), title: "Input")
             ),
             new Hex1bAppOptions { Terminal = terminal }
         );
@@ -794,7 +794,7 @@ public class BorderNodeTests
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
-                ctx.Border(ctx.Button("Click Me", _ => { clicked = true; return Task.CompletedTask; }), title: "Action")
+                ctx.Border(ctx.Button("Click Me").OnClick(_ => { clicked = true; return Task.CompletedTask; }), title: "Actions")
             ),
             new Hex1bAppOptions { Terminal = terminal }
         );
@@ -817,8 +817,8 @@ public class BorderNodeTests
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.Border(v => [
-                    v.Button("First", _ => { clickedButton = "First"; return Task.CompletedTask; }),
-                    v.Button("Second", _ => { clickedButton = "Second"; return Task.CompletedTask; })
+                    v.Button("First").OnClick(_ => { clickedButton = "First"; return Task.CompletedTask; }),
+                    v.Button("Second").OnClick(_ => { clickedButton = "Second"; return Task.CompletedTask; })
                 ], title: "Buttons")
             ),
             new Hex1bAppOptions { Terminal = terminal }

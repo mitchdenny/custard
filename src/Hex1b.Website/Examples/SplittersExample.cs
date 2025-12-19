@@ -51,7 +51,7 @@ public class SplittersExample(ILogger<SplittersExample> logger) : Hex1bExample
                     leftPanel.VStack(left => [
                         left.Text("Splitter Examples"),
                         left.Text("─────────────────"),
-                        left.List(state.ExampleItems, e => state.SelectedExampleIndex = e.SelectedIndex, null),
+                        left.List(state.ExampleItems).OnSelectionChanged(e => state.SelectedExampleIndex = e.SelectedIndex),
                         left.Text(""),
                         left.Text("Use ↑↓ to select"),
                         left.Text("Tab to focus splitter"),

@@ -55,7 +55,7 @@ public class Hex1bAppIntegrationTests
             ctx => Task.FromResult<Hex1bWidget>(
                 new VStackWidget(new Hex1bWidget[]
                 {
-                    new TextBoxWidget("") { OnTextChanged = args => { text = args.NewText; return Task.CompletedTask; } }
+                    new TextBoxWidget("").OnTextChanged(args => { text = args.NewText; return Task.CompletedTask; })
                 })
             ),
             new Hex1bAppOptions { Terminal = terminal }
@@ -82,7 +82,7 @@ public class Hex1bAppIntegrationTests
             ctx => Task.FromResult<Hex1bWidget>(
                 new VStackWidget(new Hex1bWidget[]
                 {
-                    new ButtonWidget("Click Me") { OnClick = _ => { clicked = true; return Task.CompletedTask; } }
+                    new ButtonWidget("Click Me").OnClick(_ => { clicked = true; return Task.CompletedTask; })
                 })
             ),
             new Hex1bAppOptions { Terminal = terminal }
@@ -155,8 +155,8 @@ public class Hex1bAppIntegrationTests
             ctx => Task.FromResult<Hex1bWidget>(
                 new VStackWidget(new Hex1bWidget[]
                 {
-                    new TextBoxWidget("") { OnTextChanged = args => { text1 = args.NewText; return Task.CompletedTask; } },
-                    new TextBoxWidget("") { OnTextChanged = args => { text2 = args.NewText; return Task.CompletedTask; } }
+                    new TextBoxWidget("").OnTextChanged(args => { text1 = args.NewText; return Task.CompletedTask; }),
+                    new TextBoxWidget("").OnTextChanged(args => { text2 = args.NewText; return Task.CompletedTask; })
                 })
             ),
             new Hex1bAppOptions { Terminal = terminal }
@@ -220,7 +220,7 @@ public class Hex1bAppIntegrationTests
                 var widget = new VStackWidget(new Hex1bWidget[]
                 {
                     new TextBlockWidget($"Count: {counter}"),
-                    new ButtonWidget("Increment") { OnClick = _ => { counter++; return Task.CompletedTask; } }
+                    new ButtonWidget("Increment").OnClick(_ => { counter++; return Task.CompletedTask; })
                 });
                 return Task.FromResult<Hex1bWidget>(widget);
             },
@@ -357,7 +357,7 @@ public class Hex1bAppIntegrationTests
             ctx => Task.FromResult<Hex1bWidget>(
                 new VStackWidget(new Hex1bWidget[]
                 {
-                    new ButtonWidget("Test") { OnClick = _ => { ctrlCPressed = true; return Task.CompletedTask; } }
+                    new ButtonWidget("Test").OnClick(_ => { ctrlCPressed = true; return Task.CompletedTask; })
                 }).WithInputBindings(bindings =>
                 {
                     bindings.Ctrl().Key(Hex1bKey.C).Action(_ => ctrlCPressed = true);
@@ -402,7 +402,7 @@ public class Hex1bAppIntegrationTests
             ctx => Task.FromResult<Hex1bWidget>(
                 new VStackWidget(new Hex1bWidget[]
                 {
-                    new ButtonWidget("Test") { OnClick = _ => Task.CompletedTask }
+                    new ButtonWidget("Test").OnClick(_ => Task.CompletedTask)
                 }).WithInputBindings(bindings =>
                 {
                     // User's CTRL-C binding should override the default

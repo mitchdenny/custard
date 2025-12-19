@@ -98,7 +98,7 @@ using var app = new Hex1bApp(
                         new BorderWidget(new VStackWidget([
                             new TextBlockWidget("📋 Todo Items"),
                             new TextBlockWidget(""),
-                            new ListWidget(listItems) { OnSelectionChanged = args => { OnSelectionChanged(args); return Task.CompletedTask; }, OnItemActivated = _ => { ToggleSelected(); return Task.CompletedTask; } },
+                            new ListWidget(listItems).OnSelectionChanged(args => OnSelectionChanged(args)).OnItemActivated(_ => ToggleSelected()),
                             new TextBlockWidget(""),
                             new TextBlockWidget("↑↓ Nav  Space: Toggle  Del: Remove")
                         ]), "Tasks") { WidthHint = SizeHint.Weighted(2) },
@@ -107,8 +107,8 @@ using var app = new Hex1bApp(
                         new VStackWidget([
                             new BorderWidget(new VStackWidget([
                                 new TextBlockWidget("➕ Add Task"),
-                                new TextBoxWidget(newItemText) { OnTextChanged = args => { newItemText = args.NewText; return Task.CompletedTask; } },
-                                new ButtonWidget("Add") { OnClick = _ => { AddItem(); return Task.CompletedTask; } }
+                                new TextBoxWidget(newItemText).OnTextChanged(args => newItemText = args.NewText),
+                                new ButtonWidget("Add").OnClick(_ => AddItem())
                             ]), "New"),
                             new BorderWidget(new VStackWidget([
                                 new TextBlockWidget($"Total: {totalCount} items"),
@@ -117,7 +117,7 @@ using var app = new Hex1bApp(
                                 new TextBlockWidget(""),
                                 new TextBlockWidget(GetProgressBar())
                             ]), "Stats") { HeightHint = SizeHint.Fill },
-                            new ButtonWidget("Quit") { OnClick = _ => { cts.Cancel(); return Task.CompletedTask; } }
+                            new ButtonWidget("Quit").OnClick(_ => cts.Cancel())
                         ]) { WidthHint = SizeHint.Weighted(1) }
                     ])),
 
@@ -127,14 +127,14 @@ using var app = new Hex1bApp(
                         new TextBlockWidget($"📋 Todo [{completedCount}/{totalCount}]"),
                         new TextBlockWidget(GetProgressBar()),
                         new TextBlockWidget(""),
-                        new ListWidget(listItems) { HeightHint = SizeHint.Fill, OnSelectionChanged = args => { OnSelectionChanged(args); return Task.CompletedTask; }, OnItemActivated = _ => { ToggleSelected(); return Task.CompletedTask; } },
+                        new ListWidget(listItems) { HeightHint = SizeHint.Fill }.OnSelectionChanged(args => OnSelectionChanged(args)).OnItemActivated(_ => ToggleSelected()),
                         new TextBlockWidget(""),
                         new HStackWidget([
-                            new TextBoxWidget(newItemText) { WidthHint = SizeHint.Fill, OnTextChanged = args => { newItemText = args.NewText; return Task.CompletedTask; } },
-                            new ButtonWidget("[+]") { OnClick = _ => { AddItem(); return Task.CompletedTask; } }
+                            new TextBoxWidget(newItemText) { WidthHint = SizeHint.Fill }.OnTextChanged(args => newItemText = args.NewText),
+                            new ButtonWidget("[+]").OnClick(_ => AddItem())
                         ]),
                         new TextBlockWidget(""),
-                        new ButtonWidget("Quit") { OnClick = _ => { cts.Cancel(); return Task.CompletedTask; } },
+                        new ButtonWidget("Quit").OnClick(_ => cts.Cancel()),
                         new TextBlockWidget(""),
                         new TextBlockWidget("↑↓:Move  Space:Toggle  Del:Remove  Tab:Focus")
                     ]))

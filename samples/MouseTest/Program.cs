@@ -22,11 +22,11 @@ using var app = new Hex1bApp(
                 new TextBlockWidget("Move your mouse around!"),
                 new TextBlockWidget("The yellow cursor shows the mouse position."),
                 new TextBlockWidget(""),
-                new ButtonWidget("Button 1", () => { }),
-                new ButtonWidget("Button 2", () => { }),
-                new ButtonWidget("Button 3", () => { }),
+                new ButtonWidget("Button 1"),
+                new ButtonWidget("Button 2"),
+                new ButtonWidget("Button 3"),
                 new TextBlockWidget(""),
-                new ButtonWidget("Quit (q)", () => cts.Cancel())
+                new ButtonWidget("Quit (q)").OnClick(_ => cts.Cancel())
             ]),
             "Mouse Test"
         ).WithInputBindings(b =>

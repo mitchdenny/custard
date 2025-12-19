@@ -321,7 +321,7 @@ public class PanelNodeTests
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
-                ctx.Panel(ctx.Button("Click Me", _ => { clicked = true; return Task.CompletedTask; }))
+                ctx.Panel(ctx.Button("Click Me").OnClick(_ => { clicked = true; return Task.CompletedTask; }))
             ),
             new Hex1bAppOptions { Terminal = terminal }
         );
@@ -341,7 +341,7 @@ public class PanelNodeTests
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
-                ctx.Panel(ctx.TextBox(text, onTextChanged: args => text = args.NewText))
+                ctx.Panel(ctx.TextBox(text).OnTextChanged(args => text = args.NewText))
             ),
             new Hex1bAppOptions { Terminal = terminal }
         );

@@ -105,7 +105,7 @@ public class NavigatorExample(ILogger<NavigatorExample> logger) : Hex1bExample
                 v.Text("To get started, you'll need to create"),
                 v.Text("your first customer record."),
                 v.Text(""),
-                v.Button("Create First Customer →", _ => 
+                v.Button("Create First Customer →").OnClick(_ => 
                     nav.Push("new-customer", n => BuildNewCustomer(ctx, n)))
             ]);
         }
@@ -121,12 +121,12 @@ public class NavigatorExample(ILogger<NavigatorExample> logger) : Hex1bExample
                 v.Text("╰───────────────────────────────────────╯"),
                 v.Text(""),
                 v.Text("Company Name:"),
-                v.TextBox(CompanyNameInput, onTextChanged: args => CompanyNameInput = args.NewText),
+                v.TextBox(CompanyNameInput).OnTextChanged(args => CompanyNameInput = args.NewText),
                 v.Text(""),
                 v.Text("Email:"),
-                v.TextBox(EmailInput, onTextChanged: args => EmailInput = args.NewText),
+                v.TextBox(EmailInput).OnTextChanged(args => EmailInput = args.NewText),
                 v.Text(""),
-                v.Button("Save Customer", _ => SaveNewCustomer(nav))
+                v.Button("Save Customer").OnClick(_ => SaveNewCustomer(nav))
             ]).WithInputBindings(bindings =>
             {
                 bindings.Key(Hex1bKey.Escape).Action(() => nav.Pop(), "Cancel");
@@ -168,9 +168,9 @@ public class NavigatorExample(ILogger<NavigatorExample> logger) : Hex1bExample
                 ctx.VStack(left => [
                     left.Text("Customers"),
                     left.Text("─────────────────"),
-                    left.List(customerItems, e => SelectedCustomerId = e.SelectedIndex >= 0 && e.SelectedIndex < Customers.Count ? Customers[e.SelectedIndex].Id : null, null),
+                    left.List(customerItems).OnSelectionChanged(e => SelectedCustomerId = e.SelectedIndex >= 0 && e.SelectedIndex < Customers.Count ? Customers[e.SelectedIndex].Id : null),
                     left.Text(""),
-                    left.Button("+ New", _ => 
+                    left.Button("+ New").OnClick(_ => 
                         nav.Push("new-customer", n => BuildNewCustomer(ctx, n)))
                 ]),
                 BuildCustomerDetail(ctx, selectedCustomer, nav),
@@ -211,11 +211,11 @@ public class NavigatorExample(ILogger<NavigatorExample> logger) : Hex1bExample
                 v.Text(""),
                 v.Text($"Opportunities ({customer.Opportunities.Count}) - Total: ${totalValue:N0}"),
                 v.Text("────────────────────────"),
-                v.List(opportunityItems, e => SetSelectedOpportunityId(customer.Id, e.SelectedIndex >= 0 && e.SelectedIndex < customer.Opportunities.Count ? customer.Opportunities[e.SelectedIndex].Id : null), null),
+                v.List(opportunityItems).OnSelectionChanged(e => SetSelectedOpportunityId(customer.Id, e.SelectedIndex >= 0 && e.SelectedIndex < customer.Opportunities.Count ? customer.Opportunities[e.SelectedIndex].Id : null)),
                 v.HStack(h => [
-                    h.Button("+ Add", _ => 
+                    h.Button("+ Add").OnClick(_ => 
                         nav.Push("new-opportunity", n => BuildNewOpportunity(ctx, n, customer))),
-                    h.Button("Delete", _ => 
+                    h.Button("Delete").OnClick(_ => 
                         DeleteSelectedOpportunity(customer))
                 ])
             ]));
@@ -235,12 +235,12 @@ public class NavigatorExample(ILogger<NavigatorExample> logger) : Hex1bExample
                 v.Text("╰───────────────────────────────────────╯"),
                 v.Text(""),
                 v.Text("Opportunity Name:"),
-                v.TextBox(OpportunityNameInput, onTextChanged: args => OpportunityNameInput = args.NewText),
+                v.TextBox(OpportunityNameInput).OnTextChanged(args => OpportunityNameInput = args.NewText),
                 v.Text(""),
                 v.Text("Amount ($):"),
-                v.TextBox(OpportunityAmountInput, onTextChanged: args => OpportunityAmountInput = args.NewText),
+                v.TextBox(OpportunityAmountInput).OnTextChanged(args => OpportunityAmountInput = args.NewText),
                 v.Text(""),
-                v.Button("Save Opportunity", _ => SaveNewOpportunity(nav, customer))
+                v.Button("Save Opportunity").OnClick(_ => SaveNewOpportunity(nav, customer))
             ]).WithInputBindings(bindings =>
             {
                 bindings.Key(Hex1bKey.Escape).Action(() => nav.Pop(), "Cancel");

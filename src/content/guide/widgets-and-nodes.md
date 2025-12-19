@@ -16,8 +16,12 @@ This separation enables efficient reconciliation—Hex1b can diff widgets and up
 Widgets are simple, immutable data structures:
 
 ```csharp
-// A widget just holds configuration
-public record ButtonWidget(string Label, Action OnClick) : Hex1bWidget;
+// A widget holds configuration with fluent methods for event handlers
+public record ButtonWidget(string Label) : Hex1bWidget
+{
+    public ButtonWidget OnClick(Action<ButtonClickedEventArgs> handler) => /* ... */;
+    public ButtonWidget OnClick(Func<ButtonClickedEventArgs, Task> handler) => /* ... */;
+}
 
 public record TextBlockWidget(string Text) : Hex1bWidget;
 
@@ -30,7 +34,7 @@ When you build your UI, you're constructing a tree of widgets:
 buildWidget: (ctx, ct) => 
     new VStackWidget([
         new TextBlockWidget("Hello"),
-        new ButtonWidget("Click", () => Console.WriteLine("Clicked!"))
+        new ButtonWidget("Click").OnClick(_ => Console.WriteLine("Clicked!"))
     ])
 ```
 
@@ -43,7 +47,7 @@ public class ButtonNode : Hex1bNode
 {
     // Properties updated from widget during reconciliation
     public string Label { get; set; } = "";
-    public Action? OnClick { get; set; }
+    public Func<InputBindingActionContext, Task>? ClickAction { get; set; }
     
     // Mutable state preserved across reconciliations
     public bool IsFocused { get; set; }

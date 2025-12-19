@@ -18,40 +18,16 @@ public static class ToggleSwitchExtensions
         => new(state);
 
     /// <summary>
-    /// Creates a ToggleSwitchWidget with inline options and a synchronous callback.
+    /// Creates a ToggleSwitchWidget with inline options.
     /// </summary>
     public static ToggleSwitchWidget ToggleSwitch<TParent>(
         this WidgetContext<TParent> ctx,
         IReadOnlyList<string> options,
-        int selectedIndex = 0,
-        Action<ToggleSelectionChangedEventArgs>? onSelectionChanged = null)
+        int selectedIndex = 0)
         where TParent : Hex1bWidget
         => new(new ToggleSwitchState
         {
             Options = options,
             SelectedIndex = selectedIndex
-        })
-        {
-            OnSelectionChanged = onSelectionChanged != null 
-                ? args => { onSelectionChanged(args); return Task.CompletedTask; }
-                : null
-        };
-
-    /// <summary>
-    /// Creates a ToggleSwitchWidget with inline options and an async callback.
-    /// </summary>
-    public static ToggleSwitchWidget ToggleSwitch<TParent>(
-        this WidgetContext<TParent> ctx,
-        IReadOnlyList<string> options,
-        int selectedIndex,
-        Func<ToggleSelectionChangedEventArgs, Task> onSelectionChanged)
-        where TParent : Hex1bWidget
-        => new(new ToggleSwitchState
-        {
-            Options = options,
-            SelectedIndex = selectedIndex
-        })
-        {
-            OnSelectionChanged = onSelectionChanged
-        };
+        });
 }

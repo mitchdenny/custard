@@ -61,11 +61,11 @@ public class GettingStartedStep4Example(ILogger<GettingStartedStep4Example> logg
             return ctx.Border(b => [
                 b.HStack(h => [
                     h.Text("New task: "),
-                    h.TextBox(state.NewItemText, e => state.NewItemText = e.NewText),
-                    h.Button("Add", _ => state.AddItem())
+                    h.TextBox(state.NewItemText).OnTextChanged(e => state.NewItemText = e.NewText),
+                    h.Button("Add").OnClick(_ => state.AddItem())
                 ]),
                 new SeparatorWidget(),
-                b.List(state.FormatItems(), e => state.ToggleItem(e.ActivatedIndex)),
+                b.List(state.FormatItems()).OnItemActivated(e => state.ToggleItem(e.ActivatedIndex)),
                 b.Text(""),
                 b.Text("Tab: Focus next  Space: Toggle")
             ], title: "📋 Todo");

@@ -713,9 +713,8 @@ public class ListNodeTests
         string? activatedAction = null;
         
         using var app = new Hex1bApp(
-            ctx => Task.FromResult<Hex1bWidget>(ctx.List(
-                items, 
-                (ListItemActivatedEventArgs args) => activatedAction = args.ActivatedText)),
+            ctx => Task.FromResult<Hex1bWidget>(ctx.List(items)
+                .OnItemActivated((ListItemActivatedEventArgs args) => activatedAction = args.ActivatedText)),
             new Hex1bAppOptions { Terminal = terminal }
         );
         
@@ -800,7 +799,7 @@ public class ListNodeTests
                 ctx.VStack(v => [
                     v.Text("Welcome"),
                     v.Border(ctx.List(items), "Options"),
-                    v.Button("OK", _ => Task.CompletedTask)
+                    v.Button("OK").OnClick(_ => Task.CompletedTask)
                 ])
             ),
             new Hex1bAppOptions { Terminal = terminal }

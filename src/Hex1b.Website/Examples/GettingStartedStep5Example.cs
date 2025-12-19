@@ -79,17 +79,16 @@ public class GettingStartedStep5Example(ILogger<GettingStartedStep5Example> logg
                 b.Text(""),
                 b.HStack(h => [
                     h.Text("New: "),
-                    h.TextBox(state.NewItemText, e => state.NewItemText = e.NewText),
-                    h.Button("Add", _ => state.AddItem())
+                    h.TextBox(state.NewItemText).OnTextChanged(e => state.NewItemText = e.NewText),
+                    h.Button("Add").OnClick(_ => state.AddItem())
                 ]),
                 new SeparatorWidget(),
                 b.List(
-                    state.FormatItems(),
-                    e => state.SelectedIndex = e.SelectedIndex,
-                    e => state.ToggleItem(e.ActivatedIndex)
-                ),
+                    state.FormatItems())
+                    .OnSelectionChanged(e => state.SelectedIndex = e.SelectedIndex)
+                    .OnItemActivated(e => state.ToggleItem(e.ActivatedIndex)),
                 b.Text(""),
-                b.Button("Delete Selected", _ => state.DeleteItem(state.SelectedIndex)),
+                b.Button("Delete Selected").OnClick(_ => state.DeleteItem(state.SelectedIndex)),
                 b.Text(""),
                 b.Text("↑↓: Navigate  Space: Toggle  Tab: Focus  Del: Delete")
             ], title: "My Todos");

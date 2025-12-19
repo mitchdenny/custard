@@ -9,7 +9,19 @@ public sealed record ButtonWidget(string Label) : Hex1bWidget
     /// <summary>
     /// The async click handler. Called when the button is activated via Enter, Space, or mouse click.
     /// </summary>
-    public Func<ButtonClickedEventArgs, Task>? OnClick { get; init; }
+    internal Func<ButtonClickedEventArgs, Task>? ClickHandler { get; init; }
+
+    /// <summary>
+    /// Sets a synchronous click handler. Called when the button is activated via Enter, Space, or mouse click.
+    /// </summary>
+    public ButtonWidget OnClick(Action<ButtonClickedEventArgs> handler)
+        => this with { ClickHandler = args => { handler(args); return Task.CompletedTask; } };
+
+    /// <summary>
+    /// Sets an asynchronous click handler. Called when the button is activated via Enter, Space, or mouse click.
+    /// </summary>
+    public ButtonWidget OnClick(Func<ButtonClickedEventArgs, Task> handler)
+        => this with { ClickHandler = handler };
 
     internal override Hex1bNode Reconcile(Hex1bNode? existingNode, ReconcileContext context)
     {
@@ -18,12 +30,12 @@ public sealed record ButtonWidget(string Label) : Hex1bWidget
         node.SourceWidget = this;
         
         // Convert the typed event handler to the internal InputBindingActionContext handler
-        if (OnClick != null)
+        if (ClickHandler != null)
         {
             node.ClickAction = async ctx => 
             {
                 var args = new ButtonClickedEventArgs(this, node, ctx);
-                await OnClick(args);
+                await ClickHandler(args);
             };
         }
         else

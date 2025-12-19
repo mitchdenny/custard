@@ -40,7 +40,7 @@ public static class AppExtensions
                 var vstack = context.VStack(v => [
                     v.ContentPanel().Fill(),
                     v.InfoBar("Skeetterm"),
-                    v.Button("Exit", e => e.Context.RequestStop())
+                    v.Button("Exit").OnClick(e => e.Context.RequestStop())
                 ]);
                 return vstack;
             }

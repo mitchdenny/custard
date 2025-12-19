@@ -62,8 +62,17 @@ Build widgets → Reconcile → Measure → Arrange → Render → Wait for inpu
 
 ### Widget Definition Pattern
 ```csharp
-// Widgets are records with optional InputBindings
-public record ButtonWidget(string Label, Action OnClick) : Hex1bWidget;
+// Widgets are records with fluent methods for event handlers
+public record ButtonWidget(string Label) : Hex1bWidget
+{
+    internal Func<ButtonClickedEventArgs, Task>? ClickHandler { get; init; }
+    
+    public ButtonWidget OnClick(Action<ButtonClickedEventArgs> handler)
+        => this with { ClickHandler = args => { handler(args); return Task.CompletedTask; } };
+    
+    public ButtonWidget OnClick(Func<ButtonClickedEventArgs, Task> handler)
+        => this with { ClickHandler = handler };
+}
 ```
 
 ### Node Definition Pattern
@@ -72,7 +81,7 @@ public class ButtonNode : Hex1bNode
 {
     // Properties reconciled from widget
     public string Label { get; set; } = "";
-    public Action? OnClick { get; set; }
+    public Func<InputBindingActionContext, Task>? ClickAction { get; set; }
     
     // Focus state (mutable, preserved across reconciliation)
     public bool IsFocused { get; set; }

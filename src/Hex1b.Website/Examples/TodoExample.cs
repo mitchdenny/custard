@@ -36,8 +36,8 @@ public class TodoExample(ILogger<TodoExample> logger) : ReactiveExample
             ctx => ctx.Border(b => [
                 b.HStack(h => [
                     h.Text("New task: "),
-                    h.TextBox(newItem, e => newItem = e.NewText),
-                    h.Button("Add", _ => {
+                    h.TextBox(newItem).OnTextChanged(e => newItem = e.NewText),
+                    h.Button("Add").OnClick(_ => {
                         if (!string.IsNullOrWhiteSpace(newItem)) {
                             items.Add((newItem, false));
                             newItem = "";
@@ -45,7 +45,7 @@ public class TodoExample(ILogger<TodoExample> logger) : ReactiveExample
                     })
                 ]),
                 new SeparatorWidget(),
-                b.List(Format(), null, e =>
+                b.List(Format()).OnItemActivated(e =>
                     items[e.ActivatedIndex] = (items[e.ActivatedIndex].Text, !items[e.ActivatedIndex].Done))
             ], title: "📋 Todo"),
             new Hex1bAppOptions { Terminal = terminal }

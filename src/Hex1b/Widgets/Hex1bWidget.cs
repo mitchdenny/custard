@@ -65,14 +65,38 @@ public enum TextOverflow
 public sealed record TextBoxWidget(string? Text = null) : Hex1bWidget
 {
     /// <summary>
-    /// Called when the text content changes.
+    /// Internal handler for text changed events.
     /// </summary>
-    public Func<TextChangedEventArgs, Task>? OnTextChanged { get; init; }
+    internal Func<TextChangedEventArgs, Task>? TextChangedHandler { get; init; }
 
     /// <summary>
-    /// Called when Enter is pressed in the text box.
+    /// Internal handler for submit events.
     /// </summary>
-    public Func<TextSubmittedEventArgs, Task>? OnSubmit { get; init; }
+    internal Func<TextSubmittedEventArgs, Task>? SubmitHandler { get; init; }
+
+    /// <summary>
+    /// Sets a synchronous handler called when the text content changes.
+    /// </summary>
+    public TextBoxWidget OnTextChanged(Action<TextChangedEventArgs> handler)
+        => this with { TextChangedHandler = args => { handler(args); return Task.CompletedTask; } };
+
+    /// <summary>
+    /// Sets an asynchronous handler called when the text content changes.
+    /// </summary>
+    public TextBoxWidget OnTextChanged(Func<TextChangedEventArgs, Task> handler)
+        => this with { TextChangedHandler = handler };
+
+    /// <summary>
+    /// Sets a synchronous handler called when Enter is pressed in the text box.
+    /// </summary>
+    public TextBoxWidget OnSubmit(Action<TextSubmittedEventArgs> handler)
+        => this with { SubmitHandler = args => { handler(args); return Task.CompletedTask; } };
+
+    /// <summary>
+    /// Sets an asynchronous handler called when Enter is pressed in the text box.
+    /// </summary>
+    public TextBoxWidget OnSubmit(Func<TextSubmittedEventArgs, Task> handler)
+        => this with { SubmitHandler = handler };
 
     internal override Hex1bNode Reconcile(Hex1bNode? existingNode, ReconcileContext context)
     {
@@ -97,12 +121,12 @@ public sealed record TextBoxWidget(string? Text = null) : Hex1bWidget
         }
         
         // Set up event handlers - wrap to convert InputBindingActionContext to typed event args
-        if (OnTextChanged != null)
+        if (TextChangedHandler != null)
         {
             node.TextChangedAction = (ctx, oldText, newText) =>
             {
                 var args = new TextChangedEventArgs(this, node, ctx, oldText, newText);
-                return OnTextChanged(args);
+                return TextChangedHandler(args);
             };
         }
         else
@@ -110,12 +134,12 @@ public sealed record TextBoxWidget(string? Text = null) : Hex1bWidget
             node.TextChangedAction = null;
         }
 
-        if (OnSubmit != null)
+        if (SubmitHandler != null)
         {
             node.SubmitAction = ctx =>
             {
                 var args = new TextSubmittedEventArgs(this, node, ctx, node.Text);
-                return OnSubmit(args);
+                return SubmitHandler(args);
             };
         }
         else

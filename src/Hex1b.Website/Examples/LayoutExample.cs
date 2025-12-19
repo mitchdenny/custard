@@ -52,7 +52,7 @@ public class LayoutExample(ILogger<LayoutExample> logger) : Hex1bExample
                         leftPanel.VStack(left => [
                             left.Text("Layout Examples"),
                             left.Text("───────────────────"),
-                            left.List(state.ExampleItems, e => state.SelectedExampleIndex = e.SelectedIndex, null),
+                            left.List(state.ExampleItems).OnSelectionChanged(e => state.SelectedExampleIndex = e.SelectedIndex),
                             left.Text(""),
                             left.Text("Use ↑↓ to navigate"),
                         ])

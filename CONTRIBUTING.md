@@ -110,10 +110,14 @@ dotnet test --filter "FullyQualifiedName~ButtonNodeTests"
 Example:
 ```csharp
 [Fact]
-public void HandleInput_EnterKey_TriggersOnClick()
+public void HandleInput_EnterKey_TriggersClickAction()
 {
     var clicked = false;
-    var node = new ButtonNode { Label = "Test", OnClick = () => clicked = true };
+    var node = new ButtonNode 
+    { 
+        Label = "Test", 
+        ClickAction = _ => { clicked = true; return Task.CompletedTask; } 
+    };
     
     var result = node.HandleInput(new Hex1bKeyEvent(Hex1bKey.Enter, '\r', Hex1bModifiers.None));
     

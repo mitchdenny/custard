@@ -60,9 +60,21 @@ public class ToggleSwitchState
 public sealed record ToggleSwitchWidget(ToggleSwitchState State) : Hex1bWidget
 {
     /// <summary>
-    /// Called when the selection changes.
+    /// Internal handler for selection changed events.
     /// </summary>
-    public Func<ToggleSelectionChangedEventArgs, Task>? OnSelectionChanged { get; init; }
+    internal Func<ToggleSelectionChangedEventArgs, Task>? SelectionChangedHandler { get; init; }
+
+    /// <summary>
+    /// Sets a synchronous handler called when the selection changes.
+    /// </summary>
+    public ToggleSwitchWidget OnSelectionChanged(Action<ToggleSelectionChangedEventArgs> handler)
+        => this with { SelectionChangedHandler = args => { handler(args); return Task.CompletedTask; } };
+
+    /// <summary>
+    /// Sets an asynchronous handler called when the selection changes.
+    /// </summary>
+    public ToggleSwitchWidget OnSelectionChanged(Func<ToggleSelectionChangedEventArgs, Task> handler)
+        => this with { SelectionChangedHandler = handler };
 
     internal override Hex1bNode Reconcile(Hex1bNode? existingNode, ReconcileContext context)
     {
@@ -71,14 +83,14 @@ public sealed record ToggleSwitchWidget(ToggleSwitchState State) : Hex1bWidget
         node.SourceWidget = this;
         
         // Set up event handlers
-        if (OnSelectionChanged != null)
+        if (SelectionChangedHandler != null)
         {
             node.SelectionChangedAction = ctx =>
             {
                 if (State.SelectedOption != null)
                 {
                     var args = new ToggleSelectionChangedEventArgs(this, node, ctx, State.SelectedIndex, State.SelectedOption);
-                    return OnSelectionChanged(args);
+                    return SelectionChangedHandler(args);
                 }
                 return Task.CompletedTask;
             };

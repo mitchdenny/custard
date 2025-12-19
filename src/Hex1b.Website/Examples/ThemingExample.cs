@@ -75,7 +75,7 @@ public class ThemingExample(ILogger<ThemingExample> logger) : Hex1bExample
                         leftPanel.VStack(left => [
                             left.Text("═══ Themes ═══"),
                             left.Text(""),
-                            left.List(state.ThemeItems, e => state.SelectedThemeIndex = e.SelectedIndex, null)
+                            left.List(state.ThemeItems).OnSelectionChanged(e => state.SelectedThemeIndex = e.SelectedIndex)
                         ])
                     ]),
                     root.Layout(
@@ -94,12 +94,12 @@ public class ThemingExample(ILogger<ThemingExample> logger) : Hex1bExample
                                 ]),
                                 right.Text(""),
                                 right.Text("TextBox (Tab to focus):"),
-                                right.TextBox(state.SampleTextBox, onTextChanged: args => state.SampleTextBox = args.NewText),
+                                right.TextBox(state.SampleTextBox).OnTextChanged(args => state.SampleTextBox = args.NewText),
                                 right.Text(""),
                                 right.Text("Button:"),
                                 right.Button(
-                                    state.ButtonClicked ? "Clicked!" : "Click Me",
-                                    _ => state.ButtonClicked = !state.ButtonClicked),
+                                    state.ButtonClicked ? "Clicked!" : "Click Me")
+                                    .OnClick(_ => state.ButtonClicked = !state.ButtonClicked),
                                 right.Text(""),
                                 right.Text("Toggle Switch (←/→ to change):"),
                                 right.ToggleSwitch(state.ModeSwitch),

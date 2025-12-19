@@ -51,7 +51,7 @@ public class GettingStartedStep3Example(ILogger<GettingStartedStep3Example> logg
             return ctx.Border(b => [
                 b.Text("📋 My Todos"),
                 b.Text(""),
-                b.List(state.FormatItems(), e => state.ToggleItem(e.ActivatedIndex)),
+                b.List(state.FormatItems()).OnItemActivated(e => state.ToggleItem(e.ActivatedIndex)),
                 b.Text(""),
                 b.Text("↑↓ Navigate  Space: Toggle")
             ], title: "Todo List");

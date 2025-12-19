@@ -1,28 +1,23 @@
 # Getting Started
 
-Hex1b is a .NET library for building terminal user interfaces (TUI) with a React-inspired declarative API.
+Hex1b is a .NET library for building terminal user interfaces (TUI). If you are familiiar with the way that React is used in the browser to construct a virtual DOM which is then synchronized with the real browser DOM then this should feel familiar.
 
 ## Prerequisites
 
-- .NET 8.0 or later
+- .NET 10 or later
 - A terminal that supports ANSI escape sequences (most modern terminals do)
 
 ## Create a New Console Application
 
 First, create a new console application:
 
-```bash
-dotnet new console -n MyTodoApp
-cd MyTodoApp
-```
+<TerminalCommand command="dotnet new console -n MyTodoApp && cd MyTodoApp" />
 
 ## Install Hex1b
 
 Add the Hex1b package to your project:
 
-```bash
-dotnet add package Hex1b
-```
+<TerminalCommand command="dotnet add package Hex1b" />
 
 ## Step 1: Hello World
 
@@ -34,16 +29,9 @@ using Hex1b;
 var app = new Hex1bApp(ctx => ctx.Text("Hello, Hex1b!"));
 await app.RunAsync();
 ```
-
-Run your app:
-
-```bash
-dotnet run
-```
+<TerminalCommand command="dotnet run" example="getting-started-step1" title="Step 1: Hello World" />
 
 Press `Ctrl+C` to exit.
-
-<TerminalDemo example="getting-started-step1" title="Step 1: Hello World" />
 
 The fluent API uses the `ctx` (context) parameter to create widgets. In this case, `ctx.Text()` creates a text widget.
 
@@ -66,20 +54,20 @@ var app = new Hex1bApp(ctx =>
     ctx.Border(b => [
         b.Text($"Button pressed {state.Count} times"),
         b.Text(""),
-        b.Button("Click me!", _ => state.Count++)
+        b.Button("Click me!").OnClick(() => state.Count++)
     ], title: "Counter Demo")
 );
 
 await app.RunAsync();
 ```
 
-<TerminalDemo example="getting-started-step2" title="Step 2: Interactive Counter" />
+<TerminalCommand command="dotnet run" example="getting-started-step2" title="Step 2: Interactive Counter" />
 
 Key concepts:
 - **State**: We created a `CounterState` class to hold mutable data
 - **Border**: The `ctx.Border()` creates a widget with a border and optional title
 - **Collection expressions**: `[...]` syntax creates an array of child widgets
-- **Button**: The `ctx.Button()` creates an interactive button with a click handler
+- **Button**: The `ctx.Button()` creates an interactive button; use `.OnClick()` for the click handler
 
 ## Step 3: Building a Todo List
 
@@ -122,7 +110,7 @@ var app = new Hex1bApp(ctx =>
 await app.RunAsync();
 ```
 
-<TerminalDemo example="getting-started-step3" title="Step 3: Simple Todo List" />
+<TerminalCommand command="dotnet run" example="getting-started-step3" title="Step 3: Simple Todo List" />
 
 New concepts:
 - **List widget**: `ctx.List()` creates a scrollable, selectable list
@@ -173,7 +161,7 @@ var app = new Hex1bApp(ctx =>
         b.HStack(h => [
             h.Text("New task: "),
             h.TextBox(state.NewItemText, e => state.NewItemText = e.NewText),
-            h.Button("Add", _ => state.AddItem())
+            h.Button("Add").OnClick(() => state.AddItem())
         ]),
         new SeparatorWidget(),
         b.List(state.FormatItems(), e => state.ToggleItem(e.ActivatedIndex)),
@@ -185,7 +173,7 @@ var app = new Hex1bApp(ctx =>
 await app.RunAsync();
 ```
 
-<TerminalDemo example="getting-started-step4" title="Step 4: Todo with Input" />
+<TerminalCommand command="dotnet run" example="getting-started-step4" title="Step 4: Todo with Input" />
 
 New concepts:
 - **HStack**: `ctx.HStack()` arranges children horizontally
@@ -255,7 +243,7 @@ var app = new Hex1bApp(ctx =>
         b.HStack(h => [
             h.Text("New: "),
             h.TextBox(state.NewItemText, e => state.NewItemText = e.NewText),
-            h.Button("Add", _ => state.AddItem())
+            h.Button("Add").OnClick(() => state.AddItem())
         ]),
         new SeparatorWidget(),
         b.List(
@@ -264,7 +252,7 @@ var app = new Hex1bApp(ctx =>
             e => state.ToggleItem(e.ActivatedIndex)
         ),
         b.Text(""),
-        b.Button("Delete Selected", _ => state.DeleteItem(state.SelectedIndex)),
+        b.Button("Delete Selected").OnClick(() => state.DeleteItem(state.SelectedIndex)),
         b.Text(""),
         b.Text("↑↓: Navigate  Space: Toggle  Tab: Focus  Del: Delete")
     ], title: "My Todos")
@@ -273,7 +261,7 @@ var app = new Hex1bApp(ctx =>
 await app.RunAsync();
 ```
 
-<TerminalDemo example="getting-started-step5" title="Step 5: Complete Todo App" />
+<TerminalCommand command="dotnet run" example="getting-started-step5" title="Step 5: Complete Todo App" />
 
 Final features:
 - **Remaining count**: Shows how many items are not yet complete

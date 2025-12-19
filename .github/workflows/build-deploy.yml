@@ -211,7 +211,7 @@ jobs:
     if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
     environment: production
     permissions:
-      contents: read
+      contents: write
       id-token: write
 
     steps:
@@ -265,6 +265,42 @@ jobs:
             --api-key ${{ steps.nugetlogin.outputs.NUGET_API_KEY }} \
             --source "https://api.nuget.org/v3/index.json" \
             --skip-duplicate
+
+      - name: Create GitHub Release
+        if: steps.check-package.outputs.exists == 'false'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PACKAGE_VERSION: ${{ steps.version.outputs.release }}
+        run: |
+          # Create release notes
+          cat > /tmp/release_notes.md << EOF
+          ## Hex1b v${PACKAGE_VERSION}
+
+          ### Installation
+
+          **NuGet CLI:**
+          \`\`\`bash
+          dotnet add package Hex1b --version ${PACKAGE_VERSION}
+          \`\`\`
+
+          **PackageReference:**
+          \`\`\`xml
+          <PackageReference Include="Hex1b" Version="${PACKAGE_VERSION}" />
+          \`\`\`
+
+          ### Links
+          - 📦 [NuGet Package](https://www.nuget.org/packages/Hex1b/${PACKAGE_VERSION})
+          - 📖 [Documentation](https://hex1b.dev)
+
+          ---
+          *Released from commit ${{ github.sha }}*
+          EOF
+
+          # Create the GitHub release with the nupkg attached
+          gh release create "v${PACKAGE_VERSION}" \
+            --title "v${PACKAGE_VERSION}" \
+            --notes-file /tmp/release_notes.md \
+            ./artifacts/*.nupkg
 
   deploy-pullrequest:
     runs-on: ubuntu-latest

@@ -3,13 +3,13 @@ description: 'Generates version strings for NuGet packages'
 
 outputs:
   preview:
-    description: 'Preview version for GitHub Packages (0.1.[runid]-preview.[attempt].[sha])'
+    description: 'Preview version for GitHub Packages (0.1.0-preview.[run].[sha].[attempt])'
     value: ${{ steps.version.outputs.preview }}
   pr:
-    description: 'PR version for GitHub Packages (0.1.[runid]-pr.[attempt].[sha])'
+    description: 'PR version for GitHub Packages (0.1.0-pr.[run].[sha].[attempt])'
     value: ${{ steps.version.outputs.pr }}
   release:
-    description: 'Release version for NuGet.org (0.1.[runid])'
+    description: 'Release version for NuGet.org (0.1.0)'
     value: ${{ steps.version.outputs.release }}
 
 runs:
@@ -19,9 +19,10 @@ runs:
       id: version
       shell: bash
       run: |
-        PREVIEW_VERSION="0.1.${{ github.run_id }}-preview.${{ github.run_attempt }}.${{ github.sha }}"
-        PR_VERSION="0.1.${{ github.run_id }}-pr.${{ github.run_attempt }}.${{ github.sha }}"
-        RELEASE_VERSION="0.1.${{ github.run_id }}"
+        SHORT_SHA=$(echo "${{ github.sha }}" | cut -c1-7)
+        PREVIEW_VERSION="0.1.0-preview.${{ github.run_id }}.${SHORT_SHA}.${{ github.run_attempt }}"
+        PR_VERSION="0.1.0-pr.${{ github.run_id }}.${SHORT_SHA}.${{ github.run_attempt }}"
+        RELEASE_VERSION="0.1.0"
         echo "preview=$PREVIEW_VERSION" >> $GITHUB_OUTPUT
         echo "pr=$PR_VERSION" >> $GITHUB_OUTPUT
         echo "release=$RELEASE_VERSION" >> $GITHUB_OUTPUT

@@ -41,6 +41,7 @@ jobs:
 
   build-release:
     runs-on: ubuntu-latest
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
     permissions:
       contents: read
 
@@ -214,6 +215,13 @@ jobs:
       id-token: write
 
     steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Generate version
+        id: version
+        uses: ./.github/actions/version
+
       - name: Download artifacts
         uses: actions/download-artifact@v4
         with:
@@ -225,12 +233,32 @@ jobs:
         with:
           dotnet-version: '10.0.x'
 
+      - name: Check if package exists on NuGet.org
+        id: check-package
+        run: |
+          PACKAGE_VERSION="${{ steps.version.outputs.release }}"
+          echo "Checking if Hex1b version $PACKAGE_VERSION exists on NuGet.org..."
+          
+          # Try to get package info from NuGet API
+          HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" \
+            "https://api.nuget.org/v3-flatcontainer/hex1b/$PACKAGE_VERSION/hex1b.nuspec")
+          
+          if [ "$HTTP_CODE" = "200" ]; then
+            echo "Package version $PACKAGE_VERSION already exists on NuGet.org"
+            echo "exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "Package version $PACKAGE_VERSION does not exist on NuGet.org"
+            echo "exists=false" >> $GITHUB_OUTPUT
+          fi
+
       - name: Authenticate to NuGet
+        if: steps.check-package.outputs.exists == 'false'
         uses: nuget/login@v1
         with:
           user: ${{ secrets.NUGET_USERNAME }}
 
       - name: Push to NuGet.org
+        if: steps.check-package.outputs.exists == 'false'
         run: |
           dotnet nuget push ./artifacts/*.nupkg \
             --source "https://api.nuget.org/v3/index.json" \

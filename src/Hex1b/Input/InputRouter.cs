@@ -56,9 +56,9 @@ public static class InputRouter
         var path = BuildPathToFocused(root);
         if (path.Count == 0)
         {
-            // No focused node found, nothing to route to
-            ResetChordState();
-            return InputResult.NotHandled;
+            // No focused node found, but we should still check root node's bindings
+            // This ensures default bindings (like CTRL-C) work even without focusable widgets
+            path = new List<Hex1bNode> { root };
         }
 
         // Escape always cancels pending chord

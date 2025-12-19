@@ -11,6 +11,32 @@
     <EmbedAllSources>true</EmbedAllSources>
     <DebugType>embedded</DebugType>
     <DebugSymbols>true</DebugSymbols>
+
+    <!-- Package Metadata -->
+    <PackageId>Hex1b</PackageId>
+    <Title>Hex1b</Title>
+    <Authors>Mitch Denny</Authors>
+    <Copyright>Copyright (c) 2024 Mitch Denny</Copyright>
+    <Description>Build user interfaces for terminal apps using an approachable code-first API.</Description>
+    <PackageTags>tui;terminal;console;ui;widgets;ansi;cli</PackageTags>
+    
+    <!-- License -->
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    
+    <!-- Repository -->
+    <RepositoryUrl>https://github.com/mitchdenny/hex1b</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageProjectUrl>https://github.com/mitchdenny/hex1b</PackageProjectUrl>
+    
+    <!-- README -->
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    
+    <!-- Release Notes -->
+    <PackageReleaseNotes>See https://github.com/hex1b/hex1b/releases for release notes.</PackageReleaseNotes>
+    
+    <!-- Additional Package Settings -->
+    <PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
   </PropertyGroup>
 
   <ItemGroup>

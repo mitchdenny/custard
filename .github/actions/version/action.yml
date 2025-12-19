@@ -6,7 +6,7 @@ outputs:
     description: 'Preview version for GitHub Packages (0.1.0-preview.[run].[sha].[attempt])'
     value: ${{ steps.version.outputs.preview }}
   pr:
-    description: 'PR version for GitHub Packages (0.1.0-pr.[run].[sha].[attempt])'
+    description: 'PR version for GitHub Packages (0.1.0-[pr].[run].[sha].[attempt])'
     value: ${{ steps.version.outputs.pr }}
   release:
     description: 'Release version for NuGet.org (0.1.0)'
@@ -21,7 +21,14 @@ runs:
       run: |
         SHORT_SHA=$(echo "${{ github.sha }}" | cut -c1-7)
         PREVIEW_VERSION="0.1.0-preview.${{ github.run_id }}.${SHORT_SHA}.${{ github.run_attempt }}"
-        PR_VERSION="0.1.0-pr.${{ github.run_id }}.${SHORT_SHA}.${{ github.run_attempt }}"
+        
+        # For PR builds, include the PR number
+        if [ -n "${{ github.event.pull_request.number }}" ]; then
+          PR_VERSION="0.1.0-${{ github.event.pull_request.number }}.${{ github.run_id }}.${SHORT_SHA}.${{ github.run_attempt }}"
+        else
+          PR_VERSION="0.1.0-pr.${{ github.run_id }}.${SHORT_SHA}.${{ github.run_attempt }}"
+        fi
+        
         RELEASE_VERSION="0.1.0"
         echo "preview=$PREVIEW_VERSION" >> $GITHUB_OUTPUT
         echo "pr=$PR_VERSION" >> $GITHUB_OUTPUT

@@ -262,7 +262,6 @@ jobs:
         run: |
           dotnet nuget push ./artifacts/*.nupkg \
             --source "https://api.nuget.org/v3/index.json" \
-            --api-key "${{ env.NUGET_API_KEY }}" \
             --skip-duplicate
 
   deploy-pullrequest:

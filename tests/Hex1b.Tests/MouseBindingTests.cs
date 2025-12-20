@@ -9,13 +9,12 @@ public class MouseBindingTests
     [Fact]
     public void MouseBinding_MatchesCorrectEvent()
     {
-        var executed = false;
         var binding = new MouseBinding(
             MouseButton.Left, 
             MouseAction.Down, 
             Hex1bModifiers.None,
             1,
-            _ => { executed = true; return Task.CompletedTask; }, 
+            _ => { return Task.CompletedTask; }, 
             "Test");
         
         var matchingEvent = new Hex1bMouseEvent(MouseButton.Left, MouseAction.Down, 10, 10, Hex1bModifiers.None);
@@ -65,9 +64,8 @@ public class MouseBindingTests
     public void InputBindingsBuilder_Mouse_AddsBinding()
     {
         var builder = new InputBindingsBuilder();
-        var executed = false;
         
-        builder.Mouse(MouseButton.Left).Action(_ => { executed = true; return Task.CompletedTask; }, "Click");
+        builder.Mouse(MouseButton.Left).Action(_ => { return Task.CompletedTask; }, "Click");
         
         Assert.Single(builder.MouseBindings);
         Assert.Equal(MouseButton.Left, builder.MouseBindings[0].Button);

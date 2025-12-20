@@ -76,10 +76,14 @@ public class InputRouterTests
         container.Children.Add(focusedNode);
         focusedNode.Parent = container;
         
+        var focusRing = new FocusRing();
+        focusRing.Rebuild(container);
+        focusRing.EnsureFocus();
+        
         var keyEvent = Hex1bKeyEvent.Plain(Hex1bKey.A, 'a');
         
         // Act
-        var result = await InputRouter.RouteInputAsync(container, keyEvent);
+        var result = await InputRouter.RouteInputAsync(container, keyEvent, focusRing);
         
         // Assert
         Assert.Equal(InputResult.Handled, result);
@@ -102,10 +106,14 @@ public class InputRouterTests
         container.Children.Add(focusedNode);
         focusedNode.Parent = container;
         
+        var focusRing = new FocusRing();
+        focusRing.Rebuild(container);
+        focusRing.EnsureFocus();
+        
         var keyEvent = Hex1bKeyEvent.WithCtrl(Hex1bKey.S);
         
         // Act
-        var result = await InputRouter.RouteInputAsync(container, keyEvent);
+        var result = await InputRouter.RouteInputAsync(container, keyEvent, focusRing);
         
         // Assert
         Assert.Equal(InputResult.Handled, result);
@@ -134,10 +142,14 @@ public class InputRouterTests
         container.Children.Add(focusedNode);
         focusedNode.Parent = container;
         
+        var focusRing = new FocusRing();
+        focusRing.Rebuild(container);
+        focusRing.EnsureFocus();
+        
         var keyEvent = Hex1bKeyEvent.WithCtrl(Hex1bKey.S);
         
         // Act
-        var result = await InputRouter.RouteInputAsync(container, keyEvent);
+        var result = await InputRouter.RouteInputAsync(container, keyEvent, focusRing);
         
         // Assert
         Assert.Equal(InputResult.Handled, result);
@@ -162,10 +174,14 @@ public class InputRouterTests
         container.Children.Add(focusedNode);
         focusedNode.Parent = container;
         
+        var focusRing = new FocusRing();
+        focusRing.Rebuild(container);
+        focusRing.EnsureFocus();
+        
         var keyEvent = Hex1bKeyEvent.WithCtrl(Hex1bKey.Q);
         
         // Act
-        var result = await InputRouter.RouteInputAsync(container, keyEvent);
+        var result = await InputRouter.RouteInputAsync(container, keyEvent, focusRing);
         
         // Assert
         Assert.Equal(InputResult.Handled, result);
@@ -180,10 +196,14 @@ public class InputRouterTests
         var container = new MockContainerNode();
         container.Children.Add(unfocusedNode);
         
+        var focusRing = new FocusRing();
+        focusRing.Rebuild(container);
+        // Don't call EnsureFocus - we want no focus
+        
         var keyEvent = Hex1bKeyEvent.Plain(Hex1bKey.A, 'a');
         
         // Act
-        var result = await InputRouter.RouteInputAsync(container, keyEvent);
+        var result = await InputRouter.RouteInputAsync(container, keyEvent, focusRing);
         
         // Assert
         Assert.Equal(InputResult.NotHandled, result);
@@ -214,13 +234,17 @@ public class InputRouterTests
         rootContainer.Children.Add(middleContainer);
         middleContainer.Parent = rootContainer;
         
+        var focusRing = new FocusRing();
+        focusRing.Rebuild(rootContainer);
+        focusRing.EnsureFocus();
+        
         // Act - trigger root binding
         var rootKeyEvent = Hex1bKeyEvent.WithCtrl(Hex1bKey.R);
-        var rootResult = await InputRouter.RouteInputAsync(rootContainer, rootKeyEvent);
+        var rootResult = await InputRouter.RouteInputAsync(rootContainer, rootKeyEvent, focusRing);
         
         // Act - trigger middle binding
         var middleKeyEvent = Hex1bKeyEvent.WithCtrl(Hex1bKey.M);
-        var middleResult = await InputRouter.RouteInputAsync(rootContainer, middleKeyEvent);
+        var middleResult = await InputRouter.RouteInputAsync(rootContainer, middleKeyEvent, focusRing);
         
         // Assert
         Assert.Equal(InputResult.Handled, rootResult);
@@ -618,8 +642,12 @@ public class InputRouterTests
         container.Children.Add(child);
         child.Parent = container;
 
+        var focusRing = new FocusRing();
+        focusRing.Rebuild(container);
+        focusRing.EnsureFocus();
+
         // Act
-        var result = await InputRouter.RouteInputAsync(container, new Hex1bKeyEvent(Hex1bKey.X, 'x', Hex1bModifiers.None));
+        var result = await InputRouter.RouteInputAsync(container, new Hex1bKeyEvent(Hex1bKey.X, 'x', Hex1bModifiers.None), focusRing);
 
         // Assert - only child's character binding should fire (not parent's)
         Assert.Equal(InputResult.Handled, result);

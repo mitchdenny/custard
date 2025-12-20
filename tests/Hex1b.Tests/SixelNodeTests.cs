@@ -230,9 +230,13 @@ public class SixelNodeTests : IDisposable
         var node = new SixelNode { Fallback = buttonNode };
         node.SetSixelSupport(false);
         
+        var focusRing = new FocusRing();
+        focusRing.Rebuild(node);
+        focusRing.EnsureFocus();
+        
         // Use InputRouter to route input to the focused child in the fallback
         var enterEvent = new Hex1bKeyEvent(Hex1bKey.Enter, '\r', Hex1bModifiers.None);
-        var result = await InputRouter.RouteInputAsync(node, enterEvent);
+        var result = await InputRouter.RouteInputAsync(node, enterEvent, focusRing);
         
         Assert.Equal(InputResult.Handled, result);
         Assert.Equal(1, clickedCount);

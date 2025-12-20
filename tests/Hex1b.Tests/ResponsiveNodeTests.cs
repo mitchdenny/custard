@@ -320,8 +320,13 @@ public class ResponsiveNodeTests
         };
 
         node.Measure(Constraints.Unbounded);
+        
+        var focusRing = new FocusRing();
+        focusRing.Rebuild(node);
+        focusRing.EnsureFocus();
+        
         // Use InputRouter to route input to the focused child
-        var result = await InputRouter.RouteInputAsync(node, new Hex1bKeyEvent(Hex1bKey.Enter, '\r', Hex1bModifiers.None));
+        var result = await InputRouter.RouteInputAsync(node, new Hex1bKeyEvent(Hex1bKey.Enter, '\r', Hex1bModifiers.None), focusRing);
 
         Assert.Equal(InputResult.Handled, result);
         Assert.True(clicked);

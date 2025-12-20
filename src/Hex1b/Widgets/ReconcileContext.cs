@@ -22,6 +22,8 @@ public sealed class ReconcileContext
     /// </summary>
     private readonly IReadOnlyList<Hex1bNode> _ancestors;
 
+    internal FocusRing FocusRing { get; }
+
     /// <summary>
     /// Whether this is a new node being created (vs updating an existing one).
     /// </summary>
@@ -33,17 +35,18 @@ public sealed class ReconcileContext
     /// </summary>
     public LayoutAxis? LayoutAxis { get; private set; }
 
-    private ReconcileContext(Hex1bNode? parent, IReadOnlyList<Hex1bNode>? ancestors = null, LayoutAxis? layoutAxis = null)
+    private ReconcileContext(Hex1bNode? parent, FocusRing focusRing, IReadOnlyList<Hex1bNode>? ancestors = null, LayoutAxis? layoutAxis = null)
     {
         Parent = parent;
         _ancestors = ancestors ?? Array.Empty<Hex1bNode>();
         LayoutAxis = layoutAxis;
+        FocusRing = focusRing;
     }
 
     /// <summary>
     /// Creates a root reconcile context (no parent).
     /// </summary>
-    internal static ReconcileContext CreateRoot() => new(null);
+    internal static ReconcileContext CreateRoot(FocusRing? focusRing = null) => new(null, focusRing ?? new FocusRing());
 
     /// <summary>
     /// Creates a child context with the specified parent.
@@ -54,7 +57,7 @@ public sealed class ReconcileContext
         // Build the new ancestor list: [parent, ...current ancestors]
         var newAncestors = new List<Hex1bNode>(_ancestors.Count + 1) { parent };
         newAncestors.AddRange(_ancestors);
-        return new ReconcileContext(parent, newAncestors, LayoutAxis);
+        return new ReconcileContext(parent, FocusRing, newAncestors, LayoutAxis);
     }
     
     /// <summary>
@@ -63,7 +66,7 @@ public sealed class ReconcileContext
     /// </summary>
     public ReconcileContext WithLayoutAxis(LayoutAxis axis)
     {
-        return new ReconcileContext(Parent, _ancestors.ToList(), axis) { IsNew = IsNew };
+        return new ReconcileContext(Parent, FocusRing, _ancestors.ToList(), axis) { IsNew = IsNew };
     }
 
     /// <summary>

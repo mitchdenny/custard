@@ -1,4 +1,6 @@
 using System.ComponentModel;
+using System.Threading.Tasks;
+using Xunit.Sdk;
 using Hex1b.Input;
 using Hex1b.Widgets;
 
@@ -331,18 +333,35 @@ public class Hex1bAppIntegrationTests
     public async Task App_DefaultCtrlCExit_ExitsApp()
     {
         using var terminal = new Hex1bTerminal(80, 24);
-        
+        var renderTest = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
         using var app = new Hex1bApp(
-            ctx => Task.FromResult<Hex1bWidget>(new TextBlockWidget("Test")),
+            ctx =>
+            {
+                var test = ctx.Test();
+                test.OnRender(_ => renderTest.TrySetResult());
+                return Task.FromResult<Hex1bWidget>(test);
+            },
             new Hex1bAppOptions { Terminal = terminal }
         );
 
-        // Send CTRL-C
+        var runTask = app.RunAsync();
+
+        await renderTest.Task.WaitAsync(TimeSpan.FromSeconds(1));
+
+        // Send CTRL-C after the first render to exercise the default binding
         terminal.SendKey(ConsoleKey.C, '\x03', control: true);
-        terminal.CompleteInput();
-        
-        await app.RunAsync();
-        
+
+        var completed = await Task.WhenAny(runTask, Task.Delay(250));
+        if (completed != runTask)
+        {
+            terminal.CompleteInput();
+            await runTask;
+            throw new XunitException("Expected CTRL-C to exit the application after the initial render.");
+        }
+
+        await runTask;
+
         // App should have exited gracefully
         Assert.False(terminal.InAlternateScreen);
     }

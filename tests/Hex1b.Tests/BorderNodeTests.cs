@@ -594,8 +594,12 @@ public class BorderNodeTests
         var textBox = new TextBoxNode { State = state, IsFocused = true };
         var node = new BorderNode { Child = textBox };
 
+        var focusRing = new FocusRing();
+        focusRing.Rebuild(node);
+        focusRing.EnsureFocus();
+
         // Use InputRouter to dispatch input through the node tree
-        var result = await InputRouter.RouteInputAsync(node, new Hex1bKeyEvent(Hex1bKey.A, 'A', Hex1bModifiers.None));
+        var result = await InputRouter.RouteInputAsync(node, new Hex1bKeyEvent(Hex1bKey.A, 'A', Hex1bModifiers.None), focusRing);
 
         Assert.Equal(InputResult.Handled, result);
         Assert.Equal("testA", state.Text);

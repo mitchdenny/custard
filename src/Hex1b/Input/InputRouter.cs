@@ -306,7 +306,11 @@ public static class InputRouter
     private static List<Hex1bNode> BuildPathToFocused(Hex1bNode root)
     {
         var path = new List<Hex1bNode>();
-        BuildPathRecursive(root, path);
+        if (!BuildPathRecursive(root, path))
+        {
+            // When no focused node exists, fall back to routing through the root
+            path.Add(root);
+        }
         return path;
     }
 

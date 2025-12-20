@@ -66,41 +66,39 @@ const terminalTheme = {
 }
 
 // Compute dynamic terminal sizes based on available window space
+// Only 3 sizes: smallest, medium, and largest
 const availableSizes = computed(() => {
   const { maxCols, maxRows } = getMaxTerminalSizeStatic()
   
-  // Define size tiers from smallest to largest
-  const tiers = [
-    { cols: 80, rows: 24 },
-    { cols: 100, rows: 30 },
-    { cols: 120, rows: 36 },
-    { cols: 140, rows: 42 },
-    { cols: 160, rows: 48 },
-    { cols: 180, rows: 54 },
-    { cols: 200, rows: 60 }
-  ]
+  // Define fixed smallest and medium sizes
+  const smallest = { cols: 80, rows: 24, name: 'Small' }
+  const medium = { cols: 120, rows: 36, name: 'Medium' }
   
-  // Filter to sizes that fit, always include 80×24
-  const validSizes = tiers.filter(s => s.cols <= maxCols && s.rows <= maxRows)
+  // Largest is the max available (capped at 200×60)
+  const effectiveMaxCols = Math.min(maxCols, 200)
+  const effectiveMaxRows = Math.min(maxRows, 60)
+  const largest = { cols: effectiveMaxCols, rows: effectiveMaxRows, name: 'Large' }
   
-  // If max size is larger than any tier, add a "Max" option
-  const largestTier = tiers[tiers.length - 1]
-  if (maxCols > largestTier.cols || maxRows > largestTier.rows) {
-    const effectiveMaxCols = Math.min(maxCols, 200)
-    const effectiveMaxRows = Math.min(maxRows, 60)
-    // Only add if it's different from the largest valid tier
-    const lastValid = validSizes[validSizes.length - 1]
-    if (!lastValid || effectiveMaxCols > lastValid.cols || effectiveMaxRows > lastValid.rows) {
-      validSizes.push({ cols: effectiveMaxCols, rows: effectiveMaxRows })
+  const sizes: { name: string; cols: number; rows: number }[] = []
+  
+  // Always include smallest
+  sizes.push(smallest)
+  
+  // Include medium if it fits and is distinct from smallest and largest
+  if (medium.cols <= maxCols && medium.rows <= maxRows) {
+    // Only add if it's different from largest
+    if (medium.cols < largest.cols || medium.rows < largest.rows) {
+      sizes.push(medium)
     }
   }
   
-  // Format with names
-  return validSizes.map(s => ({
-    name: `${s.cols}×${s.rows}`,
-    cols: s.cols,
-    rows: s.rows
-  }))
+  // Include largest if it's bigger than smallest (and bigger than medium if medium was added)
+  const lastSize = sizes[sizes.length - 1]
+  if (largest.cols > lastSize.cols || largest.rows > lastSize.rows) {
+    sizes.push(largest)
+  }
+  
+  return sizes
 })
 
 // Static version for use before terminal is initialized

@@ -74,24 +74,24 @@ public class GettingStartedStep5Example(ILogger<GettingStartedStep5Example> logg
         {
             var ctx = new RootContext();
 
-            return ctx.Border(b => [
-                b.Text($"📋 Todo List ({state.RemainingCount} remaining)"),
-                b.Text(""),
-                b.HStack(h => [
-                    h.Text("New: "),
-                    h.TextBox(state.NewItemText).OnTextChanged(e => state.NewItemText = e.NewText),
-                    h.Button("Add").OnClick(_ => state.AddItem())
-                ]),
-                new SeparatorWidget(),
-                b.List(
-                    state.FormatItems())
-                    .OnSelectionChanged(e => state.SelectedIndex = e.SelectedIndex)
-                    .OnItemActivated(e => state.ToggleItem(e.ActivatedIndex)),
-                b.Text(""),
-                b.Button("Delete Selected").OnClick(_ => state.DeleteItem(state.SelectedIndex)),
-                b.Text(""),
-                b.Text("↑↓: Navigate  Space: Toggle  Tab: Focus  Del: Delete")
-            ], title: "My Todos");
+            return ctx.VStack(v => [
+                v.Border(b => [
+                    b.Text($"📋 Todo List ({state.RemainingCount} remaining)"),
+                    b.Text(""),
+                    b.HStack(h => [
+                        h.Text("New: "),
+                        h.TextBox(state.NewItemText).OnTextChanged(e => state.NewItemText = e.NewText),
+                        h.Button("Add").OnClick(_ => state.AddItem())
+                    ]),
+                    new SeparatorWidget(),
+                    b.List(state.FormatItems())
+                        .OnSelectionChanged(e => state.SelectedIndex = e.SelectedIndex)
+                        .OnItemActivated(e => state.ToggleItem(e.ActivatedIndex)),
+                    b.Text(""),
+                    b.Button("Delete Selected").OnClick(_ => state.DeleteItem(state.SelectedIndex))
+                ], title: "My Todos").Fill(),
+                v.InfoBar("↑↓: Navigate  Space: Toggle  Tab: Focus  Del: Delete")
+            ]);
         };
     }
 }

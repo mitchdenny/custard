@@ -48,13 +48,14 @@ public class GettingStartedStep3Example(ILogger<GettingStartedStep3Example> logg
         {
             var ctx = new RootContext();
 
-            return ctx.Border(b => [
-                b.Text("📋 My Todos"),
-                b.Text(""),
-                b.List(state.FormatItems()).OnItemActivated(e => state.ToggleItem(e.ActivatedIndex)),
-                b.Text(""),
-                b.Text("↑↓ Navigate  Space: Toggle")
-            ], title: "Todo List");
+            return ctx.VStack(v => [
+                v.Border(b => [
+                    b.Text("📋 My Todos"),
+                    b.Text(""),
+                    b.List(state.FormatItems()).OnItemActivated(e => state.ToggleItem(e.ActivatedIndex))
+                ], title: "Todo List").Fill(),
+                v.InfoBar("↑↓ Navigate  Space: Toggle")
+            ]);
         };
     }
 }

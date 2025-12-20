@@ -6,25 +6,40 @@ await app.RunAsync();`
 
 const step2Code = `using Hex1b;
 
-// Define a simple state class to hold our counter
-class CounterState
-{
-    public int Count { get; set; }
-}
-
 var state = new CounterState();
 
 var app = new Hex1bApp(ctx =>
     ctx.Border(b => [
         b.Text($"Button pressed {state.Count} times"),
         b.Text(""),
-        b.Button("Click me!").OnClick(() => state.Count++)
+        b.Button("Click me!").OnClick(_ => state.Count++)
     ], title: "Counter Demo")
 );
 
-await app.RunAsync();`
+await app.RunAsync();
+
+// Define a simple state class to hold our counter
+class CounterState
+{
+    public int Count { get; set; }
+}`
 
 const step3Code = `using Hex1b;
+
+var state = new TodoState();
+
+var app = new Hex1bApp(ctx =>
+    ctx.VStack(v => [
+        v.Border(b => [
+            b.Text("📋 My Todos"),
+            b.Text(""),
+            b.List(state.FormatItems()).OnItemActivated(e => state.ToggleItem(e.ActivatedIndex))
+        ], title: "Todo List").Fill(),
+        v.InfoBar("↑↓ Navigate  Space: Toggle")
+    ])
+);
+
+await app.RunAsync();
 
 class TodoState
 {
@@ -43,24 +58,29 @@ class TodoState
         var item = Items[index];
         Items[index] = (item.Text, !item.Done);
     }
-}
+}`
+
+const step4Code = `using Hex1b;
+using Hex1b.Widgets;
 
 var state = new TodoState();
 
 var app = new Hex1bApp(ctx =>
-    ctx.Border(b => [
-        b.Text("📋 My Todos"),
-        b.Text(""),
-        b.List(state.FormatItems(), e => state.ToggleItem(e.ActivatedIndex)),
-        b.Text(""),
-        b.Text("↑↓ Navigate  Space: Toggle")
-    ], title: "Todo List")
+    ctx.VStack(v => [
+        v.Border(b => [
+            b.HStack(h => [
+                h.Text("New task: "),
+                h.TextBox(state.NewItemText).OnTextChanged(e => state.NewItemText = e.NewText),
+                h.Button("Add").OnClick(_ => state.AddItem())
+            ]),
+            new SeparatorWidget(),
+            b.List(state.FormatItems()).OnItemActivated(e => state.ToggleItem(e.ActivatedIndex))
+        ], title: "📋 Todo").Fill(),
+        v.InfoBar("Tab: Focus next  Space: Toggle")
+    ])
 );
 
-await app.RunAsync();`
-
-const step4Code = `using Hex1b;
-using Hex1b.Widgets;
+await app.RunAsync();
 
 class TodoState
 {
@@ -89,28 +109,35 @@ class TodoState
         var item = Items[index];
         Items[index] = (item.Text, !item.Done);
     }
-}
+}`
+
+const step5Code = `using Hex1b;
+using Hex1b.Widgets;
 
 var state = new TodoState();
 
 var app = new Hex1bApp(ctx =>
-    ctx.Border(b => [
-        b.HStack(h => [
-            h.Text("New task: "),
-            h.TextBox(state.NewItemText, e => state.NewItemText = e.NewText),
-            h.Button("Add").OnClick(() => state.AddItem())
-        ]),
-        new SeparatorWidget(),
-        b.List(state.FormatItems(), e => state.ToggleItem(e.ActivatedIndex)),
-        b.Text(""),
-        b.Text("Tab: Focus next  Space: Toggle")
-    ], title: "📋 Todo")
+    ctx.VStack(v => [
+        v.Border(b => [
+            b.Text($"📋 Todo List ({state.RemainingCount} remaining)"),
+            b.Text(""),
+            b.HStack(h => [
+                h.Text("New: "),
+                h.TextBox(state.NewItemText).OnTextChanged(e => state.NewItemText = e.NewText),
+                h.Button("Add").OnClick(_ => state.AddItem())
+            ]),
+            new SeparatorWidget(),
+            b.List(state.FormatItems())
+                .OnSelectionChanged(e => state.SelectedIndex = e.SelectedIndex)
+                .OnItemActivated(e => state.ToggleItem(e.ActivatedIndex)),
+            b.Text(""),
+            b.Button("Delete Selected").OnClick(_ => state.DeleteItem(state.SelectedIndex))
+        ], title: "My Todos").Fill(),
+        v.InfoBar("↑↓: Navigate  Space: Toggle  Tab: Focus  Del: Delete")
+    ])
 );
 
-await app.RunAsync();`
-
-const step5Code = `using Hex1b;
-using Hex1b.Widgets;
+await app.RunAsync();
 
 class TodoState
 {
@@ -155,33 +182,7 @@ class TodoState
             }
         }
     }
-}
-
-var state = new TodoState();
-
-var app = new Hex1bApp(ctx =>
-    ctx.Border(b => [
-        b.Text($"📋 Todo List ({state.RemainingCount} remaining)"),
-        b.Text(""),
-        b.HStack(h => [
-            h.Text("New: "),
-            h.TextBox(state.NewItemText, e => state.NewItemText = e.NewText),
-            h.Button("Add").OnClick(() => state.AddItem())
-        ]),
-        new SeparatorWidget(),
-        b.List(
-            state.FormatItems(),
-            e => state.SelectedIndex = e.SelectedIndex,
-            e => state.ToggleItem(e.ActivatedIndex)
-        ),
-        b.Text(""),
-        b.Button("Delete Selected").OnClick(() => state.DeleteItem(state.SelectedIndex)),
-        b.Text(""),
-        b.Text("↑↓: Navigate  Space: Toggle  Tab: Focus  Del: Delete")
-    ], title: "My Todos")
-);
-
-await app.RunAsync();`
+}`
 </script>
 
 # Getting Started
@@ -234,8 +235,10 @@ Let's build a simple todo list that displays items and lets you toggle them:
 <CodeBlock lang="csharp" :code="step3Code" command="dotnet run" example="getting-started-step3" exampleTitle="Step 3: Simple Todo List" />
 
 New concepts:
-- **List widget**: `ctx.List()` creates a scrollable, selectable list
-- **Event handlers**: The second parameter to `List()` is called when an item is activated (Space/Enter)
+- **VStack**: `ctx.VStack()` arranges children vertically
+- **List widget**: `ctx.List()` creates a scrollable, selectable list; use `.OnItemActivated()` for activation events
+- **Fill**: `.Fill()` makes a widget expand to fill available space
+- **InfoBar**: `ctx.InfoBar()` displays help text pinned to the bottom of the screen
 - **Navigation**: Use arrow keys to navigate, Space or Enter to toggle items
 
 ## Step 4: Adding New Items
@@ -246,7 +249,7 @@ Let's add the ability to create new todo items with a text input:
 
 New concepts:
 - **HStack**: `ctx.HStack()` arranges children horizontally
-- **TextBox**: `ctx.TextBox()` creates an editable text input
+- **TextBox**: `ctx.TextBox()` creates an editable text input; use `.OnTextChanged()` to handle changes
 - **Separator**: `new SeparatorWidget()` creates a horizontal line divider
 - **Focus**: Use Tab to move focus between interactive widgets
 
@@ -258,9 +261,9 @@ Let's add a few more features to complete our todo app:
 
 Final features:
 - **Remaining count**: Shows how many items are not yet complete
-- **Selection tracking**: Tracks which list item is selected
+- **Selection tracking**: `.OnSelectionChanged()` tracks which list item is selected
 - **Delete functionality**: Removes the selected item
-- **Two event handlers**: List widget uses both selection change and item activation callbacks
+- **Multiple event handlers**: Chain `.OnSelectionChanged()` and `.OnItemActivated()` for different behaviors
 
 ## What You've Learned
 

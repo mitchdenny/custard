@@ -58,17 +58,18 @@ public class GettingStartedStep4Example(ILogger<GettingStartedStep4Example> logg
         {
             var ctx = new RootContext();
 
-            return ctx.Border(b => [
-                b.HStack(h => [
-                    h.Text("New task: "),
-                    h.TextBox(state.NewItemText).OnTextChanged(e => state.NewItemText = e.NewText),
-                    h.Button("Add").OnClick(_ => state.AddItem())
-                ]),
-                new SeparatorWidget(),
-                b.List(state.FormatItems()).OnItemActivated(e => state.ToggleItem(e.ActivatedIndex)),
-                b.Text(""),
-                b.Text("Tab: Focus next  Space: Toggle")
-            ], title: "📋 Todo");
+            return ctx.VStack(v => [
+                v.Border(b => [
+                    b.HStack(h => [
+                        h.Text("New task: "),
+                        h.TextBox(state.NewItemText).OnTextChanged(e => state.NewItemText = e.NewText),
+                        h.Button("Add").OnClick(_ => state.AddItem())
+                    ]),
+                    new SeparatorWidget(),
+                    b.List(state.FormatItems()).OnItemActivated(e => state.ToggleItem(e.ActivatedIndex))
+                ], title: "📋 Todo").Fill(),
+                v.InfoBar("Tab: Focus next  Space: Toggle")
+            ]);
         };
     }
 }

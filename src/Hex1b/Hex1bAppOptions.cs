@@ -1,3 +1,4 @@
+using Hex1b.Terminal;
 using Hex1b.Theming;
 using Hex1b.Widgets;
 
@@ -8,8 +9,20 @@ namespace Hex1b;
 /// </summary>
 public class Hex1bAppOptions
 {
+    // === New way (preferred) ===
+    
     /// <summary>
-    /// The terminal implementation to use. If null, a ConsoleHex1bTerminal will be created.
+    /// Custom workload adapter. When set, the app uses this directly.
+    /// This is the preferred way to provide custom terminal infrastructure.
+    /// </summary>
+    public IHex1bAppTerminalWorkloadAdapter? WorkloadAdapter { get; set; }
+    
+    // === Legacy way (still supported) ===
+    
+    /// <summary>
+    /// [Legacy] The terminal implementation to use. If null, a ConsoleHex1bTerminal will be created.
+    /// Will be wrapped in <see cref="LegacyHex1bAppTerminalWorkloadAdapter"/>.
+    /// Prefer using <see cref="WorkloadAdapter"/> instead for new code.
     /// </summary>
     public IHex1bTerminal? Terminal { get; set; }
 
@@ -24,8 +37,9 @@ public class Hex1bAppOptions
     public Func<Hex1bTheme>? ThemeProvider { get; set; }
 
     /// <summary>
-    /// Whether the app owns the terminal and should dispose it when done.
+    /// [Legacy] Whether the app owns the terminal and should dispose it when done.
     /// Defaults to true if Terminal is null (app creates its own terminal).
+    /// Only applies when <see cref="Terminal"/> is set.
     /// </summary>
     public bool? OwnsTerminal { get; set; }
     

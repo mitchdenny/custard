@@ -4,6 +4,7 @@ using System.Threading.Channels;
 using Hex1b.Input;
 using Hex1b.Layout;
 using Hex1b.Nodes;
+using Hex1b.Terminal;
 using Hex1b.Theming;
 using Hex1b.Widgets;
 
@@ -34,13 +35,12 @@ namespace Hex1b;
 /// State management is handled via closures - simply capture your state variables
 /// in the widget builder callback.
 /// </remarks>
-public class Hex1bApp : IDisposable
+public class Hex1bApp : IDisposable, IAsyncDisposable
 {
     private readonly Func<RootContext, Task<Hex1bWidget>> _rootComponent;
     private readonly Func<Hex1bTheme>? _themeProvider;
-    private readonly IHex1bTerminal _terminal;
+    private readonly IHex1bAppTerminalWorkloadAdapter _adapter;
     private readonly Hex1bRenderContext _context;
-    private readonly bool _ownsTerminal;
     private readonly RootContext _rootContext = new();
     private readonly FocusRing _focusRing = new();
     private readonly InputRouterState _inputRouterState = new();
@@ -112,19 +112,32 @@ public class Hex1bApp : IDisposable
         // Check if mouse is enabled in options
         _mouseEnabled = options.EnableMouse;
         
-        // Create terminal with mouse support if enabled
-        if (options.Terminal != null)
+        // Create or use provided adapter
+        if (options.WorkloadAdapter != null)
         {
-            _terminal = options.Terminal;
+            // New way: use provided adapter directly
+            _adapter = options.WorkloadAdapter;
+        }
+        else if (options.Terminal != null)
+        {
+            // Legacy way: wrap provided terminal in adapter
+            _adapter = new LegacyHex1bAppTerminalWorkloadAdapter(
+                options.Terminal,
+                ownsTerminal: options.OwnsTerminal ?? false,
+                enableMouse: _mouseEnabled);
         }
         else
         {
-            _terminal = new ConsoleHex1bTerminal(enableMouse: _mouseEnabled);
+            // Default: create console terminal and wrap in adapter
+            var terminal = new ConsoleHex1bTerminal(enableMouse: _mouseEnabled);
+            _adapter = new LegacyHex1bAppTerminalWorkloadAdapter(
+                terminal,
+                ownsTerminal: true,
+                enableMouse: _mouseEnabled);
         }
-        _ownsTerminal = options.OwnsTerminal ?? (options.Terminal == null);
         
         var initialTheme = options.ThemeProvider?.Invoke() ?? options.Theme;
-        _context = new Hex1bRenderContext(_terminal, initialTheme);
+        _context = new Hex1bRenderContext(_adapter, initialTheme);
         
         // Rescue (error boundary) options
         _rescueEnabled = options.EnableRescue;
@@ -187,7 +200,7 @@ public class Hex1bApp : IDisposable
             while (!cancellationToken.IsCancellationRequested && !_stopRequested)
             {
                 // Wait for either an input event or an invalidation signal
-                var inputTask = _terminal.InputEvents.ReadAsync(cancellationToken).AsTask();
+                var inputTask = _adapter.InputEvents.ReadAsync(cancellationToken).AsTask();
                 var invalidateTask = _invalidateChannel.Reader.ReadAsync(cancellationToken).AsTask();
                 
                 var completedTask = await Task.WhenAny(inputTask, invalidateTask);
@@ -544,9 +557,19 @@ public class Hex1bApp : IDisposable
         // Complete the invalidate channel
         _invalidateChannel.Writer.TryComplete();
         
-        if (_ownsTerminal && _terminal is IDisposable disposable)
+        // Dispose the adapter (which may dispose the terminal if it owns it)
+        if (_adapter is IDisposable disposable)
         {
             disposable.Dispose();
         }
+    }
+    
+    public async ValueTask DisposeAsync()
+    {
+        // Complete the invalidate channel
+        _invalidateChannel.Writer.TryComplete();
+        
+        // Dispose the adapter asynchronously
+        await _adapter.DisposeAsync();
     }
 }

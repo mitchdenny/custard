@@ -2,6 +2,7 @@ using System.Net.WebSockets;
 using Hex1b.Website;
 using Hex1b.Website.Examples;
 using Hex1b;
+using Hex1b.Terminal;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -126,7 +127,10 @@ async Task HandleHex1bExampleAsync(WebSocket webSocket, IGalleryExample example,
     var logger = app.Services.GetRequiredService<ILogger<Program>>();
     
     using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-    using var terminal = new WebSocketHex1bTerminal(webSocket, 80, 24, enableMouse: example.EnableMouse);
+    
+    // NEW ARCHITECTURE: Use Hex1bTerminalCore with LegacyWebSocketPresentationAdapter
+    var presentation = new LegacyWebSocketPresentationAdapter(webSocket, 80, 24, enableMouse: example.EnableMouse);
+    using var terminal = new Hex1bTerminalCore(presentation);
     
     // Check if the example manages its own app lifecycle
     var runTask = example.RunAsync(terminal, cts.Token);
@@ -144,7 +148,7 @@ async Task HandleHex1bExampleAsync(WebSocket webSocket, IGalleryExample example,
         var themeProvider = example.CreateThemeProvider();
         var options = new Hex1bAppOptions 
         { 
-            Terminal = terminal, 
+            WorkloadAdapter = terminal,  // NEW: Pass the terminal core directly as workload adapter
             ThemeProvider = themeProvider,
             EnableMouse = example.EnableMouse
         };

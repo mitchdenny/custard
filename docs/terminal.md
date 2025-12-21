@@ -64,34 +64,48 @@ public interface IHex1bTerminalPresentationAdapter : IAsyncDisposable
 
 ---
 
-### Phase 2b: Legacy Presentation Adapters ⏳ NEXT
+### Phase 2b: Legacy Presentation Adapters ✅ COMPLETE
 
 **Goal**: Wrap existing terminals with the new presentation interface.
 
-**Files to Create**:
-- `Terminal/LegacyConsolePresentationAdapter.cs` - Wraps `ConsoleHex1bTerminal` I/O
-- `Terminal/LegacyWebSocketPresentationAdapter.cs` - Wraps `WebSocketHex1bTerminal` I/O
+**Files Created**:
+- [Terminal/LegacyConsolePresentationAdapter.cs](../src/Hex1b/Terminal/LegacyConsolePresentationAdapter.cs) - Wraps `System.Console` for I/O
+- [Terminal/LegacyWebSocketPresentationAdapter.cs](../src/Hex1b/Terminal/LegacyWebSocketPresentationAdapter.cs) - Wraps `WebSocket` for browser-based I/O
 
-These extract the "raw I/O" parts from existing terminals without changing them.
+**Key Features**:
+- `WriteOutputAsync` - Sends ANSI output to console/WebSocket
+- `ReadInputAsync` - Reads raw input with escape sequence buffering
+- `EnterTuiModeAsync` / `ExitTuiModeAsync` - Manages alternate screen, cursor visibility, mouse tracking
+- SIGWINCH handling for console resize (Linux/macOS)
+- JSON control message parsing for WebSocket resize events
 
 ---
 
-### Phase 2c: Hex1bTerminalCore (Minimal) ⏳ PLANNED
+### Phase 2c: Hex1bTerminalCore (Minimal) ✅ COMPLETE
 
 **Goal**: Create the new terminal that sits between workload and presentation.
 
-**Files to Create**:
-- `Terminal/Hex1bTerminalCore.cs`
+**Files Created**:
+- [Terminal/Hex1bTerminalCore.cs](../src/Hex1b/Terminal/Hex1bTerminalCore.cs) - Bridge between workload and presentation adapters
 
-**Initial Implementation**:
-- Implements `IHex1bAppTerminalWorkloadAdapter`
+**Files Modified**:
+- [Hex1b.Website/Program.cs](../src/Hex1b.Website/Program.cs) - Updated to use new architecture
+- [Hex1b.Website/IGalleryExample.cs](../src/Hex1b.Website/IGalleryExample.cs) - Interface now accepts `IHex1bAppTerminalWorkloadAdapter`
+- [Hex1b.Website/Examples/*.cs](../src/Hex1b.Website/Examples/) - Updated all examples to use new interface
+
+**Implementation**:
+- Implements `IHex1bAppTerminalWorkloadAdapter` (what Hex1bApp expects)
 - Takes `IHex1bTerminalPresentationAdapter` in constructor
-- Pass-through implementation (no pipeline layers yet)
-- ANSI parsing for input events (extract from existing code)
+- Pass-through for output (`Write` → `WriteOutputAsync`)
+- ANSI parsing for input (reuses logic from `WebSocketHex1bTerminal`)
+- Background task pumps input from presentation to `InputEvents` channel
+- Handles resize events from presentation adapter
+
+**Validated**: WebSocket terminal works end-to-end with new architecture.
 
 ---
 
-### Phase 2d: Integration & Factory ⏳ PLANNED
+### Phase 2d: Integration & Factory ⏳ NEXT
 
 **Goal**: Wire everything together with convenient factory methods.
 
@@ -142,9 +156,9 @@ Hex1bTerminalCore.CreateWebSocket(webSocket)
 |-------|-------------|--------|------|
 | 1 | Workload adapter layer | ✅ Complete | - |
 | 2a | Presentation interfaces | ✅ Complete | - |
-| 2b | Legacy presentation adapters | ⏳ Next | Low |
-| 2c | Hex1bTerminalCore (pass-through) | ⏳ Planned | Medium |
-| 2d | Integration & factory | ⏳ Planned | Low |
+| 2b | Legacy presentation adapters | ✅ Complete | - |
+| 2c | Hex1bTerminalCore (pass-through) | ✅ Complete | - |
+| 2d | Integration & factory | ⏳ Next | Low |
 | 2e | Pipeline layers | ⏳ Future | Medium |
 | 3 | Deprecate legacy | ⏳ Future | Low |
 

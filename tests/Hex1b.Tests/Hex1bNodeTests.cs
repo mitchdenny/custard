@@ -206,4 +206,92 @@ public class Hex1bNodeTests
     }
 
     #endregion
+
+    #region NeedsRender Tests
+
+    [Fact]
+    public void NeedsRender_NewNode_ReturnsTrue()
+    {
+        var node = new TestNode();
+
+        Assert.True(node.NeedsRender());
+    }
+
+    [Fact]
+    public void NeedsRender_CleanNode_ReturnsFalse()
+    {
+        var node = new TestNode();
+        node.ClearDirty();
+
+        Assert.False(node.NeedsRender());
+    }
+
+    [Fact]
+    public void NeedsRender_CleanNodeWithDirtyChild_ReturnsTrue()
+    {
+        var parent = new ContainerTestNode();
+        var child = new TestNode(); // New, so dirty
+        parent.Children.Add(child);
+        parent.ClearDirty(); // Parent is clean
+
+        Assert.True(parent.NeedsRender());
+    }
+
+    [Fact]
+    public void NeedsRender_CleanNodeWithCleanChild_ReturnsFalse()
+    {
+        var parent = new ContainerTestNode();
+        var child = new TestNode();
+        parent.Children.Add(child);
+        parent.ClearDirty();
+        child.ClearDirty();
+
+        Assert.False(parent.NeedsRender());
+    }
+
+    [Fact]
+    public void NeedsRender_DirtyNodeWithCleanChild_ReturnsTrue()
+    {
+        var parent = new ContainerTestNode();
+        var child = new TestNode();
+        parent.Children.Add(child);
+        child.ClearDirty();
+        // Parent stays dirty
+
+        Assert.True(parent.NeedsRender());
+    }
+
+    [Fact]
+    public void NeedsRender_DeepNestedDirtyNode_ReturnsTrue()
+    {
+        var root = new ContainerTestNode();
+        var level1 = new ContainerTestNode();
+        var level2 = new ContainerTestNode();
+        var leaf = new TestNode(); // Dirty
+        
+        root.Children.Add(level1);
+        level1.Children.Add(level2);
+        level2.Children.Add(leaf);
+        
+        root.ClearDirty();
+        level1.ClearDirty();
+        level2.ClearDirty();
+        // leaf stays dirty
+
+        Assert.True(root.NeedsRender());
+    }
+
+    #endregion
+}
+
+/// <summary>
+/// Container node for testing parent-child dirty behavior.
+/// </summary>
+file sealed class ContainerTestNode : Hex1bNode
+{
+    public List<Hex1bNode> Children { get; } = new();
+    
+    public override Size Measure(Constraints constraints) => new(10, 10);
+    public override void Render(Hex1bRenderContext context) { }
+    public override IEnumerable<Hex1bNode> GetChildren() => Children;
 }

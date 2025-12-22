@@ -207,4 +207,20 @@ public abstract class Hex1bNode
     /// of the bounds should respond to clicks (e.g., SplitterNode's divider).
     /// </summary>
     public virtual Rect HitTestBounds => Bounds;
+    
+    /// <summary>
+    /// Checks if this node or any of its descendants need rendering.
+    /// Used to determine if a subtree can be skipped entirely.
+    /// </summary>
+    public bool NeedsRender()
+    {
+        if (IsDirty) return true;
+        
+        foreach (var child in GetChildren())
+        {
+            if (child.NeedsRender()) return true;
+        }
+        
+        return false;
+    }
 }

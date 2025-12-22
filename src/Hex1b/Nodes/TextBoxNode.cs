@@ -31,7 +31,14 @@ public sealed class TextBoxNode : Hex1bNode
     public string Text
     {
         get => State.Text;
-        set => State.Text = value;
+        set
+        {
+            if (State.Text != value)
+            {
+                State.Text = value;
+                MarkDirty();
+            }
+        }
     }
 
     /// <summary>
@@ -45,10 +52,32 @@ public sealed class TextBoxNode : Hex1bNode
     internal Func<InputBindingActionContext, Task>? SubmitAction { get; set; }
     
     private bool _isFocused;
-    public override bool IsFocused { get => _isFocused; set => _isFocused = value; }
+    public override bool IsFocused 
+    { 
+        get => _isFocused; 
+        set 
+        {
+            if (_isFocused != value)
+            {
+                _isFocused = value;
+                MarkDirty();
+            }
+        }
+    }
 
     private bool _isHovered;
-    public override bool IsHovered { get => _isHovered; set => _isHovered = value; }
+    public override bool IsHovered 
+    { 
+        get => _isHovered; 
+        set 
+        {
+            if (_isHovered != value)
+            {
+                _isHovered = value;
+                MarkDirty();
+            }
+        }
+    }
 
     public override bool IsFocusable => true;
 
@@ -97,6 +126,7 @@ public sealed class TextBoxNode : Hex1bNode
         }
         State.Text = State.Text.Insert(State.CursorPosition, text);
         State.CursorPosition += text.Length;
+        MarkDirty();
         
         // Fire callback if text changed
         if (TextChangedAction != null && oldText != State.Text)
@@ -204,6 +234,7 @@ public sealed class TextBoxNode : Hex1bNode
             var clusterLength = State.CursorPosition - clusterStart;
             State.Text = State.Text.Remove(clusterStart, clusterLength);
             State.CursorPosition = clusterStart;
+            MarkDirty();
         }
         
         // Fire callback if text changed
@@ -227,6 +258,7 @@ public sealed class TextBoxNode : Hex1bNode
             var clusterEnd = GraphemeHelper.GetNextClusterBoundary(State.Text, State.CursorPosition);
             var clusterLength = clusterEnd - State.CursorPosition;
             State.Text = State.Text.Remove(State.CursorPosition, clusterLength);
+            MarkDirty();
         }
         
         // Fire callback if text changed
@@ -244,6 +276,7 @@ public sealed class TextBoxNode : Hex1bNode
         State.Text = State.Text[..start] + State.Text[end..];
         State.CursorPosition = start;
         State.ClearSelection();
+        MarkDirty();
     }
 
     private void SelectAll() => State.SelectAll();

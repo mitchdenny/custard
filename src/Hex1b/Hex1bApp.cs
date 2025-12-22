@@ -77,6 +77,9 @@ public class Hex1bApp : IDisposable, IAsyncDisposable
     private int _dragStartX;
     private int _dragStartY;
     
+    // Render optimization - track if this is the first frame (needs full clear)
+    private bool _isFirstFrame = true;
+    
     // Channel for signaling that a re-render is needed (from Invalidate() calls)
     private readonly Channel<bool> _invalidateChannel = Channel.CreateBounded<bool>(
         new BoundedChannelOptions(1) 
@@ -334,17 +337,92 @@ public class Hex1bApp : IDisposable, IAsyncDisposable
         _context.MouseX = _mouseX;
         _context.MouseY = _mouseY;
 
-        // Step 7: Render the node tree to the terminal
-        _context.Clear();
-        _rootNode?.Render(_context);
+        // Step 7: Clear dirty regions (instead of global clear to reduce flicker)
+        // On first frame or when root is new, do a full clear
+        if (_isFirstFrame)
+        {
+            _context.Clear();
+            _isFirstFrame = false;
+        }
+        else if (_rootNode != null)
+        {
+            ClearDirtyRegions(_rootNode);
+        }
         
-        // Step 8: Render mouse cursor overlay if enabled
+        // Step 8: Render the node tree to the terminal (only dirty nodes)
+        if (_rootNode != null)
+        {
+            RenderTree(_rootNode);
+        }
+        
+        // Step 9: Render mouse cursor overlay if enabled
         RenderMouseCursor();
         
-        // Step 9: Clear dirty flags on all nodes (they've been rendered)
+        // Step 10: Clear dirty flags on all nodes (they've been rendered)
         if (_rootNode != null)
         {
             ClearDirtyFlags(_rootNode);
+        }
+    }
+    
+    /// <summary>
+    /// Renders the node tree, skipping clean subtrees that don't need re-rendering.
+    /// </summary>
+    /// <remarks>
+    /// This method performs a smart traversal:
+    /// - If a node is dirty, render it (which includes its children)
+    /// - If a node is clean but has dirty descendants, traverse children
+    /// - If a subtree is entirely clean, skip it
+    /// </remarks>
+    private void RenderTree(Hex1bNode node)
+    {
+        // If this subtree has no dirty nodes, skip it entirely
+        if (!node.NeedsRender())
+        {
+            return;
+        }
+        
+        // If this specific node is dirty, render it (and its children)
+        if (node.IsDirty)
+        {
+            _context.SetCursorPosition(node.Bounds.X, node.Bounds.Y);
+            node.Render(_context);
+            return;
+        }
+        
+        // Node is clean but has dirty descendants - traverse children
+        foreach (var child in node.GetChildren())
+        {
+            RenderTree(child);
+        }
+    }
+    
+    /// <summary>
+    /// Recursively clears dirty regions in the node tree.
+    /// For each dirty node, clears the union of its previous and current bounds.
+    /// </summary>
+    private void ClearDirtyRegions(Hex1bNode node)
+    {
+        if (node.IsDirty)
+        {
+            // Clear the previous bounds (where the node was)
+            if (node.PreviousBounds.Width > 0 && node.PreviousBounds.Height > 0)
+            {
+                _context.ClearRegion(node.PreviousBounds);
+            }
+            
+            // Clear the current bounds (where the node will be)
+            // This handles the case where content shrinks or moves
+            if (node.Bounds != node.PreviousBounds)
+            {
+                _context.ClearRegion(node.Bounds);
+            }
+        }
+        
+        // Recurse into children
+        foreach (var child in node.GetChildren())
+        {
+            ClearDirtyRegions(child);
         }
     }
     

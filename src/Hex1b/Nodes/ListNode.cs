@@ -20,7 +20,19 @@ public sealed class ListNode : Hex1bNode
     /// <summary>
     /// The currently selected index. This is preserved across reconciliation.
     /// </summary>
-    public int SelectedIndex { get; set; } = 0;
+    private int _selectedIndex = 0;
+    public int SelectedIndex 
+    { 
+        get => _selectedIndex; 
+        set 
+        {
+            if (_selectedIndex != value)
+            {
+                _selectedIndex = value;
+                MarkDirty();
+            }
+        }
+    }
 
     /// <summary>
     /// The text of the currently selected item, or null if the list is empty.
@@ -40,10 +52,32 @@ public sealed class ListNode : Hex1bNode
     internal Func<InputBindingActionContext, Task>? ItemActivatedAction { get; set; }
     
     private bool _isFocused;
-    public override bool IsFocused { get => _isFocused; set => _isFocused = value; }
+    public override bool IsFocused 
+    { 
+        get => _isFocused; 
+        set 
+        {
+            if (_isFocused != value)
+            {
+                _isFocused = value;
+                MarkDirty();
+            }
+        }
+    }
 
     private bool _isHovered;
-    public override bool IsHovered { get => _isHovered; set => _isHovered = value; }
+    public override bool IsHovered 
+    { 
+        get => _isHovered; 
+        set 
+        {
+            if (_isHovered != value)
+            {
+                _isHovered = value;
+                MarkDirty();
+            }
+        }
+    }
 
     public override bool IsFocusable => true;
 

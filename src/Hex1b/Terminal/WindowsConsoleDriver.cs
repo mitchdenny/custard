@@ -63,12 +63,31 @@ internal sealed class WindowsConsoleDriver : IConsoleDriver
             throw new InvalidOperationException("Failed to get console handles");
         }
         
-        _lastWidth = Console.WindowWidth;
-        _lastHeight = Console.WindowHeight;
+        // Get initial size using Win32 API directly
+        var (w, h) = GetWindowSize();
+        _lastWidth = w;
+        _lastHeight = h;
     }
     
-    public int Width => Console.WindowWidth;
-    public int Height => Console.WindowHeight;
+    /// <summary>
+    /// Gets the current window size using Win32 API directly.
+    /// This is more reliable than Console.WindowWidth/Height in VT mode.
+    /// </summary>
+    private (int width, int height) GetWindowSize()
+    {
+        if (GetConsoleScreenBufferInfo(_outputHandle, out var info))
+        {
+            // Window size is the difference between right/left and bottom/top, plus 1
+            var width = info.srWindow.Right - info.srWindow.Left + 1;
+            var height = info.srWindow.Bottom - info.srWindow.Top + 1;
+            return (width, height);
+        }
+        // Fallback to Console properties
+        return (Console.WindowWidth, Console.WindowHeight);
+    }
+    
+    public int Width => GetWindowSize().width;
+    public int Height => GetWindowSize().height;
     
     public event Action<int, int>? Resized;
     
@@ -212,8 +231,7 @@ internal sealed class WindowsConsoleDriver : IConsoleDriver
     
     private void CheckResize()
     {
-        var newWidth = Console.WindowWidth;
-        var newHeight = Console.WindowHeight;
+        var (newWidth, newHeight) = GetWindowSize();
         
         if (newWidth != _lastWidth || newHeight != _lastHeight)
         {
@@ -308,4 +326,33 @@ internal sealed class WindowsConsoleDriver : IConsoleDriver
     
     [DllImport("kernel32.dll", SetLastError = true)]
     private static extern bool FlushFileBuffers(nint hFile);
+    
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern bool GetConsoleScreenBufferInfo(nint hConsoleOutput, out CONSOLE_SCREEN_BUFFER_INFO lpConsoleScreenBufferInfo);
+    
+    [StructLayout(LayoutKind.Sequential)]
+    private struct COORD
+    {
+        public short X;
+        public short Y;
+    }
+    
+    [StructLayout(LayoutKind.Sequential)]
+    private struct SMALL_RECT
+    {
+        public short Left;
+        public short Top;
+        public short Right;
+        public short Bottom;
+    }
+    
+    [StructLayout(LayoutKind.Sequential)]
+    private struct CONSOLE_SCREEN_BUFFER_INFO
+    {
+        public COORD dwSize;
+        public COORD dwCursorPosition;
+        public ushort wAttributes;
+        public SMALL_RECT srWindow;
+        public COORD dwMaximumWindowSize;
+    }
 }

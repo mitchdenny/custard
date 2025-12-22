@@ -97,9 +97,14 @@ public class CounterAppTests
             new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
         );
 
-        // Act - just render, no input
-        terminal.CompleteInput();
-        await app.RunAsync();
+        // Act - start app and exit with Ctrl+C
+        var runTask = app.RunAsync();
+        await new Hex1bTestSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Count:"), TimeSpan.FromSeconds(2))
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal);
+        await runTask;
         terminal.FlushOutput();
 
         // Assert
@@ -114,7 +119,7 @@ public class CounterAppTests
 |-----------|---------|
 | `Hex1bTerminal(width, height)` | Creates a virtual terminal for headless testing |
 | `terminal.WorkloadAdapter` | Connect the app to the virtual terminal |
-| `terminal.CompleteInput()` | Signal end of input (app will exit after processing) |
+| `Hex1bTestSequenceBuilder` | Build input sequences with waits and assertions |
 | `terminal.FlushOutput()` | Process pending output into the screen buffer |
 | `terminal.GetScreenText()` | Get the current screen content as text |
 
@@ -486,8 +491,13 @@ public class CounterAppTests
         using var terminal = new Hex1bTerminal(80, 24);
         using var app = CreateApp(terminal);
 
-        terminal.CompleteInput();
-        await app.RunAsync();
+        var runTask = app.RunAsync();
+        await new Hex1bTestSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Count:"), TimeSpan.FromSeconds(2))
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal);
+        await runTask;
         terminal.FlushOutput();
 
         Assert.Contains("Count: 0", terminal.GetScreenText());

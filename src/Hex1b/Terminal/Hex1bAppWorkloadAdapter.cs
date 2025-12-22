@@ -324,14 +324,6 @@ public sealed class Hex1bAppWorkloadAdapter : IHex1bAppTerminalWorkloadAdapter
         }
     }
 
-    /// <summary>
-    /// Completes the input channel (for testing).
-    /// </summary>
-    public void CompleteInput()
-    {
-        _inputChannel.Writer.Complete();
-    }
-
     // ========================================
     // Private helpers
     // ========================================

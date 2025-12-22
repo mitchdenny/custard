@@ -211,7 +211,7 @@ Test Code
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                     Hex1bAppWorkloadAdapter                                  │
 │  - SendKey() writes to input channel                                        │
-│  - CompleteInput() signals end of input                                     │
+│  - Processes input events asynchronously                                    │
 └─────────────────────────────────────────────────────────────────────────────┘
      │                                                               ▲
      ▼ InputEvents                                           Write() │
@@ -295,10 +295,15 @@ public async Task Button_Click_UpdatesCounter()
         new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
     );
     
-    // Run app to initial render
-    terminal.SendKey(Hex1bKey.Enter);  // Click button
-    terminal.CompleteInput();
-    await app.RunAsync();
+    // Run app and send input
+    var runTask = app.RunAsync();
+    await new Hex1bTestSequenceBuilder()
+        .WaitUntil(s => s.ContainsText("Clicks:"), TimeSpan.FromSeconds(2))
+        .Enter()  // Click button
+        .Ctrl().Key(Hex1bKey.C)  // Exit app
+        .Build()
+        .ApplyAsync(terminal);
+    await runTask;
     terminal.FlushOutput();
     
     // Assert
@@ -359,7 +364,6 @@ The presentation adapter enters raw mode when `Start()` is called on the termina
 - `Write()` - Queue ANSI output
 - `InputEvents` - Channel of parsed input events
 - `SendKey()` / `TypeText()` - Inject test input
-- `CompleteInput()` - Signal end of input stream
 
 ## Design Principles
 

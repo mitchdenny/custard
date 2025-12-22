@@ -508,18 +508,6 @@ public sealed class Hex1bTerminal : IDisposable
     // === Input Injection APIs (Testing) ===
 
     /// <summary>
-    /// Completes the input channel, signaling end of input (for testing).
-    /// Only works with Hex1bAppWorkloadAdapter.
-    /// </summary>
-    public void CompleteInput()
-    {
-        if (_workload is Hex1bAppWorkloadAdapter appWorkload)
-        {
-            appWorkload.CompleteInput();
-        }
-    }
-
-    /// <summary>
     /// Sends any input event to the terminal (for testing).
     /// This is the unified API for injecting keyboard, mouse, and other events.
     /// Only works with Hex1bAppWorkloadAdapter.

@@ -2,6 +2,7 @@ using System.ComponentModel;
 using System.Threading.Tasks;
 using Xunit.Sdk;
 using Hex1b.Input;
+using Hex1b.Terminal.Testing;
 using Hex1b.Widgets;
 
 namespace Hex1b.Tests;
@@ -65,8 +66,11 @@ public class Hex1bAppIntegrationTests
         );
 
         // Send some keys then complete
-        terminal.SendKey(ConsoleKey.H, 'H', shift: true);
-        terminal.SendKey(ConsoleKey.I, 'i');
+        new Hex1bInputSequenceBuilder()
+            .Key(Hex1bKey.H, Hex1bModifiers.Shift)
+            .Type("i")
+            .Build()
+            .Apply(terminal);
         terminal.CompleteInput();
         
         await app.RunAsync();
@@ -91,7 +95,10 @@ public class Hex1bAppIntegrationTests
             new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
         );
 
-        terminal.SendKey(ConsoleKey.Enter, '\r');
+        new Hex1bInputSequenceBuilder()
+            .Enter()
+            .Build()
+            .Apply(terminal);
         terminal.CompleteInput();
         
         await app.RunAsync();
@@ -166,12 +173,13 @@ public class Hex1bAppIntegrationTests
             new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
         );
 
-        // Type in first box
-        terminal.SendKey(ConsoleKey.A, 'a');
-        // Tab to second box
-        terminal.SendKey(ConsoleKey.Tab, '\t');
-        // Type in second box
-        terminal.SendKey(ConsoleKey.B, 'b');
+        // Type in first box, tab to second, type in second
+        new Hex1bInputSequenceBuilder()
+            .Type("a")
+            .Tab()
+            .Type("b")
+            .Build()
+            .Apply(terminal);
         terminal.CompleteInput();
         
         await app.RunAsync();
@@ -202,8 +210,11 @@ public class Hex1bAppIntegrationTests
         );
 
         // Navigate down twice
-        terminal.SendKey(ConsoleKey.DownArrow, '\0');
-        terminal.SendKey(ConsoleKey.DownArrow, '\0');
+        new Hex1bInputSequenceBuilder()
+            .Down()
+            .Down()
+            .Build()
+            .Apply(terminal);
         terminal.CompleteInput();
         
         await app.RunAsync();
@@ -233,8 +244,11 @@ public class Hex1bAppIntegrationTests
         );
 
         // Click the button twice
-        terminal.SendKey(ConsoleKey.Enter, '\r');
-        terminal.SendKey(ConsoleKey.Enter, '\r');
+        new Hex1bInputSequenceBuilder()
+            .Enter()
+            .Enter()
+            .Build()
+            .Apply(terminal);
         terminal.CompleteInput();
         
         await app.RunAsync();
@@ -356,7 +370,10 @@ public class Hex1bAppIntegrationTests
         await renderTest.Task.WaitAsync(TimeSpan.FromSeconds(1));
 
         // Send CTRL-C after the first render to exercise the default binding
-        terminal.SendKey(ConsoleKey.C, '\x03', control: true);
+        new Hex1bInputSequenceBuilder()
+            .Key(Hex1bKey.C, Hex1bModifiers.Control)
+            .Build()
+            .Apply(terminal);
 
         var completed = await Task.WhenAny(runTask, Task.Delay(250));
         if (completed != runTask)
@@ -402,7 +419,10 @@ public class Hex1bAppIntegrationTests
         await Task.Delay(50);
         
         // Send CTRL-C
-        terminal.SendKey(ConsoleKey.C, '\x03', control: true);
+        new Hex1bInputSequenceBuilder()
+            .Key(Hex1bKey.C, Hex1bModifiers.Control)
+            .Build()
+            .Apply(terminal);
         
         // Wait for processing
         await Task.Delay(50);
@@ -448,7 +468,10 @@ public class Hex1bAppIntegrationTests
         await Task.Delay(50);
         
         // Send CTRL-C
-        terminal.SendKey(ConsoleKey.C, '\x03', control: true);
+        new Hex1bInputSequenceBuilder()
+            .Key(Hex1bKey.C, Hex1bModifiers.Control)
+            .Build()
+            .Apply(terminal);
         
         // Wait for processing
         await Task.Delay(50);

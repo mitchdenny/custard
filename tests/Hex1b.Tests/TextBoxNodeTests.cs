@@ -1,5 +1,6 @@
 using Hex1b.Input;
 using Hex1b.Layout;
+using Hex1b.Terminal.Testing;
 using Hex1b.Theming;
 using Hex1b.Widgets;
 
@@ -622,11 +623,10 @@ public class TextBoxNodeTests
             new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
         );
 
-        terminal.SendKey(ConsoleKey.H, 'H', shift: true);
-        terminal.SendKey(ConsoleKey.E, 'e');
-        terminal.SendKey(ConsoleKey.L, 'l');
-        terminal.SendKey(ConsoleKey.L, 'l');
-        terminal.SendKey(ConsoleKey.O, 'o');
+        new Hex1bInputSequenceBuilder()
+            .Type("Hello")
+            .Build()
+            .Apply(terminal);
         terminal.CompleteInput();
 
         await app.RunAsync();
@@ -649,8 +649,11 @@ public class TextBoxNodeTests
             new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
         );
 
-        terminal.SendKey(ConsoleKey.End, '\0');
-        terminal.SendKey(ConsoleKey.X, 'X');
+        new Hex1bInputSequenceBuilder()
+            .End()
+            .Type("X")
+            .Build()
+            .Apply(terminal);
         terminal.CompleteInput();
 
         await app.RunAsync();
@@ -675,14 +678,13 @@ public class TextBoxNodeTests
             new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
         );
 
-        // Type in first box
-        terminal.SendKey(ConsoleKey.A, 'A', shift: true);
-        terminal.SendKey(ConsoleKey.B, 'B', shift: true);
-        // Tab to second box
-        terminal.SendKey(ConsoleKey.Tab, '\t');
-        // Type in second box
-        terminal.SendKey(ConsoleKey.X, 'X', shift: true);
-        terminal.SendKey(ConsoleKey.Y, 'Y', shift: true);
+        // Type in first box, tab to second, type in second
+        new Hex1bInputSequenceBuilder()
+            .Type("AB")
+            .Tab()
+            .Type("XY")
+            .Build()
+            .Apply(terminal);
         terminal.CompleteInput();
 
         await app.RunAsync();
@@ -706,9 +708,12 @@ public class TextBoxNodeTests
             new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
         );
 
-        terminal.SendKey(ConsoleKey.End, '\0');
-        terminal.SendKey(ConsoleKey.Backspace, '\b');
-        terminal.SendKey(ConsoleKey.Backspace, '\b');
+        new Hex1bInputSequenceBuilder()
+            .End()
+            .Backspace()
+            .Backspace()
+            .Build()
+            .Apply(terminal);
         terminal.CompleteInput();
 
         await app.RunAsync();
@@ -732,9 +737,12 @@ public class TextBoxNodeTests
         );
 
         // Go to start, then right, then insert
-        terminal.SendKey(ConsoleKey.Home, '\0');
-        terminal.SendKey(ConsoleKey.RightArrow, '\0');
-        terminal.SendKey(ConsoleKey.X, 'X');
+        new Hex1bInputSequenceBuilder()
+            .Home()
+            .Right()
+            .Type("X")
+            .Build()
+            .Apply(terminal);
         terminal.CompleteInput();
 
         await app.RunAsync();
@@ -757,9 +765,10 @@ public class TextBoxNodeTests
             new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
         );
 
-        terminal.SendKey(ConsoleKey.Oem4, '@');
-        terminal.SendKey(ConsoleKey.D1, '!', shift: true);
-        terminal.SendKey(ConsoleKey.D3, '#', shift: true);
+        new Hex1bInputSequenceBuilder()
+            .Type("@!#")
+            .Build()
+            .Apply(terminal);
         terminal.CompleteInput();
 
         await app.RunAsync();
@@ -812,11 +821,10 @@ public class TextBoxNodeTests
         );
 
         // Type some text
-        terminal.SendKey(ConsoleKey.H, 'H', shift: true);
-        terminal.SendKey(ConsoleKey.E, 'e');
-        terminal.SendKey(ConsoleKey.L, 'l');
-        terminal.SendKey(ConsoleKey.L, 'l');
-        terminal.SendKey(ConsoleKey.O, 'o');
+        new Hex1bInputSequenceBuilder()
+            .Type("Hello")
+            .Build()
+            .Apply(terminal);
         terminal.CompleteInput();
 
         await app.RunAsync();
@@ -842,14 +850,13 @@ public class TextBoxNodeTests
             new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
         );
 
-        // Type in first box
-        terminal.SendKey(ConsoleKey.A, 'A', shift: true);
-        terminal.SendKey(ConsoleKey.A, 'A', shift: true);
-        // Tab to second box
-        terminal.SendKey(ConsoleKey.Tab, '\t');
-        // Type in second box
-        terminal.SendKey(ConsoleKey.B, 'B', shift: true);
-        terminal.SendKey(ConsoleKey.B, 'B', shift: true);
+        // Type in first box, tab, type in second box
+        new Hex1bInputSequenceBuilder()
+            .Type("AA")
+            .Tab()
+            .Type("BB")
+            .Build()
+            .Apply(terminal);
         terminal.CompleteInput();
 
         await app.RunAsync();
@@ -876,8 +883,11 @@ public class TextBoxNodeTests
             new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
         );
 
-        terminal.SendKey(ConsoleKey.End, '\0');
-        terminal.SendKey(ConsoleKey.X, 'X');
+        new Hex1bInputSequenceBuilder()
+            .End()
+            .Type("X")
+            .Build()
+            .Apply(terminal);
         terminal.CompleteInput();
 
         await app.RunAsync();

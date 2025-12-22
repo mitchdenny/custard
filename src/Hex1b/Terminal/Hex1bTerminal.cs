@@ -508,54 +508,6 @@ public sealed class Hex1bTerminal : IDisposable
     // === Input Injection APIs (Testing) ===
 
     /// <summary>
-    /// Injects a key input event into the terminal (for testing).
-    /// Only works with Hex1bAppWorkloadAdapter.
-    /// </summary>
-    public void SendKey(ConsoleKey key, char keyChar = '\0', bool shift = false, bool alt = false, bool control = false)
-    {
-        if (_workload is Hex1bAppWorkloadAdapter appWorkload)
-        {
-            appWorkload.SendKey(key, keyChar, shift, alt, control);
-        }
-    }
-
-    /// <summary>
-    /// Injects a key input event using the Hex1bKey type (for testing).
-    /// Only works with Hex1bAppWorkloadAdapter.
-    /// </summary>
-    public void SendKey(Hex1bKey key, char keyChar = '\0', Hex1bModifiers modifiers = Hex1bModifiers.None)
-    {
-        if (_workload is Hex1bAppWorkloadAdapter appWorkload)
-        {
-            appWorkload.SendKey(key, keyChar, modifiers);
-        }
-    }
-
-    /// <summary>
-    /// Injects a mouse input event (for testing).
-    /// Only works with Hex1bAppWorkloadAdapter.
-    /// </summary>
-    public void SendMouse(MouseButton button, MouseAction action, int x, int y, Hex1bModifiers modifiers = Hex1bModifiers.None, int clickCount = 1)
-    {
-        if (_workload is Hex1bAppWorkloadAdapter appWorkload)
-        {
-            appWorkload.SendMouse(button, action, x, y, modifiers, clickCount);
-        }
-    }
-
-    /// <summary>
-    /// Types a string of characters into the terminal (for testing).
-    /// Only works with Hex1bAppWorkloadAdapter.
-    /// </summary>
-    public void TypeText(string text)
-    {
-        if (_workload is Hex1bAppWorkloadAdapter appWorkload)
-        {
-            appWorkload.TypeText(text);
-        }
-    }
-
-    /// <summary>
     /// Completes the input channel, signaling end of input (for testing).
     /// Only works with Hex1bAppWorkloadAdapter.
     /// </summary>
@@ -573,7 +525,7 @@ public sealed class Hex1bTerminal : IDisposable
     /// Only works with Hex1bAppWorkloadAdapter.
     /// </summary>
     /// <param name="evt">The event to send.</param>
-    public void SendEvent(Hex1bEvent evt)
+    internal void SendEvent(Hex1bEvent evt)
     {
         if (_workload is Hex1bAppWorkloadAdapter appWorkload)
         {

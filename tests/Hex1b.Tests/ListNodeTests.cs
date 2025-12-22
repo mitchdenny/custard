@@ -1,6 +1,7 @@
 using Hex1b.Events;
 using Hex1b.Input;
 using Hex1b.Layout;
+using Hex1b.Terminal.Testing;
 using Hex1b.Theming;
 using Hex1b.Widgets;
 
@@ -672,7 +673,7 @@ public class ListNodeTests
         );
         
         // Navigate down to select second item
-        terminal.SendKey(ConsoleKey.DownArrow);
+        new Hex1bInputSequenceBuilder().Down().Build().Apply(terminal);
         terminal.CompleteInput();
         await app.RunAsync();
         terminal.FlushOutput();
@@ -717,7 +718,7 @@ public class ListNodeTests
         );
         
         // Simulate down arrow then complete
-        terminal.SendKey(ConsoleKey.DownArrow);
+        new Hex1bInputSequenceBuilder().Down().Build().Apply(terminal);
         terminal.CompleteInput();
         await app.RunAsync();
         terminal.FlushOutput();
@@ -740,7 +741,7 @@ public class ListNodeTests
         );
         
         // Simulate Enter key then complete
-        terminal.SendKey(ConsoleKey.Enter, '\r');
+        new Hex1bInputSequenceBuilder().Enter().Build().Apply(terminal);
         terminal.CompleteInput();
         await app.RunAsync();
         
@@ -802,8 +803,7 @@ public class ListNodeTests
         );
         
         // Navigate down twice
-        terminal.SendKey(ConsoleKey.DownArrow);
-        terminal.SendKey(ConsoleKey.DownArrow);
+        new Hex1bInputSequenceBuilder().Down().Down().Build().Apply(terminal);
         terminal.CompleteInput();
         await app.RunAsync();
         terminal.FlushOutput();

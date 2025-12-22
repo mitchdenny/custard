@@ -1,6 +1,7 @@
 using Hex1b.Events;
 using Hex1b.Input;
 using Hex1b.Layout;
+using Hex1b.Terminal.Testing;
 using Hex1b.Theming;
 using Hex1b.Widgets;
 
@@ -489,7 +490,7 @@ public class ToggleSwitchNodeTests
             new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
         );
 
-        terminal.SendKey(ConsoleKey.RightArrow, '\0');
+        new Hex1bInputSequenceBuilder().Right().Build().Apply(terminal);
         terminal.CompleteInput();
 
         await app.RunAsync();
@@ -516,8 +517,7 @@ public class ToggleSwitchNodeTests
             new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
         );
 
-        terminal.SendKey(ConsoleKey.RightArrow, '\0');
-        terminal.SendKey(ConsoleKey.RightArrow, '\0');
+        new Hex1bInputSequenceBuilder().Right().Right().Build().Apply(terminal);
         terminal.CompleteInput();
 
         await app.RunAsync();
@@ -544,9 +544,7 @@ public class ToggleSwitchNodeTests
         );
 
         // Navigate right on toggle, then tab to button, then click
-        terminal.SendKey(ConsoleKey.RightArrow, '\0');
-        terminal.SendKey(ConsoleKey.Tab, '\t');
-        terminal.SendKey(ConsoleKey.Enter, '\r');
+        new Hex1bInputSequenceBuilder().Right().Tab().Enter().Build().Apply(terminal);
         terminal.CompleteInput();
 
         await app.RunAsync();
@@ -575,7 +573,7 @@ public class ToggleSwitchNodeTests
             new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
         );
 
-        terminal.SendKey(ConsoleKey.RightArrow, '\0');
+        new Hex1bInputSequenceBuilder().Right().Build().Apply(terminal);
         terminal.CompleteInput();
 
         await app.RunAsync();

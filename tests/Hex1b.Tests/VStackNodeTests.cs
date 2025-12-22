@@ -1,5 +1,6 @@
 using Hex1b.Input;
 using Hex1b.Layout;
+using Hex1b.Terminal.Testing;
 using Hex1b.Widgets;
 
 namespace Hex1b.Tests;
@@ -403,14 +404,15 @@ public class VStackNodeTests
             new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
         );
 
-        // Type in first box
-        terminal.SendKey(ConsoleKey.D1, '1');
-        // Tab to second
-        terminal.SendKey(ConsoleKey.Tab, '\t');
-        terminal.SendKey(ConsoleKey.D2, '2');
-        // Tab to third
-        terminal.SendKey(ConsoleKey.Tab, '\t');
-        terminal.SendKey(ConsoleKey.D3, '3');
+        // Type in first box, tab to second, type, tab to third, type
+        new Hex1bInputSequenceBuilder()
+            .Type("1")
+            .Tab()
+            .Type("2")
+            .Tab()
+            .Type("3")
+            .Build()
+            .Apply(terminal);
         terminal.CompleteInput();
 
         await app.RunAsync();
@@ -438,9 +440,12 @@ public class VStackNodeTests
         );
 
         // Tab forward then shift-tab back
-        terminal.SendKey(ConsoleKey.Tab, '\t');
-        terminal.SendKey(ConsoleKey.Tab, '\t', shift: true);
-        terminal.SendKey(ConsoleKey.A, 'A', shift: true);
+        new Hex1bInputSequenceBuilder()
+            .Tab()
+            .Shift().Tab()
+            .Type("A")
+            .Build()
+            .Apply(terminal);
         terminal.CompleteInput();
 
         await app.RunAsync();
@@ -492,8 +497,11 @@ public class VStackNodeTests
         );
 
         // Tab to button and click
-        terminal.SendKey(ConsoleKey.Tab, '\t');
-        terminal.SendKey(ConsoleKey.Enter, '\r');
+        new Hex1bInputSequenceBuilder()
+            .Tab()
+            .Enter()
+            .Build()
+            .Apply(terminal);
         terminal.CompleteInput();
 
         await app.RunAsync();

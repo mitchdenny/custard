@@ -76,6 +76,19 @@ public sealed class Hex1bInputSequenceBuilder
     }
 
     /// <summary>
+    /// Sends a key press event with the specified modifiers.
+    /// </summary>
+    public Hex1bInputSequenceBuilder Key(Hex1bKey key, Hex1bModifiers modifiers)
+    {
+        // Combine with any pending modifiers
+        var combinedModifiers = _pendingModifiers | modifiers;
+        var text = GetDefaultTextForKey(key, combinedModifiers);
+        _steps.Add(new KeyInputStep(key, text, combinedModifiers));
+        _pendingModifiers = Hex1bModifiers.None;
+        return this;
+    }
+
+    /// <summary>
     /// Types text quickly (no delay between keystrokes).
     /// </summary>
     public Hex1bInputSequenceBuilder Type(string text) => FastType(text);

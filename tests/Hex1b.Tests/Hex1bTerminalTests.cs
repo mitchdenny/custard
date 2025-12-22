@@ -1,4 +1,5 @@
 using Hex1b.Input;
+using Hex1b.Terminal.Testing;
 
 namespace Hex1b.Tests;
 
@@ -166,11 +167,11 @@ public class Hex1bTerminalTests
     }
 
     [Fact]
-    public async Task SendKey_InjectsInputEvent()
+    public async Task InputSequenceBuilder_InjectsInputEvent()
     {
         using var terminal = new Hex1bTerminal(20, 5);
         
-        terminal.SendKey(Hex1bKey.A, 'a');
+        new Hex1bInputSequenceBuilder().Key(Hex1bKey.A).Build().Apply(terminal);
         terminal.CompleteInput();
         
         var events = new List<Hex1bEvent>();
@@ -182,15 +183,15 @@ public class Hex1bTerminalTests
         Assert.Single(events);
         var keyEvent = Assert.IsType<Hex1bKeyEvent>(events[0]);
         Assert.Equal(Hex1bKey.A, keyEvent.Key);
-        Assert.Equal('a', keyEvent.Character);
+        Assert.Equal("a", keyEvent.Text);
     }
 
     [Fact]
-    public async Task TypeText_InjectsMultipleEvents()
+    public async Task InputSequenceBuilder_Type_InjectsMultipleEvents()
     {
         using var terminal = new Hex1bTerminal(20, 5);
         
-        terminal.TypeText("abc");
+        new Hex1bInputSequenceBuilder().Type("abc").Build().Apply(terminal);
         terminal.CompleteInput();
         
         var events = new List<Hex1bEvent>();

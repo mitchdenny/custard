@@ -1,5 +1,6 @@
 using Hex1b.Input;
 using Hex1b.Layout;
+using Hex1b.Terminal.Testing;
 using Hex1b.Theming;
 using Hex1b.Widgets;
 
@@ -361,7 +362,10 @@ public class ButtonNodeTests
             new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
         );
 
-        terminal.SendKey(ConsoleKey.Enter, '\r');
+        new Hex1bInputSequenceBuilder()
+            .Enter()
+            .Build()
+            .Apply(terminal);
         terminal.CompleteInput();
 
         await app.RunAsync();
@@ -384,7 +388,10 @@ public class ButtonNodeTests
             new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
         );
 
-        terminal.SendKey(ConsoleKey.Spacebar, ' ');
+        new Hex1bInputSequenceBuilder()
+            .Space()
+            .Build()
+            .Apply(terminal);
         terminal.CompleteInput();
 
         await app.RunAsync();
@@ -409,9 +416,12 @@ public class ButtonNodeTests
         );
 
         // Click the button 3 times
-        terminal.SendKey(ConsoleKey.Enter, '\r');
-        terminal.SendKey(ConsoleKey.Enter, '\r');
-        terminal.SendKey(ConsoleKey.Enter, '\r');
+        new Hex1bInputSequenceBuilder()
+            .Enter()
+            .Enter()
+            .Enter()
+            .Build()
+            .Apply(terminal);
         terminal.CompleteInput();
 
         await app.RunAsync();
@@ -439,8 +449,11 @@ public class ButtonNodeTests
         );
 
         // Tab to second button and press Enter
-        terminal.SendKey(ConsoleKey.Tab, '\t');
-        terminal.SendKey(ConsoleKey.Enter, '\r');
+        new Hex1bInputSequenceBuilder()
+            .Tab()
+            .Enter()
+            .Build()
+            .Apply(terminal);
         terminal.CompleteInput();
 
         await app.RunAsync();
@@ -464,7 +477,10 @@ public class ButtonNodeTests
             new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
         );
 
-        terminal.SendKey(ConsoleKey.Enter, '\r');
+        new Hex1bInputSequenceBuilder()
+            .Enter()
+            .Build()
+            .Apply(terminal);
         terminal.CompleteInput();
 
         await app.RunAsync();
@@ -513,13 +529,13 @@ public class ButtonNodeTests
             new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
         );
 
-        // Type in text box
-        terminal.SendKey(ConsoleKey.H, 'H', shift: true);
-        terminal.SendKey(ConsoleKey.I, 'i');
-        // Tab to button
-        terminal.SendKey(ConsoleKey.Tab, '\t');
-        // Press button
-        terminal.SendKey(ConsoleKey.Enter, '\r');
+        // Type in text box, tab to button, press button
+        new Hex1bInputSequenceBuilder()
+            .Type("Hi")
+            .Tab()
+            .Enter()
+            .Build()
+            .Apply(terminal);
         terminal.CompleteInput();
 
         await app.RunAsync();
@@ -544,10 +560,12 @@ public class ButtonNodeTests
         );
 
         // Click 5 times rapidly
+        var builder = new Hex1bInputSequenceBuilder();
         for (int i = 0; i < 5; i++)
         {
-            terminal.SendKey(ConsoleKey.Enter, '\r');
+            builder.Enter();
         }
+        builder.Build().Apply(terminal);
         terminal.CompleteInput();
 
         await app.RunAsync();
@@ -570,8 +588,11 @@ public class ButtonNodeTests
             new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
         );
 
-        terminal.SendKey(ConsoleKey.Enter, '\r');
-        terminal.SendKey(ConsoleKey.Enter, '\r');
+        new Hex1bInputSequenceBuilder()
+            .Enter()
+            .Enter()
+            .Build()
+            .Apply(terminal);
         terminal.CompleteInput();
 
         await app.RunAsync();

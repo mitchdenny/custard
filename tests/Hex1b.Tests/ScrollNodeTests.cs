@@ -1,6 +1,7 @@
 using Hex1b.Input;
 using Hex1b.Layout;
 using Hex1b.Nodes;
+using Hex1b.Terminal.Testing;
 using Hex1b.Theming;
 using Hex1b.Widgets;
 
@@ -951,9 +952,7 @@ public class ScrollNodeTests
             new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
         );
 
-        terminal.SendKey(ConsoleKey.DownArrow);
-        terminal.SendKey(ConsoleKey.DownArrow);
-        terminal.SendKey(ConsoleKey.DownArrow);
+        new Hex1bInputSequenceBuilder().Down().Down().Down().Build().Apply(terminal);
         terminal.CompleteInput();
         await app.RunAsync();
 
@@ -979,8 +978,7 @@ public class ScrollNodeTests
         );
 
         // Tab from scroll widget to button, then press enter
-        terminal.SendKey(ConsoleKey.Tab, '\t');
-        terminal.SendKey(ConsoleKey.Enter, '\r');
+        new Hex1bInputSequenceBuilder().Tab().Enter().Build().Apply(terminal);
         terminal.CompleteInput();
         await app.RunAsync();
 

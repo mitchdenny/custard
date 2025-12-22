@@ -1,5 +1,6 @@
 using Hex1b.Input;
 using Hex1b.Layout;
+using Hex1b.Terminal.Testing;
 using Hex1b.Widgets;
 
 namespace Hex1b.Tests;
@@ -378,8 +379,11 @@ public class HStackNodeTests
         );
 
         // Tab to second button and click
-        terminal.SendKey(ConsoleKey.Tab, '\t');
-        terminal.SendKey(ConsoleKey.Enter, '\r');
+        new Hex1bInputSequenceBuilder()
+            .Tab()
+            .Enter()
+            .Build()
+            .Apply(terminal);
         terminal.CompleteInput();
 
         await app.RunAsync();
@@ -463,10 +467,12 @@ public class HStackNodeTests
         );
 
         // Type in textbox then tab to button and click
-        terminal.SendKey(ConsoleKey.H, 'H', shift: true);
-        terminal.SendKey(ConsoleKey.I, 'i');
-        terminal.SendKey(ConsoleKey.Tab, '\t');
-        terminal.SendKey(ConsoleKey.Enter, '\r');
+        new Hex1bInputSequenceBuilder()
+            .Type("Hi")
+            .Tab()
+            .Enter()
+            .Build()
+            .Apply(terminal);
         terminal.CompleteInput();
 
         await app.RunAsync();
@@ -562,8 +568,11 @@ public class HStackNodeTests
         );
 
         // List starts focused; Tab should bubble up to HStack and move to Button
-        terminal.SendKey(ConsoleKey.Tab, '\t');
-        terminal.SendKey(ConsoleKey.Enter, '\r'); // Click the button
+        new Hex1bInputSequenceBuilder()
+            .Tab()
+            .Enter()
+            .Build()
+            .Apply(terminal);
         terminal.CompleteInput();
         await app.RunAsync();
 
@@ -589,8 +598,11 @@ public class HStackNodeTests
         );
 
         // Button 1 starts focused
-        terminal.SendKey(ConsoleKey.Tab, '\t'); // Button 1 -> Button 2
-        terminal.SendKey(ConsoleKey.Enter, '\r'); // Click Button 2
+        new Hex1bInputSequenceBuilder()
+            .Tab()
+            .Enter()
+            .Build()
+            .Apply(terminal);
         terminal.CompleteInput();
         await app.RunAsync();
 
@@ -629,10 +641,13 @@ public class HStackNodeTests
         );
 
         // List button starts focused
-        terminal.SendKey(ConsoleKey.Tab, '\t'); // List -> TextBox (enters VStack)
-        terminal.SendKey(ConsoleKey.Tab, '\t'); // TextBox -> Add (within VStack)
-        terminal.SendKey(ConsoleKey.Tab, '\t'); // Add -> Other (escapes VStack at boundary!)
-        terminal.SendKey(ConsoleKey.Enter, '\r'); // Click Other button
+        new Hex1bInputSequenceBuilder()
+            .Tab()   // List -> TextBox (enters VStack)
+            .Tab()   // TextBox -> Add (within VStack)
+            .Tab()   // Add -> Other (escapes VStack at boundary!)
+            .Enter() // Click Other button
+            .Build()
+            .Apply(terminal);
         terminal.CompleteInput();
         await app.RunAsync();
 
@@ -666,10 +681,12 @@ public class HStackNodeTests
         );
 
         // List button starts focused
-        terminal.SendKey(ConsoleKey.Tab, '\t'); // List -> TextBox (enters VStack)
-        // Now Shift+Tab should go back to List (escape VStack at first boundary)
-        terminal.SendKey(ConsoleKey.Tab, '\t', shift: true); // TextBox -> List (escapes VStack!)
-        terminal.SendKey(ConsoleKey.Enter, '\r'); // Click List button
+        new Hex1bInputSequenceBuilder()
+            .Tab()                    // List -> TextBox (enters VStack)
+            .Shift().Tab()            // TextBox -> List (escapes VStack!)
+            .Enter()                  // Click List button
+            .Build()
+            .Apply(terminal);
         terminal.CompleteInput();
         await app.RunAsync();
 

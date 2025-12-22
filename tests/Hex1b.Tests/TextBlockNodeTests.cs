@@ -1,5 +1,6 @@
 using Hex1b.Input;
 using Hex1b.Layout;
+using Hex1b.Terminal.Testing;
 using Hex1b.Widgets;
 
 namespace Hex1b.Tests;
@@ -457,7 +458,7 @@ public class TextBlockNodeTests
         );
 
         // Press Enter to trigger button (causes re-render)
-        terminal.SendKey(ConsoleKey.Enter, '\r');
+        new Hex1bInputSequenceBuilder().Enter().Build().Apply(terminal);
         terminal.CompleteInput();
 
         await app.RunAsync();

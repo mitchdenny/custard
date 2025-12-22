@@ -1,6 +1,7 @@
 using Hex1b.Input;
 using Hex1b.Layout;
 using Hex1b.Nodes;
+using Hex1b.Terminal.Testing;
 using Hex1b.Theming;
 using Hex1b.Widgets;
 
@@ -721,7 +722,7 @@ public class SplitterNodeTests
         );
 
         // Enter clicks the focused button
-        terminal.SendKey(ConsoleKey.Enter, '\r');
+        new Hex1bInputSequenceBuilder().Enter().Build().Apply(terminal);
         terminal.CompleteInput();
         await app.RunAsync();
 
@@ -746,9 +747,7 @@ public class SplitterNodeTests
         );
 
         // Tab through: left -> splitter -> right, then Enter
-        terminal.SendKey(ConsoleKey.Tab, '\t');
-        terminal.SendKey(ConsoleKey.Tab, '\t');
-        terminal.SendKey(ConsoleKey.Enter, '\r');
+        new Hex1bInputSequenceBuilder().Tab().Tab().Enter().Build().Apply(terminal);
         terminal.CompleteInput();
         await app.RunAsync();
 
@@ -772,8 +771,7 @@ public class SplitterNodeTests
         );
 
         // Tab to the splitter itself (first is left text, which isn't focusable, so splitter is first)
-        terminal.SendKey(ConsoleKey.LeftArrow);
-        terminal.SendKey(ConsoleKey.LeftArrow);
+        new Hex1bInputSequenceBuilder().Left().Left().Build().Apply(terminal);
         terminal.CompleteInput();
         await app.RunAsync();
         terminal.FlushOutput();
@@ -803,7 +801,7 @@ public class SplitterNodeTests
         );
 
         // Down arrow navigates the list
-        terminal.SendKey(ConsoleKey.DownArrow);
+        new Hex1bInputSequenceBuilder().Down().Build().Apply(terminal);
         terminal.CompleteInput();
         await app.RunAsync();
         terminal.FlushOutput();
@@ -829,7 +827,7 @@ public class SplitterNodeTests
             new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
         );
 
-        terminal.TypeText("Hello Splitter");
+        new Hex1bInputSequenceBuilder().Type("Hello Splitter").Build().Apply(terminal);
         terminal.CompleteInput();
         await app.RunAsync();
 
@@ -1335,7 +1333,7 @@ public class SplitterNodeTests
         );
 
         // Enter clicks the focused button
-        terminal.SendKey(ConsoleKey.Enter, '\r');
+        new Hex1bInputSequenceBuilder().Enter().Build().Apply(terminal);
         terminal.CompleteInput();
         await app.RunAsync();
 
@@ -1360,9 +1358,7 @@ public class SplitterNodeTests
         );
 
         // Tab through: top -> splitter -> bottom, then Enter
-        terminal.SendKey(ConsoleKey.Tab, '\t');
-        terminal.SendKey(ConsoleKey.Tab, '\t');
-        terminal.SendKey(ConsoleKey.Enter, '\r');
+        new Hex1bInputSequenceBuilder().Tab().Tab().Enter().Build().Apply(terminal);
         terminal.CompleteInput();
         await app.RunAsync();
 
@@ -1387,8 +1383,7 @@ public class SplitterNodeTests
 
         // Since first child is just text (not focusable), splitter gets focus
         // Up/down arrows should resize it
-        terminal.SendKey(ConsoleKey.UpArrow);
-        terminal.SendKey(ConsoleKey.UpArrow);
+        new Hex1bInputSequenceBuilder().Up().Up().Build().Apply(terminal);
         terminal.CompleteInput();
         await app.RunAsync();
         terminal.FlushOutput();
@@ -1486,9 +1481,7 @@ public class SplitterNodeTests
         );
 
         // List starts focused, Tab should move through: List -> Splitter -> Right Button
-        terminal.SendKey(ConsoleKey.Tab, '\t'); // List -> Splitter
-        terminal.SendKey(ConsoleKey.Tab, '\t'); // Splitter -> Right Button
-        terminal.SendKey(ConsoleKey.Enter, '\r'); // Click the button
+        new Hex1bInputSequenceBuilder().Tab().Tab().Enter().Build().Apply(terminal);
         terminal.CompleteInput();
         await app.RunAsync();
 
@@ -1520,10 +1513,7 @@ public class SplitterNodeTests
 
         // Focus order: First -> Second -> Splitter -> Right
         // (VStack doesn't handle Tab when inside Splitter, so it bubbles up to Splitter)
-        terminal.SendKey(ConsoleKey.Tab, '\t'); // First -> Second
-        terminal.SendKey(ConsoleKey.Tab, '\t'); // Second -> Splitter
-        terminal.SendKey(ConsoleKey.Tab, '\t'); // Splitter -> Right Button  
-        terminal.SendKey(ConsoleKey.Enter, '\r'); // Click the button
+        new Hex1bInputSequenceBuilder().Tab().Tab().Tab().Enter().Build().Apply(terminal);
         terminal.CompleteInput();
         await app.RunAsync();
 
@@ -1551,12 +1541,12 @@ public class SplitterNodeTests
         );
 
         // Navigate to Right Button first
-        terminal.SendKey(ConsoleKey.Tab, '\t'); // Left Button -> Splitter
-        terminal.SendKey(ConsoleKey.Tab, '\t'); // Splitter -> Right Button
-        // Now Shift+Tab back
-        terminal.SendKey(ConsoleKey.Tab, '\t', shift: true); // Right Button -> Splitter
-        terminal.SendKey(ConsoleKey.Tab, '\t', shift: true); // Splitter -> Left Button
-        terminal.SendKey(ConsoleKey.Enter, '\r'); // Click the button
+        // Tab, Tab, then Shift+Tab, Shift+Tab, then Enter
+        new Hex1bInputSequenceBuilder()
+            .Tab().Tab()  // Left Button -> Splitter -> Right Button
+            .Shift().Tab().Shift().Tab()  // Right Button -> Splitter -> Left Button
+            .Enter()  // Click the button
+            .Build().Apply(terminal);
         terminal.CompleteInput();
         await app.RunAsync();
 
@@ -1599,9 +1589,7 @@ public class SplitterNodeTests
         );
 
         // List is focused initially, Tab should navigate to Splitter, then to Button
-        terminal.SendKey(ConsoleKey.Tab, '\t'); // List -> Splitter
-        terminal.SendKey(ConsoleKey.Tab, '\t'); // Splitter -> Button
-        terminal.SendKey(ConsoleKey.Enter, '\r'); // Click the button
+        new Hex1bInputSequenceBuilder().Tab().Tab().Enter().Build().Apply(terminal);
         terminal.CompleteInput();
         await app.RunAsync();
 
@@ -1813,7 +1801,7 @@ public class SplitterNodeTests
         );
 
         // Just press Enter - should click the focused button
-        terminal.SendKey(ConsoleKey.Enter, '\r');
+        new Hex1bInputSequenceBuilder().Enter().Build().Apply(terminal);
         terminal.CompleteInput();
         await app.RunAsync();
 
@@ -1844,7 +1832,7 @@ public class SplitterNodeTests
             new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
         );
 
-        terminal.SendKey(ConsoleKey.Enter, '\r');
+        new Hex1bInputSequenceBuilder().Enter().Build().Apply(terminal);
         terminal.CompleteInput();
         await app.RunAsync();
 
@@ -1879,7 +1867,7 @@ public class SplitterNodeTests
             new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
         );
 
-        terminal.SendKey(ConsoleKey.Enter, '\r');
+        new Hex1bInputSequenceBuilder().Enter().Build().Apply(terminal);
         terminal.CompleteInput();
         await app.RunAsync();
 

@@ -152,6 +152,7 @@ public sealed class TextBoxNode : Hex1bNode
             // Move by grapheme cluster, not by char
             State.CursorPosition = GraphemeHelper.GetPreviousClusterBoundary(State.Text, State.CursorPosition);
         }
+        MarkDirty();
     }
 
     private void MoveRight()
@@ -166,18 +167,21 @@ public sealed class TextBoxNode : Hex1bNode
             // Move by grapheme cluster, not by char
             State.CursorPosition = GraphemeHelper.GetNextClusterBoundary(State.Text, State.CursorPosition);
         }
+        MarkDirty();
     }
 
     private void MoveHome()
     {
         State.ClearSelection();
         State.CursorPosition = 0;
+        MarkDirty();
     }
 
     private void MoveEnd()
     {
         State.ClearSelection();
         State.CursorPosition = State.Text.Length;
+        MarkDirty();
     }
 
     private void SelectLeft()
@@ -191,6 +195,7 @@ public sealed class TextBoxNode : Hex1bNode
             // Move by grapheme cluster, not by char
             State.CursorPosition = GraphemeHelper.GetPreviousClusterBoundary(State.Text, State.CursorPosition);
         }
+        MarkDirty();
     }
 
     private void SelectRight()
@@ -204,6 +209,7 @@ public sealed class TextBoxNode : Hex1bNode
             // Move by grapheme cluster, not by char
             State.CursorPosition = GraphemeHelper.GetNextClusterBoundary(State.Text, State.CursorPosition);
         }
+        MarkDirty();
     }
 
     private void SelectToStart()
@@ -213,6 +219,7 @@ public sealed class TextBoxNode : Hex1bNode
             State.SelectionAnchor = State.CursorPosition;
         }
         State.CursorPosition = 0;
+        MarkDirty();
     }
 
     private void SelectToEnd()
@@ -222,6 +229,7 @@ public sealed class TextBoxNode : Hex1bNode
             State.SelectionAnchor = State.CursorPosition;
         }
         State.CursorPosition = State.Text.Length;
+        MarkDirty();
     }
 
     private async Task DeleteBackwardAsync(InputBindingActionContext ctx)
@@ -284,7 +292,11 @@ public sealed class TextBoxNode : Hex1bNode
         MarkDirty();
     }
 
-    private void SelectAll() => State.SelectAll();
+    private void SelectAll()
+    {
+        State.SelectAll();
+        MarkDirty();
+    }
 
     /// <summary>
     /// Handles mouse click to position the cursor within the text.

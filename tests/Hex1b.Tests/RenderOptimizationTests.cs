@@ -393,4 +393,50 @@ public class RenderOptimizationTests
         Assert.True(foundDividerAtNewPosition, 
             $"Expected divider '│' at position 31 after drag. Output:\n{output}");
     }
+
+    [Fact]
+    public void TerminalResize_Enlarge_ShouldNotCrash()
+    {
+        // Verifies that enlarging the terminal doesn't cause an index out of bounds exception
+        // This was a bug where _width/_height were updated before Resize() was called,
+        // causing the copy loop to try accessing indices beyond the old buffer.
+        using var terminal = new Hex1bTerminal(80, 24);
+        
+        // Write some content first
+        terminal.FlushOutput();
+        
+        // Enlarge the terminal - this should not crash
+        terminal.Resize(120, 40);
+        
+        // Verify new dimensions
+        Assert.Equal(120, terminal.Width);
+        Assert.Equal(40, terminal.Height);
+    }
+
+    [Fact]
+    public async Task TerminalResize_ShouldTriggerFullReRender()
+    {
+        // When the terminal is resized, all nodes should re-render
+        // because their layout may have changed.
+        using var terminal = new Hex1bTerminal(80, 24);
+        var renderCount = 0;
+
+        var testWidget = new TestWidget().OnRender(_ => renderCount++);
+
+        using var app = new Hex1bApp(
+            ctx => ctx.VStack(v => [testWidget]),
+            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+        );
+
+        // Trigger a resize event
+        await terminal.WorkloadAdapter.ResizeAsync(100, 30);
+        
+        terminal.CompleteInput();
+
+        await app.RunAsync();
+        terminal.FlushOutput();
+
+        // Should render twice: initial render + after resize
+        Assert.True(renderCount >= 2, $"Expected at least 2 renders but got {renderCount}. Resize should trigger full re-render.");
+    }
 }

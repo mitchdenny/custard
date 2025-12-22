@@ -221,8 +221,12 @@ public class Hex1bApp : IDisposable, IAsyncDisposable
                             continue;
                         
                         // Resize events trigger a re-layout and re-render
-                        case Hex1bResizeEvent:
-                            // Just re-render - the terminal's Width/Height properties will reflect the new size
+                        case Hex1bResizeEvent resizeEvent:
+                            // Terminal size changed - we need a full re-render
+                            // Mark root dirty to ensure everything re-renders at new size
+                            _rootNode?.MarkDirty();
+                            // Force full clear to handle new screen regions
+                            _isFirstFrame = true;
                             break;
                         
                         // Key events are routed to the focused node through the tree

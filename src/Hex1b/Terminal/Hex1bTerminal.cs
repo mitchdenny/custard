@@ -121,8 +121,8 @@ public sealed class Hex1bTerminal : IDisposable
 
     private void OnPresentationResized(int width, int height)
     {
-        _width = width;
-        _height = height;
+        // IMPORTANT: Call Resize() first before updating _width/_height
+        // because Resize() needs the OLD dimensions to know how much to copy
         Resize(width, height);
         // Notify workload of resize
         _ = _workload.ResizeAsync(width, height);

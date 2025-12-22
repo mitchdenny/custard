@@ -154,56 +154,64 @@ public sealed class ScrollNode : Hex1bNode, ILayoutProvider
         bindings.Key(Hex1bKey.Escape).Action(FocusFirst, "Jump to first focusable");
         
         // Mouse wheel scrolling
-        bindings.Mouse(MouseButton.ScrollUp).Action(() => State.ScrollUp(3), "Scroll up");
-        bindings.Mouse(MouseButton.ScrollDown).Action(() => State.ScrollDown(3), "Scroll down");
+        bindings.Mouse(MouseButton.ScrollUp).Action(() => { State.ScrollUp(3); MarkDirty(); }, "Scroll up");
+        bindings.Mouse(MouseButton.ScrollDown).Action(() => { State.ScrollDown(3); MarkDirty(); }, "Scroll down");
     }
 
     private void ScrollUp()
     {
         if (!IsFocused || Orientation != ScrollOrientation.Vertical) return;
         State.ScrollUp();
+        MarkDirty();
     }
 
     private void ScrollDown()
     {
         if (!IsFocused || Orientation != ScrollOrientation.Vertical) return;
         State.ScrollDown();
+        MarkDirty();
     }
 
     private void ScrollLeft()
     {
         if (!IsFocused || Orientation != ScrollOrientation.Horizontal) return;
         State.ScrollUp(); // Uses ScrollUp because it decreases offset
+        MarkDirty();
     }
 
     private void ScrollRight()
     {
         if (!IsFocused || Orientation != ScrollOrientation.Horizontal) return;
         State.ScrollDown(); // Uses ScrollDown because it increases offset
+        MarkDirty();
     }
 
     private void PageUp()
     {
         if (!IsFocused) return;
         State.PageUp();
+        MarkDirty();
     }
 
     private void PageDown()
     {
         if (!IsFocused) return;
         State.PageDown();
+        MarkDirty();
     }
 
     private void ScrollToStart()
     {
         if (!IsFocused) return;
         State.ScrollToStart();
+        MarkDirty();
     }
 
     private void ScrollToEnd()
     {
         if (!IsFocused) return;
         State.ScrollToEnd();
+        MarkDirty();
     }
 
     private void FocusFirst()

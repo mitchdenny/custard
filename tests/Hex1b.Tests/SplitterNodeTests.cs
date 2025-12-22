@@ -158,7 +158,6 @@ public class SplitterNodeTests
         node.Measure(Constraints.Tight(50, 10));
         node.Arrange(new Rect(0, 0, 50, 10));
         node.Render(context);
-        terminal.FlushOutput();
 
         // Default divider character is "│"
         Assert.Contains("│", terminal.RawOutput);
@@ -179,7 +178,6 @@ public class SplitterNodeTests
         node.Measure(Constraints.Tight(50, 10));
         node.Arrange(new Rect(0, 0, 50, 10));
         node.Render(context);
-        terminal.FlushOutput();
 
         Assert.Contains("Left Pane Content", terminal.RawOutput);
     }
@@ -199,7 +197,6 @@ public class SplitterNodeTests
         node.Measure(Constraints.Tight(50, 10));
         node.Arrange(new Rect(0, 0, 50, 10));
         node.Render(context);
-        terminal.FlushOutput();
 
         Assert.Contains("Right Pane Content", terminal.RawOutput);
     }
@@ -219,7 +216,6 @@ public class SplitterNodeTests
         node.Measure(Constraints.Tight(50, 5));
         node.Arrange(new Rect(0, 0, 50, 5));
         node.Render(context);
-        terminal.FlushOutput();
 
         // Count occurrences of divider chars in raw output - should be 5 (one per row)
         // 3 regular dividers + 2 arrow characters (◀ and ▶) at midpoint
@@ -250,7 +246,6 @@ public class SplitterNodeTests
         node.Measure(Constraints.Tight(50, 10));
         node.Arrange(new Rect(0, 0, 50, 10));
         node.Render(context);
-        terminal.FlushOutput();
 
         // Cyan is RGB(0, 255, 255)
         Assert.Contains("\x1b[38;2;0;255;255m", terminal.RawOutput);
@@ -273,7 +268,6 @@ public class SplitterNodeTests
         node.Measure(Constraints.Tight(50, 10));
         node.Arrange(new Rect(0, 0, 50, 10));
         node.Render(context);
-        terminal.FlushOutput();
 
         Assert.Contains("║", terminal.RawOutput);
     }
@@ -294,7 +288,6 @@ public class SplitterNodeTests
         node.Measure(Constraints.Tight(50, 10));
         node.Arrange(new Rect(0, 0, 50, 10));
         node.Render(context);
-        terminal.FlushOutput();
 
         // When focused, should have background color on divider
         Assert.Contains("\x1b[48;2;", terminal.RawOutput);
@@ -676,7 +669,6 @@ public class SplitterNodeTests
             .Build()
             .ApplyAsync(terminal);
         await runTask;
-        terminal.FlushOutput();
 
         Assert.Contains("Left Content", terminal.RawOutput);
         Assert.Contains("Right Content", terminal.RawOutput);
@@ -706,7 +698,6 @@ public class SplitterNodeTests
             .Build()
             .ApplyAsync(terminal);
         await runTask;
-        terminal.FlushOutput();
 
         Assert.Contains("Left 1", terminal.RawOutput);
         Assert.Contains("Left 2", terminal.RawOutput);
@@ -799,7 +790,6 @@ public class SplitterNodeTests
             .Build()
             .ApplyAsync(terminal);
         await runTask;
-        terminal.FlushOutput();
 
         // The splitter would have received initial focus since Left is just text
         // So arrow keys should have resized it
@@ -835,7 +825,6 @@ public class SplitterNodeTests
             .Build()
             .ApplyAsync(terminal);
         await runTask;
-        terminal.FlushOutput();
 
         // Verify second item is selected via rendered output
         Assert.Contains("> Item 2", terminal.RawOutput);
@@ -897,7 +886,6 @@ public class SplitterNodeTests
             .Build()
             .ApplyAsync(terminal);
         await runTask;
-        terminal.FlushOutput();
 
         Assert.Contains("Split View", terminal.RawOutput);
         Assert.Contains("Left", terminal.RawOutput);
@@ -1099,7 +1087,6 @@ public class SplitterNodeTests
         node.Measure(Constraints.Tight(30, 10));
         node.Arrange(new Rect(0, 0, 30, 10));
         node.Render(context);
-        terminal.FlushOutput();
 
         // Default horizontal divider character is "─"
         Assert.Contains("─", terminal.RawOutput);
@@ -1121,7 +1108,6 @@ public class SplitterNodeTests
         node.Measure(Constraints.Tight(30, 10));
         node.Arrange(new Rect(0, 0, 30, 10));
         node.Render(context);
-        terminal.FlushOutput();
 
         Assert.Contains("Top Content", terminal.RawOutput);
     }
@@ -1142,7 +1128,6 @@ public class SplitterNodeTests
         node.Measure(Constraints.Tight(30, 10));
         node.Arrange(new Rect(0, 0, 30, 10));
         node.Render(context);
-        terminal.FlushOutput();
 
         Assert.Contains("Bottom Content", terminal.RawOutput);
     }
@@ -1164,7 +1149,6 @@ public class SplitterNodeTests
         node.Measure(Constraints.Tight(30, 10));
         node.Arrange(new Rect(0, 0, 30, 10));
         node.Render(context);
-        terminal.FlushOutput();
 
         // When focused, should have background color on divider
         Assert.Contains("\x1b[48;2;", terminal.RawOutput);
@@ -1329,7 +1313,6 @@ public class SplitterNodeTests
             .Build()
             .ApplyAsync(terminal);
         await runTask;
-        terminal.FlushOutput();
 
         Assert.Contains("Top Content", terminal.RawOutput);
         Assert.Contains("Bottom Content", terminal.RawOutput);
@@ -1359,7 +1342,6 @@ public class SplitterNodeTests
             .Build()
             .ApplyAsync(terminal);
         await runTask;
-        terminal.FlushOutput();
 
         Assert.Contains("Top 1", terminal.RawOutput);
         Assert.Contains("Top 2", terminal.RawOutput);
@@ -1453,7 +1435,6 @@ public class SplitterNodeTests
             .Build()
             .ApplyAsync(terminal);
         await runTask;
-        terminal.FlushOutput();
 
         Assert.Contains("Top", terminal.RawOutput);
         Assert.Contains("Bottom", terminal.RawOutput);
@@ -1485,7 +1466,6 @@ public class SplitterNodeTests
             .Build()
             .ApplyAsync(terminal);
         await runTask;
-        terminal.FlushOutput();
 
         Assert.Contains("Vertical Split", terminal.RawOutput);
         Assert.Contains("Top", terminal.RawOutput);
@@ -1520,7 +1500,6 @@ public class SplitterNodeTests
             .Build()
             .ApplyAsync(terminal);
         await runTask;
-        terminal.FlushOutput();
 
         Assert.Contains("Top-Left", terminal.RawOutput);
         Assert.Contains("Top-Right", terminal.RawOutput);

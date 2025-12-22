@@ -84,7 +84,6 @@ public class ButtonNodeTests
         };
 
         node.Render(context);
-        terminal.FlushOutput();
 
         // Theme-dependent bracket style, but should contain label
         Assert.Contains("OK", terminal.GetLineTrimmed(0));
@@ -102,7 +101,6 @@ public class ButtonNodeTests
         };
 
         node.Render(context);
-        terminal.FlushOutput();
 
         var line = terminal.GetLineTrimmed(0);
         Assert.Contains("[", line);
@@ -121,7 +119,6 @@ public class ButtonNodeTests
         };
 
         node.Render(context);
-        terminal.FlushOutput();
 
         var line = terminal.GetLineTrimmed(0);
         Assert.Contains("[", line);
@@ -144,7 +141,6 @@ public class ButtonNodeTests
         };
 
         node.Render(context);
-        terminal.FlushOutput();
 
         // Should contain ANSI escape codes for focus styling
         Assert.Contains("\x1b[", terminal.RawOutput);
@@ -163,7 +159,6 @@ public class ButtonNodeTests
         };
 
         node.Render(context);
-        terminal.FlushOutput();
 
         Assert.Contains("Submit Form", terminal.GetLineTrimmed(0));
     }
@@ -181,8 +176,6 @@ public class ButtonNodeTests
 
         focusedNode.Render(focusedContext);
         unfocusedNode.Render(unfocusedContext);
-        focusedTerminal.FlushOutput();
-        unfocusedTerminal.FlushOutput();
 
         // Raw output should differ due to ANSI codes
         Assert.NotEqual(focusedTerminal.RawOutput, unfocusedTerminal.RawOutput);
@@ -347,7 +340,6 @@ public class ButtonNodeTests
             .Build()
             .ApplyAsync(terminal);
         await runTask;
-        terminal.FlushOutput();
 
         Assert.True(terminal.ContainsText("Click Me"));
     }
@@ -433,7 +425,6 @@ public class ButtonNodeTests
             .Build()
             .ApplyAsync(terminal);
         await runTask;
-        terminal.FlushOutput();
 
         Assert.Equal(3, counter);
         Assert.True(terminal.ContainsText("Count: 3"));
@@ -494,7 +485,6 @@ public class ButtonNodeTests
             .Build()
             .ApplyAsync(terminal);
         await runTask;
-        terminal.FlushOutput();
 
         Assert.True(clicked);
         Assert.True(terminal.ContainsText("OK"));
@@ -521,7 +511,6 @@ public class ButtonNodeTests
             .Build()
             .ApplyAsync(terminal);
         await runTask;
-        terminal.FlushOutput();
 
         // The button text should be present (possibly wrapped)
         Assert.True(terminal.ContainsText("Click Here"));
@@ -616,7 +605,6 @@ public class ButtonNodeTests
             .Build()
             .ApplyAsync(terminal);
         await runTask;
-        terminal.FlushOutput();
 
         Assert.True(terminal.ContainsText("Clicked 2 times"));
     }

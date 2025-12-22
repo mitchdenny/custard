@@ -482,7 +482,6 @@ public class Hex1bTestSequenceTests
         await Task.Delay(50);
         await sequence.ApplyAsync(terminal);
         await Task.Delay(50);
-        terminal.FlushOutput();
         
         cts.Cancel();
         await runTask;

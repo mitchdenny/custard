@@ -91,7 +91,6 @@ public class PanelNodeTests
         node.Measure(Constraints.Tight(20, 5));
         node.Arrange(new Rect(0, 0, 20, 5));
         node.Render(context);
-        terminal.FlushOutput();
 
         Assert.Contains("Panel Content", terminal.GetScreenText());
     }
@@ -112,7 +111,6 @@ public class PanelNodeTests
         node.Measure(Constraints.Tight(20, 5));
         node.Arrange(new Rect(0, 0, 10, 3));
         node.Render(context);
-        terminal.FlushOutput();
 
         // Should contain background color ANSI escape code
         Assert.Contains("\x1b[48;2;", terminal.RawOutput);
@@ -134,7 +132,6 @@ public class PanelNodeTests
         node.Measure(Constraints.Tight(20, 5));
         node.Arrange(new Rect(0, 0, 10, 3));
         node.Render(context);
-        terminal.FlushOutput();
 
         // Should contain foreground color ANSI escape code
         Assert.Contains("\x1b[38;2;", terminal.RawOutput);
@@ -154,7 +151,6 @@ public class PanelNodeTests
         node.Measure(Constraints.Tight(20, 5));
         node.Arrange(new Rect(0, 0, 20, 5));
         node.Render(context);
-        terminal.FlushOutput();
 
         Assert.Contains("Content", terminal.GetScreenText());
     }
@@ -272,7 +268,6 @@ public class PanelNodeTests
         node.Measure(Constraints.Tight(30, 10));
         node.Arrange(new Rect(0, 0, 20, 5));
         node.Render(context);
-        terminal.FlushOutput();
 
         var screenText = terminal.GetScreenText();
         Assert.Contains("Box", screenText);
@@ -328,7 +323,6 @@ public class PanelNodeTests
             .Build()
             .ApplyAsync(terminal);
         await runTask;
-        terminal.FlushOutput();
 
         Assert.Contains("Line 1", terminal.RawOutput);
         Assert.Contains("Line 2", terminal.RawOutput);
@@ -405,7 +399,6 @@ public class PanelNodeTests
             .Build()
             .ApplyAsync(terminal);
         await runTask;
-        terminal.FlushOutput();
 
         Assert.Contains("Panel Inside Border", terminal.RawOutput);
         Assert.Contains("┌", terminal.RawOutput);
@@ -432,7 +425,6 @@ public class PanelNodeTests
             .Build()
             .ApplyAsync(terminal);
         await runTask;
-        terminal.FlushOutput();
 
         // Should contain background color ANSI code
         Assert.Contains("\x1b[48;2;50;50;100m", terminal.RawOutput);
@@ -457,7 +449,6 @@ public class PanelNodeTests
             .Build()
             .ApplyAsync(terminal);
         await runTask;
-        terminal.FlushOutput();
 
         Assert.Contains("Deep Nested", terminal.RawOutput);
     }
@@ -485,7 +476,6 @@ public class PanelNodeTests
             .Build()
             .ApplyAsync(terminal);
         await runTask;
-        terminal.FlushOutput();
 
         Assert.Contains("Header", terminal.RawOutput);
         Assert.Contains("Panel Content", terminal.RawOutput);
@@ -513,7 +503,6 @@ public class PanelNodeTests
             .Build()
             .ApplyAsync(terminal);
         await runTask;
-        terminal.FlushOutput();
 
         // Verify second item is selected via rendered output
         Assert.Contains("> Item 2", terminal.RawOutput);

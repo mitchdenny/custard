@@ -224,7 +224,7 @@ Test Code
 │                          Hex1bTerminal                                       │
 │  - Screen buffer enabled (captures all output)                              │
 │  - No presentation adapter (null)                                           │
-│  - FlushOutput() for synchronous test assertions                            │
+│  - Screen reads auto-flush pending output                                   │
 └─────────────────────────────────────────────────────────────────────────────┘
      │
      │  GetScreenText(), ContainsText(), RawOutput
@@ -304,7 +304,6 @@ public async Task Button_Click_UpdatesCounter()
         .Build()
         .ApplyAsync(terminal);
     await runTask;
-    terminal.FlushOutput();
     
     // Assert
     Assert.Equal(1, clicks);
@@ -355,9 +354,9 @@ The presentation adapter enters raw mode when `Start()` is called on the termina
 
 **Hex1bTerminal:**
 - `Start()` - Begins I/O pump tasks, enters TUI mode on presentation
-- `FlushOutput()` - Synchronously drains output for testing
-- `ContainsText()` - Screen buffer inspection
-- `GetScreenText()` - Get full screen content
+- `ContainsText()` - Screen buffer inspection (auto-flushes)
+- `GetScreenText()` - Get full screen content (auto-flushes)
+- `RawOutput` - Get raw ANSI output (auto-flushes)
 - `SendKey()` / `TypeText()` - Inject input for testing
 
 **Hex1bAppWorkloadAdapter:**

@@ -274,7 +274,6 @@ public class HStackNodeTests
         node.Measure(Constraints.Tight(40, 10));
         node.Arrange(new Rect(0, 0, 40, 10));
         node.Render(context);
-        terminal.FlushOutput();
 
         Assert.Contains("Left", terminal.GetScreenText());
         Assert.Contains("Right", terminal.GetScreenText());
@@ -299,7 +298,6 @@ public class HStackNodeTests
         node.Measure(Constraints.Tight(40, 10));
         node.Arrange(new Rect(0, 0, 40, 10));
         node.Render(context);
-        terminal.FlushOutput();
 
         var line = terminal.GetLineTrimmed(0);
         Assert.Contains("AAA", line);
@@ -325,7 +323,6 @@ public class HStackNodeTests
         node.Measure(Constraints.Tight(8, 10));
         node.Arrange(new Rect(0, 0, 8, 10));
         node.Render(context);
-        terminal.FlushOutput();
 
         // Content wraps at terminal edge
         Assert.Contains("AAAA", terminal.GetLine(0));
@@ -358,7 +355,6 @@ public class HStackNodeTests
             .Build()
             .ApplyAsync(terminal);
         await runTask;
-        terminal.FlushOutput();
 
         Assert.True(terminal.ContainsText("Left"));
         Assert.True(terminal.ContainsText("|"));
@@ -421,7 +417,6 @@ public class HStackNodeTests
             .Build()
             .ApplyAsync(terminal);
         await runTask;
-        terminal.FlushOutput();
 
         Assert.True(terminal.ContainsText("A"));
         Assert.True(terminal.ContainsText("B"));
@@ -456,7 +451,6 @@ public class HStackNodeTests
             .Build()
             .ApplyAsync(terminal);
         await runTask;
-        terminal.FlushOutput();
 
         Assert.True(terminal.ContainsText("Left Top"));
         Assert.True(terminal.ContainsText("Left Bottom"));
@@ -543,7 +537,6 @@ public class HStackNodeTests
             .Build()
             .ApplyAsync(terminal);
         await runTask;
-        terminal.FlushOutput();
 
         // Content wraps at terminal boundary
         Assert.True(terminal.ContainsText("VeryLongWord"));
@@ -569,7 +562,6 @@ public class HStackNodeTests
             .Build()
             .ApplyAsync(terminal);
         await runTask;
-        terminal.FlushOutput();
 
         Assert.True(terminal.ContainsText("[A]"));
         Assert.True(terminal.ContainsText("[B]"));

@@ -202,14 +202,13 @@ public sealed class Hex1bTerminal : IDisposable
 
     /// <summary>
     /// Synchronously drains any pending output from the workload and processes it
-    /// into the screen buffer. Useful for testing scenarios.
+    /// into the screen buffer.
     /// </summary>
     /// <remarks>
-    /// In headless testing mode, the app writes output to the workload adapter's channel.
-    /// This method reads all pending output and processes it immediately, allowing
-    /// tests to assert on screen content without needing async pump loops.
+    /// This is called automatically by screen buffer read operations (GetScreenText, 
+    /// ContainsText, RawOutput, etc.) so callers don't need to call it directly.
     /// </remarks>
-    public void FlushOutput()
+    internal void FlushOutput()
     {
         if (_workload is not Hex1bAppWorkloadAdapter appWorkload)
             return;
@@ -369,23 +368,55 @@ public sealed class Hex1bTerminal : IDisposable
 
     /// <summary>
     /// Gets the current cursor X position (0-based).
+    /// Automatically flushes pending output before returning.
     /// </summary>
-    public int CursorX => _cursorX;
+    public int CursorX
+    {
+        get
+        {
+            FlushOutput();
+            return _cursorX;
+        }
+    }
 
     /// <summary>
     /// Gets the current cursor Y position (0-based).
+    /// Automatically flushes pending output before returning.
     /// </summary>
-    public int CursorY => _cursorY;
+    public int CursorY
+    {
+        get
+        {
+            FlushOutput();
+            return _cursorY;
+        }
+    }
 
     /// <summary>
     /// Gets whether the terminal is currently in alternate screen mode.
+    /// Automatically flushes pending output before returning.
     /// </summary>
-    public bool InAlternateScreen => _inAlternateScreen;
+    public bool InAlternateScreen
+    {
+        get
+        {
+            FlushOutput();
+            return _inAlternateScreen;
+        }
+    }
 
     /// <summary>
     /// Gets the raw output written to this terminal, including ANSI escape sequences.
+    /// Automatically flushes pending output before returning.
     /// </summary>
-    public string RawOutput => _rawOutput.ToString();
+    public string RawOutput
+    {
+        get
+        {
+            FlushOutput();
+            return _rawOutput.ToString();
+        }
+    }
 
     /// <summary>
     /// Enters alternate screen mode (for testing purposes).
@@ -407,9 +438,11 @@ public sealed class Hex1bTerminal : IDisposable
 
     /// <summary>
     /// Gets a copy of the current screen buffer.
+    /// Automatically flushes pending output before returning.
     /// </summary>
     public TerminalCell[,] GetScreenBuffer()
     {
+        FlushOutput();
         var copy = new TerminalCell[_height, _width];
         Array.Copy(_screenBuffer, copy, _screenBuffer.Length);
         return copy;
@@ -417,8 +450,16 @@ public sealed class Hex1bTerminal : IDisposable
 
     /// <summary>
     /// Gets the text content of the screen buffer as a string, with lines separated by newlines.
+    /// Automatically flushes pending output before returning.
     /// </summary>
     public string GetScreenText()
+    {
+        FlushOutput();
+        return GetScreenTextInternal();
+    }
+
+    // Internal version that doesn't flush (for use after already flushing)
+    private string GetScreenTextInternal()
     {
         var sb = new StringBuilder();
         for (int y = 0; y < _height; y++)
@@ -437,8 +478,16 @@ public sealed class Hex1bTerminal : IDisposable
 
     /// <summary>
     /// Gets the text content of a specific line (0-based).
+    /// Automatically flushes pending output before returning.
     /// </summary>
     public string GetLine(int lineIndex)
+    {
+        FlushOutput();
+        return GetLineInternal(lineIndex);
+    }
+
+    // Internal version that doesn't flush (for use after already flushing)
+    private string GetLineInternal(int lineIndex)
     {
         if (lineIndex < 0 || lineIndex >= _height)
             throw new ArgumentOutOfRangeException(nameof(lineIndex));
@@ -453,17 +502,20 @@ public sealed class Hex1bTerminal : IDisposable
 
     /// <summary>
     /// Gets the text content of a specific line, trimmed of trailing whitespace.
+    /// Automatically flushes pending output before returning.
     /// </summary>
     public string GetLineTrimmed(int lineIndex) => GetLine(lineIndex).TrimEnd();
 
     /// <summary>
     /// Gets all non-empty lines from the screen buffer.
+    /// Automatically flushes pending output before returning.
     /// </summary>
     public IEnumerable<string> GetNonEmptyLines()
     {
+        FlushOutput();
         for (int y = 0; y < _height; y++)
         {
-            var line = GetLineTrimmed(y);
+            var line = GetLineInternal(y).TrimEnd();
             if (!string.IsNullOrWhiteSpace(line))
             {
                 yield return line;
@@ -473,23 +525,27 @@ public sealed class Hex1bTerminal : IDisposable
 
     /// <summary>
     /// Checks if the screen contains the specified text anywhere.
+    /// Automatically flushes pending output before checking.
     /// </summary>
     public bool ContainsText(string text)
     {
-        var screenText = GetScreenText();
+        FlushOutput();
+        var screenText = GetScreenTextInternal();
         return screenText.Contains(text, StringComparison.Ordinal);
     }
 
     /// <summary>
     /// Finds all occurrences of the specified text on the screen.
     /// Returns a list of (line, column) positions.
+    /// Automatically flushes pending output before searching.
     /// </summary>
     public List<(int Line, int Column)> FindText(string text)
     {
+        FlushOutput();
         var results = new List<(int, int)>();
         for (int y = 0; y < _height; y++)
         {
-            var line = GetLine(y);
+            var line = GetLineInternal(y);
             var index = 0;
             while ((index = line.IndexOf(text, index, StringComparison.Ordinal)) >= 0)
             {
@@ -524,9 +580,11 @@ public sealed class Hex1bTerminal : IDisposable
     /// <summary>
     /// Creates an immutable snapshot of the current terminal state.
     /// Useful for assertions and wait conditions in tests.
+    /// Automatically flushes pending output before creating the snapshot.
     /// </summary>
     public Testing.Hex1bTerminalSnapshot CreateSnapshot()
     {
+        FlushOutput();
         return new Testing.Hex1bTerminalSnapshot(this);
     }
 

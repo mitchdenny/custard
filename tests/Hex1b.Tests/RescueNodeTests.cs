@@ -84,7 +84,6 @@ public class RescueNodeTests
         node.Measure(new Constraints(0, 100, 0, 50));
         node.Arrange(new Rect(0, 0, 100, 50));
         node.Render(context);
-        terminal.FlushOutput();
         
         Assert.Contains("Hello", terminal.RawOutput);
     }
@@ -179,7 +178,6 @@ public class RescueNodeTests
         node.Measure(new Constraints(0, 100, 0, 50));
         node.Arrange(new Rect(0, 0, 100, 50));
         node.Render(context);
-        terminal.FlushOutput();
         
         // Should show error message (new RescueFallbackWidget uses "UNHANDLED EXCEPTION")
         Assert.Contains("UNHANDLED EXCEPTION", terminal.RawOutput);
@@ -206,7 +204,6 @@ public class RescueNodeTests
         node.Measure(new Constraints(0, 100, 0, 50));
         node.Arrange(new Rect(0, 0, 100, 50));
         node.Render(context);
-        terminal.FlushOutput();
         
         // Should show custom error message
         Assert.Contains("Custom error: Test exception", terminal.RawOutput);
@@ -229,7 +226,6 @@ public class RescueNodeTests
         node.Measure(new Constraints(0, 100, 0, 50));
         node.Arrange(new Rect(0, 0, 100, 50));
         node.Render(context);
-        terminal.FlushOutput();
         
         // Should show stack trace in details mode
         Assert.Contains("Stack Trace", terminal.RawOutput);
@@ -252,7 +248,6 @@ public class RescueNodeTests
         node.Measure(new Constraints(0, 100, 0, 50));
         node.Arrange(new Rect(0, 0, 100, 50));
         node.Render(context);
-        terminal.FlushOutput();
         
         // Should show friendly message without details
         Assert.Contains("Something went wrong", terminal.RawOutput);

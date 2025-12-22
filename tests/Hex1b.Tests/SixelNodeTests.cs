@@ -78,7 +78,6 @@ public class SixelNodeTests : IDisposable
         var context = new Hex1bRenderContext(terminal.WorkloadAdapter);
         node.Arrange(new Rect(0, 0, 40, 20));
         node.Render(context);
-        terminal.FlushOutput();
         
         // With no image data, should show "[No image data]"
         Assert.Contains("[No image data]", terminal.RawOutput);
@@ -98,7 +97,6 @@ public class SixelNodeTests : IDisposable
         node.Fallback.Arrange(new Rect(0, 0, 40, 1));
         node.Arrange(new Rect(0, 0, 40, 20));
         node.Render(context);
-        terminal.FlushOutput();
         
         Assert.Contains("Fallback content", terminal.RawOutput);
     }
@@ -116,7 +114,6 @@ public class SixelNodeTests : IDisposable
         var context = new Hex1bRenderContext(terminal.WorkloadAdapter);
         node.Arrange(new Rect(0, 0, 40, 20));
         node.Render(context);
-        terminal.FlushOutput();
         
         // Should send DA1 query
         Assert.Contains("\x1b[c", terminal.RawOutput);
@@ -138,7 +135,6 @@ public class SixelNodeTests : IDisposable
         
         // Second render while waiting shows loading
         node.Render(context);
-        terminal.FlushOutput();
         Assert.Contains("Checking Sixel support", terminal.RawOutput);
     }
 
@@ -159,7 +155,6 @@ public class SixelNodeTests : IDisposable
         
         terminal.ClearRawOutput();
         node.Render(context);
-        terminal.FlushOutput();
         
         // Should now render Sixel (or no image data message)
         Assert.Contains("[No image data]", terminal.RawOutput);
@@ -186,7 +181,6 @@ public class SixelNodeTests : IDisposable
         
         terminal.ClearRawOutput();
         node.Render(context);
-        terminal.FlushOutput();
         
         Assert.Contains("No Sixel", terminal.RawOutput);
     }
@@ -262,7 +256,6 @@ public class SixelNodeTests : IDisposable
         var context = new Hex1bRenderContext(terminal.WorkloadAdapter);
         node.Arrange(new Rect(0, 0, 40, 20));
         node.Render(context);
-        terminal.FlushOutput();
         
         // Should wrap in Sixel DCS sequence: ESC P q ... ESC \
         Assert.Contains("\x1bPq", terminal.RawOutput);
@@ -284,7 +277,6 @@ public class SixelNodeTests : IDisposable
         var context = new Hex1bRenderContext(terminal.WorkloadAdapter);
         node.Arrange(new Rect(0, 0, 40, 20));
         node.Render(context);
-        terminal.FlushOutput();
         
         // Should output as-is without double-wrapping
         Assert.Equal(1, CountOccurrences(terminal.RawOutput, "\x1bPq"));

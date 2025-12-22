@@ -96,7 +96,6 @@ public class InfoBarNodeTests
         node.Measure(Constraints.Tight(40, 1));
         node.Arrange(new Rect(0, 0, 40, 1));
         node.Render(context);
-        terminal.FlushOutput();
 
         Assert.Contains("Ready", terminal.GetScreenText());
     }
@@ -118,7 +117,6 @@ public class InfoBarNodeTests
         node.Measure(Constraints.Tight(60, 1));
         node.Arrange(new Rect(0, 0, 60, 1));
         node.Render(context);
-        terminal.FlushOutput();
 
         var screenText = terminal.GetScreenText();
         Assert.Contains("Mode: Normal", screenText);
@@ -144,7 +142,6 @@ public class InfoBarNodeTests
         node.Measure(Constraints.Tight(40, 1));
         node.Arrange(new Rect(0, 0, 40, 1));
         node.Render(context);
-        terminal.FlushOutput();
 
         // With inversion: foreground becomes background (White -> foreground uses Black)
         // and background becomes foreground (Black -> background uses White)
@@ -171,7 +168,6 @@ public class InfoBarNodeTests
         node.Measure(Constraints.Tight(40, 1));
         node.Arrange(new Rect(0, 0, 40, 1));
         node.Render(context);
-        terminal.FlushOutput();
 
         // Should use the specified colors directly
         Assert.Contains("\x1b[38;2;0;255;0m", terminal.RawOutput); // Green foreground
@@ -196,7 +192,6 @@ public class InfoBarNodeTests
         node.Measure(Constraints.Tight(40, 1));
         node.Arrange(new Rect(0, 0, 40, 1));
         node.Render(context);
-        terminal.FlushOutput();
 
         // Error section should have its own colors
         Assert.Contains("\x1b[38;2;255;0;0m", terminal.RawOutput); // Red foreground
@@ -217,7 +212,6 @@ public class InfoBarNodeTests
         node.Measure(Constraints.Tight(20, 1));
         node.Arrange(new Rect(0, 0, 20, 1));
         node.Render(context);
-        terminal.FlushOutput();
 
         // Text should be truncated to fit
         var screenText = terminal.GetScreenText();
@@ -282,7 +276,6 @@ public class InfoBarNodeTests
             .Build()
             .ApplyAsync(terminal);
         await runTask;
-        terminal.FlushOutput();
 
         Assert.Contains("Ready", terminal.RawOutput);
     }
@@ -312,7 +305,6 @@ public class InfoBarNodeTests
             .Build()
             .ApplyAsync(terminal);
         await runTask;
-        terminal.FlushOutput();
 
         Assert.Contains("Mode: Insert", terminal.RawOutput);
         Assert.Contains("UTF-8", terminal.RawOutput);
@@ -341,7 +333,6 @@ public class InfoBarNodeTests
             .Build()
             .ApplyAsync(terminal);
         await runTask;
-        terminal.FlushOutput();
 
         Assert.Contains("Main Content", terminal.RawOutput);
         Assert.Contains("Status Bar", terminal.RawOutput);
@@ -369,7 +360,6 @@ public class InfoBarNodeTests
             .Build()
             .ApplyAsync(terminal);
         await runTask;
-        terminal.FlushOutput();
 
         Assert.Contains("Themed", terminal.RawOutput);
         Assert.Contains("\x1b[38;2;0;255;255m", terminal.RawOutput); // Cyan

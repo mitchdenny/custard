@@ -87,7 +87,6 @@ public class Hex1bTerminalTests_Workload
         using var terminal = new Hex1bTerminal(80, 24);
         
         terminal.WorkloadAdapter.Write("Hello");
-        terminal.FlushOutput();
         
         Assert.Contains("Hello", terminal.RawOutput);
     }

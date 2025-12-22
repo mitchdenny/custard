@@ -114,7 +114,6 @@ public class ToggleSwitchNodeTests
         node.Arrange(new Rect(0, 0, 40, 1));
 
         node.Render(context);
-        terminal.FlushOutput();
 
         var line = terminal.GetLineTrimmed(0);
         Assert.Contains("A", line);
@@ -139,7 +138,6 @@ public class ToggleSwitchNodeTests
         node.Arrange(new Rect(0, 0, 40, 1));
 
         node.Render(context);
-        terminal.FlushOutput();
 
         // Should contain ANSI escape codes for styling
         Assert.Contains("\x1b[", terminal.RawOutput);
@@ -167,9 +165,7 @@ public class ToggleSwitchNodeTests
         unfocusedNode.Arrange(new Rect(0, 0, 40, 1));
 
         focusedNode.Render(focusedContext);
-        focusedTerminal.FlushOutput();
         unfocusedNode.Render(unfocusedContext);
-        unfocusedTerminal.FlushOutput();
 
         Assert.NotEqual(focusedTerminal.RawOutput, unfocusedTerminal.RawOutput);
     }
@@ -470,7 +466,6 @@ public class ToggleSwitchNodeTests
             .Build()
             .ApplyAsync(terminal);
         await runTask;
-        terminal.FlushOutput();
 
         Assert.True(terminal.ContainsText("Manual"));
         Assert.True(terminal.ContainsText("Auto"));

@@ -299,7 +299,6 @@ public class VStackNodeTests
         node.Measure(Constraints.Tight(40, 10));
         node.Arrange(new Rect(0, 0, 40, 10));
         node.Render(context);
-        terminal.FlushOutput();
 
         Assert.Contains("First", terminal.GetScreenText());
         Assert.Contains("Second", terminal.GetScreenText());
@@ -324,7 +323,6 @@ public class VStackNodeTests
         node.Measure(Constraints.Tight(40, 10));
         node.Arrange(new Rect(0, 0, 40, 10));
         node.Render(context);
-        terminal.FlushOutput();
 
         Assert.Equal("Line A", terminal.GetLineTrimmed(0));
         Assert.Equal("Line B", terminal.GetLineTrimmed(1));
@@ -348,7 +346,6 @@ public class VStackNodeTests
         node.Measure(Constraints.Tight(10, 10));
         node.Arrange(new Rect(0, 0, 10, 10));
         node.Render(context);
-        terminal.FlushOutput();
 
         // Text wraps at terminal edge
         Assert.Equal("LongTextHe", terminal.GetLine(0));
@@ -580,7 +577,6 @@ public class VStackNodeTests
             .Build()
             .ApplyAsync(terminal);
         await runTask;
-        terminal.FlushOutput();
 
         // Should complete without error
         Assert.False(terminal.InAlternateScreen);

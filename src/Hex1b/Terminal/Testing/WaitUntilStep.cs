@@ -19,7 +19,7 @@ public sealed record WaitUntilStep(
         {
             ct.ThrowIfCancellationRequested();
 
-            terminal.FlushOutput();
+            // CreateSnapshot auto-flushes pending output
             var snapshot = terminal.CreateSnapshot();
 
             if (Predicate(snapshot))
@@ -29,7 +29,6 @@ public sealed record WaitUntilStep(
         }
 
         // Timeout - capture final state for diagnostics
-        terminal.FlushOutput();
         var finalSnapshot = terminal.CreateSnapshot();
         var description = Description ?? "condition";
         throw new TimeoutException(

@@ -384,7 +384,6 @@ public class ScrollNodeTests
         node.Measure(Constraints.Tight(40, 10));
         node.Arrange(new Rect(0, 0, 40, 10));
         node.Render(context);
-        terminal.FlushOutput();
 
         // Should contain scrollbar characters
         Assert.Contains("█", terminal.RawOutput);
@@ -405,7 +404,6 @@ public class ScrollNodeTests
         node.Measure(Constraints.Tight(40, 10));
         node.Arrange(new Rect(0, 0, 40, 10));
         node.Render(context);
-        terminal.FlushOutput();
 
         Assert.Contains("▲", terminal.RawOutput);
         Assert.Contains("▼", terminal.RawOutput);
@@ -426,7 +424,6 @@ public class ScrollNodeTests
         node.Measure(Constraints.Tight(40, 20));
         node.Arrange(new Rect(0, 0, 40, 20));
         node.Render(context);
-        terminal.FlushOutput();
 
         // Content fits, so no scrollbar needed
         Assert.DoesNotContain("▲", terminal.RawOutput);
@@ -448,7 +445,6 @@ public class ScrollNodeTests
         node.Measure(Constraints.Tight(40, 5));
         node.Arrange(new Rect(0, 0, 40, 5));
         node.Render(context);
-        terminal.FlushOutput();
 
         // Lines 1-5 should be visible, line 6+ should be clipped
         Assert.Contains("Line 1", terminal.RawOutput);
@@ -473,7 +469,6 @@ public class ScrollNodeTests
         node.Measure(Constraints.Tight(40, 5));
         node.Arrange(new Rect(0, 0, 40, 5));
         node.Render(context);
-        terminal.FlushOutput();
 
         // Lines 6-10 should be visible (offset by 5)
         Assert.Contains("Line 6", terminal.RawOutput);
@@ -501,7 +496,6 @@ public class ScrollNodeTests
         node.Measure(Constraints.Tight(20, 5));
         node.Arrange(new Rect(0, 0, 20, 5));
         node.Render(context);
-        terminal.FlushOutput();
 
         // Should contain scrollbar characters
         Assert.Contains("█", terminal.RawOutput);
@@ -522,7 +516,6 @@ public class ScrollNodeTests
         node.Measure(Constraints.Tight(20, 5));
         node.Arrange(new Rect(0, 0, 20, 5));
         node.Render(context);
-        terminal.FlushOutput();
 
         Assert.Contains("◀", terminal.RawOutput);
         Assert.Contains("▶", terminal.RawOutput);
@@ -549,7 +542,6 @@ public class ScrollNodeTests
         node.Measure(Constraints.Tight(40, 10));
         node.Arrange(new Rect(0, 0, 40, 10));
         node.Render(context);
-        terminal.FlushOutput();
 
         // Cyan foreground ANSI code
         Assert.Contains("\x1b[38;2;0;255;255m", terminal.RawOutput);
@@ -573,7 +565,6 @@ public class ScrollNodeTests
         node.Measure(Constraints.Tight(40, 10));
         node.Arrange(new Rect(0, 0, 40, 10));
         node.Render(context);
-        terminal.FlushOutput();
 
         // Yellow foreground ANSI code
         Assert.Contains("\x1b[38;2;255;255;0m", terminal.RawOutput);
@@ -923,7 +914,6 @@ public class ScrollNodeTests
             .Build()
             .ApplyAsync(terminal);
         await runTask;
-        terminal.FlushOutput();
 
         Assert.Contains("Line 1", terminal.RawOutput);
         Assert.Contains("▲", terminal.RawOutput);
@@ -1036,7 +1026,6 @@ public class ScrollNodeTests
             .Build()
             .ApplyAsync(terminal);
         await runTask;
-        terminal.FlushOutput();
 
         Assert.Contains("Left Side", terminal.RawOutput);
         Assert.Contains("Scrollable", terminal.RawOutput);
@@ -1070,7 +1059,6 @@ public class ScrollNodeTests
             .ApplyAsync(terminal);
         await runTask;
         await runTask;
-        terminal.FlushOutput();
 
         Assert.Contains("◀", terminal.RawOutput);
         Assert.Contains("▶", terminal.RawOutput);

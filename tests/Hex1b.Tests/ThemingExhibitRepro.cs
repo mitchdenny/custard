@@ -70,7 +70,6 @@ public class ThemingExhibitRepro
             .ApplyAsync(terminal);
 
         await runTask;
-        terminal.FlushOutput();
 
         // Debug: Print all non-empty lines
         Console.WriteLine("=== Screen output ===");
@@ -214,7 +213,6 @@ public class ThemingExhibitRepro
         node.State.CursorPosition = 1;
 
         node.Render(context);
-        terminal.FlushOutput();
 
         var output = terminal.RawOutput;
         
@@ -290,7 +288,6 @@ public class ThemingExhibitRepro
             .ApplyAsync(terminal);
 
         await runTask;
-        terminal.FlushOutput();
 
         // Check for cursor colors in the output
         var rawOutput = terminal.RawOutput;

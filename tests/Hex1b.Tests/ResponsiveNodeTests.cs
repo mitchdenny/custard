@@ -171,7 +171,6 @@ public class ResponsiveNodeTests
         node.Measure(Constraints.Tight(30, 5));
         node.Arrange(new Rect(0, 0, 30, 5));
         node.Render(context);
-        terminal.FlushOutput();
 
         var screenText = terminal.GetScreenText();
         Assert.Contains("Visible", screenText);
@@ -198,7 +197,6 @@ public class ResponsiveNodeTests
         node.Measure(Constraints.Tight(30, 5));
         node.Arrange(new Rect(0, 0, 30, 5));
         node.Render(context);
-        terminal.FlushOutput();
 
         var screenText = terminal.GetScreenText();
         Assert.DoesNotContain("Hidden", screenText);
@@ -438,7 +436,6 @@ public class ResponsiveNodeTests
         node.Measure(Constraints.Tight(30, 5));
         node.Arrange(new Rect(0, 0, 30, 5));
         node.Render(context);
-        terminal.FlushOutput();
 
         Assert.Contains("Inner", terminal.GetScreenText());
     }
@@ -467,7 +464,6 @@ public class ResponsiveNodeTests
         node.Measure(Constraints.Tight(30, 5));
         node.Arrange(new Rect(0, 0, 30, 5));
         node.Render(context);
-        terminal.FlushOutput();
 
         Assert.Contains("Fallback", terminal.GetScreenText());
     }
@@ -496,7 +492,6 @@ public class ResponsiveNodeTests
             .Build()
             .ApplyAsync(terminal);
         await runTask;
-        terminal.FlushOutput();
 
         Assert.Contains("Wide View: Full Details", terminal.RawOutput);
         Assert.DoesNotContain("Compact", terminal.RawOutput);
@@ -524,7 +519,6 @@ public class ResponsiveNodeTests
             .Build()
             .ApplyAsync(terminal);
         await runTask;
-        terminal.FlushOutput();
 
         Assert.Contains("Compact View", terminal.RawOutput);
         Assert.DoesNotContain("Wide View", terminal.RawOutput);
@@ -553,7 +547,6 @@ public class ResponsiveNodeTests
             .Build()
             .ApplyAsync(terminal);
         await runTask;
-        terminal.FlushOutput();
 
         // 75 width should match Medium tier
         Assert.Contains("Medium", terminal.RawOutput);
@@ -584,7 +577,6 @@ public class ResponsiveNodeTests
             .Build()
             .ApplyAsync(terminal);
         await runTask;
-        terminal.FlushOutput();
 
         Assert.Contains("Wide", terminal.RawOutput);
         Assert.DoesNotContain("Very Wide", terminal.RawOutput);
@@ -612,7 +604,6 @@ public class ResponsiveNodeTests
             .Build()
             .ApplyAsync(terminal);
         await runTask;
-        terminal.FlushOutput();
 
         Assert.Contains("Large Screen", terminal.RawOutput);
     }
@@ -642,7 +633,6 @@ public class ResponsiveNodeTests
             .Build()
             .ApplyAsync(terminal);
         await runTask;
-        terminal.FlushOutput();
 
         // Border takes 2 columns, so inner space is 48, which is < 100
         Assert.Contains("Narrow", terminal.RawOutput);
@@ -732,7 +722,6 @@ public class ResponsiveNodeTests
             .Build()
             .ApplyAsync(terminal);
         await runTask;
-        terminal.FlushOutput();
 
         Assert.Contains("Header", terminal.RawOutput);
         Assert.Contains("Wide Content", terminal.RawOutput);
@@ -762,7 +751,6 @@ public class ResponsiveNodeTests
             .Build()
             .ApplyAsync(terminal);
         await runTask;
-        terminal.FlushOutput();
 
         Assert.DoesNotContain("Very Wide", terminal.RawOutput);
         Assert.DoesNotContain("Wide", terminal.RawOutput);
@@ -793,7 +781,6 @@ public class ResponsiveNodeTests
             .Build()
             .ApplyAsync(terminal);
         await runTask;
-        terminal.FlushOutput();
 
         // Verify second item is selected via rendered output
         Assert.Contains("> Item 2", terminal.RawOutput);
@@ -831,7 +818,6 @@ public class ResponsiveNodeTests
             .Build()
             .ApplyAsync(terminal);
         await runTask;
-        terminal.FlushOutput();
 
         // Wide layout uses HStack
         Assert.Contains("Left Panel", terminal.RawOutput);
@@ -870,7 +856,6 @@ public class ResponsiveNodeTests
             .Build()
             .ApplyAsync(terminal);
         await runTask;
-        terminal.FlushOutput();
 
         // Narrow layout uses VStack
         Assert.Contains("Top Panel", terminal.RawOutput);
@@ -903,7 +888,6 @@ public class ResponsiveNodeTests
             .Build()
             .ApplyAsync(terminal);
         await runTask;
-        terminal.FlushOutput();
 
         Assert.Contains("Wide Left", terminal.RawOutput);
         Assert.Contains("Right Panel", terminal.RawOutput);
@@ -931,7 +915,6 @@ public class ResponsiveNodeTests
             .Build()
             .ApplyAsync(terminal);
         await runTask;
-        terminal.FlushOutput();
 
         Assert.Contains("Hello from state", terminal.RawOutput);
     }

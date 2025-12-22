@@ -29,7 +29,6 @@ var sequence = new Hex1bInputSequenceBuilder()
     .Build();
 
 await sequence.ApplyAsync(terminal);
-terminal.FlushOutput();
 
 Assert.Contains("Hello", terminal.GetScreenText());
 ```
@@ -105,7 +104,6 @@ public class CounterAppTests
             .Build()
             .ApplyAsync(terminal);
         await runTask;
-        terminal.FlushOutput();
 
         // Assert
         Assert.Contains("Count: 0", terminal.GetScreenText());
@@ -120,8 +118,7 @@ public class CounterAppTests
 | `Hex1bTerminal(width, height)` | Creates a virtual terminal for headless testing |
 | `terminal.WorkloadAdapter` | Connect the app to the virtual terminal |
 | `Hex1bTestSequenceBuilder` | Build input sequences with waits and assertions |
-| `terminal.FlushOutput()` | Process pending output into the screen buffer |
-| `terminal.GetScreenText()` | Get the current screen content as text |
+| `terminal.GetScreenText()` | Get the current screen content as text (auto-flushes) |
 
 ## Testing User Interactions
 
@@ -153,7 +150,6 @@ public async Task ClickIncrement_IncreasesCount()
     // Apply the input sequence
     await sequence.ApplyAsync(terminal);
     await Task.Delay(50);
-    terminal.FlushOutput();
 
     // Stop the app
     cts.Cancel();
@@ -272,7 +268,6 @@ public async Task TabNavigation_MovesBetweenButtons()
     await Task.Delay(50);
     await sequence.ApplyAsync(terminal);
     await Task.Delay(50);
-    terminal.FlushOutput();
 
     cts.Cancel();
     await runTask;
@@ -420,13 +415,13 @@ var sequence = new Hex1bInputSequenceBuilder()
 
 ### 2. Wait for Renders
 
-Always allow time for the app to process and render:
+Allow time for the app to process and render:
 
 ```csharp
 await Task.Delay(50);  // After starting app
 await sequence.ApplyAsync(terminal);
 await Task.Delay(50);  // After input, before assertions
-terminal.FlushOutput();
+// Screen buffer reads (GetScreenText, ContainsText, etc.) auto-flush
 ```
 
 ### 3. Use CancellationToken for Cleanup
@@ -498,7 +493,6 @@ public class CounterAppTests
             .Build()
             .ApplyAsync(terminal);
         await runTask;
-        terminal.FlushOutput();
 
         Assert.Contains("Count: 0", terminal.GetScreenText());
     }
@@ -519,7 +513,6 @@ public class CounterAppTests
         await Task.Delay(50);
         await sequence.ApplyAsync(terminal);
         await Task.Delay(50);
-        terminal.FlushOutput();
 
         cts.Cancel();
         await runTask;
@@ -544,7 +537,6 @@ public class CounterAppTests
         await Task.Delay(50);
         await sequence.ApplyAsync(terminal);
         await Task.Delay(50);
-        terminal.FlushOutput();
 
         cts.Cancel();
         await runTask;
@@ -571,7 +563,6 @@ public class CounterAppTests
         await Task.Delay(50);
         await sequence.ApplyAsync(terminal);
         await Task.Delay(50);
-        terminal.FlushOutput();
 
         cts.Cancel();
         await runTask;

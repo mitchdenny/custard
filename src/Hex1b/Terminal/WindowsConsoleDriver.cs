@@ -11,6 +11,9 @@ namespace Hex1b.Terminal;
 /// that support ConPTY and native VT sequence processing. It enables VT input mode so
 /// the terminal sends VT escape sequences directly, similar to Unix terminals.
 /// 
+/// For resize detection, we use a hybrid approach: VT mode for input, but we also
+/// use ReadConsoleInput in a separate check to catch WINDOW_BUFFER_SIZE_EVENT records.
+/// 
 /// Requirements: Windows 10 1809+ or Windows 11 with a VT-capable terminal.
 /// </remarks>
 internal sealed class WindowsConsoleDriver : IConsoleDriver
@@ -28,6 +31,13 @@ internal sealed class WindowsConsoleDriver : IConsoleDriver
     private const uint ENABLE_QUICK_EDIT_MODE = 0x0040;        // Quick edit mode (mouse for selection)
     private const uint ENABLE_EXTENDED_FLAGS = 0x0080;         // Required for ENABLE_QUICK_EDIT_MODE
     private const uint ENABLE_VIRTUAL_TERMINAL_INPUT = 0x0200; // VT input sequences (ConPTY)
+    
+    // INPUT_RECORD event types
+    private const ushort KEY_EVENT = 0x0001;
+    private const ushort MOUSE_EVENT = 0x0002;
+    private const ushort WINDOW_BUFFER_SIZE_EVENT = 0x0004;
+    private const ushort MENU_EVENT = 0x0008;
+    private const ushort FOCUS_EVENT = 0x0010;
     
     // Console mode flags - Output
     private const uint ENABLE_PROCESSED_OUTPUT = 0x0001;              // Process special chars
@@ -112,7 +122,8 @@ internal sealed class WindowsConsoleDriver : IConsoleDriver
         // - Disable Ctrl+C processing (we handle it via VT sequences)
         // - Disable quick edit mode (interferes with mouse)
         // - Enable VT input (terminal sends VT sequences directly)
-        var newInputMode = ENABLE_VIRTUAL_TERMINAL_INPUT | ENABLE_EXTENDED_FLAGS;
+        // - Enable window input (to receive WINDOW_BUFFER_SIZE_EVENT)
+        var newInputMode = ENABLE_VIRTUAL_TERMINAL_INPUT | ENABLE_EXTENDED_FLAGS | ENABLE_WINDOW_INPUT;
         
         if (!SetConsoleMode(_inputHandle, newInputMode))
         {
@@ -231,13 +242,42 @@ internal sealed class WindowsConsoleDriver : IConsoleDriver
     
     private void CheckResize()
     {
-        var (newWidth, newHeight) = GetWindowSize();
-        
-        if (newWidth != _lastWidth || newHeight != _lastHeight)
+        // Peek at console input to check for WINDOW_BUFFER_SIZE_EVENT records
+        // These are not delivered through ReadFile in VT mode, so we need to
+        // explicitly check for them using PeekConsoleInput/ReadConsoleInput
+        if (GetNumberOfConsoleInputEvents(_inputHandle, out var count) && count > 0)
         {
-            _lastWidth = newWidth;
-            _lastHeight = newHeight;
-            Resized?.Invoke(newWidth, newHeight);
+            var records = new INPUT_RECORD[count];
+            if (PeekConsoleInput(_inputHandle, records, (uint)records.Length, out var peekedCount) && peekedCount > 0)
+            {
+                // Check if any of the peeked records are resize events
+                for (int i = 0; i < peekedCount; i++)
+                {
+                    if (records[i].EventType == WINDOW_BUFFER_SIZE_EVENT)
+                    {
+                        // Found a resize event - consume all records up to and including this one
+                        // using ReadConsoleInput (we need to remove the resize event from the queue)
+                        var consumeRecords = new INPUT_RECORD[i + 1];
+                        if (ReadConsoleInput(_inputHandle, consumeRecords, (uint)consumeRecords.Length, out _))
+                        {
+                            // Get the new size from the event
+                            var newWidth = records[i].WindowBufferSizeEvent.dwSize.X;
+                            var newHeight = records[i].WindowBufferSizeEvent.dwSize.Y;
+                            
+                            // Only fire if size actually changed
+                            if (newWidth != _lastWidth || newHeight != _lastHeight)
+                            {
+                                _lastWidth = newWidth;
+                                _lastHeight = newHeight;
+                                Resized?.Invoke(newWidth, newHeight);
+                            }
+                        }
+                        // Restart the check as there may be more resize events
+                        CheckResize();
+                        return;
+                    }
+                }
+            }
         }
     }
     
@@ -330,6 +370,20 @@ internal sealed class WindowsConsoleDriver : IConsoleDriver
     [DllImport("kernel32.dll", SetLastError = true)]
     private static extern bool GetConsoleScreenBufferInfo(nint hConsoleOutput, out CONSOLE_SCREEN_BUFFER_INFO lpConsoleScreenBufferInfo);
     
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern bool PeekConsoleInput(
+        nint hConsoleInput,
+        [Out] INPUT_RECORD[] lpBuffer,
+        uint nLength,
+        out uint lpNumberOfEventsRead);
+    
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern bool ReadConsoleInput(
+        nint hConsoleInput,
+        [Out] INPUT_RECORD[] lpBuffer,
+        uint nLength,
+        out uint lpNumberOfEventsRead);
+    
     [StructLayout(LayoutKind.Sequential)]
     private struct COORD
     {
@@ -354,5 +408,66 @@ internal sealed class WindowsConsoleDriver : IConsoleDriver
         public ushort wAttributes;
         public SMALL_RECT srWindow;
         public COORD dwMaximumWindowSize;
+    }
+    
+    // INPUT_RECORD and related structures for reading console events
+    [StructLayout(LayoutKind.Explicit)]
+    private struct INPUT_RECORD
+    {
+        [FieldOffset(0)]
+        public ushort EventType;
+        
+        [FieldOffset(4)]
+        public KEY_EVENT_RECORD KeyEvent;
+        
+        [FieldOffset(4)]
+        public MOUSE_EVENT_RECORD MouseEvent;
+        
+        [FieldOffset(4)]
+        public WINDOW_BUFFER_SIZE_RECORD WindowBufferSizeEvent;
+        
+        [FieldOffset(4)]
+        public MENU_EVENT_RECORD MenuEvent;
+        
+        [FieldOffset(4)]
+        public FOCUS_EVENT_RECORD FocusEvent;
+    }
+    
+    [StructLayout(LayoutKind.Sequential)]
+    private struct KEY_EVENT_RECORD
+    {
+        public int bKeyDown;
+        public ushort wRepeatCount;
+        public ushort wVirtualKeyCode;
+        public ushort wVirtualScanCode;
+        public char UnicodeChar;
+        public uint dwControlKeyState;
+    }
+    
+    [StructLayout(LayoutKind.Sequential)]
+    private struct MOUSE_EVENT_RECORD
+    {
+        public COORD dwMousePosition;
+        public uint dwButtonState;
+        public uint dwControlKeyState;
+        public uint dwEventFlags;
+    }
+    
+    [StructLayout(LayoutKind.Sequential)]
+    private struct WINDOW_BUFFER_SIZE_RECORD
+    {
+        public COORD dwSize;
+    }
+    
+    [StructLayout(LayoutKind.Sequential)]
+    private struct MENU_EVENT_RECORD
+    {
+        public uint dwCommandId;
+    }
+    
+    [StructLayout(LayoutKind.Sequential)]
+    private struct FOCUS_EVENT_RECORD
+    {
+        public int bSetFocus;
     }
 }

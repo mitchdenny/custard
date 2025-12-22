@@ -16,10 +16,26 @@ public sealed class SplitterNode : Hex1bNode
     /// </summary>
     public Hex1bNode? Second { get; set; }
     
+    private int _firstSize = 30;
+    
     /// <summary>
     /// The size of the first pane in characters (width for horizontal, height for vertical).
     /// </summary>
-    public int FirstSize { get; set; } = 30;
+    public int FirstSize 
+    { 
+        get => _firstSize;
+        set
+        {
+            if (_firstSize != value)
+            {
+                _firstSize = value;
+                MarkDirty();
+                // Also mark children dirty since their bounds will change
+                First?.MarkDirty();
+                Second?.MarkDirty();
+            }
+        }
+    }
     
     /// <summary>
     /// The orientation of the splitter.

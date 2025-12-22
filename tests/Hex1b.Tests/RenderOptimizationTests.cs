@@ -291,4 +291,106 @@ public class RenderOptimizationTests
         // native cursor instead of drawing a colored block that overwrites content.
         Assert.Equal(1, renderCount);
     }
+
+    [Fact]
+    public async Task SplitterDrag_ShouldReRenderSplitterAndChildren()
+    {
+        // When dragging the splitter, FirstSize changes and the splitter should be marked dirty
+        // so that the divider and children re-render at their new positions.
+        using var terminal = new Hex1bTerminal(80, 24);
+        var rightPaneRenderCount = 0;
+
+        using var app = new Hex1bApp(
+            ctx => ctx.Splitter(
+                left => [
+                    left.Text("Left pane")
+                ],
+                right => [
+                    new TestWidget().OnRender(_ => rightPaneRenderCount++)
+                ],
+                leftWidth: 20
+            ),
+            new Hex1bAppOptions 
+            { 
+                WorkloadAdapter = terminal.WorkloadAdapter,
+                EnableMouse = true
+            }
+        );
+
+        // Initial render
+        terminal.SendKey(ConsoleKey.Tab, '\t'); // Let the app initialize
+        
+        // Start drag on the splitter divider (at x=21 which is inside the " │ " divider at 20-22)
+        terminal.SendMouse(MouseButton.Left, MouseAction.Down, 21, 5);
+        // Drag right by 5 characters
+        terminal.SendMouse(MouseButton.Left, MouseAction.Drag, 26, 5);
+        // Release
+        terminal.SendMouse(MouseButton.Left, MouseAction.Up, 26, 5);
+        
+        terminal.CompleteInput();
+
+        await app.RunAsync();
+        terminal.FlushOutput();
+
+        // The widget in the right pane should re-render when the splitter moves
+        // because its bounds change: initial render (1) + after drag moves bounds (2)
+        Assert.True(rightPaneRenderCount >= 2, $"Expected at least 2 renders but got {rightPaneRenderCount}. Splitter drag should trigger re-render.");
+    }
+
+    [Fact]
+    public async Task SplitterDrag_DividerShouldReRenderAtNewPosition()
+    {
+        // The splitter divider itself should re-render at its new position when dragged.
+        // This test verifies the splitter node is marked dirty when FirstSize changes.
+        using var terminal = new Hex1bTerminal(80, 24);
+
+        using var app = new Hex1bApp(
+            ctx => ctx.Splitter(
+                left => [left.Text("Left")],
+                right => [right.Text("Right")],
+                leftWidth: 20
+            ),
+            new Hex1bAppOptions 
+            { 
+                WorkloadAdapter = terminal.WorkloadAdapter,
+                EnableMouse = true
+            }
+        );
+
+        // Start drag on the splitter divider (at x=21 which is inside the " │ " divider at 20-22)
+        terminal.SendMouse(MouseButton.Left, MouseAction.Down, 21, 5);
+        // Drag right by 10 characters 
+        terminal.SendMouse(MouseButton.Left, MouseAction.Drag, 31, 5);
+        // Release
+        terminal.SendMouse(MouseButton.Left, MouseAction.Up, 31, 5);
+        
+        terminal.CompleteInput();
+
+        await app.RunAsync();
+        terminal.FlushOutput();
+        var output = terminal.GetScreenText();
+
+        // After dragging, the divider should be at the new position (around column 30)
+        // Check that the divider character "│" appears at the expected position
+        // The divider is at FirstSize + 1 = 30 + 1 = 31
+        // Split output into lines and check one of them
+        var lines = output.Split('\n');
+        var foundDividerAtNewPosition = false;
+        foreach (var line in lines)
+        {
+            // The divider should be around position 30-32 (after moving from 20-22)
+            if (line.Length > 31)
+            {
+                var charAtPos = line[31];
+                if (charAtPos == '│')
+                {
+                    foundDividerAtNewPosition = true;
+                    break;
+                }
+            }
+        }
+
+        Assert.True(foundDividerAtNewPosition, 
+            $"Expected divider '│' at position 31 after drag. Output:\n{output}");
+    }
 }

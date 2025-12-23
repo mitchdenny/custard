@@ -26,10 +26,10 @@ jobs:
           dotnet-version: '10.0.x'
 
       - name: Restore dependencies
-        run: dotnet restore
+        run: dotnet restore tests/Hex1b.Tests/Hex1b.Tests.csproj
 
       - name: Build
-        run: dotnet build --no-restore
+        run: dotnet build tests/Hex1b.Tests/Hex1b.Tests.csproj --no-restore
 
       - name: Run tests
         run: |

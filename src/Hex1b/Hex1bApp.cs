@@ -47,6 +47,9 @@ public class Hex1bApp : IDisposable, IAsyncDisposable
     private readonly InputRouterState _inputRouterState = new();
     private Hex1bNode? _rootNode;
     
+    // Theme tracking for dirty detection when theme changes
+    private Hex1bTheme? _previousTheme;
+    
     // Mouse tracking
     private int _mouseX = -1;
     private int _mouseY = -1;
@@ -290,7 +293,17 @@ public class Hex1bApp : IDisposable, IAsyncDisposable
         // Update theme if we have a dynamic theme provider
         if (_themeProvider != null)
         {
-            _context.Theme = _themeProvider();
+            var newTheme = _themeProvider();
+            
+            // Check if theme instance changed - if so, force full re-render
+            if (!ReferenceEquals(newTheme, _previousTheme))
+            {
+                _previousTheme = newTheme;
+                _context.Theme = newTheme;
+                
+                // Theme changed - mark all nodes dirty so they re-render with new colors
+                MarkSubtreeDirty(_rootNode);
+            }
         }
 
         // Update the cancellation token on the root context
@@ -334,6 +347,12 @@ public class Hex1bApp : IDisposable, IAsyncDisposable
         // Step 6: Update render context with mouse position for hover rendering
         _context.MouseX = _mouseX;
         _context.MouseY = _mouseY;
+
+        // Step 6.5: Hide cursor during rendering to prevent flicker
+        if (_mouseEnabled)
+        {
+            _context.Write("\x1b[?25l"); // Hide cursor
+        }
 
         // Step 7: Clear dirty regions (instead of global clear to reduce flicker)
         // On first frame or when root is new, do a full clear
@@ -473,6 +492,21 @@ public class Hex1bApp : IDisposable, IAsyncDisposable
         foreach (var child in node.GetChildren())
         {
             ClearDirtyFlags(child);
+        }
+    }
+    
+    /// <summary>
+    /// Recursively marks a node and all its descendants as dirty.
+    /// Used when the theme changes to force a full re-render.
+    /// </summary>
+    private static void MarkSubtreeDirty(Hex1bNode? node)
+    {
+        if (node == null) return;
+        
+        node.MarkDirty();
+        foreach (var child in node.GetChildren())
+        {
+            MarkSubtreeDirty(child);
         }
     }
     

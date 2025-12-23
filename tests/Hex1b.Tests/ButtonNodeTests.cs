@@ -210,7 +210,7 @@ public class ButtonNodeTests
             ClickAction = _ => { clicked = true; return Task.CompletedTask; }
         };
 
-        var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.Enter, '\r', Hex1bModifiers.None));
+        var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.Enter, '\r', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
 
         Assert.Equal(InputResult.Handled, result);
         Assert.True(clicked);
@@ -227,7 +227,7 @@ public class ButtonNodeTests
             ClickAction = _ => { clicked = true; return Task.CompletedTask; }
         };
 
-        var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.Spacebar, ' ', Hex1bModifiers.None));
+        var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.Spacebar, ' ', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
 
         Assert.Equal(InputResult.Handled, result);
         Assert.True(clicked);
@@ -244,7 +244,7 @@ public class ButtonNodeTests
             ClickAction = _ => { clicked = true; return Task.CompletedTask; }
         };
 
-        var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.A, 'a', Hex1bModifiers.None));
+        var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.A, 'a', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
 
         Assert.Equal(InputResult.NotHandled, result);
         Assert.False(clicked);
@@ -261,7 +261,7 @@ public class ButtonNodeTests
             ClickAction = _ => { clicked = true; return Task.CompletedTask; }
         };
 
-        var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.Enter, '\r', Hex1bModifiers.None));
+        var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.Enter, '\r', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
 
         // Bindings execute regardless of focus (focus check is for HandleInput fallback)
         // But the action should still fire since bindings don't check focus
@@ -280,7 +280,7 @@ public class ButtonNodeTests
         };
 
         // With no ClickAction, no bindings are registered, so Enter falls through
-        var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.Enter, '\r', Hex1bModifiers.None));
+        var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.Enter, '\r', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
 
         Assert.Equal(InputResult.NotHandled, result);
     }
@@ -296,7 +296,7 @@ public class ButtonNodeTests
             ClickAction = _ => { clicked = true; return Task.CompletedTask; }
         };
 
-        var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.Tab, '\t', Hex1bModifiers.None));
+        var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.Tab, '\t', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
 
         Assert.Equal(InputResult.NotHandled, result);
         Assert.False(clicked);
@@ -349,12 +349,12 @@ public class ButtonNodeTests
             new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
-        var runTask = app.RunAsync();
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         await new Hex1bTestSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Click Me"), TimeSpan.FromSeconds(2))
             .Ctrl().Key(Hex1bKey.C)
             .Build()
-            .ApplyAsync(terminal);
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
         Assert.True(terminal.CreateSnapshot().ContainsText("Click Me"));
@@ -377,13 +377,13 @@ public class ButtonNodeTests
             new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
-        var runTask = app.RunAsync();
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         await new Hex1bTestSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Submit"), TimeSpan.FromSeconds(2))
             .Enter()
             .Ctrl().Key(Hex1bKey.C)
             .Build()
-            .ApplyAsync(terminal);
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
         Assert.True(clicked);
@@ -406,13 +406,13 @@ public class ButtonNodeTests
             new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
-        var runTask = app.RunAsync();
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         await new Hex1bTestSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Submit"), TimeSpan.FromSeconds(2))
             .Space()
             .Ctrl().Key(Hex1bKey.C)
             .Build()
-            .ApplyAsync(terminal);
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
         Assert.True(clicked);
@@ -437,7 +437,7 @@ public class ButtonNodeTests
         );
 
         // Click the button 3 times
-        var runTask = app.RunAsync();
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         await new Hex1bTestSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Count:"), TimeSpan.FromSeconds(2))
             .Enter()
@@ -445,7 +445,7 @@ public class ButtonNodeTests
             .Enter()
             .Ctrl().Key(Hex1bKey.C)
             .Build()
-            .ApplyAsync(terminal);
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
         Assert.Equal(3, counter);
@@ -472,14 +472,14 @@ public class ButtonNodeTests
         );
 
         // Tab to second button and press Enter
-        var runTask = app.RunAsync();
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         await new Hex1bTestSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Button 1"), TimeSpan.FromSeconds(2))
             .Tab()
             .Enter()
             .Ctrl().Key(Hex1bKey.C)
             .Build()
-            .ApplyAsync(terminal);
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
         Assert.False(button1Clicked);
@@ -503,13 +503,13 @@ public class ButtonNodeTests
             new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
-        var runTask = app.RunAsync();
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         await new Hex1bTestSequenceBuilder()
             .WaitUntil(s => s.ContainsText("OK"), TimeSpan.FromSeconds(2))
             .Enter()
             .Ctrl().Key(Hex1bKey.C)
             .Build()
-            .ApplyAsync(terminal);
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
         Assert.True(clicked);
@@ -532,12 +532,12 @@ public class ButtonNodeTests
             new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
-        var runTask = app.RunAsync();
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         await new Hex1bTestSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Click Here"), TimeSpan.FromSeconds(2))
             .Ctrl().Key(Hex1bKey.C)
             .Build()
-            .ApplyAsync(terminal);
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
         // The button text should be present (possibly wrapped)
@@ -564,7 +564,7 @@ public class ButtonNodeTests
         );
 
         // Type in text box, tab to button, press button
-        var runTask = app.RunAsync();
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         await new Hex1bTestSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Submit"), TimeSpan.FromSeconds(2))
             .Type("Hi")
@@ -572,7 +572,7 @@ public class ButtonNodeTests
             .Enter()
             .Ctrl().Key(Hex1bKey.C)
             .Build()
-            .ApplyAsync(terminal);
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
         Assert.Equal("Hi", text);
@@ -597,7 +597,7 @@ public class ButtonNodeTests
         );
 
         // Click 5 times rapidly
-        var runTask = app.RunAsync();
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         var builder = new Hex1bTestSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Click"), TimeSpan.FromSeconds(2));
         for (int i = 0; i < 5; i++)
@@ -607,7 +607,7 @@ public class ButtonNodeTests
         await builder
             .Ctrl().Key(Hex1bKey.C)
             .Build()
-            .ApplyAsync(terminal);
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
         Assert.Equal(5, clickCount);
@@ -630,14 +630,14 @@ public class ButtonNodeTests
             new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
-        var runTask = app.RunAsync();
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         await new Hex1bTestSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Clicked 0 times"), TimeSpan.FromSeconds(2))
             .Enter()
             .Enter()
             .Ctrl().Key(Hex1bKey.C)
             .Build()
-            .ApplyAsync(terminal);
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
         Assert.True(terminal.CreateSnapshot().ContainsText("Clicked 2 times"));

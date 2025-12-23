@@ -317,7 +317,7 @@ public class Hex1bTerminalTests
         using var terminal = new Hex1bTerminal(workload, 80, 24);
         
         // Now call ResizeAsync again (simulating a terminal resize)
-        await workload.ResizeAsync(100, 30);
+        await workload.ResizeAsync(100, 30, TestContext.Current.CancellationToken);
         
         // This should fire a resize event
         var hasEvent = workload.InputEvents.TryRead(out var evt);
@@ -335,7 +335,7 @@ public class Hex1bTerminalTests
         using var terminal = new Hex1bTerminal(workload, 80, 24);
         
         // Resize to same dimensions
-        await workload.ResizeAsync(80, 24);
+        await workload.ResizeAsync(80, 24, TestContext.Current.CancellationToken);
         
         // Should NOT fire event (no change)
         var hasEvent = workload.InputEvents.TryRead(out _);

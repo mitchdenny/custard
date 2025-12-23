@@ -661,7 +661,7 @@ public class ScrollNodeTests
         node.Measure(Constraints.Unbounded);
         node.Arrange(new Rect(0, 0, 40, 10));
 
-        var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.DownArrow, '\0', Hex1bModifiers.None));
+        var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.DownArrow, '\0', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
 
         Assert.Equal(InputResult.Handled, result);
         Assert.Equal(1, state.Offset);
@@ -681,7 +681,7 @@ public class ScrollNodeTests
         node.Measure(Constraints.Unbounded);
         node.Arrange(new Rect(0, 0, 40, 10));
 
-        var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.UpArrow, '\0', Hex1bModifiers.None));
+        var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.UpArrow, '\0', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
 
         Assert.Equal(InputResult.Handled, result);
         Assert.Equal(4, state.Offset);
@@ -701,7 +701,7 @@ public class ScrollNodeTests
         node.Measure(Constraints.Unbounded);
         node.Arrange(new Rect(0, 0, 40, 10));
 
-        var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.PageDown, '\0', Hex1bModifiers.None));
+        var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.PageDown, '\0', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
 
         Assert.Equal(InputResult.Handled, result);
         Assert.Equal(9, state.Offset);
@@ -721,7 +721,7 @@ public class ScrollNodeTests
         node.Measure(Constraints.Unbounded);
         node.Arrange(new Rect(0, 0, 40, 10));
 
-        var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.Home, '\0', Hex1bModifiers.None));
+        var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.Home, '\0', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
 
         Assert.Equal(InputResult.Handled, result);
         Assert.Equal(0, state.Offset);
@@ -741,7 +741,7 @@ public class ScrollNodeTests
         node.Measure(Constraints.Unbounded);
         node.Arrange(new Rect(0, 0, 40, 10));
 
-        var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.End, '\0', Hex1bModifiers.None));
+        var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.End, '\0', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
 
         Assert.Equal(InputResult.Handled, result);
         Assert.Equal(40, state.Offset);
@@ -761,7 +761,7 @@ public class ScrollNodeTests
         node.Measure(Constraints.Unbounded);
         node.Arrange(new Rect(0, 0, 40, 10));
 
-        await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.DownArrow, '\0', Hex1bModifiers.None));
+        await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.DownArrow, '\0', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
 
         Assert.Equal(0, state.Offset);
     }
@@ -784,7 +784,7 @@ public class ScrollNodeTests
         node.Measure(Constraints.Unbounded);
         node.Arrange(new Rect(0, 0, 30, 10));
 
-        var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.RightArrow, '\0', Hex1bModifiers.None));
+        var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.RightArrow, '\0', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
 
         Assert.Equal(InputResult.Handled, result);
         Assert.Equal(1, state.Offset);
@@ -804,7 +804,7 @@ public class ScrollNodeTests
         node.Measure(Constraints.Unbounded);
         node.Arrange(new Rect(0, 0, 30, 10));
 
-        var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.LeftArrow, '\0', Hex1bModifiers.None));
+        var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.LeftArrow, '\0', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
 
         Assert.Equal(InputResult.Handled, result);
         Assert.Equal(9, state.Offset);
@@ -825,7 +825,7 @@ public class ScrollNodeTests
         node.Arrange(new Rect(0, 0, 30, 10));
 
         // Up/down arrows match bindings but don't scroll horizontal
-        var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.UpArrow, '\0', Hex1bModifiers.None));
+        var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.UpArrow, '\0', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
 
         Assert.Equal(InputResult.Handled, result);
         Assert.Equal(0, state.Offset); // No scroll
@@ -928,12 +928,12 @@ public class ScrollNodeTests
             new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
-        var runTask = app.RunAsync();
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         await new Hex1bTestSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Line 1"), TimeSpan.FromSeconds(2))
             .Ctrl().Key(Hex1bKey.C)
             .Build()
-            .ApplyAsync(terminal);
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
         Assert.Contains("Line 1", terminal.CreateSnapshot().RawOutput);
@@ -970,13 +970,13 @@ public class ScrollNodeTests
             new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
-        var runTask = app.RunAsync();
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         await new Hex1bTestSequenceBuilder()
             .WaitUntil(s => s.ContainsText("▼"), TimeSpan.FromSeconds(2)) // Wait for down scroll indicator
             .Down().Down().Down()
             .Ctrl().Key(Hex1bKey.C)
             .Build()
-            .ApplyAsync(terminal);
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
         Assert.Equal(3, state.Offset);
@@ -1002,14 +1002,14 @@ public class ScrollNodeTests
             new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
-        var runTask = app.RunAsync();
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         // Tab from scroll widget to button, then press enter
         await new Hex1bTestSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Click Me"), TimeSpan.FromSeconds(2))
             .Tab().Enter()
             .Ctrl().Key(Hex1bKey.C)
             .Build()
-            .ApplyAsync(terminal);
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
         Assert.True(buttonClicked);
@@ -1046,12 +1046,12 @@ public class ScrollNodeTests
             new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
-        var runTask = app.RunAsync();
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         await new Hex1bTestSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Left Side"), TimeSpan.FromSeconds(2))
             .Ctrl().Key(Hex1bKey.C)
             .Build()
-            .ApplyAsync(terminal);
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
         Assert.Contains("Left Side", terminal.CreateSnapshot().RawOutput);
@@ -1080,12 +1080,12 @@ public class ScrollNodeTests
             new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
-        var runTask = app.RunAsync();
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         await new Hex1bTestSequenceBuilder()
             .WaitUntil(s => s.ContainsText("◀"), TimeSpan.FromSeconds(2)) // Wait for scroll indicator
             .Ctrl().Key(Hex1bKey.C)
             .Build()
-            .ApplyAsync(terminal);
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
         await runTask;
 

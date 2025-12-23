@@ -214,7 +214,7 @@ public class ToggleSwitchNodeTests
             IsFocused = true
         };
 
-        var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.RightArrow, '\0', Hex1bModifiers.None));
+        var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.RightArrow, '\0', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
 
         Assert.Equal(InputResult.Handled, result);
         Assert.Equal(1, node.State.SelectedIndex);
@@ -233,7 +233,7 @@ public class ToggleSwitchNodeTests
             IsFocused = true
         };
 
-        var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.LeftArrow, '\0', Hex1bModifiers.None));
+        var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.LeftArrow, '\0', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
 
         Assert.Equal(InputResult.Handled, result);
         Assert.Equal(1, node.State.SelectedIndex);
@@ -252,7 +252,7 @@ public class ToggleSwitchNodeTests
             IsFocused = true
         };
 
-        var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.RightArrow, '\0', Hex1bModifiers.None));
+        var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.RightArrow, '\0', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
 
         Assert.Equal(InputResult.Handled, result);
         Assert.Equal(0, node.State.SelectedIndex);
@@ -271,7 +271,7 @@ public class ToggleSwitchNodeTests
             IsFocused = true
         };
 
-        var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.LeftArrow, '\0', Hex1bModifiers.None));
+        var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.LeftArrow, '\0', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
 
         Assert.Equal(InputResult.Handled, result);
         Assert.Equal(2, node.State.SelectedIndex);
@@ -290,7 +290,7 @@ public class ToggleSwitchNodeTests
             IsFocused = true
         };
 
-        var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.Enter, '\r', Hex1bModifiers.None));
+        var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.Enter, '\r', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
 
         Assert.Equal(InputResult.NotHandled, result);
         Assert.Equal(0, node.State.SelectedIndex);
@@ -311,7 +311,7 @@ public class ToggleSwitchNodeTests
             IsFocused = false
         };
 
-        var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.RightArrow, '\0', Hex1bModifiers.None));
+        var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.RightArrow, '\0', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
 
         // Bindings execute regardless of focus state when using RouteInputToNode
         Assert.Equal(InputResult.Handled, result);
@@ -343,7 +343,7 @@ public class ToggleSwitchNodeTests
             return Task.CompletedTask;
         };
 
-        await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.RightArrow, '\0', Hex1bModifiers.None));
+        await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.RightArrow, '\0', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
 
         Assert.True(callbackInvoked);
         Assert.Equal(1, callbackIndex);
@@ -471,12 +471,12 @@ public class ToggleSwitchNodeTests
             new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
-        var runTask = app.RunAsync();
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         await new Hex1bTestSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Manual"), TimeSpan.FromSeconds(2))
             .Ctrl().Key(Hex1bKey.C)
             .Build()
-            .ApplyAsync(terminal);
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
         Assert.True(terminal.CreateSnapshot().ContainsText("Manual"));
@@ -504,13 +504,13 @@ public class ToggleSwitchNodeTests
             new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
-        var runTask = app.RunAsync();
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         await new Hex1bTestSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Off"), TimeSpan.FromSeconds(2))
             .Right()
             .Ctrl().Key(Hex1bKey.C)
             .Build()
-            .ApplyAsync(terminal);
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
         Assert.Equal(1, state.SelectedIndex);
@@ -537,13 +537,13 @@ public class ToggleSwitchNodeTests
             new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
-        var runTask = app.RunAsync();
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         await new Hex1bTestSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Low"), TimeSpan.FromSeconds(2))
             .Right().Right()
             .Ctrl().Key(Hex1bKey.C)
             .Build()
-            .ApplyAsync(terminal);
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
         Assert.Equal(2, state.SelectedIndex);
@@ -569,14 +569,14 @@ public class ToggleSwitchNodeTests
             new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
-        var runTask = app.RunAsync();
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         // Navigate right on toggle, then tab to button, then click
         await new Hex1bTestSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Click"), TimeSpan.FromSeconds(2))
             .Right().Tab().Enter()
             .Ctrl().Key(Hex1bKey.C)
             .Build()
-            .ApplyAsync(terminal);
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
         Assert.Equal(1, toggleState.SelectedIndex);
@@ -605,13 +605,13 @@ public class ToggleSwitchNodeTests
             new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
-        var runTask = app.RunAsync();
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         await new Hex1bTestSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Mode1"), TimeSpan.FromSeconds(2))
             .Right()
             .Ctrl().Key(Hex1bKey.C)
             .Build()
-            .ApplyAsync(terminal);
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
         Assert.Equal("Mode2", lastSelectedValue);

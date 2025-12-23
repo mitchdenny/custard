@@ -253,7 +253,7 @@ public class SixelNodeTests : IDisposable
         
         // Use InputRouter to route input to the focused child in the fallback
         var enterEvent = new Hex1bKeyEvent(Hex1bKey.Enter, '\r', Hex1bModifiers.None);
-        var result = await InputRouter.RouteInputAsync(node, enterEvent, focusRing, routerState);
+        var result = await InputRouter.RouteInputAsync(node, enterEvent, focusRing, routerState, null, TestContext.Current.CancellationToken);
         
         Assert.Equal(InputResult.Handled, result);
         Assert.Equal(1, clickedCount);

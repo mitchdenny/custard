@@ -308,7 +308,7 @@ public class TextBoxNodeTests
         var node = new TextBoxNode { Text = "hello", IsFocused = true };
         node.State.CursorPosition = 5;
 
-        var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.X, 'X', Hex1bModifiers.None));
+        var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.X, 'X', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
 
         Assert.Equal(InputResult.Handled, result);
         Assert.Equal("helloX", node.Text);
@@ -319,7 +319,7 @@ public class TextBoxNodeTests
     {
         var node = new TextBoxNode { Text = "hello", IsFocused = false };
 
-        var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.X, 'X', Hex1bModifiers.None));
+        var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.X, 'X', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
 
         Assert.Equal(InputResult.NotHandled, result);
         Assert.Equal("hello", node.Text);
@@ -331,7 +331,7 @@ public class TextBoxNodeTests
         var node = new TextBoxNode { Text = "hello", IsFocused = true };
         node.State.CursorPosition = 5;
 
-        await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.Backspace, '\b', Hex1bModifiers.None));
+        await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.Backspace, '\b', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
 
         Assert.Equal("hell", node.Text);
         Assert.Equal(4, node.State.CursorPosition);
@@ -343,7 +343,7 @@ public class TextBoxNodeTests
         var node = new TextBoxNode { Text = "hello", IsFocused = true };
         node.State.CursorPosition = 0;
 
-        await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.Delete, '\0', Hex1bModifiers.None));
+        await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.Delete, '\0', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
 
         Assert.Equal("ello", node.Text);
         Assert.Equal(0, node.State.CursorPosition);
@@ -355,7 +355,7 @@ public class TextBoxNodeTests
         var node = new TextBoxNode { Text = "hello", IsFocused = true };
         node.State.CursorPosition = 3;
 
-        await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.LeftArrow, '\0', Hex1bModifiers.None));
+        await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.LeftArrow, '\0', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
 
         Assert.Equal(2, node.State.CursorPosition);
     }
@@ -366,7 +366,7 @@ public class TextBoxNodeTests
         var node = new TextBoxNode { Text = "hello", IsFocused = true };
         node.State.CursorPosition = 3;
 
-        await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.RightArrow, '\0', Hex1bModifiers.None));
+        await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.RightArrow, '\0', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
 
         Assert.Equal(4, node.State.CursorPosition);
     }
@@ -377,7 +377,7 @@ public class TextBoxNodeTests
         var node = new TextBoxNode { Text = "hello", IsFocused = true };
         node.State.CursorPosition = 3;
 
-        await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.Home, '\0', Hex1bModifiers.None));
+        await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.Home, '\0', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
 
         Assert.Equal(0, node.State.CursorPosition);
     }
@@ -388,7 +388,7 @@ public class TextBoxNodeTests
         var node = new TextBoxNode { Text = "hello", IsFocused = true };
         node.State.CursorPosition = 2;
 
-        await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.End, '\0', Hex1bModifiers.None));
+        await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.End, '\0', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
 
         Assert.Equal(5, node.State.CursorPosition);
     }
@@ -399,7 +399,7 @@ public class TextBoxNodeTests
         var node = new TextBoxNode { Text = "hello", IsFocused = true };
         node.State.CursorPosition = 3;
 
-        await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.LeftArrow, '\0', Hex1bModifiers.Shift));
+        await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.LeftArrow, '\0', Hex1bModifiers.Shift), null, null, TestContext.Current.CancellationToken);
 
         Assert.Equal(2, node.State.CursorPosition);
         Assert.True(node.State.HasSelection);
@@ -412,7 +412,7 @@ public class TextBoxNodeTests
         var node = new TextBoxNode { Text = "hello", IsFocused = true };
         node.State.CursorPosition = 2;
 
-        await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.A, 'a', Hex1bModifiers.Control));
+        await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.A, 'a', Hex1bModifiers.Control), null, null, TestContext.Current.CancellationToken);
 
         Assert.True(node.State.HasSelection);
         Assert.Equal(0, node.State.SelectionAnchor);
@@ -612,12 +612,12 @@ public class TextBoxNodeTests
             new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
-        var runTask = app.RunAsync();
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         await new Hex1bTestSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Initial Text"), TimeSpan.FromSeconds(2))
             .Ctrl().Key(Hex1bKey.C)
             .Build()
-            .ApplyAsync(terminal);
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
         Assert.True(terminal.CreateSnapshot().ContainsText("Initial Text"));
@@ -640,14 +640,14 @@ public class TextBoxNodeTests
             new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
-        var runTask = app.RunAsync();
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         await new Hex1bTestSequenceBuilder()
             .WaitUntil(s => s.Terminal.InAlternateScreen, TimeSpan.FromSeconds(2))
             .Type("Hello")
             .WaitUntil(s => s.ContainsText("Hello"), TimeSpan.FromSeconds(2))
             .Ctrl().Key(Hex1bKey.C)
             .Build()
-            .ApplyAsync(terminal);
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
         Assert.Equal("Hello", capturedText);
@@ -670,7 +670,7 @@ public class TextBoxNodeTests
             new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
-        var runTask = app.RunAsync();
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         await new Hex1bTestSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Short"), TimeSpan.FromSeconds(2))
             .End()
@@ -678,7 +678,7 @@ public class TextBoxNodeTests
             .WaitUntil(s => s.ContainsText("ShortX"), TimeSpan.FromSeconds(2))
             .Ctrl().Key(Hex1bKey.C)
             .Build()
-            .ApplyAsync(terminal);
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
         Assert.Equal("ShortX", capturedText);
@@ -704,7 +704,7 @@ public class TextBoxNodeTests
         );
 
         // Type in first box, tab to second, type in second
-        var runTask = app.RunAsync();
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         await new Hex1bTestSequenceBuilder()
             .WaitUntil(s => s.Terminal.InAlternateScreen, TimeSpan.FromSeconds(2))
             .Type("AB")
@@ -713,7 +713,7 @@ public class TextBoxNodeTests
             .WaitUntil(s => s.ContainsText("XY"), TimeSpan.FromSeconds(2))
             .Ctrl().Key(Hex1bKey.C)
             .Build()
-            .ApplyAsync(terminal);
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
         Assert.Equal("AB", text1);
@@ -737,7 +737,7 @@ public class TextBoxNodeTests
             new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
-        var runTask = app.RunAsync();
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         await new Hex1bTestSequenceBuilder()
             .WaitUntil(s => s.ContainsText("test"), TimeSpan.FromSeconds(2))
             .End()
@@ -746,7 +746,7 @@ public class TextBoxNodeTests
             .WaitUntil(s => s.ContainsText("te") && !s.ContainsText("test"), TimeSpan.FromSeconds(2))
             .Ctrl().Key(Hex1bKey.C)
             .Build()
-            .ApplyAsync(terminal);
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
         Assert.Equal("te", text);
@@ -770,7 +770,7 @@ public class TextBoxNodeTests
         );
 
         // Go to start, then right, then insert
-        var runTask = app.RunAsync();
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         await new Hex1bTestSequenceBuilder()
             .WaitUntil(s => s.ContainsText("abc"), TimeSpan.FromSeconds(2))
             .Home()
@@ -779,7 +779,7 @@ public class TextBoxNodeTests
             .WaitUntil(s => s.ContainsText("aXbc"), TimeSpan.FromSeconds(2))
             .Ctrl().Key(Hex1bKey.C)
             .Build()
-            .ApplyAsync(terminal);
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
         Assert.Equal("aXbc", text);
@@ -802,14 +802,14 @@ public class TextBoxNodeTests
             new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
-        var runTask = app.RunAsync();
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         await new Hex1bTestSequenceBuilder()
             .WaitUntil(s => s.Terminal.InAlternateScreen, TimeSpan.FromSeconds(2))
             .Type("@!#")
             .WaitUntil(s => s.ContainsText("@!#"), TimeSpan.FromSeconds(2))
             .Ctrl().Key(Hex1bKey.C)
             .Build()
-            .ApplyAsync(terminal);
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
         Assert.Equal("@!#", text);
@@ -831,12 +831,12 @@ public class TextBoxNodeTests
             new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
-        var runTask = app.RunAsync();
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         await new Hex1bTestSequenceBuilder()
             .WaitUntil(s => s.ContainsText("[LongText"), TimeSpan.FromSeconds(2))
             .Ctrl().Key(Hex1bKey.C)
             .Build()
-            .ApplyAsync(terminal);
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
         // The text box renders as "[LongTextHere]" which is 14 chars
@@ -868,14 +868,14 @@ public class TextBoxNodeTests
         );
 
         // Type some text
-        var runTask = app.RunAsync();
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         await new Hex1bTestSequenceBuilder()
             .WaitUntil(s => s.Terminal.InAlternateScreen, TimeSpan.FromSeconds(2))
             .Type("Hello")
             .WaitUntil(s => s.ContainsText("Hello"), TimeSpan.FromSeconds(2))
             .Ctrl().Key(Hex1bKey.C)
             .Build()
-            .ApplyAsync(terminal);
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
         // The typed text should be visible in the terminal output
@@ -901,7 +901,7 @@ public class TextBoxNodeTests
         );
 
         // Type in first box, tab, type in second box
-        var runTask = app.RunAsync();
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         await new Hex1bTestSequenceBuilder()
             .WaitUntil(s => s.Terminal.InAlternateScreen, TimeSpan.FromSeconds(2))
             .Type("AA")
@@ -910,7 +910,7 @@ public class TextBoxNodeTests
             .WaitUntil(s => s.ContainsText("BB"), TimeSpan.FromSeconds(2))
             .Ctrl().Key(Hex1bKey.C)
             .Build()
-            .ApplyAsync(terminal);
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
         // Both texts should be visible
@@ -936,7 +936,7 @@ public class TextBoxNodeTests
             new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
-        var runTask = app.RunAsync();
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         await new Hex1bTestSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Initial"), TimeSpan.FromSeconds(2))
             .End()
@@ -944,7 +944,7 @@ public class TextBoxNodeTests
             .WaitUntil(s => s.ContainsText("InitialX"), TimeSpan.FromSeconds(2))
             .Ctrl().Key(Hex1bKey.C)
             .Build()
-            .ApplyAsync(terminal);
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
         // The external state should be updated
@@ -962,21 +962,20 @@ public class TextBoxNodeTests
         using var workload = new Hex1bAppWorkloadAdapter();
 
         using var terminal = new Hex1bTerminal(workload, 80, 24);
-        var clicked = false;
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
-                ctx.Button("Click Me").OnClick(_ => clicked = true)
+                ctx.Button("Click Me")
             ),
             new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
-        var runTask = app.RunAsync();
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         await new Hex1bTestSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Click Me"), TimeSpan.FromSeconds(2))
             .Ctrl().Key(Hex1bKey.C)
             .Build()
-            .ApplyAsync(terminal);
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
         Assert.True(terminal.CreateSnapshot().ContainsText("Click Me"));
@@ -998,12 +997,12 @@ public class TextBoxNodeTests
             new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
-        var runTask = app.RunAsync();
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         await new Hex1bTestSequenceBuilder()
             .WaitUntil(s => s.Terminal.InAlternateScreen, TimeSpan.FromSeconds(2))
             .Ctrl().Key(Hex1bKey.C)
             .Build()
-            .ApplyAsync(terminal);
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
         Assert.True(terminal.CreateSnapshot().ContainsText("Initial"));
@@ -1025,14 +1024,14 @@ public class TextBoxNodeTests
             new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
-        var runTask = app.RunAsync();
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         await new Hex1bTestSequenceBuilder()
             .WaitUntil(s => s.Terminal.InAlternateScreen, TimeSpan.FromSeconds(2))
             .Key(Hex1bKey.A)  // Single letter 'a'
             .WaitUntil(s => s.ContainsText("a"), TimeSpan.FromSeconds(2))
             .Ctrl().Key(Hex1bKey.C)
             .Build()
-            .ApplyAsync(terminal);
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
         Assert.Equal("a", capturedText);
@@ -1054,14 +1053,14 @@ public class TextBoxNodeTests
             new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
-        var runTask = app.RunAsync();
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         await new Hex1bTestSequenceBuilder()
             .WaitUntil(s => s.Terminal.InAlternateScreen, TimeSpan.FromSeconds(2))
             .Type("Hello")
             .WaitUntil(s => s.ContainsText("Hello"), TimeSpan.FromSeconds(2))
             .Ctrl().Key(Hex1bKey.C)
             .Build()
-            .ApplyAsync(terminal);
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
         Assert.Equal("Hello", capturedText);
@@ -1087,7 +1086,7 @@ public class TextBoxNodeTests
             new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
-        var runTask = app.RunAsync();
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         await new Hex1bTestSequenceBuilder()
             .WaitUntil(s => s.ContainsText("OK"), TimeSpan.FromSeconds(2))
             .Tab()  // Move focus from Button to TextBox
@@ -1095,7 +1094,7 @@ public class TextBoxNodeTests
             .WaitUntil(s => s.ContainsText("x"), TimeSpan.FromSeconds(2))
             .Ctrl().Key(Hex1bKey.C)
             .Build()
-            .ApplyAsync(terminal);
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
         Assert.Equal("x", capturedText);
@@ -1121,14 +1120,14 @@ public class TextBoxNodeTests
             new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
-        var runTask = app.RunAsync();
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         await new Hex1bTestSequenceBuilder()
             .WaitUntil(s => s.ContainsText("First"), TimeSpan.FromSeconds(2))
             .Tab()  // Move from First to Second
             .Key(Hex1bKey.Enter)  // Activate Second button
             .Ctrl().Key(Hex1bKey.C)
             .Build()
-            .ApplyAsync(terminal);
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
         Assert.False(button1Clicked);
@@ -1153,13 +1152,13 @@ public class TextBoxNodeTests
             new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
-        var runTask = app.RunAsync();
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         await new Hex1bTestSequenceBuilder()
             .WaitUntil(s => s.ContainsText("OK"), TimeSpan.FromSeconds(2))
             .Tab()  // Move focus from Button to TextBox
             .Ctrl().Key(Hex1bKey.C)  // Immediately exit
             .Build()
-            .ApplyAsync(terminal);
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
         Assert.True(terminal.CreateSnapshot().ContainsText("pre-filled"));
@@ -1182,13 +1181,13 @@ public class TextBoxNodeTests
             new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
-        var runTask = app.RunAsync();
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         await new Hex1bTestSequenceBuilder()
             // Wait for InAlternateScreen instead of specific text
             .WaitUntil(s => s.Terminal.InAlternateScreen, TimeSpan.FromSeconds(2))
             .Ctrl().Key(Hex1bKey.C)
             .Build()
-            .ApplyAsync(terminal);
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
         Assert.True(terminal.CreateSnapshot().ContainsText("test-value"));
@@ -1211,12 +1210,12 @@ public class TextBoxNodeTests
             new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
-        var runTask = app.RunAsync();
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         await new Hex1bTestSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Click Me"), TimeSpan.FromSeconds(2))
             .Ctrl().Key(Hex1bKey.C)
             .Build()
-            .ApplyAsync(terminal);
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
         Assert.True(terminal.CreateSnapshot().ContainsText("Click Me"));
@@ -1239,12 +1238,12 @@ public class TextBoxNodeTests
             new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
-        var runTask = app.RunAsync();
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         await new Hex1bTestSequenceBuilder()
             .WaitUntil(s => s.ContainsText("test"), TimeSpan.FromSeconds(2))
             .Ctrl().Key(Hex1bKey.C)
             .Build()
-            .ApplyAsync(terminal);
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
         Assert.True(terminal.CreateSnapshot().ContainsText("test"));

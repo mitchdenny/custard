@@ -437,7 +437,7 @@ public class ListNodeTests
     {
         var node = new ListNode { Items = CreateItems("Item 1", "Item 2", "Item 3"), SelectedIndex = 0, IsFocused = true };
         
-        var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.DownArrow, '\0', Hex1bModifiers.None));
+        var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.DownArrow, '\0', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
         
         Assert.Equal(InputResult.Handled, result);
         Assert.Equal(1, node.SelectedIndex);
@@ -448,7 +448,7 @@ public class ListNodeTests
     {
         var node = new ListNode { Items = CreateItems("Item 1", "Item 2", "Item 3"), SelectedIndex = 2, IsFocused = true };
         
-        var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.UpArrow, '\0', Hex1bModifiers.None));
+        var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.UpArrow, '\0', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
         
         Assert.Equal(InputResult.Handled, result);
         Assert.Equal(1, node.SelectedIndex);
@@ -459,7 +459,7 @@ public class ListNodeTests
     {
         var node = new ListNode { Items = CreateItems("Item 1", "Item 2"), SelectedIndex = 1, IsFocused = true };
         
-        await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.DownArrow, '\0', Hex1bModifiers.None));
+        await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.DownArrow, '\0', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
         
         Assert.Equal(0, node.SelectedIndex);
     }
@@ -469,7 +469,7 @@ public class ListNodeTests
     {
         var node = new ListNode { Items = CreateItems("Item 1", "Item 2"), SelectedIndex = 0, IsFocused = true };
         
-        await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.UpArrow, '\0', Hex1bModifiers.None));
+        await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.UpArrow, '\0', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
         
         Assert.Equal(1, node.SelectedIndex);
     }
@@ -479,9 +479,9 @@ public class ListNodeTests
     {
         var node = new ListNode { Items = CreateItems("A", "B", "C", "D"), SelectedIndex = 0, IsFocused = true };
         
-        await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.DownArrow, '\0', Hex1bModifiers.None));
-        await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.DownArrow, '\0', Hex1bModifiers.None));
-        await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.DownArrow, '\0', Hex1bModifiers.None));
+        await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.DownArrow, '\0', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
+        await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.DownArrow, '\0', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
+        await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.DownArrow, '\0', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
         
         Assert.Equal(3, node.SelectedIndex);
     }
@@ -491,8 +491,8 @@ public class ListNodeTests
     {
         var node = new ListNode { Items = CreateItems("A", "B", "C", "D"), SelectedIndex = 3, IsFocused = true };
         
-        await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.UpArrow, '\0', Hex1bModifiers.None));
-        await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.UpArrow, '\0', Hex1bModifiers.None));
+        await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.UpArrow, '\0', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
+        await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.UpArrow, '\0', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
         
         Assert.Equal(1, node.SelectedIndex);
     }
@@ -508,7 +508,7 @@ public class ListNodeTests
         string? activatedItem = null;
         node.ItemActivatedAction = _ => { activatedItem = node.SelectedText; return Task.CompletedTask; };
         
-        var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.Enter, '\r', Hex1bModifiers.None));
+        var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.Enter, '\r', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
         
         Assert.Equal(InputResult.Handled, result);
         Assert.NotNull(activatedItem);
@@ -522,7 +522,7 @@ public class ListNodeTests
         string? activatedItem = null;
         node.ItemActivatedAction = _ => { activatedItem = node.SelectedText; return Task.CompletedTask; };
         
-        var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.Spacebar, ' ', Hex1bModifiers.None));
+        var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.Spacebar, ' ', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
         
         Assert.Equal(InputResult.Handled, result);
         Assert.NotNull(activatedItem);
@@ -535,7 +535,7 @@ public class ListNodeTests
         var node = new ListNode { Items = CreateItems("Item 1"), SelectedIndex = 0, IsFocused = true };
         // No OnItemActivated callback set
         
-        var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.Enter, '\r', Hex1bModifiers.None));
+        var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.Enter, '\r', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
         
         Assert.Equal(InputResult.Handled, result);
     }
@@ -547,7 +547,7 @@ public class ListNodeTests
         string? activatedItem = null;
         node.ItemActivatedAction = _ => { activatedItem = node.SelectedText; return Task.CompletedTask; };
         
-        var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.Enter, '\r', Hex1bModifiers.None));
+        var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.Enter, '\r', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
         
         Assert.Equal(InputResult.Handled, result);
         Assert.Null(activatedItem); // No item to activate
@@ -564,7 +564,7 @@ public class ListNodeTests
         string? selectedItem = null;
         node.SelectionChangedAction = _ => { selectedItem = node.SelectedText; return Task.CompletedTask; };
         
-        await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.DownArrow, '\0', Hex1bModifiers.None));
+        await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.DownArrow, '\0', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
         
         Assert.NotNull(selectedItem);
         Assert.Equal("Item 2", selectedItem);
@@ -577,7 +577,7 @@ public class ListNodeTests
         string? selectedItem = null;
         node.SelectionChangedAction = _ => { selectedItem = node.SelectedText; return Task.CompletedTask; };
         
-        await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.UpArrow, '\0', Hex1bModifiers.None));
+        await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.UpArrow, '\0', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
         
         Assert.NotNull(selectedItem);
         Assert.Equal("Item 1", selectedItem);
@@ -595,7 +595,7 @@ public class ListNodeTests
         // When using RouteInputToNode() for testing, bindings always execute.
         var node = new ListNode { Items = CreateItems("Item 1", "Item 2"), SelectedIndex = 0, IsFocused = false };
         
-        var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.DownArrow, '\0', Hex1bModifiers.None));
+        var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.DownArrow, '\0', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
         
         // Bindings execute regardless of focus state when using RouteInputToNode
         Assert.Equal(InputResult.Handled, result);
@@ -607,7 +607,7 @@ public class ListNodeTests
     {
         var node = new ListNode { Items = CreateItems("Item 1", "Item 2"), IsFocused = true };
         
-        var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.A, 'a', Hex1bModifiers.None));
+        var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.A, 'a', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
         
         Assert.Equal(InputResult.NotHandled, result);
     }
@@ -617,7 +617,7 @@ public class ListNodeTests
     {
         var node = new ListNode { Items = CreateItems("Item 1", "Item 2"), IsFocused = true };
         
-        var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.Tab, '\t', Hex1bModifiers.None));
+        var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.Tab, '\t', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
         
         Assert.Equal(InputResult.NotHandled, result);
     }
@@ -627,7 +627,7 @@ public class ListNodeTests
     {
         var node = new ListNode { Items = CreateItems("Item 1", "Item 2"), IsFocused = true };
         
-        var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.Escape, '\x1b', Hex1bModifiers.None));
+        var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.Escape, '\x1b', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
         
         Assert.Equal(InputResult.NotHandled, result);
     }
@@ -672,12 +672,12 @@ public class ListNodeTests
             new Hex1bAppOptions { WorkloadAdapter = workload }
         );
         
-        var runTask = app.RunAsync();
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         await new Hex1bTestSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Option A"), TimeSpan.FromSeconds(2))
             .Ctrl().Key(Hex1bKey.C)
             .Build()
-            .ApplyAsync(terminal);
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
         
         Assert.Contains("Option A", terminal.CreateSnapshot().RawOutput);
@@ -698,7 +698,7 @@ public class ListNodeTests
             new Hex1bAppOptions { WorkloadAdapter = workload }
         );
         
-        var runTask = app.RunAsync();
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         
         // Navigate down to select second item
         await new Hex1bTestSequenceBuilder()
@@ -706,7 +706,7 @@ public class ListNodeTests
             .Down()
             .Ctrl().Key(Hex1bKey.C)
             .Build()
-            .ApplyAsync(terminal);
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
         
         Assert.Contains("> Second", terminal.CreateSnapshot().RawOutput);
@@ -729,12 +729,12 @@ public class ListNodeTests
             new Hex1bAppOptions { WorkloadAdapter = workload }
         );
         
-        var runTask = app.RunAsync();
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         await new Hex1bTestSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Item 1"), TimeSpan.FromSeconds(2))
             .Ctrl().Key(Hex1bKey.C)
             .Build()
-            .ApplyAsync(terminal);
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
         
         // Note: Border title may not render in all configurations
@@ -756,7 +756,7 @@ public class ListNodeTests
             new Hex1bAppOptions { WorkloadAdapter = workload }
         );
         
-        var runTask = app.RunAsync();
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         
         // Simulate down arrow
         await new Hex1bTestSequenceBuilder()
@@ -764,7 +764,7 @@ public class ListNodeTests
             .Down()
             .Ctrl().Key(Hex1bKey.C)
             .Build()
-            .ApplyAsync(terminal);
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
         
         // After down arrow, second item should be selected
@@ -786,7 +786,7 @@ public class ListNodeTests
             new Hex1bAppOptions { WorkloadAdapter = workload }
         );
         
-        var runTask = app.RunAsync();
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         
         // Simulate Enter key
         await new Hex1bTestSequenceBuilder()
@@ -794,7 +794,7 @@ public class ListNodeTests
             .Enter()
             .Ctrl().Key(Hex1bKey.C)
             .Build()
-            .ApplyAsync(terminal);
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
         
         Assert.Equal("Action 1", activatedAction);
@@ -818,12 +818,12 @@ public class ListNodeTests
             new Hex1bAppOptions { WorkloadAdapter = workload }
         );
         
-        var runTask = app.RunAsync();
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         await new Hex1bTestSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Select an option:"), TimeSpan.FromSeconds(2))
             .Ctrl().Key(Hex1bKey.C)
             .Build()
-            .ApplyAsync(terminal);
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
         
         Assert.Contains("Select an option:", terminal.CreateSnapshot().RawOutput);
@@ -843,12 +843,12 @@ public class ListNodeTests
             new Hex1bAppOptions { WorkloadAdapter = workload, Theme = Hex1bThemes.HighContrast }
         );
         
-        var runTask = app.RunAsync();
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         await new Hex1bTestSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Themed Item"), TimeSpan.FromSeconds(2))
             .Ctrl().Key(Hex1bKey.C)
             .Build()
-            .ApplyAsync(terminal);
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
         
         // HighContrast theme uses "► " indicator
@@ -868,7 +868,7 @@ public class ListNodeTests
             new Hex1bAppOptions { WorkloadAdapter = workload }
         );
         
-        var runTask = app.RunAsync();
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         
         // Navigate down twice
         await new Hex1bTestSequenceBuilder()
@@ -877,7 +877,7 @@ public class ListNodeTests
             .Down()
             .Ctrl().Key(Hex1bKey.C)
             .Build()
-            .ApplyAsync(terminal);
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
         
         // Third item should be selected
@@ -903,12 +903,12 @@ public class ListNodeTests
             new Hex1bAppOptions { WorkloadAdapter = workload }
         );
         
-        var runTask = app.RunAsync();
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         await new Hex1bTestSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Welcome"), TimeSpan.FromSeconds(2))
             .Ctrl().Key(Hex1bKey.C)
             .Build()
-            .ApplyAsync(terminal);
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
         
         Assert.Contains("Welcome", terminal.CreateSnapshot().RawOutput);

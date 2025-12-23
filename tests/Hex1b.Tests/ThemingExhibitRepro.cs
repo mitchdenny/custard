@@ -62,14 +62,14 @@ public class ThemingExhibitRepro
         );
 
         // Start the app first, then interact with it
-        var runTask = app.RunAsync();
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
 
         // Wait for the content to render, then exit
         await new Hex1bTestSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Sample text"), TimeSpan.FromSeconds(2), "Wait for initial render")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
-            .ApplyAsync(terminal);
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
         await runTask;
 
@@ -286,14 +286,14 @@ public class ThemingExhibitRepro
         );
 
         // Start the app first, then interact with it
-        var runTask = app.RunAsync();
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
 
         // Wait for the content to render, then exit
         await new Hex1bTestSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Sample text"), TimeSpan.FromSeconds(2), "Wait for initial render")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
-            .ApplyAsync(terminal);
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
         await runTask;
 

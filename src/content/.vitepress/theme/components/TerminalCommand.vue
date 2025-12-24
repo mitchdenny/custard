@@ -175,6 +175,12 @@ onMounted(() => {
   background: linear-gradient(135deg, #4ecdc4 0%, #44a8a0 100%);
   padding: 14px 16px;
   overflow-x: auto;
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE and Edge */
+}
+
+.command-content::-webkit-scrollbar {
+  display: none; /* Chrome, Safari, and Opera */
 }
 
 .code-display :deep(pre) {

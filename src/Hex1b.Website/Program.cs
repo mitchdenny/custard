@@ -69,6 +69,13 @@ var rewriteOptions = new RewriteOptions()
         // For clean URLs, try to find the corresponding .html file
         // Remove trailing slash if present
         var cleanPath = path.TrimEnd('/');
+        
+        // Skip root path or empty path (handled by UseDefaultFiles)
+        if (string.IsNullOrEmpty(cleanPath) || cleanPath == "/")
+        {
+            return;
+        }
+        
         var htmlPath = cleanPath + ".html";
         var fileInfo = app.Environment.WebRootFileProvider.GetFileInfo(htmlPath);
         

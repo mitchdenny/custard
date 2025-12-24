@@ -56,6 +56,7 @@ public sealed class Hex1bTerminal : IDisposable
     private readonly CancellationTokenSource _disposeCts = new();
     private readonly DateTimeOffset _sessionStart;
     private readonly TrackedObjectStore _trackedObjects = new();
+    private readonly TimeProvider _timeProvider;
     private TerminalCell[,] _screenBuffer;
     private int _cursorX;
     private int _cursorY;
@@ -77,7 +78,7 @@ public sealed class Hex1bTerminal : IDisposable
     /// <param name="width">Terminal width in characters.</param>
     /// <param name="height">Terminal height in lines.</param>
     public Hex1bTerminal(IHex1bTerminalWorkloadAdapter workload, int width, int height)
-        : this(presentation: null, workload: workload, width: width, height: height)
+        : this(presentation: null, workload: workload, width: width, height: height, timeProvider: TimeProvider.System)
     {
     }
 
@@ -92,7 +93,8 @@ public sealed class Hex1bTerminal : IDisposable
             width: options.Width,
             height: options.Height,
             workloadFilters: options.WorkloadFilters,
-            presentationFilters: options.PresentationFilters)
+            presentationFilters: options.PresentationFilters,
+            timeProvider: options.TimeProvider)
     {
     }
 
@@ -105,19 +107,22 @@ public sealed class Hex1bTerminal : IDisposable
     /// <param name="height">Terminal height (used when presentation is null). Ignored if presentation is provided.</param>
     /// <param name="workloadFilters">Filters applied on the workload side.</param>
     /// <param name="presentationFilters">Filters applied on the presentation side.</param>
+    /// <param name="timeProvider">The time provider for all time-related operations. Defaults to system time.</param>
     public Hex1bTerminal(
         IHex1bTerminalPresentationAdapter? presentation,
         IHex1bTerminalWorkloadAdapter workload,
         int width = 80,
         int height = 24,
         IEnumerable<IHex1bTerminalWorkloadFilter>? workloadFilters = null,
-        IEnumerable<IHex1bTerminalPresentationFilter>? presentationFilters = null)
+        IEnumerable<IHex1bTerminalPresentationFilter>? presentationFilters = null,
+        TimeProvider? timeProvider = null)
     {
         _presentation = presentation;
         _workload = workload ?? throw new ArgumentNullException(nameof(workload));
         _workloadFilters = workloadFilters?.ToList() ?? [];
         _presentationFilters = presentationFilters?.ToList() ?? [];
-        _sessionStart = DateTimeOffset.UtcNow;
+        _timeProvider = timeProvider ?? TimeProvider.System;
+        _sessionStart = _timeProvider.GetUtcNow();
         
         // Get dimensions from presentation if available, otherwise use provided dimensions
         _width = presentation?.Width ?? width;
@@ -177,6 +182,15 @@ public sealed class Hex1bTerminal : IDisposable
     /// Terminal height.
     /// </summary>
     internal int Height => _height;
+    
+    /// <summary>
+    /// Terminal capabilities from the presentation adapter, workload adapter, or defaults.
+    /// Priority: presentation adapter > workload adapter (if IHex1bAppTerminalWorkloadAdapter) > defaults.
+    /// </summary>
+    internal TerminalCapabilities Capabilities => 
+        _presentation?.Capabilities 
+        ?? (_workload as IHex1bAppTerminalWorkloadAdapter)?.Capabilities 
+        ?? TerminalCapabilities.Modern;
 
     // === Terminal Control ===
 
@@ -810,7 +824,7 @@ public sealed class Hex1bTerminal : IDisposable
                 {
                     // Assign sequence number and timestamp for this write operation
                     var sequence = ++_writeSequence;
-                    var writtenAt = DateTimeOffset.UtcNow;
+                    var writtenAt = _timeProvider.GetUtcNow();
                     
                     // Write the grapheme to the current cell
                     SetCell(_cursorY, _cursorX, new TerminalCell(
@@ -1230,7 +1244,7 @@ public sealed class Hex1bTerminal : IDisposable
         // Mark cells covered by this Sixel image
         // The first cell gets the tracked object, others just get the Sixel flag
         var sequence = ++_writeSequence;
-        var writtenAt = DateTimeOffset.UtcNow;
+        var writtenAt = _timeProvider.GetUtcNow();
 
         for (int dy = 0; dy < heightInCells && _cursorY + dy < _height; dy++)
         {
@@ -1264,11 +1278,15 @@ public sealed class Hex1bTerminal : IDisposable
     /// <summary>
     /// Estimates Sixel image dimensions in terminal cells.
     /// </summary>
-    private static (int Width, int Height) EstimateSixelDimensions(string sixelPayload)
+    private (int Width, int Height) EstimateSixelDimensions(string sixelPayload)
     {
         // Default dimensions if we can't parse
         int width = 1;
         int height = 1;
+        
+        // Get cell pixel dimensions from capabilities
+        var cellWidth = Capabilities.CellPixelWidth;
+        var cellHeight = Capabilities.CellPixelHeight;
 
         // Try to find "width;height in the sixel raster attributes
         // Format: "Pan;Pad;Ph;Pv where Ph = pixel height, Pv = pixel width
@@ -1286,9 +1304,10 @@ public sealed class Hex1bTerminal : IDisposable
             if (quoteIndex >= 0 && quoteIndex + 1 < rasterSection.Length)
             {
                 var attrStr = rasterSection.Substring(quoteIndex + 1);
-                var semiIndex = attrStr.IndexOfAny([';', '#', '!', '-', '$']);
-                if (semiIndex < 0) semiIndex = attrStr.Length;
-                attrStr = attrStr.Substring(0, Math.Min(20, semiIndex));
+                // Find end of raster attributes - terminated by sixel control chars (not semicolon)
+                var endIndex = attrStr.IndexOfAny(['#', '!', '-', '$', '~', '?']);
+                if (endIndex < 0) endIndex = attrStr.Length;
+                attrStr = attrStr.Substring(0, Math.Min(30, endIndex));
 
                 var parts = attrStr.Split(';');
                 if (parts.Length >= 4)
@@ -1296,10 +1315,10 @@ public sealed class Hex1bTerminal : IDisposable
                     // Ph = pixel height, Pv = pixel width
                     if (int.TryParse(parts[2], out var ph) && int.TryParse(parts[3], out var pv))
                     {
-                        // Convert pixels to cells (assume ~10 pixels per cell width, 20 per cell height)
-                        // These are rough estimates - actual values depend on terminal font
-                        width = Math.Max(1, (pv + 9) / 10);
-                        height = Math.Max(1, (ph + 19) / 20);
+                        // Convert pixels to cells using actual cell dimensions
+                        // Round up to ensure the image doesn't get cut off
+                        width = Math.Max(1, (pv + cellWidth - 1) / cellWidth);
+                        height = Math.Max(1, (ph + cellHeight - 1) / cellHeight);
                     }
                 }
             }
@@ -1324,8 +1343,9 @@ public sealed class Hex1bTerminal : IDisposable
             {
                 if (message[j] == 'c')
                 {
-                    var response = message.Substring(start, j - start + 1);
-                    Nodes.SixelNode.HandleDA1Response(response);
+                    // DA1 response format: ESC [ ? {params} c
+                    // We consume it but capabilities are now provided via TerminalCapabilities
+                    // rather than runtime detection
                     consumed = j - start + 1;
                     return true;
                 }
@@ -1563,7 +1583,7 @@ public sealed class Hex1bTerminal : IDisposable
         _disposed = true;
 
         // Notify filters of session end (fire-and-forget from sync Dispose)
-        var elapsed = DateTimeOffset.UtcNow - _sessionStart;
+        var elapsed = _timeProvider.GetUtcNow() - _sessionStart;
         _ = NotifyWorkloadFiltersSessionEndAsync(elapsed);
         _ = NotifyPresentationFiltersSessionEndAsync(elapsed);
 
@@ -1586,7 +1606,7 @@ public sealed class Hex1bTerminal : IDisposable
         _disposed = true;
 
         // Notify filters of session end
-        var elapsed = DateTimeOffset.UtcNow - _sessionStart;
+        var elapsed = _timeProvider.GetUtcNow() - _sessionStart;
         await NotifyWorkloadFiltersSessionEndAsync(elapsed);
         await NotifyPresentationFiltersSessionEndAsync(elapsed);
 
@@ -1606,7 +1626,7 @@ public sealed class Hex1bTerminal : IDisposable
 
     // === Filter Notification Helpers ===
 
-    private TimeSpan GetElapsed() => DateTimeOffset.UtcNow - _sessionStart;
+    private TimeSpan GetElapsed() => _timeProvider.GetUtcNow() - _sessionStart;
 
     private async ValueTask NotifyWorkloadFiltersSessionStartAsync()
     {

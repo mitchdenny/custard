@@ -30,11 +30,16 @@ public static class TerminalRegionSvgExtensions
     /// Renders the terminal snapshot to an SVG string, including cursor position.
     /// </summary>
     /// <param name="snapshot">The terminal snapshot to render.</param>
-    /// <param name="options">Optional rendering options.</param>
+    /// <param name="options">Optional rendering options. If null, uses default options with snapshot's cell dimensions.</param>
     /// <returns>An SVG string representation of the terminal snapshot.</returns>
     public static string ToSvg(this Hex1bTerminalSnapshot snapshot, TerminalSvgOptions? options = null)
     {
-        options ??= DefaultOptions;
+        // Use snapshot's cell dimensions as defaults if no options provided
+        options ??= new TerminalSvgOptions
+        {
+            CellWidth = snapshot.CellPixelWidth,
+            CellHeight = snapshot.CellPixelHeight
+        };
         return RenderToSvg(snapshot, options, snapshot.CursorX, snapshot.CursorY);
     }
 
@@ -57,6 +62,8 @@ public static class TerminalRegionSvgExtensions
         sb.AppendLine($"      .cursor {{ fill: {options.CursorColor}; opacity: 0.7; }}");
         sb.AppendLine("      @keyframes blink { 0%, 49% { opacity: 1; } 50%, 100% { opacity: 0.3; } }");
         sb.AppendLine("      .blink { animation: blink 1s infinite; }");
+        sb.AppendLine($"      .cell-grid {{ stroke: {options.CellGridColor}; stroke-width: 0.5; vector-effect: non-scaling-stroke; }}");
+        sb.AppendLine($"      .pixel-grid {{ stroke: {options.PixelGridColor}; stroke-width: 0.25; vector-effect: non-scaling-stroke; }}");
         sb.AppendLine("    </style>");
 
         // Pre-generate clip paths for wide character truncation
@@ -302,6 +309,44 @@ public static class TerminalRegionSvgExtensions
 
         sb.AppendLine("  </g>");
 
+        // Render Sixel graphics
+        // Track which sixel payloads we've already rendered to avoid duplicates
+        var renderedSixels = new HashSet<string>();
+        
+        for (int y = 0; y < region.Height; y++)
+        {
+            for (int x = 0; x < region.Width; x++)
+            {
+                var cell = region.GetCell(x, y);
+                var sixelData = cell.SixelData;
+                
+                // Only render from the origin cell (has IsSixel flag and actual data)
+                if (sixelData == null || !cell.IsSixel)
+                    continue;
+                
+                // Skip if we've already rendered this sixel (deduplication by payload reference)
+                if (!renderedSixels.Add(sixelData.Payload))
+                    continue;
+                
+                // Decode sixel to image
+                var image = SixelDecoder.Decode(sixelData.Payload, cellWidth, cellHeight);
+                if (image == null || image.Width == 0 || image.Height == 0)
+                    continue;
+                
+                // Encode to BMP data URI
+                var dataUri = BmpEncoder.ToDataUri(image);
+                
+                // Calculate position and size
+                var imgX = x * cellWidth;
+                var imgY = y * cellHeight;
+                var imgWidth = sixelData.WidthInCells * cellWidth;
+                var imgHeight = sixelData.HeightInCells * cellHeight;
+                
+                // Add image element with pixelated rendering to prevent antialiasing
+                sb.AppendLine($"""  <image x="{imgX}" y="{imgY}" width="{imgWidth}" height="{imgHeight}" href="{dataUri}" preserveAspectRatio="none" style="image-rendering: pixelated;"/>""");
+            }
+        }
+
         // Render cursor if within bounds
         if (cursorX.HasValue && cursorY.HasValue &&
             cursorX.Value >= 0 && cursorX.Value < region.Width &&
@@ -310,6 +355,42 @@ public static class TerminalRegionSvgExtensions
             var cursorRectX = cursorX.Value * cellWidth;
             var cursorRectY = cursorY.Value * cellHeight;
             sb.AppendLine($"""  <rect class="cursor" x="{cursorRectX}" y="{cursorRectY}" width="{cellWidth}" height="{cellHeight}"/>""");
+        }
+
+        // Render pixel grid lines (shows pixel boundaries within each cell)
+        if (options.ShowPixelGrid)
+        {
+            sb.AppendLine("  <g class=\"pixel-grid\">");
+            // Vertical pixel lines - one per pixel column
+            for (int px = 1; px < width; px++)
+            {
+                sb.AppendLine($"""    <line x1="{px}" y1="0" x2="{px}" y2="{height}"/>""");
+            }
+            // Horizontal pixel lines - one per pixel row
+            for (int py = 1; py < height; py++)
+            {
+                sb.AppendLine($"""    <line x1="0" y1="{py}" x2="{width}" y2="{py}"/>""");
+            }
+            sb.AppendLine("  </g>");
+        }
+
+        // Render cell grid lines (coarser grid, one line per cell boundary)
+        if (options.ShowCellGrid)
+        {
+            sb.AppendLine("  <g class=\"cell-grid\">");
+            // Vertical cell lines
+            for (int col = 1; col < region.Width; col++)
+            {
+                var lineX = col * cellWidth;
+                sb.AppendLine($"""    <line x1="{lineX}" y1="0" x2="{lineX}" y2="{height}"/>""");
+            }
+            // Horizontal cell lines
+            for (int row = 1; row < region.Height; row++)
+            {
+                var lineY = row * cellHeight;
+                sb.AppendLine($"""    <line x1="0" y1="{lineY}" x2="{width}" y2="{lineY}"/>""");
+            }
+            sb.AppendLine("  </g>");
         }
 
         sb.AppendLine("</svg>");
@@ -357,4 +438,24 @@ public class TerminalSvgOptions
     /// The cursor color (CSS color string).
     /// </summary>
     public string CursorColor { get; set; } = "#ffffff";
+
+    /// <summary>
+    /// Whether to show cell grid lines. Default is true.
+    /// </summary>
+    public bool ShowCellGrid { get; set; } = true;
+
+    /// <summary>
+    /// Whether to show pixel grid lines. Default is false.
+    /// </summary>
+    public bool ShowPixelGrid { get; set; } = false;
+
+    /// <summary>
+    /// The color of the cell grid lines (CSS color string).
+    /// </summary>
+    public string CellGridColor { get; set; } = "rgba(128, 128, 128, 0.5)";
+
+    /// <summary>
+    /// The color of the pixel grid lines (CSS color string).
+    /// </summary>
+    public string PixelGridColor { get; set; } = "rgba(64, 64, 64, 0.3)";
 }

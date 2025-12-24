@@ -43,10 +43,26 @@ public static class TerminalRegionHtmlExtensions
         // Build cell data as JSON for JavaScript
         var cellData = BuildCellDataJson(region);
 
-        // Get the SVG content
+        // For HTML, create options with grids enabled (we'll hide them via CSS initially)
+        var htmlSvgOptions = new TerminalSvgOptions
+        {
+            FontFamily = options.FontFamily,
+            FontSize = options.FontSize,
+            CellWidth = options.CellWidth,
+            CellHeight = options.CellHeight,
+            DefaultBackground = options.DefaultBackground,
+            DefaultForeground = options.DefaultForeground,
+            CursorColor = options.CursorColor,
+            ShowCellGrid = true,  // Include in SVG so it can be toggled via CSS
+            ShowPixelGrid = true, // Include in SVG so it can be toggled via CSS
+            CellGridColor = options.CellGridColor,
+            PixelGridColor = options.PixelGridColor
+        };
+
+        // Get the SVG content with grids included (hidden via CSS initially)
         var svgContent = region is Hex1bTerminalSnapshot snapshot
-            ? snapshot.ToSvg(options)
-            : region.ToSvg(options);
+            ? snapshot.ToSvg(htmlSvgOptions)
+            : region.ToSvg(htmlSvgOptions);
 
         var sb = new StringBuilder();
 
@@ -64,6 +80,8 @@ public static class TerminalRegionHtmlExtensions
         sb.AppendLine("      color: #eee;");
         sb.AppendLine("      min-height: 100vh;");
         sb.AppendLine("      padding: 20px;");
+        sb.AppendLine("      display: flex;");
+        sb.AppendLine("      flex-direction: column;");
         sb.AppendLine("    }");
         sb.AppendLine("    h1 {");
         sb.AppendLine("      font-size: 1.5rem;");
@@ -79,6 +97,8 @@ public static class TerminalRegionHtmlExtensions
         sb.AppendLine("      display: flex;");
         sb.AppendLine("      gap: 20px;");
         sb.AppendLine("      flex-wrap: wrap;");
+        sb.AppendLine("      flex: 1;");
+        sb.AppendLine("      min-height: 0;");
         sb.AppendLine("    }");
         sb.AppendLine("    .svg-container {");
         sb.AppendLine("      position: relative;");
@@ -86,20 +106,36 @@ public static class TerminalRegionHtmlExtensions
         sb.AppendLine("      border-radius: 8px;");
         sb.AppendLine("      overflow: hidden;");
         sb.AppendLine("      background: #0d0d0d;");
+        sb.AppendLine("      flex: 1;");
+        sb.AppendLine("      min-height: 0;");
+        sb.AppendLine("      display: flex;");
+        sb.AppendLine("      align-items: center;");
+        sb.AppendLine("      justify-content: center;");
+        sb.AppendLine("      padding: 20px;");
         sb.AppendLine("    }");
         sb.AppendLine("    .svg-container svg {");
         sb.AppendLine("      display: block;");
+        sb.AppendLine("      max-width: 100%;");
+        sb.AppendLine("      max-height: 100%;");
+        sb.AppendLine("      width: auto;");
+        sb.AppendLine("      height: auto;");
+        sb.AppendLine("      image-rendering: pixelated;");
         sb.AppendLine("    }");
         sb.AppendLine("    .cell-highlight {");
         sb.AppendLine("      position: absolute;");
         sb.AppendLine("      pointer-events: none;");
-        sb.AppendLine("      border: 2px solid #00d4ff;");
+        sb.AppendLine("      border: 1px solid #00d4ff;");
         sb.AppendLine("      border-radius: 2px;");
         sb.AppendLine("      opacity: 0;");
-        sb.AppendLine("      transition: opacity 0.1s;");
+        sb.AppendLine("      transition: opacity 0.1s, box-shadow 0.2s;");
+        sb.AppendLine("      box-shadow: 0 0 0 rgba(0, 212, 255, 0);");
         sb.AppendLine("    }");
         sb.AppendLine("    .cell-highlight.visible {");
         sb.AppendLine("      opacity: 1;");
+        sb.AppendLine("    }");
+        sb.AppendLine("    .cell-highlight.shimmer {");
+        sb.AppendLine("      box-shadow: 0 0 12px rgba(0, 212, 255, 0.8), inset 0 0 8px rgba(0, 212, 255, 0.4);");
+        sb.AppendLine("      border-color: #00ffff;");
         sb.AppendLine("    }");
         sb.AppendLine("    .tooltip {");
         sb.AppendLine("      position: fixed;");
@@ -241,6 +277,28 @@ public static class TerminalRegionHtmlExtensions
         sb.AppendLine("      cursor: pointer;");
         sb.AppendLine("      background: transparent;");
         sb.AppendLine("    }");
+        sb.AppendLine("    .grid-controls {");
+        sb.AppendLine("      display: flex;");
+        sb.AppendLine("      gap: 16px;");
+        sb.AppendLine("      align-items: center;");
+        sb.AppendLine("    }");
+        sb.AppendLine("    .grid-controls label {");
+        sb.AppendLine("      display: flex;");
+        sb.AppendLine("      align-items: center;");
+        sb.AppendLine("      gap: 6px;");
+        sb.AppendLine("      font-size: 13px;");
+        sb.AppendLine("      color: #888;");
+        sb.AppendLine("      cursor: pointer;");
+        sb.AppendLine("    }");
+        sb.AppendLine("    .grid-controls input[type=\"checkbox\"] {");
+        sb.AppendLine("      width: 16px;");
+        sb.AppendLine("      height: 16px;");
+        sb.AppendLine("      cursor: pointer;");
+        sb.AppendLine("    }");
+        sb.AppendLine("    .svg-container .cell-grid { display: none; }");
+        sb.AppendLine("    .svg-container.show-cell-grid .cell-grid { display: block; }");
+        sb.AppendLine("    .svg-container .pixel-grid { display: none; }");
+        sb.AppendLine("    .svg-container.show-pixel-grid .pixel-grid { display: block; }");
         sb.AppendLine("  </style>");
         sb.AppendLine("</head>");
         sb.AppendLine("<body>");
@@ -255,18 +313,26 @@ public static class TerminalRegionHtmlExtensions
         sb.AppendLine("      <label>Background: <input type=\"color\" id=\"bg-picker\" value=\"#1e1e1e\"></label>");
         sb.AppendLine("      <label>Foreground: <input type=\"color\" id=\"fg-picker\" value=\"#d4d4d4\"></label>");
         sb.AppendLine("    </div>");
+        sb.AppendLine("    <div class=\"grid-controls\">");
+        sb.AppendLine("      <label><input type=\"checkbox\" id=\"cell-grid-toggle\"> Cell Grid</label>");
+        sb.AppendLine("      <label><input type=\"color\" id=\"cell-grid-color\" value=\"#808080\"></label>");
+        sb.AppendLine("      <label><input type=\"checkbox\" id=\"pixel-grid-toggle\"> Pixel Grid</label>");
+        sb.AppendLine("      <label><input type=\"color\" id=\"pixel-grid-color\" value=\"#404040\"></label>");
+        sb.AppendLine("    </div>");
         sb.AppendLine("  </div>");
         sb.AppendLine("  <div class=\"container\">");
         sb.AppendLine("    <div class=\"svg-container\" id=\"svg-container\">");
         sb.AppendLine(svgContent);
-        sb.AppendLine($"      <div class=\"cell-highlight\" id=\"cell-highlight\" style=\"width:{cellWidth}px;height:{cellHeight}px;\"></div>");
+        sb.AppendLine($"      <div class=\"cell-highlight\" id=\"cell-highlight\"></div>");
         sb.AppendLine("    </div>");
         sb.AppendLine("  </div>");
         sb.AppendLine("  <div class=\"tooltip\" id=\"tooltip\"></div>");
         sb.AppendLine();
         sb.AppendLine("  <script>");
-        sb.AppendLine($"    const CELL_WIDTH = {cellWidth};");
-        sb.AppendLine($"    const CELL_HEIGHT = {cellHeight};");
+        sb.AppendLine($"    const BASE_CELL_WIDTH = {cellWidth};");
+        sb.AppendLine($"    const BASE_CELL_HEIGHT = {cellHeight};");
+        sb.AppendLine($"    const SVG_WIDTH = {svgWidth};");
+        sb.AppendLine($"    const SVG_HEIGHT = {svgHeight};");
         sb.AppendLine($"    const COLS = {region.Width};");
         sb.AppendLine($"    const ROWS = {region.Height};");
         sb.AppendLine($"    const cellData = {cellData};");
@@ -274,6 +340,26 @@ public static class TerminalRegionHtmlExtensions
         sb.AppendLine("    const container = document.getElementById('svg-container');");
         sb.AppendLine("    const highlight = document.getElementById('cell-highlight');");
         sb.AppendLine("    const tooltip = document.getElementById('tooltip');");
+        sb.AppendLine("    const svg = container.querySelector('svg');");
+        sb.AppendLine();
+        sb.AppendLine("    // Track current cell for shimmer effect");
+        sb.AppendLine("    let currentCellX = -1;");
+        sb.AppendLine("    let currentCellY = -1;");
+        sb.AppendLine();
+        sb.AppendLine("    // Scale SVG to fill container while maintaining aspect ratio");
+        sb.AppendLine("    function updateSvgScale() {");
+        sb.AppendLine("      const containerRect = container.getBoundingClientRect();");
+        sb.AppendLine("      const padding = 40; // 20px padding on each side");
+        sb.AppendLine("      const availableWidth = containerRect.width - padding;");
+        sb.AppendLine("      const availableHeight = containerRect.height - padding;");
+        sb.AppendLine("      const scaleX = availableWidth / SVG_WIDTH;");
+        sb.AppendLine("      const scaleY = availableHeight / SVG_HEIGHT;");
+        sb.AppendLine("      const scale = Math.min(scaleX, scaleY);");
+        sb.AppendLine("      svg.style.width = (SVG_WIDTH * scale) + 'px';");
+        sb.AppendLine("      svg.style.height = (SVG_HEIGHT * scale) + 'px';");
+        sb.AppendLine("    }");
+        sb.AppendLine("    updateSvgScale();");
+        sb.AppendLine("    window.addEventListener('resize', updateSvgScale);");
         sb.AppendLine();
         sb.AppendLine("    function rgbToHex(r, g, b) {");
         sb.AppendLine("      return '#' + [r, g, b].map(x => x.toString(16).padStart(2, '0')).join('');");
@@ -325,6 +411,7 @@ public static class TerminalRegionHtmlExtensions
         sb.AppendLine("      const bgStyle = cell.bg ? `background:rgb(${cell.bg.r},${cell.bg.g},${cell.bg.b});` : 'background:#1e1e1e;';");
         sb.AppendLine("      const seqInfo = cell.seq ? `Seq: ${cell.seq}` : 'Seq: 0';");
         sb.AppendLine("      const timeInfo = cell.t ? new Date(cell.t).toLocaleTimeString() : '-';");
+        sb.AppendLine("      const hasSixel = cell.sixel;");
         sb.AppendLine();
         sb.AppendLine("      return `");
         sb.AppendLine("        <div class=\"tooltip-header\">");
@@ -360,21 +447,48 @@ public static class TerminalRegionHtmlExtensions
         sb.AppendLine("          <div class=\"tooltip-label\">Write Order</div>");
         sb.AppendLine("          <div class=\"tooltip-value\">${seqInfo} &nbsp;|&nbsp; ${timeInfo}</div>");
         sb.AppendLine("        </div>");
+        sb.AppendLine("        ${hasSixel ? `");
+        sb.AppendLine("        <div class=\"tooltip-section\">");
+        sb.AppendLine("          <div class=\"tooltip-label\">Sixel Graphics</div>");
+        sb.AppendLine("          <div class=\"tooltip-value\">");
+        sb.AppendLine("            ${cell.sixel.origin ? '<span class=\"attr-badge\" style=\"background:#4e9a06\">Origin</span>' : '<span class=\"attr-badge\">Continuation</span>'}");
+        sb.AppendLine("            ${cell.sixel.w}×${cell.sixel.h} cells");
+        sb.AppendLine("          </div>");
+        sb.AppendLine("        </div>` : ''}");
         sb.AppendLine("      `;");
         sb.AppendLine("    }");
         sb.AppendLine();
         sb.AppendLine("    container.addEventListener('mousemove', (e) => {");
-        sb.AppendLine("      const rect = container.getBoundingClientRect();");
-        sb.AppendLine("      const x = Math.floor((e.clientX - rect.left) / CELL_WIDTH);");
-        sb.AppendLine("      const y = Math.floor((e.clientY - rect.top) / CELL_HEIGHT);");
+        sb.AppendLine("      const svgRect = svg.getBoundingClientRect();");
+        sb.AppendLine("      const scaleX = svgRect.width / SVG_WIDTH;");
+        sb.AppendLine("      const scaleY = svgRect.height / SVG_HEIGHT;");
+        sb.AppendLine("      const cellWidth = BASE_CELL_WIDTH * scaleX;");
+        sb.AppendLine("      const cellHeight = BASE_CELL_HEIGHT * scaleY;");
+        sb.AppendLine("      const x = Math.floor((e.clientX - svgRect.left) / cellWidth);");
+        sb.AppendLine("      const y = Math.floor((e.clientY - svgRect.top) / cellHeight);");
         sb.AppendLine();
         sb.AppendLine("      if (x >= 0 && x < COLS && y >= 0 && y < ROWS) {");
         sb.AppendLine("        const cell = cellData[y][x];");
         sb.AppendLine();
-        sb.AppendLine("        // Position highlight");
-        sb.AppendLine("        highlight.style.left = (x * CELL_WIDTH) + 'px';");
-        sb.AppendLine("        highlight.style.top = (y * CELL_HEIGHT) + 'px';");
+        sb.AppendLine("        // Check if we moved to a new cell");
+        sb.AppendLine("        const cellChanged = (x !== currentCellX || y !== currentCellY);");
+        sb.AppendLine("        currentCellX = x;");
+        sb.AppendLine("        currentCellY = y;");
+        sb.AppendLine();
+        sb.AppendLine("        // Position highlight relative to SVG");
+        sb.AppendLine("        const svgOffset = svg.getBoundingClientRect();");
+        sb.AppendLine("        const containerOffset = container.getBoundingClientRect();");
+        sb.AppendLine("        highlight.style.left = (svgOffset.left - containerOffset.left + x * cellWidth) + 'px';");
+        sb.AppendLine("        highlight.style.top = (svgOffset.top - containerOffset.top + y * cellHeight) + 'px';");
+        sb.AppendLine("        highlight.style.width = cellWidth + 'px';");
+        sb.AppendLine("        highlight.style.height = cellHeight + 'px';");
         sb.AppendLine("        highlight.classList.add('visible');");
+        sb.AppendLine();
+        sb.AppendLine("        // Shimmer effect when moving to a new cell");
+        sb.AppendLine("        if (cellChanged) {");
+        sb.AppendLine("          highlight.classList.add('shimmer');");
+        sb.AppendLine("          setTimeout(() => highlight.classList.remove('shimmer'), 200);");
+        sb.AppendLine("        }");
         sb.AppendLine();
         sb.AppendLine("        // Update and position tooltip");
         sb.AppendLine("        tooltip.innerHTML = renderTooltip(cell, x, y);");
@@ -395,6 +509,8 @@ public static class TerminalRegionHtmlExtensions
         sb.AppendLine("      } else {");
         sb.AppendLine("        highlight.classList.remove('visible');");
         sb.AppendLine("        tooltip.classList.remove('visible');");
+        sb.AppendLine("        currentCellX = -1;");
+        sb.AppendLine("        currentCellY = -1;");
         sb.AppendLine("      }");
         sb.AppendLine("    });");
         sb.AppendLine();
@@ -408,10 +524,41 @@ public static class TerminalRegionHtmlExtensions
         sb.AppendLine("    const fgPicker = document.getElementById('fg-picker');");
         sb.AppendLine("    const btnDark = document.getElementById('btn-dark');");
         sb.AppendLine("    const btnLight = document.getElementById('btn-light');");
-        sb.AppendLine("    const svg = container.querySelector('svg');");
+        sb.AppendLine("    const cellGridToggle = document.getElementById('cell-grid-toggle');");
+        sb.AppendLine("    const pixelGridToggle = document.getElementById('pixel-grid-toggle');");
+        sb.AppendLine("    const cellGridColorPicker = document.getElementById('cell-grid-color');");
+        sb.AppendLine("    const pixelGridColorPicker = document.getElementById('pixel-grid-color');");
         sb.AppendLine();
         sb.AppendLine("    let currentDefaultBg = '#1e1e1e';");
         sb.AppendLine("    let currentDefaultFg = '#d4d4d4';");
+        sb.AppendLine("    let cellGridCustomColor = false;");
+        sb.AppendLine("    let pixelGridCustomColor = false;");
+        sb.AppendLine();
+        sb.AppendLine("    // Compute contrasting color for grids based on background luminance");
+        sb.AppendLine("    function getContrastingGridColor(bgColor, alpha) {");
+        sb.AppendLine("      const hex = bgColor.replace('#', '');");
+        sb.AppendLine("      const r = parseInt(hex.substr(0, 2), 16);");
+        sb.AppendLine("      const g = parseInt(hex.substr(2, 2), 16);");
+        sb.AppendLine("      const b = parseInt(hex.substr(4, 2), 16);");
+        sb.AppendLine("      const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;");
+        sb.AppendLine("      const base = luminance > 0.5 ? 0 : 255;");
+        sb.AppendLine("      const adjusted = Math.round(base * alpha + (luminance > 0.5 ? 255 : 0) * (1 - alpha));");
+        sb.AppendLine("      const hex2 = adjusted.toString(16).padStart(2, '0');");
+        sb.AppendLine("      return `#${hex2}${hex2}${hex2}`;");
+        sb.AppendLine("    }");
+        sb.AppendLine();
+        sb.AppendLine("    function updateGridColors(bgColor) {");
+        sb.AppendLine("      if (!cellGridCustomColor) {");
+        sb.AppendLine("        const cellColor = getContrastingGridColor(bgColor, 0.5);");
+        sb.AppendLine("        cellGridColorPicker.value = cellColor;");
+        sb.AppendLine("        svg.querySelectorAll('.cell-grid line').forEach(el => el.setAttribute('stroke', cellColor));");
+        sb.AppendLine("      }");
+        sb.AppendLine("      if (!pixelGridCustomColor) {");
+        sb.AppendLine("        const pixelColor = getContrastingGridColor(bgColor, 0.25);");
+        sb.AppendLine("        pixelGridColorPicker.value = pixelColor;");
+        sb.AppendLine("        svg.querySelectorAll('.pixel-grid line').forEach(el => el.setAttribute('stroke', pixelColor));");
+        sb.AppendLine("      }");
+        sb.AppendLine("    }");
         sb.AppendLine();
         sb.AppendLine("    function updateTheme(newBg, newFg) {");
         sb.AppendLine("      // Update the main background rect (first rect in SVG)");
@@ -440,6 +587,9 @@ public static class TerminalRegionHtmlExtensions
         sb.AppendLine("      currentDefaultFg = newFg;");
         sb.AppendLine("      bgPicker.value = newBg;");
         sb.AppendLine("      fgPicker.value = newFg;");
+        sb.AppendLine();
+        sb.AppendLine("      // Update grid colors based on new background");
+        sb.AppendLine("      updateGridColors(newBg);");
         sb.AppendLine("    }");
         sb.AppendLine();
         sb.AppendLine("    bgPicker.addEventListener('input', (e) => {");
@@ -465,6 +615,28 @@ public static class TerminalRegionHtmlExtensions
         sb.AppendLine("      btnLight.classList.add('active');");
         sb.AppendLine("      btnDark.classList.remove('active');");
         sb.AppendLine("    });");
+        sb.AppendLine();
+        sb.AppendLine("    // Grid toggle and color controls");
+        sb.AppendLine("    cellGridToggle.addEventListener('change', (e) => {");
+        sb.AppendLine("      container.classList.toggle('show-cell-grid', e.target.checked);");
+        sb.AppendLine("    });");
+        sb.AppendLine();
+        sb.AppendLine("    pixelGridToggle.addEventListener('change', (e) => {");
+        sb.AppendLine("      container.classList.toggle('show-pixel-grid', e.target.checked);");
+        sb.AppendLine("    });");
+        sb.AppendLine();
+        sb.AppendLine("    cellGridColorPicker.addEventListener('input', (e) => {");
+        sb.AppendLine("      cellGridCustomColor = true;");
+        sb.AppendLine("      svg.querySelectorAll('.cell-grid line').forEach(el => el.setAttribute('stroke', e.target.value));");
+        sb.AppendLine("    });");
+        sb.AppendLine();
+        sb.AppendLine("    pixelGridColorPicker.addEventListener('input', (e) => {");
+        sb.AppendLine("      pixelGridCustomColor = true;");
+        sb.AppendLine("      svg.querySelectorAll('.pixel-grid line').forEach(el => el.setAttribute('stroke', e.target.value));");
+        sb.AppendLine("    });");
+        sb.AppendLine();
+        sb.AppendLine("    // Initialize grid colors based on default background");
+        sb.AppendLine("    updateGridColors(currentDefaultBg);");
         sb.AppendLine("  </script>");
         sb.AppendLine("</body>");
         sb.AppendLine("</html>");
@@ -501,7 +673,12 @@ public static class TerminalRegionHtmlExtensions
                     ? $"\"{cell.WrittenAt:O}\"" 
                     : "null";
 
-                cells.Add($"{{\"c\":\"{escapedChar}\",\"fg\":{fg},\"bg\":{bg},\"a\":{attrs},\"seq\":{seq},\"t\":{writtenAt}}}");
+                // Include sixel data if present
+                var sixel = cell.SixelData != null
+                    ? $"{{\"origin\":{(cell.IsSixel ? "true" : "false")},\"w\":{cell.SixelData.WidthInCells},\"h\":{cell.SixelData.HeightInCells}}}"
+                    : "null";
+
+                cells.Add($"{{\"c\":\"{escapedChar}\",\"fg\":{fg},\"bg\":{bg},\"a\":{attrs},\"seq\":{seq},\"t\":{writtenAt},\"sixel\":{sixel}}}");
             }
             rows.Add($"[{string.Join(",", cells)}]");
         }

@@ -20,6 +20,8 @@ public sealed class Hex1bTerminalSnapshot : IHex1bTerminalRegion, IDisposable
         CursorY = terminal.CursorY;
         InAlternateScreen = terminal.InAlternateScreen;
         Timestamp = DateTimeOffset.UtcNow;
+        CellPixelWidth = terminal.Capabilities.CellPixelWidth;
+        CellPixelHeight = terminal.Capabilities.CellPixelHeight;
 
         // Get a deep copy of the cell buffer, adding refs for tracked objects
         _cells = terminal.GetScreenBuffer(addTrackedObjectRefs: true);
@@ -59,6 +61,16 @@ public sealed class Hex1bTerminalSnapshot : IHex1bTerminalRegion, IDisposable
     /// Whether the terminal was in alternate screen mode at snapshot time.
     /// </summary>
     public bool InAlternateScreen { get; }
+    
+    /// <summary>
+    /// Width of a terminal character cell in pixels.
+    /// </summary>
+    public int CellPixelWidth { get; }
+    
+    /// <summary>
+    /// Height of a terminal character cell in pixels.
+    /// </summary>
+    public int CellPixelHeight { get; }
 
     /// <inheritdoc />
     public TerminalCell GetCell(int x, int y)

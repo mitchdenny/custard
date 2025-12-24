@@ -61,6 +61,16 @@ public sealed class Hex1bTerminalOptions
     public IList<IHex1bTerminalPresentationFilter> PresentationFilters { get; } = new List<IHex1bTerminalPresentationFilter>();
 
     /// <summary>
+    /// The time provider to use for all time-related operations.
+    /// Defaults to <see cref="TimeProvider.System"/> if not specified.
+    /// </summary>
+    /// <remarks>
+    /// This can be overridden with a fake time provider for testing purposes,
+    /// allowing deterministic control over timestamps and elapsed time calculations.
+    /// </remarks>
+    public TimeProvider TimeProvider { get; set; } = TimeProvider.System;
+
+    /// <summary>
     /// Validates the options and throws if invalid.
     /// </summary>
     internal void Validate()

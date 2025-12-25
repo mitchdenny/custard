@@ -87,11 +87,13 @@ public sealed class TerminalNode : Hex1bNode
         {
             var line = lines[i];
             
-            // Clip the line to the bounds width
+            // Clip the line to the bounds width using display-width-aware slicing
             var displayLine = line;
-            if (line.Length > Bounds.Width)
+            var lineWidth = DisplayWidth.GetStringWidth(line);
+            if (lineWidth > Bounds.Width)
             {
-                displayLine = line.Substring(0, Bounds.Width);
+                var result = DisplayWidth.SliceByDisplayWidth(line, 0, Bounds.Width);
+                displayLine = result.text;
             }
             
             // Use WriteClipped to respect layout provider clipping

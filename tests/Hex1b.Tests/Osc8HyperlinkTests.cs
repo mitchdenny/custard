@@ -1,10 +1,19 @@
 using Hex1b;
+using Hex1b.Input;
 using Hex1b.Terminal;
+using Hex1b.Terminal.Testing;
+using Hex1b.Widgets;
 
 namespace Hex1b.Tests;
 
+/// <summary>
+/// Tests for OSC 8 hyperlink support, including both low-level terminal parsing
+/// and high-level HyperlinkWidget integration with Hex1bApp.
+/// </summary>
 public class Osc8HyperlinkTests
 {
+    #region Low-Level OSC 8 Parsing Tests
+
     [Fact]
     public void ProcessOutput_WithOsc8Sequence_CreatesHyperlinkData()
     {
@@ -271,4 +280,316 @@ public class Osc8HyperlinkTests
         Assert.NotNull(linkData);
         Assert.Equal(uri, linkData.Uri);
     }
+
+    #endregion
+
+    #region HyperlinkWidget Integration Tests with Snapshots
+
+    [Fact]
+    public async Task HyperlinkWidget_SingleLink_RendersWithOsc8()
+    {
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = new Hex1bTerminal(workload, 60, 10);
+
+        await using var app = new Hex1bApp(
+            ctx => ctx.VStack(v => [
+                v.Text("Click the link below:"),
+                v.Hyperlink("Visit GitHub", "https://github.com/mitchdenny/hex1b")
+            ]),
+            new Hex1bAppOptions { WorkloadAdapter = workload }
+        );
+
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+        await new Hex1bTestSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Visit GitHub"), TimeSpan.FromSeconds(2))
+            .Capture("single-link")
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+        await runTask;
+
+        // Capture snapshots
+        var snapshot = terminal.CreateSnapshot();
+        TestSvgHelper.Capture(snapshot, "hyperlink-single");
+
+        // Verify the link text is rendered
+        Assert.True(snapshot.ContainsText("Visit GitHub"));
+        Assert.True(snapshot.ContainsText("Click the link below"));
+    }
+
+    [Fact]
+    public async Task HyperlinkWidget_MultipleLinks_AllRenderCorrectly()
+    {
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = new Hex1bTerminal(workload, 60, 12);
+
+        await using var app = new Hex1bApp(
+            ctx => ctx.VStack(v => [
+                v.Text("Navigation Links:"),
+                v.Hyperlink("GitHub", "https://github.com"),
+                v.Hyperlink("Documentation", "https://hex1b.dev/docs"),
+                v.Hyperlink("Examples", "https://hex1b.dev/examples"),
+                v.Hyperlink("API Reference", "https://hex1b.dev/api")
+            ]),
+            new Hex1bAppOptions { WorkloadAdapter = workload }
+        );
+
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+        await new Hex1bTestSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("API Reference"), TimeSpan.FromSeconds(2))
+            .Capture("multiple-links")
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+        await runTask;
+
+        // Capture snapshots
+        var snapshot = terminal.CreateSnapshot();
+        TestSvgHelper.Capture(snapshot, "hyperlink-multiple");
+
+        // Verify all links are rendered
+        Assert.True(snapshot.ContainsText("GitHub"));
+        Assert.True(snapshot.ContainsText("Documentation"));
+        Assert.True(snapshot.ContainsText("Examples"));
+        Assert.True(snapshot.ContainsText("API Reference"));
+    }
+
+    [Fact]
+    public async Task HyperlinkWidget_InHStack_RendersInline()
+    {
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = new Hex1bTerminal(workload, 70, 8);
+
+        await using var app = new Hex1bApp(
+            ctx => ctx.VStack(v => [
+                v.Text("Quick Links:"),
+                v.HStack(h => [
+                    h.Hyperlink("[Home]", "https://hex1b.dev"),
+                    h.Text(" | "),
+                    h.Hyperlink("[Docs]", "https://hex1b.dev/docs"),
+                    h.Text(" | "),
+                    h.Hyperlink("[GitHub]", "https://github.com/mitchdenny/hex1b")
+                ])
+            ]),
+            new Hex1bAppOptions { WorkloadAdapter = workload }
+        );
+
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+        await new Hex1bTestSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("[GitHub]"), TimeSpan.FromSeconds(2))
+            .Capture("inline-links")
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+        await runTask;
+
+        // Capture snapshots
+        var snapshot = terminal.CreateSnapshot();
+        TestSvgHelper.Capture(snapshot, "hyperlink-inline");
+
+        // Verify inline layout
+        Assert.True(snapshot.ContainsText("[Home]"));
+        Assert.True(snapshot.ContainsText("[Docs]"));
+        Assert.True(snapshot.ContainsText("[GitHub]"));
+    }
+
+    [Fact]
+    public async Task HyperlinkWidget_InBorder_RendersWithFrame()
+    {
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = new Hex1bTerminal(workload, 50, 10);
+
+        await using var app = new Hex1bApp(
+            ctx => ctx.Border(
+                ctx.VStack(v => [
+                    v.Text("Important Links"),
+                    v.Text(""),
+                    v.Hyperlink("Project Repository", "https://github.com/mitchdenny/hex1b"),
+                    v.Hyperlink("Issue Tracker", "https://github.com/mitchdenny/hex1b/issues")
+                ]),
+                title: "Resources"
+            ),
+            new Hex1bAppOptions { WorkloadAdapter = workload }
+        );
+
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+        await new Hex1bTestSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Issue Tracker"), TimeSpan.FromSeconds(2))
+            .Capture("bordered-links")
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+        await runTask;
+
+        // Capture snapshots
+        var snapshot = terminal.CreateSnapshot();
+        TestSvgHelper.Capture(snapshot, "hyperlink-bordered");
+
+        // Verify content
+        Assert.True(snapshot.ContainsText("Resources"));
+        Assert.True(snapshot.ContainsText("Project Repository"));
+        Assert.True(snapshot.ContainsText("Issue Tracker"));
+    }
+
+    [Fact]
+    public async Task HyperlinkWidget_WithClickHandler_TracksClicks()
+    {
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = new Hex1bTerminal(workload, 50, 8);
+        var clickedUri = "";
+        var clickCount = 0;
+
+        await using var app = new Hex1bApp(
+            ctx => ctx.VStack(v => [
+                v.Text($"Clicks: {clickCount}"),
+                v.Hyperlink("Click Me", "https://example.com")
+                    .OnClick(e => { clickedUri = e.Uri; clickCount++; })
+            ]),
+            new Hex1bAppOptions { WorkloadAdapter = workload }
+        );
+
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+        await new Hex1bTestSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Click Me"), TimeSpan.FromSeconds(2))
+            .Enter() // Click the link
+            .Enter() // Click again
+            .Capture("after-clicks")
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+        await runTask;
+
+        // Capture snapshots
+        var snapshot = terminal.CreateSnapshot();
+        TestSvgHelper.Capture(snapshot, "hyperlink-clicked");
+
+        Assert.Equal("https://example.com", clickedUri);
+        Assert.Equal(2, clickCount);
+        Assert.True(snapshot.ContainsText("Clicks: 2"));
+    }
+
+    [Fact]
+    public async Task HyperlinkWidget_TabNavigation_FocusesLinks()
+    {
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = new Hex1bTerminal(workload, 60, 10);
+        var lastClickedUri = "";
+
+        await using var app = new Hex1bApp(
+            ctx => ctx.VStack(v => [
+                v.Hyperlink("First Link", "https://first.com")
+                    .OnClick(e => lastClickedUri = e.Uri),
+                v.Hyperlink("Second Link", "https://second.com")
+                    .OnClick(e => lastClickedUri = e.Uri),
+                v.Hyperlink("Third Link", "https://third.com")
+                    .OnClick(e => lastClickedUri = e.Uri)
+            ]),
+            new Hex1bAppOptions { WorkloadAdapter = workload }
+        );
+
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+        
+        // Navigate and capture at each focus state
+        await new Hex1bTestSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Third Link"), TimeSpan.FromSeconds(2))
+            .Capture("focus-first")
+            .Tab()
+            .Capture("focus-second")
+            .Tab()
+            .Capture("focus-third")
+            .Enter() // Click third link
+            .Capture("after-click-third")
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+        await runTask;
+
+        // Capture final snapshot
+        var snapshot = terminal.CreateSnapshot();
+        TestSvgHelper.Capture(snapshot, "hyperlink-navigation");
+
+        Assert.Equal("https://third.com", lastClickedUri);
+    }
+
+    [Fact]
+    public async Task HyperlinkWidget_MixedWithButtons_InterleavedCorrectly()
+    {
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = new Hex1bTerminal(workload, 60, 12);
+        var buttonClicked = false;
+        var linkClicked = false;
+
+        await using var app = new Hex1bApp(
+            ctx => ctx.VStack(v => [
+                v.Text("Actions:"),
+                v.Hyperlink("Read Documentation", "https://hex1b.dev/docs")
+                    .OnClick(_ => linkClicked = true),
+                v.Button("Submit Form")
+                    .OnClick(_ => { buttonClicked = true; return Task.CompletedTask; }),
+                v.Hyperlink("View Source", "https://github.com/mitchdenny/hex1b")
+            ]),
+            new Hex1bAppOptions { WorkloadAdapter = workload }
+        );
+
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+        await new Hex1bTestSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("View Source"), TimeSpan.FromSeconds(2))
+            .Enter() // Click first link
+            .Tab()
+            .Enter() // Click button
+            .Capture("mixed-widgets")
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+        await runTask;
+
+        // Capture snapshots
+        var snapshot = terminal.CreateSnapshot();
+        TestSvgHelper.Capture(snapshot, "hyperlink-mixed");
+
+        Assert.True(linkClicked);
+        Assert.True(buttonClicked);
+        Assert.True(snapshot.ContainsText("Read Documentation"));
+        Assert.True(snapshot.ContainsText("Submit Form"));
+        Assert.True(snapshot.ContainsText("View Source"));
+    }
+
+    [Fact]
+    public async Task HyperlinkWidget_ComplexUrls_RendersCorrectly()
+    {
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = new Hex1bTerminal(workload, 80, 12);
+
+        await using var app = new Hex1bApp(
+            ctx => ctx.VStack(v => [
+                v.Text("Complex URL Examples:"),
+                v.Hyperlink("Search Results", "https://www.google.com/search?q=terminal+hyperlinks&hl=en"),
+                v.Hyperlink("Wikipedia Section", "https://en.wikipedia.org/wiki/ANSI_escape_code#OSC_(Operating_System_Command)_sequences"),
+                v.Hyperlink("File Protocol", "file:///home/user/documents/readme.txt"),
+                v.Hyperlink("Mailto Link", "mailto:test@example.com?subject=Hello&body=Test")
+            ]),
+            new Hex1bAppOptions { WorkloadAdapter = workload }
+        );
+
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+        await new Hex1bTestSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Mailto Link"), TimeSpan.FromSeconds(2))
+            .Capture("complex-urls")
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+        await runTask;
+
+        // Capture snapshots
+        var snapshot = terminal.CreateSnapshot();
+        TestSvgHelper.Capture(snapshot, "hyperlink-complex-urls");
+
+        Assert.True(snapshot.ContainsText("Search Results"));
+        Assert.True(snapshot.ContainsText("Wikipedia Section"));
+        Assert.True(snapshot.ContainsText("File Protocol"));
+        Assert.True(snapshot.ContainsText("Mailto Link"));
+    }
+
+    #endregion
 }
+

@@ -1,105 +1,127 @@
 using Hex1b;
 using Hex1b.Terminal;
-using Hex1b.Terminal.Testing;
-using System.Reflection;
+using Hex1b.Widgets;
 
-// Test OSC 8 hyperlink support
-// This creates a terminal snapshot with hyperlinks and exports to HTML for inspection
+// Test OSC 8 hyperlink support using the HyperlinkWidget
+// This demonstrates clickable terminal hyperlinks in a Hex1b TUI app
 
-Console.WriteLine("OSC 8 Hyperlink Test");
-Console.WriteLine("====================");
-Console.WriteLine();
+Console.WriteLine("OSC 8 Hyperlink Widget Test");
+Console.WriteLine("===========================");
+Console.WriteLine("Press any key to start the TUI...");
+Console.ReadKey(true);
 
-// Create a headless terminal for testing
-using var workload = new Hex1bAppWorkloadAdapter();
-using var terminal = new Hex1bTerminal(workload, 80, 24);
+var clickedLinks = new List<string>();
+var lastClickedUri = "(none)";
 
-// Test 1: Simple hyperlink
-Console.WriteLine("Test 1: Simple hyperlink");
-workload.Write("Visit ");
-workload.Write("\x1b]8;;https://github.com/mitchdenny/hex1b\x1b\\");
-workload.Write("Hex1b on GitHub");
-workload.Write("\x1b]8;;\x1b\\");
-workload.Write(" for more info.\n");
-
-// Test 2: Hyperlink with ID parameter
-Console.WriteLine("Test 2: Hyperlink with ID parameter");
-workload.Write("Documentation: ");
-workload.Write("\x1b]8;id=docs;https://hex1b.dev/docs\x1b\\");
-workload.Write("hex1b.dev/docs");
-workload.Write("\x1b]8;;\x1b\\");
-workload.Write("\n");
-
-// Test 3: Multiple hyperlinks on same line
-Console.WriteLine("Test 3: Multiple hyperlinks");
-workload.Write("Links: ");
-workload.Write("\x1b]8;;https://example.com\x1b\\");
-workload.Write("[Example]");
-workload.Write("\x1b]8;;\x1b\\");
-workload.Write(" ");
-workload.Write("\x1b]8;;https://test.com\x1b\\");
-workload.Write("[Test]");
-workload.Write("\x1b]8;;\x1b\\");
-workload.Write("\n");
-
-// Test 4: Complex URL
-Console.WriteLine("Test 4: Complex URL with query params");
-workload.Write("Search: ");
-workload.Write("\x1b]8;;https://www.google.com/search?q=osc+8+hyperlinks&hl=en\x1b\\");
-workload.Write("Google Search Results");
-workload.Write("\x1b]8;;\x1b\\");
-workload.Write("\n\n");
-
-// Test 5: Multiline hyperlink
-Console.WriteLine("Test 5: Multiline hyperlink");
-workload.Write("\x1b]8;;https://en.wikipedia.org/wiki/ANSI_escape_code\x1b\\");
-workload.Write("This is a very long link that\nspans multiple lines in the\nterminal output.");
-workload.Write("\x1b]8;;\x1b\\");
-workload.Write("\n\n");
-
-// Test 6: Same link multiple times (deduplication)
-Console.WriteLine("Test 6: Link deduplication");
-workload.Write("\x1b]8;;https://example.com\x1b\\");
-workload.Write("First");
-workload.Write("\x1b]8;;\x1b\\");
-workload.Write(" and ");
-workload.Write("\x1b]8;;https://example.com\x1b\\");
-workload.Write("Second");
-workload.Write("\x1b]8;;\x1b\\");
-workload.Write(" use same URL\n");
-
-// Use reflection to access internal methods for testing
-var flushMethod = typeof(Hex1bTerminal).GetMethod("FlushOutput", BindingFlags.Instance | BindingFlags.NonPublic);
-flushMethod?.Invoke(terminal, null);
-
-var containsMethod = typeof(Hex1bTerminal).GetMethod("ContainsHyperlinkData", BindingFlags.Instance | BindingFlags.NonPublic);
-var hasHyperlinks = (bool)(containsMethod?.Invoke(terminal, null) ?? false);
-
-var snapshotMethod = typeof(Hex1bTerminal).GetMethod("TakeSnapshot", BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public);
-var snapshot = snapshotMethod?.Invoke(terminal, null);
-
-Console.WriteLine();
-Console.WriteLine($"Terminal contains hyperlinks: {hasHyperlinks}");
-Console.WriteLine();
-
-if (snapshot != null)
+try
 {
-    // Create HTML export
-    var toHtmlMethod = snapshot.GetType().GetMethod("ToHtml");
-    var html = (string)(toHtmlMethod?.Invoke(snapshot, new object?[] { null }) ?? "");
+    // Create the presentation adapter for console I/O
+    var presentation = new ConsolePresentationAdapter(enableMouse: true);
+    
+    // Create the workload adapter that Hex1bApp will use
+    var workload = new Hex1bAppWorkloadAdapter(presentation.Capabilities);
+    
+    // Create the terminal that bridges presentation ↔ workload
+    using var terminal = new Hex1bTerminal(presentation, workload);
 
-    // Save to file
-    var outputPath = Path.Combine(Path.GetTempPath(), "hex1b-osc8-test.html");
-    File.WriteAllText(outputPath, html);
+    await using var app = new Hex1bApp(
+        ctx => ctx.VStack(root => [
+            root.Border(
+                root.VStack(content => [
+                    content.Text("OSC 8 Hyperlink Widget Demo"),
+                    content.Text("══════════════════════════════════════════════"),
+                    content.Text(""),
+                    content.Text("These are clickable hyperlinks (in supported terminals):"),
+                    content.Text(""),
+                    
+                    // Simple hyperlink
+                    content.HStack(row => [
+                        row.Text("1. Simple link: "),
+                        row.Hyperlink("Hex1b on GitHub", "https://github.com/mitchdenny/hex1b")
+                            .OnClick(e => {
+                                lastClickedUri = e.Uri;
+                                clickedLinks.Add(e.Uri);
+                            }),
+                    ]),
+                    
+                    // Hyperlink to documentation
+                    content.HStack(row => [
+                        row.Text("2. Documentation: "),
+                        row.Hyperlink("hex1b.dev", "https://hex1b.dev")
+                            .OnClick(e => {
+                                lastClickedUri = e.Uri;
+                                clickedLinks.Add(e.Uri);
+                            }),
+                    ]),
+                    
+                    // Multiple links on one line
+                    content.HStack(row => [
+                        row.Text("3. Multiple links: "),
+                        row.Hyperlink("[Example]", "https://example.com")
+                            .OnClick(e => { lastClickedUri = e.Uri; clickedLinks.Add(e.Uri); }),
+                        row.Text(" "),
+                        row.Hyperlink("[Test]", "https://test.com")
+                            .OnClick(e => { lastClickedUri = e.Uri; clickedLinks.Add(e.Uri); }),
+                        row.Text(" "),
+                        row.Hyperlink("[Info]", "https://info.com")
+                            .OnClick(e => { lastClickedUri = e.Uri; clickedLinks.Add(e.Uri); }),
+                    ]),
+                    
+                    // Complex URL
+                    content.HStack(row => [
+                        row.Text("4. Search link: "),
+                        row.Hyperlink("Google OSC 8", "https://www.google.com/search?q=osc+8+hyperlinks")
+                            .OnClick(e => { lastClickedUri = e.Uri; clickedLinks.Add(e.Uri); }),
+                    ]),
+                    
+                    // Wikipedia
+                    content.HStack(row => [
+                        row.Text("5. Wikipedia: "),
+                        row.Hyperlink("ANSI Escape Codes", "https://en.wikipedia.org/wiki/ANSI_escape_code")
+                            .OnClick(e => { lastClickedUri = e.Uri; clickedLinks.Add(e.Uri); }),
+                    ]),
+                    
+                    content.Text(""),
+                    content.Text("══════════════════════════════════════════════"),
+                    content.Text($"Last clicked: {lastClickedUri}"),
+                    content.Text($"Total clicks: {clickedLinks.Count}"),
+                    content.Text(""),
+                    content.Text("Tip: Hover over links to see the URL in your terminal."),
+                    content.Text("     Press Enter or click to activate a link."),
+                    content.Text("     Use Tab/Shift+Tab to navigate between links."),
+                ]),
+                title: "OSC 8 Hyperlinks"
+            ).Fill(),
+            
+            // InfoBar at the bottom
+            root.InfoBar([
+                "Tab", "Next link",
+                "Enter/Click", "Activate",
+                "Ctrl+C", "Exit"
+            ]),
+        ]),
+        new Hex1bAppOptions
+        {
+            WorkloadAdapter = workload,
+            EnableMouse = true
+        }
+    );
 
-    Console.WriteLine($"HTML export saved to: {outputPath}");
-    Console.WriteLine();
-    Console.WriteLine("Open the file in a browser to inspect the hyperlinks.");
-    Console.WriteLine("Hover over cells to see hyperlink information in the tooltip.");
-    Console.WriteLine();
+    await app.RunAsync();
+}
+catch (Exception ex)
+{
+    Console.WriteLine($"Error: {ex.GetType().Name}: {ex.Message}");
+    Console.WriteLine(ex.StackTrace);
+    Console.WriteLine("\nPress any key to exit...");
+    Console.ReadKey(true);
 }
 
-Console.WriteLine("Test completed successfully!");
 Console.WriteLine();
-Console.WriteLine("Press any key to exit...");
-Console.ReadKey(true);
+Console.WriteLine($"Clicked {clickedLinks.Count} links during the session:");
+foreach (var uri in clickedLinks)
+{
+    Console.WriteLine($"  - {uri}");
+}
+Console.WriteLine();
+Console.WriteLine("Done!");

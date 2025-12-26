@@ -78,6 +78,10 @@ builder.Services.AddSingleton<IGalleryExample, TextBoxUnicodeExample>();
 builder.Services.AddSingleton<IGalleryExample, ToggleSwitchBasicExample>();
 builder.Services.AddSingleton<IGalleryExample, ToggleSwitchMultiOptionExample>();
 builder.Services.AddSingleton<IGalleryExample, ToggleSwitchEventExample>();
+// Register Splitter widget documentation examples
+builder.Services.AddSingleton<IGalleryExample, SplitterBasicExample>();
+builder.Services.AddSingleton<IGalleryExample, SplitterVerticalExample>();
+builder.Services.AddSingleton<IGalleryExample, SplitterNestedExample>();
 
 var app = builder.Build();
 

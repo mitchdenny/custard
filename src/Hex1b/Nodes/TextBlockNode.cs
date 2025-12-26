@@ -43,7 +43,7 @@ public sealed class TextBlockNode : Hex1bNode
         }
     }
     
-    private TextOverflow _overflow = TextOverflow.Overflow;
+    private TextOverflow _overflow = TextOverflow.Truncate;
     
     /// <summary>
     /// Gets or sets how text handles horizontal overflow.
@@ -55,7 +55,7 @@ public sealed class TextBlockNode : Hex1bNode
     /// <para>
     /// The behavior depends on the <see cref="TextOverflow"/> value:
     /// <list type="bullet">
-    /// <item><description><see cref="TextOverflow.Overflow"/>: Text extends beyond bounds; parent LayoutNode clips if needed.</description></item>
+    /// <item><description><see cref="TextOverflow.Truncate"/>: Text is clipped by parent; no visual indicator shown.</description></item>
     /// <item><description><see cref="TextOverflow.Wrap"/>: Text wraps at word boundaries, increasing measured height.</description></item>
     /// <item><description><see cref="TextOverflow.Ellipsis"/>: Text is truncated with "..." to fit available width.</description></item>
     /// </list>
@@ -97,7 +97,7 @@ public sealed class TextBlockNode : Hex1bNode
     /// The measurement behavior depends on the <see cref="Overflow"/> setting:
     /// </para>
     /// <list type="bullet">
-    /// <item><description><see cref="TextOverflow.Overflow"/>: Returns the full text width (constrained to max width) and height of 1.</description></item>
+    /// <item><description><see cref="TextOverflow.Truncate"/>: Returns the full text width (constrained to max width) and height of 1.</description></item>
     /// <item><description><see cref="TextOverflow.Wrap"/>: Calculates wrapped lines and returns the width of the widest line and total line count as height.</description></item>
     /// <item><description><see cref="TextOverflow.Ellipsis"/>: Returns the minimum of text width and max width, with height of 1.</description></item>
     /// </list>
@@ -115,7 +115,7 @@ public sealed class TextBlockNode : Hex1bNode
                 var ellipsisWidth = Math.Min(textWidth, constraints.MaxWidth);
                 return constraints.Constrain(new Size(ellipsisWidth, 1));
                 
-            case TextOverflow.Overflow:
+            case TextOverflow.Truncate:
             default:
                 // Original behavior: single-line, width is text display width
                 return constraints.Constrain(new Size(DisplayWidth.GetStringWidth(Text), 1));
@@ -249,14 +249,14 @@ public sealed class TextBlockNode : Hex1bNode
                 RenderEllipsis(context, colorCodes, resetCodes);
                 break;
                 
-            case TextOverflow.Overflow:
+            case TextOverflow.Truncate:
             default:
-                RenderOverflow(context, colorCodes, resetCodes);
+                RenderTruncate(context, colorCodes, resetCodes);
                 break;
         }
     }
 
-    private void RenderOverflow(Hex1bRenderContext context, string colorCodes, string resetCodes)
+    private void RenderTruncate(Hex1bRenderContext context, string colorCodes, string resetCodes)
     {
         // When a LayoutProvider is active, use clipped rendering
         // Otherwise, use the original simple behavior for backward compatibility

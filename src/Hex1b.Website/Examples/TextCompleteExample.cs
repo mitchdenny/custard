@@ -34,12 +34,11 @@ public class TextCompleteExample(ILogger<TextCompleteExample> logger) : Hex1bExa
                 v.Text(
                     "This is a long description that demonstrates text wrapping. " +
                     "When the text exceeds the available width, it automatically " +
-                    "breaks at word boundaries to fit within the container.",
-                    TextOverflow.Wrap
-                ),
+                    "breaks at word boundaries to fit within the container."
+                ).Wrap(),
                 v.Text(""),
                 v.Text("Status: Loading...").FillWidth(),
-                v.Text("Item name that might be too long", TextOverflow.Ellipsis)
+                v.Text("Item name that might be too long").Ellipsis()
                     .FixedWidth(25)
             ]);
         };

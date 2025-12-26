@@ -142,7 +142,7 @@ public class TextBlockNodeTests
         var node = new TextBlockNode 
         { 
             Text = "Hello World", 
-            Overflow = TextOverflow.Overflow 
+            Overflow = TextOverflow.Truncate 
         };
 
         // Default behavior - width is clamped but not reduced naturally

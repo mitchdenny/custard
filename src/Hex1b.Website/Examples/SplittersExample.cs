@@ -87,28 +87,28 @@ public class SplittersExample(ILogger<SplittersExample> logger) : Hex1bExample
                     left.VStack(v => [
                         v.Text("═══ Left Pane ═══"),
                         v.Text(""),
-                        v.Text("This is the left side", TextOverflow.Wrap),
-                        v.Text("of a horizontal split.", TextOverflow.Wrap),
+                        v.Text("This is the left side").Wrap(),
+                        v.Text("of a horizontal split.").Wrap(),
                         v.Text(""),
-                        v.Text("The splitter uses a", TextOverflow.Wrap),
-                        v.Text("vertical divider (│)", TextOverflow.Wrap),
-                        v.Text("between panes.", TextOverflow.Wrap),
+                        v.Text("The splitter uses a").Wrap(),
+                        v.Text("vertical divider (│)").Wrap(),
+                        v.Text("between panes.").Wrap(),
                         v.Text(""),
-                        v.Text("Tab to the splitter,", TextOverflow.Wrap),
-                        v.Text("then use ← → arrows", TextOverflow.Wrap),
-                        v.Text("to resize.", TextOverflow.Wrap),
+                        v.Text("Tab to the splitter,").Wrap(),
+                        v.Text("then use ← → arrows").Wrap(),
+                        v.Text("to resize.").Wrap(),
                     ])
                 ]),
                 ctx.Panel(right => [
                     right.VStack(v => [
                         v.Text("═══ Right Pane ═══"),
                         v.Text(""),
-                        v.Text("This is the right side", TextOverflow.Wrap),
-                        v.Text("of the horizontal split.", TextOverflow.Wrap),
+                        v.Text("This is the right side").Wrap(),
+                        v.Text("of the horizontal split.").Wrap(),
                         v.Text(""),
-                        v.Text("Both panes share the", TextOverflow.Wrap),
-                        v.Text("full height of the", TextOverflow.Wrap),
-                        v.Text("container.", TextOverflow.Wrap),
+                        v.Text("Both panes share the").Wrap(),
+                        v.Text("full height of the").Wrap(),
+                        v.Text("container.").Wrap(),
                     ])
                 ]),
                 leftWidth: 28
@@ -125,21 +125,21 @@ public class SplittersExample(ILogger<SplittersExample> logger) : Hex1bExample
                     top.VStack(v => [
                         v.Text("═══ Top Pane ═══"),
                         v.Text(""),
-                        v.Text("This is the top section of a vertical split.", TextOverflow.Wrap),
-                        v.Text("The splitter uses a horizontal divider (───) between panes.", TextOverflow.Wrap),
+                        v.Text("This is the top section of a vertical split.").Wrap(),
+                        v.Text("The splitter uses a horizontal divider (───) between panes.").Wrap(),
                     ])
                 ]),
                 ctx.Panel(bottom => [
                     bottom.VStack(v => [
                         v.Text("═══ Bottom Pane ═══"),
                         v.Text(""),
-                        v.Text("This is the bottom section. Tab to the splitter, then", TextOverflow.Wrap),
-                        v.Text("use ↑ ↓ arrows to resize the top/bottom panes.", TextOverflow.Wrap),
+                        v.Text("This is the bottom section. Tab to the splitter, then").Wrap(),
+                        v.Text("use ↑ ↓ arrows to resize the top/bottom panes.").Wrap(),
                         v.Text(""),
-                        v.Text("Vertical splits are great for:", TextOverflow.Wrap),
-                        v.Text("• Code editor + terminal", TextOverflow.Wrap),
-                        v.Text("• Main content + status bar", TextOverflow.Wrap),
-                        v.Text("• Preview + properties", TextOverflow.Wrap),
+                        v.Text("Vertical splits are great for:").Wrap(),
+                        v.Text("• Code editor + terminal").Wrap(),
+                        v.Text("• Main content + status bar").Wrap(),
+                        v.Text("• Preview + properties").Wrap(),
                     ])
                 ]),
                 topHeight: 6
@@ -158,16 +158,16 @@ public class SplittersExample(ILogger<SplittersExample> logger) : Hex1bExample
                         tl.VStack(v => [
                             v.Text("Top-Left"),
                             v.Text(""),
-                            v.Text("Horizontal", TextOverflow.Wrap),
-                            v.Text("inside top", TextOverflow.Wrap),
+                            v.Text("Horizontal").Wrap(),
+                            v.Text("inside top").Wrap(),
                         ])
                     ]),
                     ctx.Panel(tr => [
                         tr.VStack(v => [
                             v.Text("Top-Right"),
                             v.Text(""),
-                            v.Text("Both panes", TextOverflow.Wrap),
-                            v.Text("share height", TextOverflow.Wrap),
+                            v.Text("Both panes").Wrap(),
+                            v.Text("share height").Wrap(),
                         ])
                     ]),
                     leftWidth: 20
@@ -177,8 +177,8 @@ public class SplittersExample(ILogger<SplittersExample> logger) : Hex1bExample
                     bottom.VStack(v => [
                         v.Text("═══ Bottom Pane ═══"),
                         v.Text(""),
-                        v.Text("This demonstrates nesting a horizontal splitter inside the", TextOverflow.Wrap),
-                        v.Text("top pane of a vertical splitter. Great for editor layouts!", TextOverflow.Wrap),
+                        v.Text("This demonstrates nesting a horizontal splitter inside the").Wrap(),
+                        v.Text("top pane of a vertical splitter. Great for editor layouts!").Wrap(),
                     ])
                 ]),
                 topHeight: 8
@@ -196,15 +196,15 @@ public class SplittersExample(ILogger<SplittersExample> logger) : Hex1bExample
                     left.VStack(v => [
                         v.Text("═══ Left ═══"),
                         v.Text(""),
-                        v.Text("Sidebar", TextOverflow.Wrap),
-                        v.Text("content", TextOverflow.Wrap),
-                        v.Text("goes here", TextOverflow.Wrap),
+                        v.Text("Sidebar").Wrap(),
+                        v.Text("content").Wrap(),
+                        v.Text("goes here").Wrap(),
                         v.Text(""),
-                        v.Text("This is the", TextOverflow.Wrap),
-                        v.Text("outer left", TextOverflow.Wrap),
-                        v.Text("pane of a", TextOverflow.Wrap),
-                        v.Text("horizontal", TextOverflow.Wrap),
-                        v.Text("splitter.", TextOverflow.Wrap),
+                        v.Text("This is the").Wrap(),
+                        v.Text("outer left").Wrap(),
+                        v.Text("pane of a").Wrap(),
+                        v.Text("horizontal").Wrap(),
+                        v.Text("splitter.").Wrap(),
                     ])
                 ]),
                 // Right: vertical splitter
@@ -213,15 +213,15 @@ public class SplittersExample(ILogger<SplittersExample> logger) : Hex1bExample
                         rt.VStack(v => [
                             v.Text("Right-Top"),
                             v.Text(""),
-                            v.Text("Vertical splitter", TextOverflow.Wrap),
-                            v.Text("inside right pane", TextOverflow.Wrap),
+                            v.Text("Vertical splitter").Wrap(),
+                            v.Text("inside right pane").Wrap(),
                         ])
                     ]),
                     ctx.Panel(rb => [
                         rb.VStack(v => [
                             v.Text("Right-Bottom"),
                             v.Text(""),
-                            v.Text("Great for file tree + editor + terminal layouts!", TextOverflow.Wrap),
+                            v.Text("Great for file tree + editor + terminal layouts!").Wrap(),
                         ])
                     ]),
                     topHeight: 6
@@ -243,7 +243,7 @@ public class SplittersExample(ILogger<SplittersExample> logger) : Hex1bExample
                             v.Text("┌─ Quad 1 ─┐"),
                             v.Text("Top-Left"),
                             v.Text(""),
-                            v.Text("Navigator", TextOverflow.Wrap),
+                            v.Text("Navigator").Wrap(),
                         ])
                     ]),
                     ctx.Panel(tr => [
@@ -251,7 +251,7 @@ public class SplittersExample(ILogger<SplittersExample> logger) : Hex1bExample
                             v.Text("┌─ Quad 2 ─┐"),
                             v.Text("Top-Right"),
                             v.Text(""),
-                            v.Text("Editor", TextOverflow.Wrap),
+                            v.Text("Editor").Wrap(),
                         ])
                     ]),
                     leftWidth: 20
@@ -263,7 +263,7 @@ public class SplittersExample(ILogger<SplittersExample> logger) : Hex1bExample
                             v.Text("┌─ Quad 3 ─┐"),
                             v.Text("Bottom-Left"),
                             v.Text(""),
-                            v.Text("Terminal", TextOverflow.Wrap),
+                            v.Text("Terminal").Wrap(),
                         ])
                     ]),
                     ctx.Panel(br => [
@@ -271,7 +271,7 @@ public class SplittersExample(ILogger<SplittersExample> logger) : Hex1bExample
                             v.Text("┌─ Quad 4 ─┐"),
                             v.Text("Bottom-Right"),
                             v.Text(""),
-                            v.Text("Output", TextOverflow.Wrap),
+                            v.Text("Output").Wrap(),
                         ])
                     ]),
                     leftWidth: 20

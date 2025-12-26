@@ -7,6 +7,9 @@ import FeatureSamples from './components/FeatureSamples.vue'
 import InstallGuide from './components/InstallGuide.vue'
 import TerminalCommand from './components/TerminalCommand.vue'
 import CodeBlock from './components/CodeBlock.vue'
+import StaticTerminal from './components/StaticTerminal.vue'
+import StaticCodeBlock from './components/StaticCodeBlock.vue'
+import StaticTerminalPreview from './components/StaticTerminalPreview.vue'
 import './custom.css'
 
 export default {
@@ -20,5 +23,8 @@ export default {
     app.component('InstallGuide', InstallGuide)
     app.component('TerminalCommand', TerminalCommand)
     app.component('CodeBlock', CodeBlock)
+    app.component('StaticTerminal', StaticTerminal)
+    app.component('StaticCodeBlock', StaticCodeBlock)
+    app.component('StaticTerminalPreview', StaticTerminalPreview)
   }
 } satisfies Theme

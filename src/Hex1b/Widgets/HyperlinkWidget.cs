@@ -11,7 +11,7 @@ namespace Hex1b.Widgets;
 /// <param name="Text">The visible text to display.</param>
 /// <param name="Uri">The URI to link to when clicked (or hovered in terminal).</param>
 /// <param name="Overflow">How to handle text that exceeds the available width.</param>
-public sealed record HyperlinkWidget(string Text, string Uri, TextOverflow Overflow = TextOverflow.Overflow) : Hex1bWidget
+public sealed record HyperlinkWidget(string Text, string Uri, TextOverflow Overflow = TextOverflow.Truncate) : Hex1bWidget
 {
     /// <summary>
     /// Optional parameters for the hyperlink (e.g., "id=unique-id").

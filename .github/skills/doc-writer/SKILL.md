@@ -414,15 +414,41 @@ When documenting widgets in `guide/widgets/`, follow this consistent structure t
 ##### Required Sections
 
 1. **Title** - Widget name as heading
-2. **Basic Usage** - Complete, runnable example with `Hex1bApp` setup and live demo
-3. **Features/Behavior** - Widget-specific capabilities with live demos where applicable
-4. **Complete Example** - More comprehensive usage demonstration with live demo
-5. **API Reference** - Parameters, enums, extension methods, size hints
-6. **Related Widgets** - Links to related documentation
+2. **Basic Usage** - Complete, runnable example with `Hex1bApp` setup
+3. **Features/Behavior** - Widget-specific capabilities with demos where applicable
+4. **Related Widgets** - Links to related documentation
+
+##### Optional Sections
+
+Include these when they add clear value:
+
+- **Complete Example** - Only when the widget has complex interactions worth demonstrating together (e.g., form widgets with validation, list widgets with selection). Skip when basic usage already covers the widget adequately.
+- **API Reference** - Include when there are non-obvious parameters, enums, or extension methods to document. For simple widgets with self-explanatory APIs, the XML documentation is sufficient.
 
 ##### Live Terminal Demos for Widget Docs
 
-Widget documentation **must** include live terminal demos using the `<CodeBlock>` component. This requires:
+Widget documentation benefits from live terminal demos using the `<CodeBlock>` component. However, choose the appropriate demo type based on the widget's nature.
+
+##### When to Use Live Demos vs Static Previews
+
+| Use Live Demo (`<CodeBlock>`) | Use Static Preview (`<StaticTerminalPreview>`) |
+|-------------------------------|-----------------------------------------------|
+| Interactive widgets (buttons, text boxes) | Display-only widgets (text, layout) |
+| User input demonstration needed | Showing specific visual states |
+| Responsive behavior on resize | Code snippet with visual result |
+| Focus/navigation demonstrations | Documenting multiple variations |
+
+**Live demos are best when:**
+- There is some interactive element on the screen (buttons, inputs, lists)
+- Resizing the terminal results in responsive behavior worth demonstrating
+- Focus navigation or keyboard handling is a key feature
+
+**Static previews are best when:**
+- The widget is purely visual with no interaction
+- You're showing multiple variations of the same feature
+- The code snippet is a partial example (not full `Hex1bApp` setup)
+
+##### Creating Live Demos
 
 1. **Create WebSocket example files** in `src/Hex1b.Website/Examples/` for each demo
 2. **Use the `<CodeBlock>` component** with the `example` attribute linking to the example Id
@@ -515,6 +541,8 @@ var app = new Hex1bApp(ctx => Task.FromResult<Hex1bWidget>(
 
 ##### Template Structure
 
+The following template shows the recommended structure. Adapt it based on the widget's complexity:
+
 ```markdown
 <script setup>
 const basicCode = \`using Hex1b;
@@ -525,8 +553,6 @@ var app = new Hex1bApp(ctx => Task.FromResult<Hex1bWidget>(
 ));
 
 await app.RunAsync();\`
-
-const completeCode = \`// Full example with multiple features...\`
 </script>
 
 # WidgetName
@@ -539,38 +565,228 @@ Brief description of what the widget does.
 
 ## [Feature Section(s)]
 
-Document widget-specific features with focused examples. Include live demos for key features.
+Document widget-specific features with focused examples.
 
-## Complete Example
+Use `<StaticTerminalPreview>` for visual variations:
 
-<CodeBlock lang="csharp" :code="completeCode" command="dotnet run" example="widget-complete" exampleTitle="Widget - Complete Example" />
+<StaticTerminalPreview htmlPath="/svg/widget-feature.html">
 
-## API Reference
+\`\`\`csharp
+ctx.WidgetMethod("variation")
+\`\`\`
 
-### Parameters
-
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| ... | ... | ... |
-
-### Extension Methods
-
-| Method | Description |
-|--------|-------------|
-| ... | ... |
-
-### Size Hint Methods
-
-All size hint methods are available:
-
-| Method | Description |
-|--------|-------------|
-| `.FillWidth()` | Expand to fill available width |
-| ... | ... |
+</StaticTerminalPreview>
 
 ## Related Widgets
 
 - [RelatedWidget](/guide/widgets/related) - Brief description
+```
+
+##### Mirror Warning for Code Samples
+
+When a documentation code sample mirrors a WebSocket example, add a warning comment to remind maintainers to keep them in sync:
+
+```markdown
+<!-- 
+⚠️ MIRROR WARNING: This code sample mirrors the WebSocket example in:
+   src/Hex1b.Website/Examples/WidgetBasicExample.cs
+   Keep both files in sync when making changes.
+-->
+```
+
+Place this comment directly before the code block or `<script setup>` section.
+
+#### Static SVG/HTML Previews
+
+For static previews with interactive cell inspection, use the Static Generator to create SVG and HTML files. These offer:
+
+- **Crisp SVG rendering**: Sharp vector graphics at any resolution
+- **Interactive HTML inspector**: Hover over cells to see character, color, and attribute details
+- **Minimal embed mode**: Clean presentation for documentation iframes
+
+##### Static Generator Template Location
+
+A template console application is provided at:
+```
+.github/skills/doc-writer/static-generator/
+├── StaticGenerator.csproj  # Project file (references Hex1b)
+├── Program.cs              # Template with GenerateSnapshot helper
+└── README.md               # Detailed usage instructions
+```
+
+##### Step-by-Step Workflow for Agents
+
+**IMPORTANT**: Do NOT modify the template files directly. Always copy to a temporary location first.
+
+**Step 1: Create working directory inside workspace**
+
+```bash
+mkdir -p .tmp-static-gen
+cp .github/skills/doc-writer/static-generator/* .tmp-static-gen/
+```
+
+**Step 2: Fix the project reference path**
+
+The template uses a relative path for the original location. Update the project reference in `.tmp-static-gen/StaticGenerator.csproj`:
+
+```bash
+# Change the ProjectReference Include path from:
+#   Include="../../../../src/Hex1b/Hex1b.csproj"
+# To:
+#   Include="../src/Hex1b/Hex1b.csproj"
+```
+
+**Step 3: Modify Program.cs in the working copy**
+
+Edit `.tmp-static-gen/Program.cs` and replace the contents of `GenerateSnapshots()` with your specific widget:
+
+```csharp
+static async Task GenerateSnapshots(string outputDir)
+{
+    // Example: Generate a text widget with wrapping
+    await GenerateSnapshot(outputDir, "text-wrap-demo", "Text Wrapping Demo", 50, 5,
+        ctx => ctx.VStack(v => [
+            v.Text(
+                "This long paragraph demonstrates how text wrapping works in Hex1b. " +
+                "When content exceeds the available width, it automatically breaks " +
+                "at word boundaries."
+            ).Wrap()
+        ]));
+}
+```
+
+**Step 4: Run the generator**
+
+```bash
+cd .tmp-static-gen
+dotnet run -- output
+```
+
+**Step 5: Verify the output**
+
+Check that the files were created:
+```bash
+ls -la output/
+# Should contain: text-wrap-demo.svg, text-wrap-demo.html
+```
+
+**Step 6: Copy to public assets**
+
+```bash
+cp output/*.svg output/*.html ../src/content/public/svg/
+```
+
+**Step 7: Clean up**
+
+```bash
+cd ..
+rm -rf .tmp-static-gen
+```
+
+**Step 8: Use in documentation**
+
+Use the `<StaticTerminalPreview>` component in your markdown file:
+
+```markdown
+<StaticTerminalPreview htmlPath="/svg/text-wrap-demo.html">
+
+```csharp
+v.Text("Long wrapping text...").Wrap()
+```
+
+</StaticTerminalPreview>
+```
+
+##### GenerateSnapshot Function Signature
+
+```csharp
+await GenerateSnapshot(
+    outputDir,      // Always use "output"
+    "filename",     // Name without extension (creates .svg and .html)
+    "Description",  // For console output only
+    width,          // Terminal columns
+    height,         // Terminal rows
+    ctx => widget   // Widget builder using RootContext
+);
+```
+
+##### StaticTerminalPreview Component
+
+The `<StaticTerminalPreview>` component displays code with a "View Output" button. Clicking the button opens a floating overlay with the interactive HTML preview.
+
+**Usage:**
+```markdown
+<StaticTerminalPreview htmlPath="/svg/your-file.html">
+
+```csharp
+v.YourCodeHere()
+```
+
+</StaticTerminalPreview>
+```
+
+**Props:**
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `htmlPath` | string | required | Path to .html file relative to public folder |
+| `code` | string | (from slot) | Code to display (alternative to slot content) |
+| `language` | string | "csharp" | Language for syntax highlighting |
+
+**Features:**
+- Code block with syntax highlighting
+- "View Output" button in header
+- Floating overlay with backdrop blur
+- Interactive HTML with cell inspector
+- Press Escape or click backdrop to close
+
+##### HTML Minimal Mode
+
+The generated HTML files support a `?minimal=true` query parameter that:
+- Hides the header, theme controls, and info bar
+- Shows only the SVG with hover tooltips
+- Adds a subtle glow effect around the terminal boundary
+- Perfect for iframe embedding
+
+The `<StaticTerminalPreview>` component automatically uses minimal mode.
+
+##### TerminalSvgOptions
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `ShowCellGrid` | `false` | Show grid lines between cells |
+| `ShowPixelGrid` | `false` | Show pixel-level grid |
+| `DefaultBackground` | `#0f0f1a` | Background color |
+| `DefaultForeground` | `#e0e0e0` | Text color |
+| `FontFamily` | Cascadia Code stack | Monospace font |
+| `FontSize` | `14` | Font size in pixels |
+| `CellWidth` | `9` | Cell width in pixels |
+| `CellHeight` | `18` | Cell height in pixels |
+
+##### Common Widget Patterns
+
+```csharp
+// Simple text
+await GenerateSnapshot(outputDir, "text-simple", "Simple", 40, 3,
+    ctx => ctx.Text("Hello, World!"));
+
+// Text with overflow
+await GenerateSnapshot(outputDir, "text-ellipsis", "Ellipsis", 50, 3,
+    ctx => ctx.Text("Very long text here...").Ellipsis().FixedWidth(30));
+
+// VStack layout
+await GenerateSnapshot(outputDir, "layout-vstack", "VStack", 60, 10,
+    ctx => ctx.VStack(v => [
+        v.Text("Header"),
+        v.Text(""),
+        v.Text("Body content")
+    ]));
+
+// Border with content
+await GenerateSnapshot(outputDir, "border-demo", "Border", 40, 6,
+    ctx => ctx.Border(b => [
+        b.Text("Content inside border")
+    ], title: "Title"));
 ```
 
 ## Documentation Workflow
@@ -586,10 +802,6 @@ All size hint methods are available:
    - Add widget documentation to `guide/widgets/`
    - Update relevant tutorial sections
    - Add usage examples to `getting-started.md` if appropriate
-
-3. **Update API reference** (if needed)
-   - The `api/index.md` file may need manual updates
-   - Consider auto-generation tools for comprehensive API docs
 
 ### For Bug Fixes
 

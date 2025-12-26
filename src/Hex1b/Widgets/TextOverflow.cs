@@ -14,19 +14,19 @@ namespace Hex1b.Widgets;
 public enum TextOverflow
 {
     /// <summary>
-    /// Text extends beyond its allocated bounds without modification.
+    /// Text is truncated (clipped) when it exceeds its allocated bounds.
     /// </summary>
     /// <remarks>
     /// <para>
-    /// This is the default behavior for backward compatibility. The text is rendered
-    /// at its full width; clipping is handled by a parent <see cref="LayoutWidget"/>
-    /// if one is present with <see cref="ClipMode.Clip"/> enabled.
+    /// This is the default behavior. The text is rendered at its full width but
+    /// clipped by a parent <see cref="LayoutWidget"/> if one is present with
+    /// <see cref="ClipMode.Clip"/> enabled. No visual indicator of truncation is shown.
     /// </para>
     /// <para>
     /// Use this when you want parent containers to control visibility of overflowing content.
     /// </para>
     /// </remarks>
-    Overflow,
+    Truncate,
     
     /// <summary>
     /// Text wraps to the next line when it exceeds the available width.

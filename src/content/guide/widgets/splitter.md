@@ -15,16 +15,22 @@ var app = new Hex1bApp(ctx => Task.FromResult<Hex1bWidget>(
             left.VStack(v => [
                 v.Text("Left Pane"),
                 v.Text(""),
-                v.Text("This is the left side"),
-                v.Text("of a horizontal split.")
+                v.Text("This is the left side").Wrap(),
+                v.Text("of a horizontal split.").Wrap(),
+                v.Text(""),
+                v.Text("Tab to focus the splitter,").Wrap(),
+                v.Text("then use ← → to resize.").Wrap()
             ])
         ]),
         ctx.Panel(right => [
             right.VStack(v => [
                 v.Text("Right Pane"),
                 v.Text(""),
-                v.Text("This is the right side"),
-                v.Text("of the horizontal split.")
+                v.Text("This is the right side").Wrap(),
+                v.Text("of the horizontal split.").Wrap(),
+                v.Text(""),
+                v.Text("Both panes share the").Wrap(),
+                v.Text("full height.").Wrap()
             ])
         ]),
         leftWidth: 25
@@ -42,14 +48,17 @@ var app = new Hex1bApp(ctx => Task.FromResult<Hex1bWidget>(
             top.VStack(v => [
                 v.Text("Top Pane"),
                 v.Text(""),
-                v.Text("This is the top section.")
+                v.Text("This is the top section of a vertical split.").Wrap()
             ])
         ]),
         ctx.Panel(bottom => [
             bottom.VStack(v => [
                 v.Text("Bottom Pane"),
                 v.Text(""),
-                v.Text("This is the bottom section.")
+                v.Text("This is the bottom section. Tab to the splitter,").Wrap(),
+                v.Text("then use ↑ ↓ to resize the top/bottom panes.").Wrap(),
+                v.Text(""),
+                v.Text("Great for editor + terminal layouts.").Wrap()
             ])
         ]),
         topHeight: 5
@@ -66,10 +75,20 @@ var app = new Hex1bApp(ctx => Task.FromResult<Hex1bWidget>(
         // Top: horizontal splitter
         ctx.Splitter(
             ctx.Panel(tl => [
-                tl.Text("Top-Left")
+                tl.VStack(v => [
+                    v.Text("Top-Left"),
+                    v.Text(""),
+                    v.Text("Horizontal split").Wrap(),
+                    v.Text("in top pane").Wrap()
+                ])
             ]),
             ctx.Panel(tr => [
-                tr.Text("Top-Right")
+                tr.VStack(v => [
+                    v.Text("Top-Right"),
+                    v.Text(""),
+                    v.Text("Both panes share").Wrap(),
+                    v.Text("the same height").Wrap()
+                ])
             ]),
             leftWidth: 20
         ),
@@ -78,7 +97,9 @@ var app = new Hex1bApp(ctx => Task.FromResult<Hex1bWidget>(
             bottom.VStack(v => [
                 v.Text("Bottom Pane"),
                 v.Text(""),
-                v.Text("Horizontal splitter nested in top pane")
+                v.Text("This demonstrates nesting a horizontal splitter").Wrap(),
+                v.Text("inside the top pane of a vertical splitter.").Wrap(),
+                v.Text("Great for IDE-style layouts!").Wrap()
             ])
         ]),
         topHeight: 6

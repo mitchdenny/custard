@@ -1,5 +1,5 @@
 <!--
-  MIRROR WARNING: The code sample below must stay in sync with the WebSocket example:
+  MIRROR WARNING: The code sample below must stay in sync with the Sixel example:
   - basicCode → src/Hex1b.Website/Examples/SixelExample.cs
   When updating code here, update the corresponding Example file and vice versa.
 -->
@@ -262,21 +262,28 @@ Display a collection of images with navigation:
 
 ```csharp
 var images = new[] { "photo1.sixel", "photo2.sixel", "photo3.sixel" };
-var selectedIndex = 0;
+var state = new GalleryState { SelectedIndex = 0 };
 
-ctx.VStack(v => [
-    v.Text($"Image {selectedIndex + 1} of {images.Length}"),
-    v.Sixel(
-        LoadSixelData(images[selectedIndex]),
-        $"[{Path.GetFileName(images[selectedIndex])}]",
-        width: 60,
-        height: 30
-    ),
-    v.HStack(h => [
-        h.Button("< Prev").OnClick(_ => selectedIndex = Math.Max(0, selectedIndex - 1)),
-        h.Button("Next >").OnClick(_ => selectedIndex = Math.Min(images.Length - 1, selectedIndex + 1))
+var app = new Hex1bApp(ctx => Task.FromResult<Hex1bWidget>(
+    ctx.VStack(v => [
+        v.Text($"Image {state.SelectedIndex + 1} of {images.Length}"),
+        v.Sixel(
+            LoadSixelData(images[state.SelectedIndex]),
+            $"[{Path.GetFileName(images[state.SelectedIndex])}]",
+            width: 60,
+            height: 30
+        ),
+        v.HStack(h => [
+            h.Button("< Prev").OnClick(_ => state.SelectedIndex = Math.Max(0, state.SelectedIndex - 1)),
+            h.Button("Next >").OnClick(_ => state.SelectedIndex = Math.Min(images.Length - 1, state.SelectedIndex + 1))
+        ])
     ])
-])
+));
+
+class GalleryState
+{
+    public int SelectedIndex { get; set; }
+}
 ```
 
 ### Data Visualization

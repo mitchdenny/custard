@@ -180,7 +180,7 @@ When reaching the first item, pressing Up wraps to the last item. Similarly, pre
 
 Lists support mouse interaction in terminals that support mouse events:
 
-- **Left Click** - Selects the clicked item and fires both `OnSelectionChanged` and `OnItemActivated`
+- **Left Click** - Selects the clicked item (fires `OnSelectionChanged` if selection changed) and then activates it (fires `OnItemActivated`)
 
 ## Focus Behavior
 

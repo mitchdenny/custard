@@ -38,6 +38,9 @@ try
     
     // Create the terminal that bridges presentation ↔ workload
     using var terminal = new Hex1bTerminal(heatmap, workload);
+    
+    // Attach the terminal to the heatmap filter so it can access the screen buffer
+    heatmap.AttachTerminal(terminal);
 
     await using var app = new Hex1bApp(
         ctx => ctx.VStack(root => [

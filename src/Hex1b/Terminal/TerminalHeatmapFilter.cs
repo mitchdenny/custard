@@ -27,6 +27,7 @@ namespace Hex1b.Terminal;
 /// var heatmap = new TerminalHeatmapFilter(console);
 /// var workload = new Hex1bAppWorkloadAdapter(heatmap.Capabilities);
 /// var terminal = new Hex1bTerminal(heatmap, workload);
+/// heatmap.AttachTerminal(terminal); // Provide terminal reference for screen buffer access
 /// 
 /// // Later, toggle the heatmap on/off (e.g., from a keyboard binding)
 /// heatmap.Enable();  // Show heatmap
@@ -43,11 +44,11 @@ public sealed class TerminalHeatmapFilter : IHex1bTerminalPresentationAdapter
     // Heatmap data: tracks timestamps of recent updates for each cell
     private List<DateTimeOffset>[,] _cellUpdateHistory;
     
-    // Previous screen buffer state (to detect changes by parsing output)
-    private TerminalCell[,] _previousBuffer;
+    // Previous screen buffer sequence numbers (to detect changes)
+    private long[,] _previousSequences;
     
-    // Current screen buffer (parsed from output)
-    private TerminalCell[,] _currentBuffer;
+    // Terminal reference (set after construction)
+    private Hex1bTerminal? _terminal;
     
     // Enabled state
     private bool _enabled;
@@ -74,16 +75,14 @@ public sealed class TerminalHeatmapFilter : IHex1bTerminalPresentationAdapter
         var height = innerAdapter.Height;
         var width = innerAdapter.Width;
         _cellUpdateHistory = new List<DateTimeOffset>[height, width];
-        _previousBuffer = new TerminalCell[height, width];
-        _currentBuffer = new TerminalCell[height, width];
+        _previousSequences = new long[height, width];
         
         for (int y = 0; y < height; y++)
         {
             for (int x = 0; x < width; x++)
             {
                 _cellUpdateHistory[y, x] = new List<DateTimeOffset>();
-                _previousBuffer[y, x] = TerminalCell.Empty;
-                _currentBuffer[y, x] = TerminalCell.Empty;
+                _previousSequences[y, x] = 0;
             }
         }
         
@@ -96,6 +95,16 @@ public sealed class TerminalHeatmapFilter : IHex1bTerminalPresentationAdapter
         
         // Forward the Disconnected event  
         _innerAdapter.Disconnected += () => Disconnected?.Invoke();
+    }
+
+    /// <summary>
+    /// Attaches the terminal instance to this filter, allowing access to the screen buffer.
+    /// Must be called after the terminal is constructed.
+    /// </summary>
+    /// <param name="terminal">The terminal instance.</param>
+    public void AttachTerminal(Hex1bTerminal terminal)
+    {
+        _terminal = terminal ?? throw new ArgumentNullException(nameof(terminal));
     }
 
     /// <summary>
@@ -160,8 +169,11 @@ public sealed class TerminalHeatmapFilter : IHex1bTerminalPresentationAdapter
             return;
         }
         
-        // When enabled, parse the output to track changes and show heatmap instead
-        ParseAndTrackOutput(data);
+        // When enabled, track updates and show heatmap instead
+        if (_terminal != null)
+        {
+            UpdateHeatmapFromScreenBuffer();
+        }
         await RenderHeatmapAsync(ct);
     }
 
@@ -217,11 +229,10 @@ public sealed class TerminalHeatmapFilter : IHex1bTerminalPresentationAdapter
         lock (_lock)
         {
             var newCellUpdateHistory = new List<DateTimeOffset>[newHeight, newWidth];
-            var newPreviousBuffer = new TerminalCell[newHeight, newWidth];
-            var newCurrentBuffer = new TerminalCell[newHeight, newWidth];
+            var newPreviousSequences = new long[newHeight, newWidth];
             
-            var copyHeight = Math.Min(_currentBuffer.GetLength(0), newHeight);
-            var copyWidth = Math.Min(_currentBuffer.GetLength(1), newWidth);
+            var copyHeight = Math.Min(_cellUpdateHistory.GetLength(0), newHeight);
+            var copyWidth = Math.Min(_cellUpdateHistory.GetLength(1), newWidth);
             
             for (int y = 0; y < newHeight; y++)
             {
@@ -230,60 +241,51 @@ public sealed class TerminalHeatmapFilter : IHex1bTerminalPresentationAdapter
                     if (y < copyHeight && x < copyWidth)
                     {
                         newCellUpdateHistory[y, x] = _cellUpdateHistory[y, x];
-                        newPreviousBuffer[y, x] = _previousBuffer[y, x];
-                        newCurrentBuffer[y, x] = _currentBuffer[y, x];
+                        newPreviousSequences[y, x] = _previousSequences[y, x];
                     }
                     else
                     {
                         newCellUpdateHistory[y, x] = new List<DateTimeOffset>();
-                        newPreviousBuffer[y, x] = TerminalCell.Empty;
-                        newCurrentBuffer[y, x] = TerminalCell.Empty;
+                        newPreviousSequences[y, x] = 0;
                     }
                 }
             }
             
             _cellUpdateHistory = newCellUpdateHistory;
-            _previousBuffer = newPreviousBuffer;
-            _currentBuffer = newCurrentBuffer;
+            _previousSequences = newPreviousSequences;
         }
     }
 
-    private void ParseAndTrackOutput(ReadOnlyMemory<byte> data)
+    private void UpdateHeatmapFromScreenBuffer()
     {
-        // Simple approach: Parse ANSI output and track which cells are written to
-        // For a complete implementation, we'd need a full ANSI parser
-        // For now, we'll use a simpler approach: just compare with previous buffer
-        
-        var text = Encoding.UTF8.GetString(data.Span);
+        if (_terminal == null)
+            return;
+
+        var screenBuffer = _terminal.GetScreenBuffer(addTrackedObjectRefs: false);
         var now = _timeProvider.GetUtcNow();
         var cutoffTime = now - _heatmapWindow;
-        
+
         lock (_lock)
         {
-            // For simplicity, mark all non-empty cells as updated
-            // In a real implementation, we'd parse the ANSI sequences to know exactly which cells changed
-            // This is a simplified heuristic for demonstration
+            var height = Math.Min(_cellUpdateHistory.GetLength(0), screenBuffer.GetLength(0));
+            var width = Math.Min(_cellUpdateHistory.GetLength(1), screenBuffer.GetLength(1));
             
-            // Remove old entries from all cells
-            for (int y = 0; y < _cellUpdateHistory.GetLength(0); y++)
+            for (int y = 0; y < height; y++)
             {
-                for (int x = 0; x < _cellUpdateHistory.GetLength(1); x++)
+                for (int x = 0; x < width; x++)
                 {
-                    _cellUpdateHistory[y, x].RemoveAll(t => t < cutoffTime);
-                }
-            }
-            
-            // For now, assume any output means the whole screen updated
-            // This is a simplification - a real parser would track specific cells
-            if (text.Contains("\x1b["))
-            {
-                // Add update to all cells (simplified approach)
-                for (int y = 0; y < _cellUpdateHistory.GetLength(0); y++)
-                {
-                    for (int x = 0; x < _cellUpdateHistory.GetLength(1); x++)
+                    var cell = screenBuffer[y, x];
+                    var previousSeq = _previousSequences[y, x];
+                    
+                    // If the sequence number changed, the cell was updated
+                    if (cell.Sequence != previousSeq && cell.Sequence > 0)
                     {
-                        _cellUpdateHistory[y, x].Add(now);
+                        _previousSequences[y, x] = cell.Sequence;
+                        _cellUpdateHistory[y, x].Add(cell.WrittenAt);
                     }
+                    
+                    // Remove old entries outside the time window
+                    _cellUpdateHistory[y, x].RemoveAll(t => t < cutoffTime);
                 }
             }
         }
@@ -300,16 +302,16 @@ public sealed class TerminalHeatmapFilter : IHex1bTerminalPresentationAdapter
 
     private async ValueTask RenderActualContentAsync()
     {
-        lock (_lock)
+        if (_terminal == null)
+            return;
+
+        // Get the actual screen content and render it
+        var screenBuffer = _terminal.GetScreenBuffer(addTrackedObjectRefs: false);
+        var output = GenerateScreenOutput(screenBuffer);
+        if (output.Length > 0)
         {
-            // Generate output from current buffer
-            var output = GenerateScreenOutput(_currentBuffer);
-            if (output.Length > 0)
-            {
-                _ = _innerAdapter.WriteOutputAsync(Encoding.UTF8.GetBytes(output));
-            }
+            await _innerAdapter.WriteOutputAsync(Encoding.UTF8.GetBytes(output));
         }
-        await ValueTask.CompletedTask;
     }
 
     private string GenerateHeatmapOutput()

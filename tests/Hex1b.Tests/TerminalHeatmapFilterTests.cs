@@ -59,19 +59,23 @@ public class TerminalHeatmapFilterTests
         var data = new byte[] { 0x1b, 0x5b, 0x48 }; // ESC[H
         
         // Act
-        await filter.WriteOutputAsync(data);
+        await filter.WriteOutputAsync(data, TestContext.Current.CancellationToken);
         
         // Assert
-        Assert.Equal(1, innerAdapter.WrittenOutputs.Count);
+        Assert.Single(innerAdapter.WrittenOutputs);
         Assert.Equal(data, innerAdapter.WrittenOutputs[0].ToArray());
     }
 
     [Fact]
-    public async Task WriteOutputAsync_ShowsHeatmapWhenEnabled()
+    public async Task WriteOutputAsync_ShowsHeatmapWhenEnabledWithTerminal()
     {
         // Arrange
         var innerAdapter = new TestPresentationAdapter(80, 24);
         var filter = new TerminalHeatmapFilter(innerAdapter);
+        var workload = new Hex1bAppWorkloadAdapter(filter.Capabilities);
+        var terminal = new Hex1bTerminal(filter, workload, 80, 24);
+        filter.AttachTerminal(terminal);
+        
         filter.Enable();
         
         // Allow the Enable() async method to complete
@@ -81,12 +85,14 @@ public class TerminalHeatmapFilterTests
         var data = new byte[] { 0x1b, 0x5b, 0x48 }; // ESC[H
         
         // Act
-        await filter.WriteOutputAsync(data);
+        await filter.WriteOutputAsync(data, TestContext.Current.CancellationToken);
         
         // Assert - should have heatmap output instead of original
-        Assert.Equal(1, innerAdapter.WrittenOutputs.Count);
+        Assert.Single(innerAdapter.WrittenOutputs);
         var output = System.Text.Encoding.UTF8.GetString(innerAdapter.WrittenOutputs[0].Span);
         Assert.Contains("\x1b[H\x1b[2J", output); // Should have clear screen
+        
+        terminal.Dispose();
     }
 
     [Fact]
@@ -99,7 +105,7 @@ public class TerminalHeatmapFilterTests
         innerAdapter.QueueInput(inputData);
         
         // Act
-        var result = await filter.ReadInputAsync();
+        var result = await filter.ReadInputAsync(TestContext.Current.CancellationToken);
         
         // Assert
         Assert.Equal(inputData, result.ToArray());
@@ -113,7 +119,7 @@ public class TerminalHeatmapFilterTests
         var filter = new TerminalHeatmapFilter(innerAdapter);
         
         // Act
-        await filter.EnterTuiModeAsync();
+        await filter.EnterTuiModeAsync(TestContext.Current.CancellationToken);
         
         // Assert
         Assert.True(innerAdapter.InTuiMode);
@@ -125,10 +131,10 @@ public class TerminalHeatmapFilterTests
         // Arrange
         var innerAdapter = new TestPresentationAdapter(80, 24);
         var filter = new TerminalHeatmapFilter(innerAdapter);
-        await filter.EnterTuiModeAsync();
+        await filter.EnterTuiModeAsync(TestContext.Current.CancellationToken);
         
         // Act
-        await filter.ExitTuiModeAsync();
+        await filter.ExitTuiModeAsync(TestContext.Current.CancellationToken);
         
         // Assert
         Assert.False(innerAdapter.InTuiMode);

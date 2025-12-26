@@ -274,17 +274,17 @@ var app = new Hex1bApp(options => {
 
 | Element | Type | Default | Description |
 |---------|------|---------|-------------|
-| `DividerColor` | `Hex1bColor` | Default | Color of the divider line |
+| `DividerColor` | `Hex1bColor` | Gray | Color of the divider line |
 | `DividerCharacter` | `string` | `"│"` | Character for horizontal divider |
 | `HorizontalDividerCharacter` | `string` | `"─"` | Character for vertical divider |
 | `LeftArrowCharacter` | `string` | `"◀"` | Left arrow hint (horizontal) |
 | `RightArrowCharacter` | `string` | `"▶"` | Right arrow hint (horizontal) |
 | `UpArrowCharacter` | `string` | `"▲"` | Up arrow hint (vertical) |
 | `DownArrowCharacter` | `string` | `"▼"` | Down arrow hint (vertical) |
-| `LeftArrowColor` | `Hex1bColor` | DividerColor | Color for left arrow |
-| `RightArrowColor` | `Hex1bColor` | DividerColor | Color for right arrow |
-| `UpArrowColor` | `Hex1bColor` | DividerColor | Color for up arrow |
-| `DownArrowColor` | `Hex1bColor` | DividerColor | Color for down arrow |
+| `LeftArrowColor` | `Hex1bColor` | Default (falls back to divider color at render) | Color for left arrow |
+| `RightArrowColor` | `Hex1bColor` | Default (falls back to divider color at render) | Color for right arrow |
+| `UpArrowColor` | `Hex1bColor` | Default (falls back to divider color at render) | Color for up arrow |
+| `DownArrowColor` | `Hex1bColor` | Default (falls back to divider color at render) | Color for down arrow |
 
 Arrow hints are displayed at the center of the divider when the splitter is tall/wide enough, indicating the resize direction.
 

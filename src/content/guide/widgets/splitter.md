@@ -147,8 +147,8 @@ You can nest splitters in any combination:
 - Vertical inside horizontal (file tree + editor + terminal)
 - Multiple levels deep for quad-split layouts
 
-::: tip
-The existing `SplittersExample` demonstrates various nesting patterns including horizontal-in-vertical, vertical-in-horizontal, and quad-split layouts. Check it out for more complex examples!
+::: tip More Complex Examples
+Check out the [Splitters example](http://localhost:5244/examples?example=splitters) in the gallery to see various nesting patterns including horizontal-in-vertical, vertical-in-horizontal, and quad-split layouts.
 :::
 
 ## Resizing Behavior

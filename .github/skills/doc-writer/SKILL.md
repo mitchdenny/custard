@@ -407,6 +407,429 @@ Before finalizing documentation:
 - Check that links aren't broken
 - Verify VitePress components render correctly
 
+#### Widget Documentation Template
+
+When documenting widgets in `guide/widgets/`, follow this consistent structure to ensure users can quickly find what they need.
+
+**📖 Canonical Example:** See [guide/widgets/text.md](/src/content/guide/widgets/text.md) for a fully-realized example demonstrating all the patterns described below, including:
+- External `.cs` snippet files with `?raw` imports
+- Live demos with `<CodeBlock>` for full examples
+- Static previews with `<StaticTerminalPreview>` for visual variations
+- Proper section structure and related widgets links
+
+##### Required Sections
+
+1. **Title** - Widget name as heading
+2. **Basic Usage** - Complete, runnable example with `Hex1bApp` setup
+3. **Features/Behavior** - Widget-specific capabilities with demos where applicable
+4. **Related Widgets** - Links to related documentation
+
+##### Optional Sections
+
+Include these when they add clear value:
+
+- **Complete Example** - Only when the widget has complex interactions worth demonstrating together (e.g., form widgets with validation, list widgets with selection). Skip when basic usage already covers the widget adequately.
+- **API Reference** - Include when there are non-obvious parameters, enums, or extension methods to document. For simple widgets with self-explanatory APIs, the XML documentation is sufficient.
+
+##### Live Terminal Demos for Widget Docs
+
+Widget documentation benefits from live terminal demos using the `<CodeBlock>` component. However, choose the appropriate demo type based on the widget's nature.
+
+##### When to Use Live Demos vs Static Previews
+
+| Use Live Demo (`<CodeBlock>`) | Use Static Preview (`<StaticTerminalPreview>`) |
+|-------------------------------|-----------------------------------------------|
+| Interactive widgets (buttons, text boxes) | Display-only widgets (text, layout) |
+| User input demonstration needed | Showing specific visual states |
+| Responsive behavior on resize | Code snippet with visual result |
+| Focus/navigation demonstrations | Documenting multiple variations |
+
+**Live demos are best when:**
+- There is some interactive element on the screen (buttons, inputs, lists)
+- Resizing the terminal results in responsive behavior worth demonstrating
+- Focus navigation or keyboard handling is a key feature
+
+**Static previews are best when:**
+- The widget is purely visual with no interaction
+- You're showing multiple variations of the same feature
+- The code snippet is a partial example (not full `Hex1bApp` setup)
+
+##### Creating Live Demos
+
+1. **Create WebSocket example files** in `src/Hex1b.Website/Examples/` for each demo
+2. **Use the `<CodeBlock>` component** with the `example` attribute linking to the example Id
+3. **Define code in `<script setup>`** at the top of the markdown file
+
+**Example structure for widget docs:**
+
+```markdown
+<script setup>
+const basicCode = \`using Hex1b;
+using Hex1b.Widgets;
+
+var app = new Hex1bApp(ctx => Task.FromResult<Hex1bWidget>(
+    ctx.VStack(v => [
+        v.WidgetMethod("example")
+    ])
+));
+
+await app.RunAsync();\`
+</script>
+
+# WidgetName
+
+Brief description.
+
+## Basic Usage
+
+<CodeBlock lang="csharp" :code="basicCode" command="dotnet run" example="widget-basic" exampleTitle="Widget - Basic Usage" />
+```
+
+**Creating the WebSocket example file** (`src/Hex1b.Website/Examples/WidgetBasicExample.cs`):
+
+```csharp
+using Hex1b;
+using Hex1b.Widgets;
+using Microsoft.Extensions.Logging;
+
+namespace Hex1b.Website.Examples;
+
+public class WidgetBasicExample(ILogger<WidgetBasicExample> logger) : Hex1bExample
+{
+    private readonly ILogger<WidgetBasicExample> _logger = logger;
+
+    public override string Id => "widget-basic";  // Must match example attribute in CodeBlock
+    public override string Title => "Widget - Basic Usage";
+    public override string Description => "Demonstrates basic widget usage";
+
+    public override Func<Hex1bWidget> CreateWidgetBuilder()
+    {
+        _logger.LogInformation("Creating widget basic example");
+
+        return () =>
+        {
+            var ctx = new RootContext();
+            return ctx.VStack(v => [
+                v.WidgetMethod("example")
+            ]);
+        };
+    }
+}
+```
+
+##### Key Principles
+
+**Always use the fluent API**:
+- ✅ `ctx.Text("Hello")` or `v.Text("Hello")`
+- ❌ `new TextBlockWidget("Hello")` - Do not show direct widget construction
+
+**Basic Usage must include Hex1bApp**:
+```csharp
+using Hex1b;
+using Hex1b.Widgets;
+
+var app = new Hex1bApp(ctx => Task.FromResult<Hex1bWidget>(
+    ctx.Text("Hello, World!")
+));
+
+await app.RunAsync();
+```
+
+**Show widgets in context** - Demonstrate usage within layout containers:
+```csharp
+var app = new Hex1bApp(ctx => Task.FromResult<Hex1bWidget>(
+    ctx.VStack(v => [
+        v.Text("Title"),
+        v.Text("Description")
+    ])
+));
+```
+
+##### Template Structure
+
+The following template shows the recommended structure. Adapt it based on the widget's complexity:
+
+```markdown
+<script setup>
+const basicCode = \`using Hex1b;
+using Hex1b.Widgets;
+
+var app = new Hex1bApp(ctx => Task.FromResult<Hex1bWidget>(
+    ctx.WidgetMethod("example")
+));
+
+await app.RunAsync();\`
+</script>
+
+# WidgetName
+
+Brief description of what the widget does.
+
+## Basic Usage
+
+<CodeBlock lang="csharp" :code="basicCode" command="dotnet run" example="widget-basic" exampleTitle="Widget - Basic Usage" />
+
+## [Feature Section(s)]
+
+Document widget-specific features with focused examples.
+
+Store code snippets as external `.cs` files and import them with `?raw`:
+
+```markdown
+<script setup>
+import featureSnippet from './snippets/widget-feature.cs?raw'
+</script>
+
+<StaticTerminalPreview svgPath="/svg/widget-feature.svg" :code="featureSnippet" />
+```
+
+## Related Widgets
+
+- [RelatedWidget](/guide/widgets/related) - Brief description
+```
+
+##### Mirror Warning for Code Samples
+
+When a documentation code sample mirrors a WebSocket example, add a warning comment to remind maintainers to keep them in sync:
+
+```markdown
+<!-- 
+⚠️ MIRROR WARNING: This code sample mirrors the WebSocket example in:
+   src/Hex1b.Website/Examples/WidgetBasicExample.cs
+   Keep both files in sync when making changes.
+-->
+```
+
+Place this comment directly before the code block or `<script setup>` section.
+
+#### Static SVG/HTML Previews
+
+For static previews with interactive cell inspection, use the Static Generator to create SVG and HTML files. These offer:
+
+- **Crisp SVG rendering**: Sharp vector graphics at any resolution
+- **Interactive HTML inspector**: Hover over cells to see character, color, and attribute details
+- **Minimal embed mode**: Clean presentation for documentation iframes
+
+##### Static Generator Template Location
+
+A template console application is provided at:
+```
+.github/skills/doc-writer/static-generator/
+├── StaticGenerator.csproj  # Project file (references Hex1b)
+├── Program.cs              # Template with GenerateSnapshot helper
+└── README.md               # Detailed usage instructions
+```
+
+##### Step-by-Step Workflow for Agents
+
+**IMPORTANT**: Do NOT modify the template files directly. Always copy to a temporary location first.
+
+**Step 1: Create working directory inside workspace**
+
+```bash
+mkdir -p .tmp-static-gen
+cp .github/skills/doc-writer/static-generator/* .tmp-static-gen/
+```
+
+**Step 2: Fix the project reference path**
+
+The template uses a relative path for the original location. Update the project reference in `.tmp-static-gen/StaticGenerator.csproj`:
+
+```bash
+# Change the ProjectReference Include path from:
+#   Include="../../../../src/Hex1b/Hex1b.csproj"
+# To:
+#   Include="../src/Hex1b/Hex1b.csproj"
+```
+
+**Step 3: Modify Program.cs in the working copy**
+
+Edit `.tmp-static-gen/Program.cs` and replace the contents of `GenerateSnapshots()` with your specific widget:
+
+```csharp
+static async Task GenerateSnapshots(string outputDir)
+{
+    // Example: Generate a text widget with wrapping
+    await GenerateSnapshot(outputDir, "text-wrap-demo", "Text Wrapping Demo", 50, 5,
+        ctx => ctx.VStack(v => [
+            v.Text(
+                "This long paragraph demonstrates how text wrapping works in Hex1b. " +
+                "When content exceeds the available width, it automatically breaks " +
+                "at word boundaries."
+            ).Wrap()
+        ]));
+}
+```
+
+**Step 4: Run the generator**
+
+```bash
+cd .tmp-static-gen
+dotnet run -- output
+```
+
+**Step 5: Verify the output**
+
+Check that the files were created:
+```bash
+ls -la output/
+# Should contain: text-wrap-demo.svg
+```
+
+**Step 6: Copy to public assets**
+
+```bash
+cp output/*.svg ../src/content/public/svg/
+```
+
+**Step 7: Clean up**
+
+```bash
+cd ..
+rm -rf .tmp-static-gen
+```
+
+**Step 8: Use in documentation**
+
+Create a snippets folder alongside your markdown and add the code as a `.cs` file:
+
+```
+guide/widgets/
+├── your-widget.md
+└── snippets/
+    └── text-wrap-demo.cs
+```
+
+Then import and use it in your markdown:
+
+```markdown
+<script setup>
+import wrapSnippet from './snippets/text-wrap-demo.cs?raw'
+</script>
+
+<StaticTerminalPreview svgPath="/svg/text-wrap-demo.svg" :code="wrapSnippet" />
+```
+
+##### GenerateSnapshot Function Signature
+
+```csharp
+await GenerateSnapshot(
+    outputDir,      // Always use "output"
+    "filename",     // Name without extension (creates .svg)
+    "Description",  // For console output only
+    width,          // Terminal columns
+    height,         // Terminal rows
+    ctx => widget   // Widget builder using RootContext
+);
+```
+
+##### StaticTerminalPreview Component
+
+The `<StaticTerminalPreview>` component displays code with an expandable "View output" panel. Clicking the chevron icon slides open a panel showing the rendered terminal output.
+
+This component uses Shiki for syntax highlighting with line numbers, matching the styling of the main `<CodeBlock>` component.
+
+**Usage (recommended - external .cs files with `?raw` import):**
+
+Store code snippets as external `.cs` files in a `snippets/` folder alongside your markdown, then import them using Vite's `?raw` suffix:
+
+```
+guide/widgets/
+├── text.md
+└── snippets/
+    ├── text-truncate.cs
+    ├── text-wrap.cs
+    └── text-ellipsis.cs
+```
+
+```markdown
+<script setup>
+import truncateSnippet from './snippets/text-truncate.cs?raw'
+import wrapSnippet from './snippets/text-wrap.cs?raw'
+import ellipsisSnippet from './snippets/text-ellipsis.cs?raw'
+</script>
+
+<StaticTerminalPreview svgPath="/svg/text-truncate.svg" :code="truncateSnippet" />
+```
+
+Benefits of external files:
+- Real `.cs` files with proper syntax highlighting in your editor
+- Easier to maintain and edit
+- Avoids VitePress markdown processing issues
+- Cleaner markdown files
+
+**Props:**
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `svgPath` | string | required | Path to .svg file relative to public folder |
+| `code` | string | (from slot) | Code to display (use with `?raw` imports) |
+| `language` | string | "csharp" | Language for syntax highlighting |
+
+**Features:**
+- Shiki syntax highlighting with line numbers (matching CodeBlock.vue)
+- Chevron icon in header to expand/collapse output
+- Inline slide-out panel (no overlay or iframe)
+- SVG scales to fill available width
+- Cell hover tooltips showing character info, colors, and attributes (parsed from SVG DOM)
+- Consistent styling with main documentation code blocks
+
+**Note:** The component parses cell data directly from the SVG's DOM structure (using `data-x`, `data-y` attributes and element properties). No separate HTML file is needed.
+
+##### TerminalSvgOptions
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `ShowCellGrid` | `false` | Show grid lines between cells |
+| `ShowPixelGrid` | `false` | Show pixel-level grid |
+| `DefaultBackground` | `#0f0f1a` | Background color |
+| `DefaultForeground` | `#e0e0e0` | Text color |
+| `FontFamily` | Cascadia Code stack | Monospace font |
+| `FontSize` | `14` | Font size in pixels |
+| `CellWidth` | `9` | Cell width in pixels |
+| `CellHeight` | `18` | Cell height in pixels |
+
+##### Avoiding Cursor in SVG Output
+
+**IMPORTANT**: Unless your code sample specifically demonstrates cursor/mouse behavior, disable the cursor in generated SVGs. A random cursor block appearing in documentation screenshots confuses readers.
+
+The `Hex1bTerminalSnapshot.ToSvg()` method includes cursor position by default. To hide the cursor, cast to `IHex1bTerminalRegion`:
+
+```csharp
+// Cast to IHex1bTerminalRegion to use the overload without cursor
+var svg = ((IHex1bTerminalRegion)snapshot).ToSvg(svgOptions);
+```
+
+The template's `GenerateSnapshot` function already uses this approach by default.
+
+Only include the cursor when documenting cursor-related features (e.g., TextBox focus states, cursor shapes).
+
+##### Common Widget Patterns
+
+```csharp
+// Simple text
+await GenerateSnapshot(outputDir, "text-simple", "Simple", 40, 3,
+    ctx => ctx.Text("Hello, World!"));
+
+// Text with overflow
+await GenerateSnapshot(outputDir, "text-ellipsis", "Ellipsis", 50, 3,
+    ctx => ctx.Text("Very long text here...").Ellipsis().FixedWidth(30));
+
+// VStack layout
+await GenerateSnapshot(outputDir, "layout-vstack", "VStack", 60, 10,
+    ctx => ctx.VStack(v => [
+        v.Text("Header"),
+        v.Text(""),
+        v.Text("Body content")
+    ]));
+
+// Border with content
+await GenerateSnapshot(outputDir, "border-demo", "Border", 40, 6,
+    ctx => ctx.Border(b => [
+        b.Text("Content inside border")
+    ], title: "Title"));
+```
+
 ## Documentation Workflow
 
 ### For New Features
@@ -420,10 +843,6 @@ Before finalizing documentation:
    - Add widget documentation to `guide/widgets/`
    - Update relevant tutorial sections
    - Add usage examples to `getting-started.md` if appropriate
-
-3. **Update API reference** (if needed)
-   - The `api/index.md` file may need manual updates
-   - Consider auto-generation tools for comprehensive API docs
 
 ### For Bug Fixes
 

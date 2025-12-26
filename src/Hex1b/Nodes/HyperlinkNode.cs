@@ -54,7 +54,7 @@ public sealed class HyperlinkNode : Hex1bNode
         }
     }
 
-    private TextOverflow _overflow = TextOverflow.Overflow;
+    private TextOverflow _overflow = TextOverflow.Truncate;
     public TextOverflow Overflow 
     { 
         get => _overflow; 
@@ -146,7 +146,7 @@ public sealed class HyperlinkNode : Hex1bNode
                 var ellipsisWidth = Math.Min(textWidth, constraints.MaxWidth);
                 return constraints.Constrain(new Size(ellipsisWidth, 1));
                 
-            case TextOverflow.Overflow:
+            case TextOverflow.Truncate:
             default:
                 // Hyperlink renders as just the text (OSC 8 sequences are invisible)
                 var width = DisplayWidth.GetStringWidth(Text);
@@ -269,14 +269,14 @@ public sealed class HyperlinkNode : Hex1bNode
                 RenderEllipsis(context);
                 break;
                 
-            case TextOverflow.Overflow:
+            case TextOverflow.Truncate:
             default:
-                RenderOverflow(context);
+                RenderTruncate(context);
                 break;
         }
     }
 
-    private void RenderOverflow(Hex1bRenderContext context)
+    private void RenderTruncate(Hex1bRenderContext context)
     {
         var output = BuildStyledOutput(Text, context);
         

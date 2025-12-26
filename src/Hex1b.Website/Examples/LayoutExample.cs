@@ -92,11 +92,11 @@ public class LayoutExample(ILogger<LayoutExample> logger) : Hex1bExample
             panel.VStack(v => [
                 v.Text("═══ Text Wrapping Demo ═══"),
                 v.Text(""),
-                v.Text(explanation, TextOverflow.Wrap),
+                v.Text(explanation).Wrap(),
                 v.Text(""),
                 v.Text("─── Long Paragraph ───"),
                 v.Text(""),
-                v.Text(loremIpsum, TextOverflow.Wrap),
+                v.Text(loremIpsum).Wrap(),
                 v.Text(""),
                 v.Text("─── End of Demo ───"),
             ])
@@ -129,9 +129,9 @@ public class LayoutExample(ILogger<LayoutExample> logger) : Hex1bExample
             panel.VStack(v => [
                 v.Text("═══ Text Clipping Demo ═══"),
                 v.Text(""),
-                v.Text("TextOverflow.Overflow (default) allows", TextOverflow.Wrap),
-                v.Text("text to extend beyond bounds. The", TextOverflow.Wrap),
-                v.Text("LayoutNode clips it at render time.", TextOverflow.Wrap),
+                v.Text("TextOverflow.Overflow (default) allows").Wrap(),
+                v.Text("text to extend beyond bounds. The").Wrap(),
+                v.Text("LayoutNode clips it at render time.").Wrap(),
                 v.Text(""),
                 v.Text("─── Wide ASCII Art (clipped) ───"),
                 v.Text(""),
@@ -142,8 +142,8 @@ public class LayoutExample(ILogger<LayoutExample> logger) : Hex1bExample
                 v.Text(contentLine4),
                 v.Text(bottomLine),
                 v.Text(""),
-                v.Text("Notice how the box is cut off at the", TextOverflow.Wrap),
-                v.Text("right edge of this panel.", TextOverflow.Wrap),
+                v.Text("Notice how the box is cut off at the").Wrap(),
+                v.Text("right edge of this panel.").Wrap(),
             ])
         ]);
     }
@@ -157,21 +157,21 @@ public class LayoutExample(ILogger<LayoutExample> logger) : Hex1bExample
             panel.VStack(v => [
                 v.Text("═══ Text Ellipsis Demo ═══"),
                 v.Text(""),
-                v.Text("TextOverflow.Ellipsis truncates text", TextOverflow.Wrap),
-                v.Text("and adds '...' at the end.", TextOverflow.Wrap),
+                v.Text("TextOverflow.Ellipsis truncates text").Wrap(),
+                v.Text("and adds '...' at the end.").Wrap(),
                 v.Text(""),
                 v.Text("─── File List Example ───"),
                 v.Text(""),
-                v.Text("📁 Documents/", TextOverflow.Ellipsis),
-                v.Text("  📄 " + longTitle, TextOverflow.Ellipsis),
-                v.Text("  📄 Another file with a really long name here", TextOverflow.Ellipsis),
-                v.Text("  📄 Short.txt", TextOverflow.Ellipsis),
+                v.Text("📁 Documents/").Ellipsis(),
+                v.Text("  📄 " + longTitle).Ellipsis(),
+                v.Text("  📄 Another file with a really long name here").Ellipsis(),
+                v.Text("  📄 Short.txt").Ellipsis(),
                 v.Text(""),
                 v.Text("─── Card Example ───"),
                 v.Text(""),
                 v.Text("┌─────────────────────────────────────┐"),
-                v.Text("│ Title: " + longTitle, TextOverflow.Ellipsis),
-                v.Text("│ Desc:  " + longDescription, TextOverflow.Ellipsis),
+                v.Text("│ Title: " + longTitle).Ellipsis(),
+                v.Text("│ Desc:  " + longDescription).Ellipsis(),
                 v.Text("└─────────────────────────────────────┘"),
             ])
         ]);
@@ -185,21 +185,21 @@ public class LayoutExample(ILogger<LayoutExample> logger) : Hex1bExample
             panel.VStack(v => [
                 v.Text("═══ Nested Layouts Demo ═══"),
                 v.Text(""),
-                v.Text("Layout regions can be nested. Each", TextOverflow.Wrap),
-                v.Text("LayoutNode establishes its own clip", TextOverflow.Wrap),
-                v.Text("boundary for descendants.", TextOverflow.Wrap),
+                v.Text("Layout regions can be nested. Each").Wrap(),
+                v.Text("LayoutNode establishes its own clip").Wrap(),
+                v.Text("boundary for descendants.").Wrap(),
                 v.Text(""),
                 v.Text("─── Outer Region ───"),
                 v.Text(""),
-                v.Text("Content in outer region spans the full width of this panel area.", TextOverflow.Wrap),
+                v.Text("Content in outer region spans the full width of this panel area.").Wrap(),
                 v.Text(""),
                 v.Border(border => [
                     border.Text("Inner bordered region:"),
-                    border.Text(innerText, TextOverflow.Wrap),
-                    border.Text("More nested content here that should wrap nicely within the border.", TextOverflow.Wrap),
+                    border.Text(innerText).Wrap(),
+                    border.Text("More nested content here that should wrap nicely within the border.").Wrap(),
                 ], title: "Nested"),
                 v.Text(""),
-                v.Text("Content after the nested region.", TextOverflow.Wrap),
+                v.Text("Content after the nested region.").Wrap(),
             ])
         ]);
     }
@@ -212,8 +212,8 @@ public class LayoutExample(ILogger<LayoutExample> logger) : Hex1bExample
             panel.VStack(v => [
                 v.Text("═══ Border Clipping Demo ═══"),
                 v.Text(""),
-                v.Text("Borders contain child content and", TextOverflow.Wrap),
-                v.Text("should clip properly.", TextOverflow.Wrap),
+                v.Text("Borders contain child content and").Wrap(),
+                v.Text("should clip properly.").Wrap(),
                 v.Text(""),
                 v.Border(border => [
                     border.Text("Normal content inside"),
@@ -227,8 +227,8 @@ public class LayoutExample(ILogger<LayoutExample> logger) : Hex1bExample
                 ], title: "Overflow"),
                 v.Text(""),
                 v.Border(border => [
-                    border.Text("Wrapped content inside:", TextOverflow.Wrap),
-                    border.Text(wideContent, TextOverflow.Wrap),
+                    border.Text("Wrapped content inside:").Wrap(),
+                    border.Text(wideContent).Wrap(),
                 ], title: "Wrapped"),
             ])
         ]);

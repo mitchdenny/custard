@@ -10,6 +10,10 @@ export default defineConfig({
     ['link', { rel: 'icon', type: 'image/svg+xml', href: '/logo.svg' }]
   ],
 
+  markdown: {
+    lineNumbers: true
+  },
+
   themeConfig: {
     logo: '/logo.svg',
     
@@ -42,7 +46,7 @@ export default defineConfig({
         {
           text: 'Widgets',
           items: [
-            { text: 'Text & TextBlock', link: '/guide/widgets/text' },
+            { text: 'Text', link: '/guide/widgets/text' },
             { text: 'Button', link: '/guide/widgets/button' },
             { text: 'TextBox', link: '/guide/widgets/textbox' },
             { text: 'List', link: '/guide/widgets/list' },

@@ -1,63 +1,113 @@
-# Text & TextBlock Widgets
+<!--
+  MIRROR WARNING: The code samples below must stay in sync with their WebSocket example counterparts:
+  - basicCode    → src/Hex1b.Website/Examples/TextBasicExample.cs
+  - overflowCode → src/Hex1b.Website/Examples/TextOverflowExample.cs
+  When updating code here, update the corresponding Example file and vice versa.
+-->
+<script setup>
+import truncateSnippet from './snippets/text-truncate.cs?raw'
+import wrapSnippet from './snippets/text-wrap.cs?raw'
+import ellipsisSnippet from './snippets/text-ellipsis.cs?raw'
+import unicodeSnippet from './snippets/text-unicode.cs?raw'
 
-Display static or styled text in your terminal UI.
+const basicCode = `using Hex1b;
+using Hex1b.Widgets;
 
-## TextBlockWidget
+var app = new Hex1bApp(ctx => Task.FromResult<Hex1bWidget>(
+    ctx.VStack(v => [
+        v.Text("Welcome to Hex1b"),
+        v.Text("Build beautiful terminal UIs")
+    ])
+));
 
-The simplest widget—displays a string:
+await app.RunAsync();`
 
-```csharp
-new TextBlockWidget("Hello, World!")
-```
+const overflowCode = `using Hex1b;
+using Hex1b.Widgets;
 
-## Styling
+var app = new Hex1bApp(ctx => Task.FromResult<Hex1bWidget>(
+    ctx.VStack(v => [
+        v.Text("═══ Text Overflow Modes ═══"),
+        v.Text(""),
+        v.Text("Wrap Mode:"),
+        v.Text(
+            "This is a long description that demonstrates text wrapping behavior in Hex1b. " +
+            "When the text content exceeds the available width of the container, it automatically " +
+            "breaks at word boundaries to fit within the allocated space. This ensures that all " +
+            "content remains visible to the user without requiring horizontal scrolling. The widget's " +
+            "measured height increases dynamically based on the number of wrapped lines."
+        ).Wrap(),
+        v.Text(""),
+        v.Text("Ellipsis Mode:"),
+        v.Text(
+            "This is a much longer piece of text that will definitely " +
+            "be truncated with an ellipsis character sequence when it " +
+            "exceeds the available fixed width of forty columns"
+        ).Ellipsis().FixedWidth(40),
+        v.Text(""),
+        v.Text("Default (Truncate) Mode:"),
+        v.Text(
+            "This text extends beyond its allocated bounds and " +
+            "will be clipped by the parent container if clipping is enabled"
+        )
+    ])
+));
 
-Apply text styles with extension methods:
+await app.RunAsync();`
 
-```csharp
-new TextBlockWidget("Important!")
-    .Bold()
-    .Foreground(Hex1bColor.Red)
+</script>
 
-new TextBlockWidget("Subtle note")
-    .Dim()
-    .Italic()
-```
+# TextWidget
 
-## Available Styles
+Display static or dynamic text content in your terminal UI.
 
-| Method | Effect |
-|--------|--------|
-| `.Bold()` | Bold text |
-| `.Italic()` | Italic text |
-| `.Underline()` | Underlined text |
-| `.Strikethrough()` | ~~Strikethrough~~ |
-| `.Dim()` | Dimmed/faded text |
-| `.Blink()` | Blinking text (use sparingly!) |
-| `.Reverse()` | Swap foreground/background |
+## Basic Usage
 
-## Colors
+Create a simple text display using the fluent API:
 
-```csharp
-.Foreground(Hex1bColor.Cyan)
-.Background(Hex1bColor.Black)
-```
+<CodeBlock lang="csharp" :code="basicCode" command="dotnet run" example="text-basic" exampleTitle="Text Widget - Basic Usage" />
 
-## Multi-line Text
+## Text Overflow Behavior
 
-TextBlock handles newlines:
+TextWidget provides three modes for handling text that exceeds the available width:
 
-```csharp
-new TextBlockWidget("Line 1\nLine 2\nLine 3")
-```
+<CodeBlock lang="csharp" :code="overflowCode" command="dotnet run" example="text-overflow" exampleTitle="Text Overflow Modes" />
 
-## Text Widget (Inline)
+### Truncate (Default)
 
-For inline text within stacks, `TextWidget` is also available for simpler cases:
+Text is clipped when it extends beyond its bounds. No visual indicator is shown:
 
-```csharp
-new HStackWidget([
-    new TextWidget("Name: "),
-    new TextBlockWidget(user.Name).Bold()
-])
-```
+<StaticTerminalPreview svgPath="/svg/text-overflow-truncate.svg" :code="truncateSnippet" />
+
+### Wrap
+
+Text wraps to multiple lines at word boundaries:
+
+<StaticTerminalPreview svgPath="/svg/text-overflow-wrap.svg" :code="wrapSnippet" />
+
+When wrapping:
+- Words break at spaces when possible
+- Very long words are broken mid-word if necessary
+- The widget's measured height increases with the number of lines
+
+### Ellipsis
+
+Text is truncated with "..." when it exceeds the width:
+
+<StaticTerminalPreview svgPath="/svg/text-overflow-ellipsis.svg" :code="ellipsisSnippet" />
+
+## Unicode Support
+
+TextWidget correctly handles Unicode text including:
+
+- **Wide characters** (CJK): 日本語, 中文, 한국어
+- **Emoji**: 🎉 🚀 ✨
+- **Combining characters**: é, ñ
+- **Box-drawing characters**: ┌─┐│└─┘
+
+<StaticTerminalPreview svgPath="/svg/text-unicode.svg" :code="unicodeSnippet" />
+
+## Related Widgets
+
+- [TextBoxWidget](/guide/widgets/textbox) - For editable text input
+- [Layout & Stacks](/guide/widgets/stacks) - For arranging text with other widgets

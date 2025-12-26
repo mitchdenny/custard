@@ -976,7 +976,7 @@ public class Osc8HyperlinkTests
 
         await using var app = new Hex1bApp(
             ctx => ctx.VStack(v => [
-                v.Hyperlink("This is a very long hyperlink that should wrap to multiple lines", "https://example.com/wrapped", TextOverflow.Wrap)
+                v.Hyperlink("This is a very long hyperlink that should wrap to multiple lines", "https://example.com/wrapped").Wrap()
             ]),
             new Hex1bAppOptions { WorkloadAdapter = workload }
         );
@@ -1028,7 +1028,7 @@ public class Osc8HyperlinkTests
 
         await using var app = new Hex1bApp(
             ctx => ctx.VStack(v => [
-                v.Hyperlink("First Second Third Fourth", "https://example.com/multi", TextOverflow.Wrap)
+                v.Hyperlink("First Second Third Fourth", "https://example.com/multi").Wrap()
             ]),
             new Hex1bAppOptions { WorkloadAdapter = workload }
         );

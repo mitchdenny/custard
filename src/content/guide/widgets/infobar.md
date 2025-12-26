@@ -185,7 +185,7 @@ var theme = Hex1bThemes.Default.Clone()
     .Set(InfoBarTheme.BackgroundColor, Hex1bColor.DarkGray);
 
 var app = new Hex1bApp(
-    ctx => ctx.InfoBar("Themed Status Bar"),
+    ctx => Task.FromResult<Hex1bWidget>(ctx.InfoBar("Themed Status Bar")),
     new Hex1bAppOptions { Theme = theme }
 );
 ```

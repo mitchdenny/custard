@@ -8,25 +8,25 @@
 <script setup>
 import focusSnippet from './snippets/toggle-switch-focus.cs?raw'
 import multiSnippet from './snippets/toggle-switch-multi.cs?raw'
+import binarySnippet from './snippets/toggle-switch-binary.cs?raw'
+import modesSnippet from './snippets/toggle-switch-modes.cs?raw'
+import settingsSnippet from './snippets/toggle-switch-settings.cs?raw'
 
 const basicCode = `using Hex1b;
 using Hex1b.Widgets;
 
-var state = new ToggleSwitchState
-{
-    Options = ["Off", "On"],
-    SelectedIndex = 0
-};
+string currentSelection = "Off";
 
 var app = new Hex1bApp(ctx => Task.FromResult<Hex1bWidget>(
     ctx.VStack(v => [
         v.Text("ToggleSwitch Examples"),
         v.Text(""),
-        v.Text($"Power: {state.SelectedOption}"),
+        v.Text($"Power: {currentSelection}"),
         v.Text(""),
         v.HStack(h => [
             h.Text("Status: "),
-            h.ToggleSwitch(state)
+            h.ToggleSwitch(["Off", "On"])
+                .OnSelectionChanged(args => currentSelection = args.SelectedOption)
         ]),
         v.Text(""),
         v.Text("Use Left/Right arrows or click to toggle")
@@ -38,11 +38,7 @@ await app.RunAsync();`
 const multiOptionCode = `using Hex1b;
 using Hex1b.Widgets;
 
-var speedState = new ToggleSwitchState
-{
-    Options = ["Slow", "Normal", "Fast"],
-    SelectedIndex = 1
-};
+string currentSpeed = "Normal";
 
 var app = new Hex1bApp(ctx => Task.FromResult<Hex1bWidget>(
     ctx.Border(b => [
@@ -51,10 +47,11 @@ var app = new Hex1bApp(ctx => Task.FromResult<Hex1bWidget>(
             v.Text(""),
             v.HStack(h => [
                 h.Text("Animation Speed: ").FixedWidth(20),
-                h.ToggleSwitch(speedState)
+                h.ToggleSwitch(["Slow", "Normal", "Fast"], selectedIndex: 1)
+                    .OnSelectionChanged(args => currentSpeed = args.SelectedOption)
             ]),
             v.Text(""),
-            v.Text($"Current speed: {speedState.SelectedOption}"),
+            v.Text($"Current speed: {currentSpeed}"),
             v.Text(""),
             v.Text("Use arrow keys to cycle through options")
         ])
@@ -66,7 +63,7 @@ await app.RunAsync();`
 const eventCode = `using Hex1b;
 using Hex1b.Widgets;
 
-var state = new SettingsState();
+var eventLog = new List<string>();
 
 var app = new Hex1bApp(ctx => Task.FromResult<Hex1bWidget>(
     ctx.Border(b => [
@@ -75,46 +72,29 @@ var app = new Hex1bApp(ctx => Task.FromResult<Hex1bWidget>(
             v.Text(""),
             v.HStack(h => [
                 h.Text("Theme:         ").FixedWidth(16),
-                h.ToggleSwitch(state.ThemeToggle)
+                h.ToggleSwitch(["Light", "Dark"], selectedIndex: 1)
                     .OnSelectionChanged(args => 
                     {
-                        state.EventLog.Add($"Theme changed to: {args.SelectedOption}");
+                        eventLog.Add($"Theme changed to: {args.SelectedOption}");
                     })
             ]),
             v.Text(""),
             v.HStack(h => [
                 h.Text("Notifications: ").FixedWidth(16),
-                h.ToggleSwitch(state.NotificationToggle)
+                h.ToggleSwitch(["Off", "On"], selectedIndex: 1)
                     .OnSelectionChanged(args => 
                     {
-                        state.EventLog.Add($"Notifications: {args.SelectedOption}");
+                        eventLog.Add($"Notifications: {args.SelectedOption}");
                     })
             ]),
             v.Text(""),
             v.Text("Event Log:"),
-            ..state.EventLog.TakeLast(3).Select(log => v.Text($"  • {log}"))
+            ..eventLog.TakeLast(3).Select(log => v.Text($"  • {log}"))
         ])
     ], title: "User Preferences")
 ));
 
-await app.RunAsync();
-
-class SettingsState
-{
-    public ToggleSwitchState ThemeToggle { get; } = new()
-    {
-        Options = ["Light", "Dark"],
-        SelectedIndex = 1
-    };
-
-    public ToggleSwitchState NotificationToggle { get; } = new()
-    {
-        Options = ["Off", "On"],
-        SelectedIndex = 1
-    };
-
-    public List<string> EventLog { get; } = [];
-}`
+await app.RunAsync();`
 </script>
 
 # ToggleSwitchWidget
@@ -125,17 +105,17 @@ ToggleSwitch is a focusable widget that presents a set of options in a compact h
 
 ## Basic Usage
 
-Create a toggle switch using the fluent API with a `ToggleSwitchState` that holds the options and selected index:
+Create a toggle switch using the fluent API by passing an array of options. Use `OnSelectionChanged` to respond when the user changes the selection:
 
 <CodeBlock lang="csharp" :code="basicCode" command="dotnet run" example="toggle-switch-basic" exampleTitle="ToggleSwitch Widget - Basic Usage" />
 
 ::: tip State Management
-ToggleSwitch requires a `ToggleSwitchState` object that you manage. The state holds the available options and the currently selected index. Update your state's `SelectedIndex` property or use the `SetSelection()` method to change the selection programmatically.
+ToggleSwitch selection state is managed internally by the node and preserved across re-renders. Use the `OnSelectionChanged` event to synchronize with your own application state when needed.
 :::
 
 ## Multiple Options
 
-ToggleSwitch isn't limited to binary choices—you can provide as many options as needed:
+ToggleSwitch isn't limited to binary choices—you can provide as many options as needed. Use the `selectedIndex` parameter to set the initial selection:
 
 <CodeBlock lang="csharp" :code="multiOptionCode" command="dotnet run" example="toggle-switch-multi" exampleTitle="ToggleSwitch Widget - Multiple Options" />
 
@@ -196,30 +176,6 @@ When unfocused:
 - **Tab** - Move focus to the next focusable widget
 - **Shift+Tab** - Move focus to the previous focusable widget
 
-## Working with ToggleSwitchState
-
-The `ToggleSwitchState` class provides several ways to work with the selection:
-
-```csharp
-var state = new ToggleSwitchState
-{
-    Options = ["Low", "Medium", "High"],
-    SelectedIndex = 0
-};
-
-// Get the currently selected option text
-string? current = state.SelectedOption;  // "Low"
-
-// Set selection by index
-state.SetSelection(2);  // Selects "High"
-
-// Invalid indices are ignored
-state.SetSelection(10);  // No change, still "High"
-state.SetSelection(-1);  // No change, still "High"
-```
-
-The `SelectedOption` property returns `null` if there are no options or the index is out of bounds.
-
 ## Theming
 
 Customize ToggleSwitch appearance using theme elements:
@@ -262,39 +218,19 @@ var app = new Hex1bApp(options => {
 
 Perfect for on/off, yes/no, enabled/disabled choices:
 
-```csharp
-var powerState = new ToggleSwitchState { Options = ["Off", "On"] };
-v.ToggleSwitch(powerState)
-```
+<StaticTerminalPreview svgPath="/svg/toggle-switch-binary.svg" :code="binarySnippet" />
 
 ### Mode Selection
 
 Choose between a small set of modes:
 
-```csharp
-var modeState = new ToggleSwitchState 
-{ 
-    Options = ["Manual", "Auto", "Scheduled"] 
-};
-v.ToggleSwitch(modeState)
-```
+<StaticTerminalPreview svgPath="/svg/toggle-switch-modes.svg" :code="modesSnippet" />
 
 ### Settings Panels
 
 Multiple toggles in a form layout:
 
-```csharp
-ctx.VStack(v => [
-    v.HStack(h => [
-        h.Text("Theme:  ").FixedWidth(12),
-        h.ToggleSwitch(themeState)
-    ]),
-    v.HStack(h => [
-        h.Text("Sound:  ").FixedWidth(12),
-        h.ToggleSwitch(soundState)
-    ])
-])
-```
+<StaticTerminalPreview svgPath="/svg/toggle-switch-settings.svg" :code="settingsSnippet" />
 
 ## Related Widgets
 

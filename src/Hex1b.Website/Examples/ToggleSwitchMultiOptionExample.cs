@@ -25,11 +25,7 @@ public class ToggleSwitchMultiOptionExample(ILogger<ToggleSwitchMultiOptionExamp
     {
         _logger.LogInformation("Creating toggle switch multi-option example widget builder");
 
-        var speedState = new ToggleSwitchState
-        {
-            Options = ["Slow", "Normal", "Fast"],
-            SelectedIndex = 1
-        };
+        string currentSpeed = "Normal";
 
         return () =>
         {
@@ -40,10 +36,11 @@ public class ToggleSwitchMultiOptionExample(ILogger<ToggleSwitchMultiOptionExamp
                     v.Text(""),
                     v.HStack(h => [
                         h.Text("Animation Speed: ").FixedWidth(20),
-                        h.ToggleSwitch(speedState)
+                        h.ToggleSwitch(["Slow", "Normal", "Fast"], selectedIndex: 1)
+                            .OnSelectionChanged(args => currentSpeed = args.SelectedOption)
                     ]),
                     v.Text(""),
-                    v.Text($"Current speed: {speedState.SelectedOption}"),
+                    v.Text($"Current speed: {currentSpeed}"),
                     v.Text(""),
                     v.Text("Use arrow keys to cycle through options")
                 ])

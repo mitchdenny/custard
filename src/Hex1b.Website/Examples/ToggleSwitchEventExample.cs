@@ -21,28 +21,11 @@ public class ToggleSwitchEventExample(ILogger<ToggleSwitchEventExample> logger) 
     public override string Title => "ToggleSwitch Widget - Event Handling";
     public override string Description => "Demonstrates toggle switch with selection changed event handling";
 
-    private class SettingsState
-    {
-        public ToggleSwitchState ThemeToggle { get; } = new()
-        {
-            Options = ["Light", "Dark"],
-            SelectedIndex = 1
-        };
-
-        public ToggleSwitchState NotificationToggle { get; } = new()
-        {
-            Options = ["Off", "On"],
-            SelectedIndex = 1
-        };
-
-        public List<string> EventLog { get; } = [];
-    }
-
     public override Func<Hex1bWidget> CreateWidgetBuilder()
     {
         _logger.LogInformation("Creating toggle switch event example widget builder");
 
-        var state = new SettingsState();
+        var eventLog = new List<string>();
 
         return () =>
         {
@@ -53,24 +36,24 @@ public class ToggleSwitchEventExample(ILogger<ToggleSwitchEventExample> logger) 
                     v.Text(""),
                     v.HStack(h => [
                         h.Text("Theme:         ").FixedWidth(16),
-                        h.ToggleSwitch(state.ThemeToggle)
+                        h.ToggleSwitch(["Light", "Dark"], selectedIndex: 1)
                             .OnSelectionChanged(args => 
                             {
-                                state.EventLog.Add($"Theme changed to: {args.SelectedOption}");
+                                eventLog.Add($"Theme changed to: {args.SelectedOption}");
                             })
                     ]),
                     v.Text(""),
                     v.HStack(h => [
                         h.Text("Notifications: ").FixedWidth(16),
-                        h.ToggleSwitch(state.NotificationToggle)
+                        h.ToggleSwitch(["Off", "On"], selectedIndex: 1)
                             .OnSelectionChanged(args => 
                             {
-                                state.EventLog.Add($"Notifications: {args.SelectedOption}");
+                                eventLog.Add($"Notifications: {args.SelectedOption}");
                             })
                     ]),
                     v.Text(""),
                     v.Text("Event Log:"),
-                    ..state.EventLog.TakeLast(3).Select(log => v.Text($"  • {log}"))
+                    ..eventLog.TakeLast(3).Select(log => v.Text($"  • {log}"))
                 ])
             ], title: "User Preferences");
         };

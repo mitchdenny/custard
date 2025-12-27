@@ -25,11 +25,7 @@ public class ToggleSwitchBasicExample(ILogger<ToggleSwitchBasicExample> logger) 
     {
         _logger.LogInformation("Creating toggle switch basic example widget builder");
 
-        var state = new ToggleSwitchState
-        {
-            Options = ["Off", "On"],
-            SelectedIndex = 0
-        };
+        string currentSelection = "Off";
 
         return () =>
         {
@@ -37,11 +33,12 @@ public class ToggleSwitchBasicExample(ILogger<ToggleSwitchBasicExample> logger) 
             return ctx.VStack(v => [
                 v.Text("ToggleSwitch Examples"),
                 v.Text(""),
-                v.Text($"Power: {state.SelectedOption}"),
+                v.Text($"Power: {currentSelection}"),
                 v.Text(""),
                 v.HStack(h => [
                     h.Text("Status: "),
-                    h.ToggleSwitch(state)
+                    h.ToggleSwitch(["Off", "On"])
+                        .OnSelectionChanged(args => currentSelection = args.SelectedOption)
                 ]),
                 v.Text(""),
                 v.Text("Use Left/Right arrows or click to toggle")

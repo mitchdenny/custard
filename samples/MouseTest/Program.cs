@@ -159,7 +159,7 @@ try
             // Main content wrapped in a border
             root.Border(
                 // Splitter with scenario list on left, controls on right
-                root.Splitter(
+                root.HSplitter(
                     // Left pane: scenario list
                     left => [
                         left.Text("Scenarios:"),

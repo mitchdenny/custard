@@ -35,7 +35,7 @@ public class ThemingExhibitRepro
             ctx =>
             {
                 var widget = ctx.VStack(root => [
-                    root.Splitter(
+                    root.HSplitter(
                         // Left: Panel with List
                         root.Panel(leftPanel => [
                             leftPanel.VStack(left => [
@@ -238,7 +238,7 @@ public class ThemingExhibitRepro
             ctx =>
             {
                 var widget = ctx.VStack(root => [
-                    root.Splitter(
+                    root.HSplitter(
                         // Left pane: Panel containing a VStack with List
                         root.Panel(leftPanel => [
                             leftPanel.VStack(left => [

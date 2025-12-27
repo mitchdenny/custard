@@ -1063,7 +1063,7 @@ public class ScrollNodeTests
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
-                ctx.Splitter(
+                ctx.HSplitter(
                     ctx.Text("Left Side"),
                     ctx.VScroll(
                         v => [

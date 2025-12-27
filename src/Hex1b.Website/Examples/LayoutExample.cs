@@ -46,7 +46,7 @@ public class LayoutExample(ILogger<LayoutExample> logger) : Hex1bExample
         {
             var ctx = new RootContext();
 
-            var widget = ctx.Splitter(
+            var widget = ctx.HSplitter(
                 ctx.Layout(
                     ctx.Panel(leftPanel => [
                         leftPanel.VStack(left => [

@@ -630,7 +630,7 @@ public class Osc8HyperlinkTests
         using var terminal = new Hex1bTerminal(workload, 60, 10);
 
         await using var app = new Hex1bApp(
-            ctx => ctx.Splitter(
+            ctx => ctx.HSplitter(
                 ctx.VStack(v => [
                     v.Text("Left Pane"),
                     v.Hyperlink("Left Link With Long Text", "https://left.example.com")

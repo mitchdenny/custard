@@ -342,7 +342,7 @@ public class RenderOptimizationTests
         var rightPaneRenderCount = 0;
 
         using var app = new Hex1bApp(
-            ctx => ctx.Splitter(
+            ctx => ctx.HSplitter(
                 left => [
                     left.Text("Left pane")
                 ],
@@ -385,7 +385,7 @@ public class RenderOptimizationTests
         using var terminal = new Hex1bTerminal(workload, 80, 24);
 
         using var app = new Hex1bApp(
-            ctx => ctx.Splitter(
+            ctx => ctx.HSplitter(
                 left => [left.Text("Left")],
                 right => [right.Text("Right")],
                 leftWidth: 20

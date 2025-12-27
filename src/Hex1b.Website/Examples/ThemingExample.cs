@@ -81,7 +81,7 @@ public class ThemingExample(ILogger<ThemingExample> logger) : Hex1bExample
             ]);
             
             var widget = ctx.VStack(root => [
-                root.Splitter(
+                root.HSplitter(
                     root.Panel(leftPanel => [
                         leftPanel.VStack(left => [
                             left.Text("═══ Themes ═══"),

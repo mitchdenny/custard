@@ -164,7 +164,7 @@ public class NavigatorExample(ILogger<NavigatorExample> logger) : Hex1bExample
                 ? Customers.FirstOrDefault(c => c.Id == SelectedCustomerId)
                 : null;
 
-            return ctx.Splitter(
+            return ctx.HSplitter(
                 ctx.VStack(left => [
                     left.Text("Customers"),
                     left.Text("─────────────────"),

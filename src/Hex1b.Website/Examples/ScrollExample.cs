@@ -51,7 +51,7 @@ public class ScrollExample(ILogger<ScrollExample> logger) : Hex1bExample
         {
             var ctx = new RootContext();
 
-            var widget = ctx.Splitter(
+            var widget = ctx.HSplitter(
                 ctx.Panel(leftPanel => [
                     leftPanel.VStack(left => [
                         left.Text("Scroll Examples"),

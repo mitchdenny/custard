@@ -52,6 +52,7 @@ export default defineConfig({
             { text: 'List', link: '/guide/widgets/list' },
             { text: 'Navigator', link: '/guide/widgets/navigator' },
             { text: 'Progress', link: '/guide/widgets/progress' },
+            { text: 'Splitter', link: '/guide/widgets/splitter' },
             { text: 'Stacks (HStack/VStack)', link: '/guide/widgets/stacks' },
             { text: 'Text', link: '/guide/widgets/text' },
             { text: 'TextBox', link: '/guide/widgets/textbox' },

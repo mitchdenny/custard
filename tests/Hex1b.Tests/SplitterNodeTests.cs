@@ -672,7 +672,7 @@ public class SplitterNodeTests
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
-                ctx.Splitter(
+                ctx.HSplitter(
                     ctx.Text("Left Content"),
                     ctx.Text("Right Content"),
                     leftWidth: 20
@@ -704,7 +704,7 @@ public class SplitterNodeTests
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
-                ctx.Splitter(
+                ctx.HSplitter(
                     v => [v.Text("Left 1"), v.Text("Left 2")],
                     v => [v.Text("Right 1"), v.Text("Right 2")],
                     leftWidth: 20
@@ -738,7 +738,7 @@ public class SplitterNodeTests
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
-                ctx.Splitter(
+                ctx.HSplitter(
                     ctx.Button("Left").OnClick(_ => { leftClicked = true; return Task.CompletedTask; }),
                     ctx.Text("Right"),
                     leftWidth: 20
@@ -771,7 +771,7 @@ public class SplitterNodeTests
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
-                ctx.Splitter(
+                ctx.HSplitter(
                     ctx.Button("Left").OnClick(_ => Task.CompletedTask),
                     ctx.Button("Right").OnClick(_ => { rightClicked = true; return Task.CompletedTask; }),
                     leftWidth: 20
@@ -803,7 +803,7 @@ public class SplitterNodeTests
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
-                ctx.Splitter(
+                ctx.HSplitter(
                     ctx.Text("Left"),
                     ctx.Text("Right"),
                     leftWidth: 20
@@ -840,7 +840,7 @@ public class SplitterNodeTests
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
-                ctx.Splitter(
+                ctx.HSplitter(
                     ctx.List(items),
                     ctx.Text("Details"),
                     leftWidth: 20
@@ -875,7 +875,7 @@ public class SplitterNodeTests
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
-                ctx.Splitter(
+                ctx.HSplitter(
                     ctx.TextBox(text).OnTextChanged(args => text = args.NewText),
                     ctx.Text("Right"),
                     leftWidth: 25
@@ -908,7 +908,7 @@ public class SplitterNodeTests
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.Border(
-                    ctx.Splitter(
+                    ctx.HSplitter(
                         ctx.Text("Left"),
                         ctx.Text("Right"),
                         leftWidth: 20
@@ -1550,7 +1550,7 @@ public class SplitterNodeTests
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.VSplitter(
-                    ctx.Splitter(
+                    ctx.HSplitter(
                         ctx.Text("Top-Left"),
                         ctx.Text("Top-Right"),
                         leftWidth: 20
@@ -1597,7 +1597,7 @@ public class SplitterNodeTests
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
-                ctx.Splitter(
+                ctx.HSplitter(
                     // Left pane: VStack containing a List (this is the key scenario)
                     v => [v.Text("Theme List"), v.List(items)],
                     // Right pane: VStack with Button that we want to Tab to
@@ -1636,7 +1636,7 @@ public class SplitterNodeTests
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
-                ctx.Splitter(
+                ctx.HSplitter(
                     // Left pane: VStack containing two Buttons
                     v => [v.Button("First").OnClick(_ => Task.CompletedTask), v.Button("Second").OnClick(_ => Task.CompletedTask)],
                     // Right pane: VStack with Button
@@ -1675,7 +1675,7 @@ public class SplitterNodeTests
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
-                ctx.Splitter(
+                ctx.HSplitter(
                     v => [v.Text("Left Pane"), v.Button("Left Button").OnClick(_ => { leftButtonClicked = true; return Task.CompletedTask; })],
                     v => [v.Text("Right Pane"), v.Button("Right Button").OnClick(_ => Task.CompletedTask)],
                     leftWidth: 20
@@ -1716,7 +1716,7 @@ public class SplitterNodeTests
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
-                ctx.Splitter(
+                ctx.HSplitter(
                     // Left: Panel > VStack > List (deep nesting like ThemingExhibit)
                     ctx.Panel(p => [
                         p.VStack(v => [
@@ -1943,11 +1943,11 @@ public class SplitterNodeTests
         // Focus should go to the OUTER left button (first focusable), not the inner splitter's button.
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
-                ctx.Splitter(
+                ctx.HSplitter(
                     // Outer left: button that should get initial focus
                     ctx.Button("Outer Left").OnClick(_ => { outerLeftClicked = true; return Task.CompletedTask; }),
                     // Outer right: inner splitter with its own button
-                    ctx.Splitter(
+                    ctx.HSplitter(
                         ctx.Button("Inner Left").OnClick(_ => Task.CompletedTask),
                         ctx.Text("Inner Right"),
                         leftWidth: 15
@@ -1985,7 +1985,7 @@ public class SplitterNodeTests
         
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
-                ctx.Splitter(
+                ctx.HSplitter(
                     ctx.Button("Outer Left").OnClick(_ => { outerLeftClicked = true; return Task.CompletedTask; }),
                     ctx.VSplitter(
                         ctx.Button("Top").OnClick(_ => Task.CompletedTask),
@@ -2024,11 +2024,11 @@ public class SplitterNodeTests
         
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
-                ctx.Splitter(
+                ctx.HSplitter(
                     ctx.Button("Level 1").OnClick(_ => { level1Clicked = true; return Task.CompletedTask; }),
-                    ctx.Splitter(
+                    ctx.HSplitter(
                         ctx.Button("Level 2").OnClick(_ => Task.CompletedTask),
-                        ctx.Splitter(
+                        ctx.HSplitter(
                             ctx.Button("Level 3").OnClick(_ => Task.CompletedTask),
                             ctx.Text("Deepest"),
                             leftWidth: 12
@@ -2149,6 +2149,428 @@ public class SplitterNodeTests
         // The inner splitter should NOT be focused
         Assert.False(innerSplitterNode.IsFocused, 
             "Inner splitter should NOT be focused - this was the original bug!");
+    }
+
+    #endregion
+
+    #region Nested Splitter Clipping Tests
+
+    /// <summary>
+    /// Regression test: Content in nested splitter panes should be clipped to their bounds.
+    /// When a VStack inside a splitter pane has more content than fits in the allocated space,
+    /// the overflow should NOT render into adjacent panes.
+    /// 
+    /// Bug: With a VSplitter(topHeight: 6) containing a horizontal Splitter in the top pane,
+    /// and each pane having VStack with 7 lines of text, lines 7+ should be clipped and NOT
+    /// appear in the bottom pane area.
+    /// </summary>
+    [Fact]
+    public async Task Integration_NestedSplitters_ContentDoesNotOverflowIntoBelowPane()
+    {
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = new Hex1bTerminal(workload, 50, 15);
+
+        // Replicate the nested splitters example from docs with content that overflows
+        using var app = new Hex1bApp(
+            ctx => Task.FromResult<Hex1bWidget>(
+                ctx.VSplitter(
+                    // Top: horizontal splitter with content that's taller than topHeight
+                    ctx.HSplitter(
+                        ctx.Panel(tl => [
+                            tl.VStack(v => [
+                                v.Text("Top-Left"),
+                                v.Text("Line 2"),
+                                v.Text("Line 3"),
+                                v.Text("Line 4"),
+                                v.Text("Line 5"),
+                                v.Text("Line 6"),
+                                v.Text("OVERFLOW-TL")  // This should NOT appear in bottom pane
+                            ])
+                        ]),
+                        ctx.Panel(tr => [
+                            tr.VStack(v => [
+                                v.Text("Top-Right"),
+                                v.Text("Line 2"),
+                                v.Text("Line 3"),
+                                v.Text("Line 4"),
+                                v.Text("Line 5"),
+                                v.Text("Line 6"),
+                                v.Text("OVERFLOW-TR")  // This should NOT appear in bottom pane
+                            ])
+                        ]),
+                        leftWidth: 20
+                    ),
+                    // Bottom: single panel
+                    ctx.Panel(bottom => [
+                        bottom.VStack(v => [
+                            v.Text("Bottom Pane"),
+                            v.Text("This should be the only content here")
+                        ])
+                    ]),
+                    topHeight: 6
+                )
+            ),
+            new Hex1bAppOptions { WorkloadAdapter = workload }
+        );
+
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+        
+        var snapshot = await new Hex1bTestSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Bottom Pane"), TimeSpan.FromSeconds(2))
+            .Capture("final")
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+        await runTask;
+        
+        // Verify top pane content is visible
+        Assert.True(snapshot.ContainsText("Top-Left"), "Top-Left pane header should be visible");
+        Assert.True(snapshot.ContainsText("Top-Right"), "Top-Right pane header should be visible");
+        
+        // Verify bottom pane content is visible
+        Assert.True(snapshot.ContainsText("Bottom Pane"), "Bottom pane header should be visible");
+        
+        // BUG CHECK: Overflow content should NOT be visible
+        // These lines are beyond the topHeight (6) and should be clipped
+        Assert.False(snapshot.ContainsText("OVERFLOW-TL"), 
+            "Top-Left overflow content should be clipped and not visible in bottom pane area");
+        Assert.False(snapshot.ContainsText("OVERFLOW-TR"), 
+            "Top-Right overflow content should be clipped and not visible in bottom pane area");
+    }
+
+    /// <summary>
+    /// Regression test: Horizontal splitter content should be clipped when panes are sized too narrow.
+    /// Text that exceeds the pane width should not overflow into the adjacent pane.
+    /// </summary>
+    [Fact]
+    public async Task Integration_HorizontalSplitter_ContentDoesNotOverflowIntoRightPane()
+    {
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = new Hex1bTerminal(workload, 50, 10);
+
+        using var app = new Hex1bApp(
+            ctx => Task.FromResult<Hex1bWidget>(
+                ctx.HSplitter(
+                    // Left pane: narrow (10 chars) with long text
+                    ctx.Panel(left => [
+                        left.VStack(v => [
+                            v.Text("Left"),
+                            v.Text("LONG_TEXT_THAT_OVERFLOWS_LEFT_PANE")  // 34 chars, way longer than 10
+                        ])
+                    ]),
+                    // Right pane
+                    ctx.Panel(right => [
+                        right.VStack(v => [
+                            v.Text("Right Pane"),
+                            v.Text("Should not see overflow here")
+                        ])
+                    ]),
+                    leftWidth: 10
+                )
+            ),
+            new Hex1bAppOptions { WorkloadAdapter = workload }
+        );
+
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+        
+        var snapshot = await new Hex1bTestSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Right Pane"), TimeSpan.FromSeconds(2))
+            .Capture("final")
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+        await runTask;
+
+        var screenText = snapshot.GetScreenText();
+        
+        // Verify basic content is visible
+        Assert.True(snapshot.ContainsText("Left"), "Left pane header should be visible");
+        Assert.True(snapshot.ContainsText("Right Pane"), "Right pane header should be visible");
+        
+        // The long text should be truncated at the left pane boundary (10 chars)
+        // It should NOT overflow past the divider into the right pane area
+        // Check that the full overflow text is NOT visible
+        Assert.False(snapshot.ContainsText("LONG_TEXT_THAT_OVERFLOWS_LEFT_PANE"),
+            "Full overflow text should be clipped, not visible in right pane area");
+    }
+
+    /// <summary>
+    /// Unit test: Verify that SplitterNode clips child content when rendering.
+    /// </summary>
+    [Fact]
+    public void Render_Horizontal_ClipsLeftPaneContent()
+    {
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = new Hex1bTerminal(workload, 40, 5);
+        var context = CreateContext(workload);
+
+        // Create a splitter with a narrow left pane and wide text content
+        var left = new VStackNode
+        {
+            Children = [
+                new TextBlockNode { Text = "OVERFLOW_TEXT_THAT_IS_MUCH_LONGER_THAN_10_CHARS" }
+            ]
+        };
+        var right = new TextBlockNode { Text = "Right" };
+        var node = new SplitterNode
+        {
+            Left = left,
+            Right = right,
+            LeftWidth = 10
+        };
+
+        node.Measure(Constraints.Tight(40, 5));
+        node.Arrange(new Rect(0, 0, 40, 5));
+        node.Render(context);
+
+        var snapshot = terminal.CreateSnapshot();
+        var screenText = snapshot.GetScreenText();
+
+        // The full text should NOT be visible
+        Assert.False(screenText.Contains("OVERFLOW_TEXT_THAT_IS_MUCH_LONGER_THAN_10_CHARS"),
+            "Left pane content should be clipped to LeftWidth");
+        
+        // Right pane content should be visible
+        Assert.True(snapshot.ContainsText("Right"), "Right pane content should be visible");
+    }
+
+    /// <summary>
+    /// Unit test: Verify that SplitterNode clips child content in the vertical direction.
+    /// </summary>
+    [Fact]
+    public void Render_Vertical_ClipsTopPaneContent()
+    {
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = new Hex1bTerminal(workload, 30, 10);
+        var context = CreateContext(workload);
+
+        // Create a vertical splitter with a short top pane (height 3) and tall content (5 lines)
+        var top = new VStackNode
+        {
+            Children = [
+                new TextBlockNode { Text = "Line 1" },
+                new TextBlockNode { Text = "Line 2" },
+                new TextBlockNode { Text = "Line 3" },
+                new TextBlockNode { Text = "OVERFLOW_LINE_4" },  // Should be clipped
+                new TextBlockNode { Text = "OVERFLOW_LINE_5" }   // Should be clipped
+            ]
+        };
+        var bottom = new TextBlockNode { Text = "Bottom" };
+        var node = new SplitterNode
+        {
+            First = top,
+            Second = bottom,
+            FirstSize = 3,
+            Orientation = SplitterOrientation.Vertical
+        };
+
+        node.Measure(Constraints.Tight(30, 10));
+        node.Arrange(new Rect(0, 0, 30, 10));
+        node.Render(context);
+
+        var snapshot = terminal.CreateSnapshot();
+
+        // Lines 1-3 should be visible
+        Assert.True(snapshot.ContainsText("Line 1"), "Line 1 should be visible in top pane");
+        Assert.True(snapshot.ContainsText("Line 2"), "Line 2 should be visible in top pane");
+        Assert.True(snapshot.ContainsText("Line 3"), "Line 3 should be visible in top pane");
+        
+        // Overflow lines should NOT be visible (clipped)
+        Assert.False(snapshot.ContainsText("OVERFLOW_LINE_4"),
+            "Line 4 should be clipped - it exceeds top pane height");
+        Assert.False(snapshot.ContainsText("OVERFLOW_LINE_5"),
+            "Line 5 should be clipped - it exceeds top pane height");
+        
+        // Bottom pane content should be visible
+        Assert.True(snapshot.ContainsText("Bottom"), "Bottom pane content should be visible");
+    }
+
+    /// <summary>
+    /// Regression test: When a nested horizontal splitter is inside a VSplitter's top pane,
+    /// resizing the inner horizontal splitter should not cause content to overflow into
+    /// the bottom pane of the outer vertical splitter.
+    /// 
+    /// This tests the exact scenario from the docs: VSplitter containing a horizontal Splitter
+    /// in its top pane, where the inner splitter's panes have VStack content.
+    /// </summary>
+    [Fact]
+    public async Task Integration_NestedSplitters_ResizingInnerDoesNotCauseOverflow()
+    {
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = new Hex1bTerminal(workload, 60, 15);
+
+        using var app = new Hex1bApp(
+            ctx => Task.FromResult<Hex1bWidget>(
+                ctx.VSplitter(
+                    // Top: horizontal splitter with content
+                    ctx.HSplitter(
+                        ctx.Panel(tl => [
+                            tl.VStack(v => [
+                                v.Text("Top-Left"),
+                                v.Text(""),
+                                v.Text("Horizontal split").Wrap(),
+                                v.Text("in top pane").Wrap()
+                            ])
+                        ]),
+                        ctx.Panel(tr => [
+                            tr.VStack(v => [
+                                v.Text("Top-Right"),
+                                v.Text(""),
+                                v.Text("Both panes share").Wrap(),
+                                v.Text("the same height").Wrap()
+                            ])
+                        ]),
+                        leftWidth: 20
+                    ),
+                    // Bottom: single panel with distinct content
+                    ctx.Panel(bottom => [
+                        bottom.VStack(v => [
+                            v.Text("BOTTOM_PANE_MARKER"),
+                            v.Text(""),
+                            v.Text("This is the bottom pane")
+                        ])
+                    ]),
+                    topHeight: 6
+                )
+            ),
+            new Hex1bAppOptions { WorkloadAdapter = workload }
+        );
+
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+        
+        // Initial render - then Tab to inner splitter and resize
+        var snapshot = await new Hex1bTestSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("BOTTOM_PANE_MARKER"), TimeSpan.FromSeconds(2))
+            .Tab()  // Move to inner splitter
+            .Left().Left().Left().Left().Left()  // Resize left significantly (make left pane very narrow)
+            .Capture("after_resize")
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+        await runTask;
+        
+        // After resizing, the bottom pane marker should still be visible
+        // and no content from the top panes should have leaked below the horizontal divider
+        Assert.True(snapshot.ContainsText("BOTTOM_PANE_MARKER"), 
+            "Bottom pane content should still be visible after resizing inner splitter");
+        
+        // Get the screen and check that content from top panes is not appearing
+        // below the divider line (row 6, since topHeight: 6)
+        var screenText = snapshot.GetScreenText();
+        var lines = screenText.Split('\n');
+        
+        // The divider should be at row 6 (0-indexed), bottom pane starts at row 7
+        // Top pane text should NOT appear in the bottom section
+        if (lines.Length > 7)
+        {
+            var bottomSection = string.Join("\n", lines.Skip(7));
+            
+            // These are texts that should ONLY appear in the top panes
+            Assert.False(bottomSection.Contains("Top-Left") && !bottomSection.Contains("BOTTOM"),
+                "Top-Left content should not appear in bottom section after resize");
+        }
+    }
+
+    /// <summary>
+    /// Regression test: When text is configured to wrap and the horizontal splitter is
+    /// dragged to the extreme RIGHT, the wrapped text from the RIGHT pane should NOT 
+    /// overflow vertically into the bottom pane of the outer VSplitter.
+    /// 
+    /// This reproduces the exact issue: when the right pane becomes very narrow,
+    /// the wrapped text needs more vertical space than available, potentially overflowing.
+    /// </summary>
+    [Fact]
+    public async Task Integration_NestedSplitters_WrappingTextDoesNotOverflowWhenDraggedExtreme()
+    {
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = new Hex1bTerminal(workload, 60, 15);
+
+        // Exactly match the SplitterNestedExample from the website
+        using var app = new Hex1bApp(
+            ctx => Task.FromResult<Hex1bWidget>(
+                ctx.VSplitter(
+                    // Top: horizontal splitter
+                    ctx.HSplitter(
+                        ctx.Panel(tl => [
+                            tl.VStack(v => [
+                                v.Text("Top-Left"),
+                                v.Text(""),
+                                v.Text("Horizontal split").Wrap(),
+                                v.Text("in top pane").Wrap()
+                            ])
+                        ]),
+                        ctx.Panel(tr => [
+                            tr.VStack(v => [
+                                v.Text("Top-Right"),
+                                v.Text(""),
+                                v.Text("Both panes share").Wrap(),
+                                v.Text("the same height").Wrap()
+                            ])
+                        ]),
+                        leftWidth: 20
+                    ),
+                    // Bottom: single panel
+                    ctx.Panel(bottom => [
+                        bottom.VStack(v => [
+                            v.Text("Bottom Pane"),
+                            v.Text(""),
+                            v.Text("This demonstrates nesting a horizontal splitter").Wrap(),
+                            v.Text("inside the top pane of a vertical splitter.").Wrap(),
+                            v.Text("Great for IDE-style layouts!").Wrap()
+                        ])
+                    ]),
+                    topHeight: 6
+                )
+            ),
+            new Hex1bAppOptions { WorkloadAdapter = workload }
+        );
+
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+        
+        // Initial render, Tab TWICE to focus inner horizontal splitter, then drag EXTREME RIGHT
+        // First Tab focuses VSplitter, second Tab focuses inner Splitter
+        var snapshot = await new Hex1bTestSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Bottom Pane"), TimeSpan.FromSeconds(2))
+            .Tab()  // Focus VSplitter
+            .Tab()  // Focus inner horizontal Splitter
+            // Resize to extreme RIGHT (20+ right arrows - making right pane very narrow)
+            .Right().Right().Right().Right().Right().Right().Right().Right().Right().Right()
+            .Right().Right().Right().Right().Right().Right().Right().Right().Right().Right()
+            .Capture("after_extreme_resize")
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+        await runTask;
+        
+        // After resizing to extreme, the bottom pane should still be clean
+        Assert.True(snapshot.ContainsText("Bottom Pane"), 
+            "Bottom pane marker should still be visible after extreme resize");
+        
+        var screenText = snapshot.GetScreenText();
+        var lines = screenText.Split('\n');
+        
+        // Top pane is 6 rows (0-5), divider at row 6, bottom pane starts at row 7
+        // Check that Top-Left/Top-Right content doesn't appear in bottom section
+        if (lines.Length > 7)
+        {
+            var bottomSection = string.Join("\n", lines.Skip(7));
+            
+            // Text from the top panes should NOT appear in the bottom pane section
+            Assert.False(bottomSection.Contains("Top-Left"),
+                $"Top-Left text should be clipped, not overflow into bottom pane. Bottom section:\n{bottomSection}");
+            Assert.False(bottomSection.Contains("Top-Right"),
+                $"Top-Right text should be clipped, not overflow into bottom pane. Bottom section:\n{bottomSection}");
+            Assert.False(bottomSection.Contains("Horizontal split"),
+                $"'Horizontal split' text should be clipped, not overflow into bottom pane. Bottom section:\n{bottomSection}");
+            Assert.False(bottomSection.Contains("Both panes share"),
+                $"'Both panes share' text should be clipped, not overflow into bottom pane. Bottom section:\n{bottomSection}");
+            
+            // Check for wrapped text fragments that indicate overflow
+            Assert.False(bottomSection.Contains("heheigh") || bottomSection.Contains("height"),
+                $"Wrapped 'height' text fragments from top pane should not overflow. Bottom section:\n{bottomSection}");
+            Assert.False(bottomSection.Contains("panes") || bottomSection.Contains("share"),
+                $"Wrapped text fragments from top pane should not overflow. Bottom section:\n{bottomSection}");
+        }
     }
 
     #endregion

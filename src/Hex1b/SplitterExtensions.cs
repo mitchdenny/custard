@@ -11,25 +11,13 @@ public static class SplitterExtensions
     /// <summary>
     /// Creates a horizontal Splitter with left and right child widgets.
     /// </summary>
-    public static SplitterWidget Splitter<TParent>(
+    public static SplitterWidget HSplitter<TParent>(
         this WidgetContext<TParent> ctx,
         Hex1bWidget left,
         Hex1bWidget right,
         int leftWidth = 30)
         where TParent : Hex1bWidget
         => new(left, right, leftWidth, SplitterOrientation.Horizontal);
-
-    /// <summary>
-    /// Creates a Splitter with first and second child widgets.
-    /// </summary>
-    public static SplitterWidget Splitter<TParent>(
-        this WidgetContext<TParent> ctx,
-        Hex1bWidget first,
-        Hex1bWidget second,
-        int firstSize,
-        SplitterOrientation orientation)
-        where TParent : Hex1bWidget
-        => new(first, second, firstSize, orientation);
 
     /// <summary>
     /// Creates a vertical Splitter with top and bottom child widgets.
@@ -45,7 +33,7 @@ public static class SplitterExtensions
     /// <summary>
     /// Creates a horizontal Splitter where both panes are VStacks built from callbacks.
     /// </summary>
-    public static SplitterWidget Splitter<TParent>(
+    public static SplitterWidget HSplitter<TParent>(
         this WidgetContext<TParent> ctx,
         Func<WidgetContext<VStackWidget>, Hex1bWidget[]> leftBuilder,
         Func<WidgetContext<VStackWidget>, Hex1bWidget[]> rightBuilder,

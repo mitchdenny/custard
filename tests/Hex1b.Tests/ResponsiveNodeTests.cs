@@ -919,7 +919,7 @@ public class ResponsiveNodeTests
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
-                ctx.Splitter(
+                ctx.HSplitter(
                     ctx.Responsive(r => [
                         r.WhenMinWidth(30, r => r.Text("Wide Left")),
                         r.Otherwise(r => r.Text("Narrow Left"))

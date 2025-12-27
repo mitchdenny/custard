@@ -46,7 +46,7 @@ public class SplittersExample(ILogger<SplittersExample> logger) : Hex1bExample
         {
             var ctx = new RootContext();
 
-            var widget = ctx.Splitter(
+            var widget = ctx.HSplitter(
                 ctx.Panel(leftPanel => [
                     leftPanel.VStack(left => [
                         left.Text("Splitter Examples"),
@@ -82,7 +82,7 @@ public class SplittersExample(ILogger<SplittersExample> logger) : Hex1bExample
     private static Hex1bWidget BuildHorizontalExample(RootContext ctx)
     {
         return ctx.Border(
-            ctx.Splitter(
+            ctx.HSplitter(
                 ctx.Panel(left => [
                     left.VStack(v => [
                         v.Text("═══ Left Pane ═══"),
@@ -153,7 +153,7 @@ public class SplittersExample(ILogger<SplittersExample> logger) : Hex1bExample
         return ctx.Border(
             ctx.VSplitter(
                 // Top: horizontal splitter
-                ctx.Splitter(
+                ctx.HSplitter(
                     ctx.Panel(tl => [
                         tl.VStack(v => [
                             v.Text("Top-Left"),
@@ -190,7 +190,7 @@ public class SplittersExample(ILogger<SplittersExample> logger) : Hex1bExample
     private static Hex1bWidget BuildNestedVHExample(RootContext ctx)
     {
         return ctx.Border(
-            ctx.Splitter(
+            ctx.HSplitter(
                 // Left: single panel
                 ctx.Panel(left => [
                     left.VStack(v => [
@@ -237,7 +237,7 @@ public class SplittersExample(ILogger<SplittersExample> logger) : Hex1bExample
         return ctx.Border(
             ctx.VSplitter(
                 // Top row: horizontal splitter
-                ctx.Splitter(
+                ctx.HSplitter(
                     ctx.Panel(tl => [
                         tl.VStack(v => [
                             v.Text("┌─ Quad 1 ─┐"),
@@ -257,7 +257,7 @@ public class SplittersExample(ILogger<SplittersExample> logger) : Hex1bExample
                     leftWidth: 20
                 ),
                 // Bottom row: horizontal splitter
-                ctx.Splitter(
+                ctx.HSplitter(
                     ctx.Panel(bl => [
                         bl.VStack(v => [
                             v.Text("┌─ Quad 3 ─┐"),

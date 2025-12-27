@@ -24,7 +24,7 @@ public class SplitterNestedExample(ILogger<SplitterNestedExample> logger) : Hex1
             var ctx = new RootContext();
             return ctx.VSplitter(
                 // Top: horizontal splitter
-                ctx.Splitter(
+                ctx.HSplitter(
                     ctx.Panel(tl => [
                         tl.VStack(v => [
                             v.Text("Top-Left"),

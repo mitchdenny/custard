@@ -145,7 +145,7 @@ public class SixelExample : Hex1bExample
                 }
             }
 
-            var widget = ctx.Splitter(
+            var widget = ctx.HSplitter(
                 // Left panel: Image list
                 ctx.Layout(leftPanel => [
                     leftPanel.Text("═══ Images ═══"),

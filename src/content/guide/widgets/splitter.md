@@ -10,7 +10,7 @@ const basicCode = `using Hex1b;
 using Hex1b.Widgets;
 
 var app = new Hex1bApp(ctx => Task.FromResult<Hex1bWidget>(
-    ctx.Splitter(
+    ctx.HSplitter(
         ctx.Panel(left => [
             left.VStack(v => [
                 v.Text("Left Pane"),
@@ -73,7 +73,7 @@ using Hex1b.Widgets;
 var app = new Hex1bApp(ctx => Task.FromResult<Hex1bWidget>(
     ctx.VSplitter(
         // Top: horizontal splitter
-        ctx.Splitter(
+        ctx.HSplitter(
             ctx.Panel(tl => [
                 tl.VStack(v => [
                     v.Text("Top-Left"),
@@ -117,7 +117,7 @@ The splitter widget is perfect for creating multi-pane layouts like editor inter
 
 ## Basic Usage
 
-Create a horizontal splitter using the `Splitter` extension method:
+Create a horizontal splitter using the `HSplitter` extension method:
 
 <CodeBlock lang="csharp" :code="basicCode" command="dotnet run" example="splitter-basic" exampleTitle="Splitter Widget - Horizontal Split" />
 
@@ -148,7 +148,7 @@ You can nest splitters in any combination:
 - Multiple levels deep for quad-split layouts
 
 ::: tip More Complex Examples
-Check out the [Splitters example](http://localhost:5244/examples?example=splitters) in the gallery to see various nesting patterns including horizontal-in-vertical, vertical-in-horizontal, and quad-split layouts.
+Check out the [Splitters example](/gallery) in the gallery to see various nesting patterns including horizontal-in-vertical, vertical-in-horizontal, and quad-split layouts.
 :::
 
 ## Resizing Behavior
@@ -176,7 +176,7 @@ Set the initial size of the first pane using constructor parameters:
 
 ```csharp
 // Horizontal: leftWidth parameter (default: 30)
-ctx.Splitter(leftPane, rightPane, leftWidth: 40)
+ctx.HSplitter(leftPane, rightPane, leftWidth: 40)
 
 // Vertical: topHeight parameter (default: 10)
 ctx.VSplitter(topPane, bottomPane, topHeight: 8)
@@ -204,14 +204,14 @@ Focus indicators:
 
 The splitter widget provides several convenience extension methods:
 
-### Splitter (Horizontal)
+### HSplitter (Horizontal)
 
 ```csharp
 // Basic horizontal split
-ctx.Splitter(leftWidget, rightWidget, leftWidth: 30)
+ctx.HSplitter(leftWidget, rightWidget, leftWidth: 30)
 
 // With callbacks for VStack children
-ctx.Splitter(
+ctx.HSplitter(
     left => [
         left.Text("Item 1"),
         left.Text("Item 2")
@@ -238,19 +238,6 @@ ctx.VSplitter(
         bottom.Text("Content")
     ],
     topHeight: 3
-)
-```
-
-### Full Control
-
-For maximum control, use the full constructor:
-
-```csharp
-new SplitterWidget(
-    first: firstWidget,
-    second: secondWidget,
-    firstSize: 30,
-    orientation: SplitterOrientation.Horizontal
 )
 ```
 
@@ -293,7 +280,7 @@ Arrow hints are displayed at the center of the divider when the splitter is tall
 ### Editor with Sidebar
 
 ```csharp
-ctx.Splitter(
+ctx.HSplitter(
     ctx.Panel(left => [
         left.VStack(v => [
             v.Text("Files"),
@@ -333,8 +320,8 @@ ctx.VSplitter(
 
 ```csharp
 ctx.VSplitter(
-    ctx.Splitter(explorerPane, editorPane, leftWidth: 25),
-    ctx.Splitter(terminalPane, outputPane, leftWidth: 25),
+    ctx.HSplitter(explorerPane, editorPane, leftWidth: 25),
+    ctx.HSplitter(terminalPane, outputPane, leftWidth: 25),
     topHeight: 20
 )
 ```

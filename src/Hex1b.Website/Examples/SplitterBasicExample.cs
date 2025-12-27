@@ -22,7 +22,7 @@ public class SplitterBasicExample(ILogger<SplitterBasicExample> logger) : Hex1bE
         return () =>
         {
             var ctx = new RootContext();
-            return ctx.Splitter(
+            return ctx.HSplitter(
                 ctx.Panel(left => [
                     left.VStack(v => [
                         v.Text("Left Pane"),

@@ -138,7 +138,7 @@ public class RescueExample(ILogger<RescueExample> logger) : Hex1bExample
                 return new RescueFallbackWidget(state.GlobalRescueState, ShowDetails: true, Actions: globalActions);
             }
 
-            var widget = ctx.Splitter(
+            var widget = ctx.HSplitter(
                 ctx.Panel(leftPanel => [
                     leftPanel.VStack(left => [
                         left.Text("Rescue Examples"),

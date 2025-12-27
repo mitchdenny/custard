@@ -66,6 +66,7 @@ builder.Services.AddSingleton<IGalleryExample, ButtonAsyncExample>();
 builder.Services.AddSingleton<IGalleryExample, ListBasicExample>();
 builder.Services.AddSingleton<IGalleryExample, ListSelectionExample>();
 builder.Services.AddSingleton<IGalleryExample, ListActivateExample>();
+builder.Services.AddSingleton<IGalleryExample, ListLongExample>();
 
 // Register TextBox widget documentation examples
 builder.Services.AddSingleton<IGalleryExample, TextBoxBasicExample>();

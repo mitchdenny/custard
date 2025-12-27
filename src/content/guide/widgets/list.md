@@ -3,6 +3,7 @@
   - basicCode     → src/Hex1b.Website/Examples/ListBasicExample.cs
   - selectionCode → src/Hex1b.Website/Examples/ListSelectionExample.cs
   - activateCode  → src/Hex1b.Website/Examples/ListActivateExample.cs
+  - longListCode  → src/Hex1b.Website/Examples/ListLongExample.cs
   When updating code here, update the corresponding Example file and vice versa.
 -->
 <script setup>
@@ -11,7 +12,7 @@ import focusSnippet from './snippets/list-focus.cs?raw'
 const basicCode = `using Hex1b;
 using Hex1b.Widgets;
 
-var app = new Hex1bApp(ctx => Task.FromResult<Hex1bWidget>(
+var app = new Hex1bApp(ctx =>
     ctx.Border(b => [
         b.VStack(v => [
             v.Text("Select a fruit:"),
@@ -19,7 +20,7 @@ var app = new Hex1bApp(ctx => Task.FromResult<Hex1bWidget>(
             v.List(["Apple", "Banana", "Cherry", "Date", "Elderberry"])
         ])
     ], title: "Fruit List")
-));
+);
 
 await app.RunAsync();`
 
@@ -28,7 +29,7 @@ using Hex1b.Widgets;
 
 var state = new ListSelectionState();
 
-var app = new Hex1bApp(ctx => Task.FromResult<Hex1bWidget>(
+var app = new Hex1bApp(ctx =>
     ctx.Border(b => [
         b.VStack(v => [
             v.Text($"Selected: {state.SelectedItem ?? "None"}"),
@@ -37,7 +38,7 @@ var app = new Hex1bApp(ctx => Task.FromResult<Hex1bWidget>(
                 .OnSelectionChanged(e => state.SelectedItem = e.SelectedText)
         ])
     ], title: "Selection Demo")
-));
+);
 
 await app.RunAsync();
 
@@ -51,7 +52,7 @@ using Hex1b.Widgets;
 
 var state = new TodoState();
 
-var app = new Hex1bApp(ctx => Task.FromResult<Hex1bWidget>(
+var app = new Hex1bApp(ctx =>
     ctx.Border(b => [
         b.VStack(v => [
             v.Text("Press Enter or Space to toggle items:"),
@@ -60,7 +61,7 @@ var app = new Hex1bApp(ctx => Task.FromResult<Hex1bWidget>(
                 .OnItemActivated(e => state.ToggleItem(e.ActivatedIndex))
         ])
     ], title: "Todo List")
-));
+);
 
 await app.RunAsync();
 
@@ -85,6 +86,36 @@ class TodoState
         }
     }
 }`
+
+const longListCode = `using Hex1b;
+using Hex1b.Widgets;
+
+// Generate a list of 50 countries
+var countries = new List<string>
+{
+    "Argentina", "Australia", "Austria", "Belgium", "Brazil",
+    "Canada", "Chile", "China", "Colombia", "Czech Republic",
+    "Denmark", "Egypt", "Finland", "France", "Germany",
+    "Greece", "Hungary", "India", "Indonesia", "Ireland",
+    "Israel", "Italy", "Japan", "Kenya", "Malaysia",
+    "Mexico", "Netherlands", "New Zealand", "Nigeria", "Norway",
+    "Pakistan", "Peru", "Philippines", "Poland", "Portugal",
+    "Romania", "Russia", "Saudi Arabia", "Singapore", "South Africa",
+    "South Korea", "Spain", "Sweden", "Switzerland", "Thailand",
+    "Turkey", "Ukraine", "United Kingdom", "United States", "Vietnam"
+};
+
+var app = new Hex1bApp(ctx =>
+    ctx.Border(b => [
+        b.VStack(v => [
+            v.Text("Select a country (scroll with arrow keys or mouse wheel):"),
+            v.Text(""),
+            v.List(countries).FixedHeight(10)
+        ])
+    ], title: "Country Selector")
+);
+
+await app.RunAsync();`
 </script>
 
 # ListWidget
@@ -181,6 +212,25 @@ When reaching the first item, pressing Up wraps to the last item. Similarly, pre
 Lists support mouse interaction in terminals that support mouse events:
 
 - **Left Click** - Selects the clicked item (fires `OnSelectionChanged` if selection changed) and then activates it (fires `OnItemActivated`)
+- **Mouse Wheel Up** - Moves selection to the previous item
+- **Mouse Wheel Down** - Moves selection to the next item
+
+## Long Lists with Scrolling
+
+When a list has more items than can fit in its container, it automatically becomes scrollable. The viewport scrolls to keep the selected item visible as you navigate:
+
+<CodeBlock lang="csharp" :code="longListCode" command="dotnet run" example="list-long" exampleTitle="List Widget - Long List with Scrolling" />
+
+Use the `.FixedHeight()` extension to constrain the list to a specific number of rows. The list will:
+
+- Show only the visible items within the viewport
+- Automatically scroll when navigating beyond visible bounds
+- Keep the selected item centered when possible
+- Support both keyboard and mouse wheel scrolling
+
+::: tip Performance
+Long lists are efficient because only visible items are rendered. You can safely use lists with hundreds of items without performance concerns.
+:::
 
 ## Focus Behavior
 

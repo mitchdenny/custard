@@ -4,7 +4,7 @@ namespace Hex1b.Tokens;
 /// Represents a CSI cursor position command (CUP): ESC [ row ; col H
 /// </summary>
 /// <param name="Row">1-based row number. Default is 1.</param>
-/// <param name="Col">1-based column number. Default is 1.</param>
+/// <param name="Column">1-based column number. Default is 1.</param>
 /// <remarks>
 /// <para>
 /// ANSI cursor positions are 1-based, where (1,1) is the top-left corner.
@@ -20,4 +20,4 @@ namespace Hex1b.Tokens;
 /// </list>
 /// </para>
 /// </remarks>
-public sealed record CursorPositionToken(int Row = 1, int Col = 1) : AnsiToken;
+public sealed record CursorPositionToken(int Row = 1, int Column = 1) : AnsiToken;

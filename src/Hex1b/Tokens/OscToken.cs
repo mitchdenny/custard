@@ -4,7 +4,7 @@ namespace Hex1b.Tokens;
 /// Represents an Operating System Command (OSC): ESC ] command ; params ; payload ST
 /// </summary>
 /// <param name="Command">The OSC command number as a string (e.g., "8" for hyperlinks).</param>
-/// <param name="Params">Optional parameters between command and payload.</param>
+/// <param name="Parameters">Optional parameters between command and payload.</param>
 /// <param name="Payload">The main payload (e.g., URL for OSC 8).</param>
 /// <remarks>
 /// <para>
@@ -20,4 +20,4 @@ namespace Hex1b.Tokens;
 /// The string terminator (ST) can be ESC \ or BEL (\x07).
 /// </para>
 /// </remarks>
-public sealed record OscToken(string Command, string Params, string Payload) : AnsiToken;
+public sealed record OscToken(string Command, string Parameters, string Payload) : AnsiToken;

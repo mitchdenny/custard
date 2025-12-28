@@ -73,7 +73,7 @@ public class AnsiTokenTests
     {
         var token = new CursorPositionToken();
         Assert.Equal(1, token.Row);
-        Assert.Equal(1, token.Col);
+        Assert.Equal(1, token.Column);
     }
 
     [Fact]
@@ -81,7 +81,7 @@ public class AnsiTokenTests
     {
         var token = new CursorPositionToken(5, 10);
         Assert.Equal(5, token.Row);
-        Assert.Equal(10, token.Col);
+        Assert.Equal(10, token.Column);
     }
 
     [Fact]
@@ -202,7 +202,7 @@ public class AnsiTokenTests
         var token = new OscToken("8", "id=link1", "https://example.com");
         
         Assert.Equal("8", token.Command);
-        Assert.Equal("id=link1", token.Params);
+        Assert.Equal("id=link1", token.Parameters);
         Assert.Equal("https://example.com", token.Payload);
     }
 
@@ -212,7 +212,7 @@ public class AnsiTokenTests
         var token = new OscToken("8", "", "https://example.com");
         
         Assert.Equal("8", token.Command);
-        Assert.Equal("", token.Params);
+        Assert.Equal("", token.Parameters);
         Assert.Equal("https://example.com", token.Payload);
     }
 
@@ -473,7 +473,7 @@ public class AnsiTokenTests
         {
             TextToken t => $"text:{t.Text}",
             ControlCharacterToken c => $"ctrl:{c.Character}",
-            CursorPositionToken cp => $"cursor:{cp.Row},{cp.Col}",
+            CursorPositionToken cp => $"cursor:{cp.Row},{cp.Column}",
             CursorShapeToken csh => $"shape:{csh.Shape}",
             SgrToken sgr => $"sgr:{sgr.Parameters}",
             ClearScreenToken cls => $"clearscreen:{cls.Mode}",

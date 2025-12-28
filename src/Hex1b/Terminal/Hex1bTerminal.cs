@@ -5,6 +5,7 @@ using System.Text;
 using System.Threading.Channels;
 using Hex1b.Input;
 using Hex1b.Theming;
+using Hex1b.Tokens;
 
 namespace Hex1b.Terminal;
 
@@ -69,6 +70,8 @@ public sealed class Hex1bTerminal : IDisposable
     private Task? _inputProcessingTask;
     private Task? _outputProcessingTask;
     private long _writeSequence; // Monotonically increasing write order counter
+    private int _savedCursorX; // Saved cursor X position for DECSC/DECRC
+    private int _savedCursorY; // Saved cursor Y position for DECSC/DECRC
 
 
 
@@ -917,6 +920,205 @@ public sealed class Hex1bTerminal : IDisposable
                 }
                 i += grapheme.Length;
             }
+        }
+    }
+
+    /// <summary>
+    /// Applies a list of ANSI tokens to the screen buffer.
+    /// </summary>
+    /// <remarks>
+    /// This is an alternative to <see cref="ProcessOutput(string)"/> that works with pre-tokenized input.
+    /// It is useful when tokens have been processed through workload filters.
+    /// </remarks>
+    /// <param name="tokens">The tokens to apply.</param>
+    internal void ApplyTokens(IReadOnlyList<AnsiToken> tokens)
+    {
+        foreach (var token in tokens)
+        {
+            ApplyToken(token);
+        }
+    }
+
+    /// <summary>
+    /// Applies a single ANSI token to the screen buffer.
+    /// </summary>
+    private void ApplyToken(AnsiToken token)
+    {
+        switch (token)
+        {
+            case TextToken textToken:
+                ApplyTextToken(textToken);
+                break;
+                
+            case ControlCharacterToken controlToken:
+                ApplyControlCharacter(controlToken);
+                break;
+                
+            case SgrToken sgrToken:
+                ProcessSgr(sgrToken.Parameters);
+                break;
+                
+            case CursorPositionToken cursorToken:
+                _cursorY = Math.Clamp(cursorToken.Row - 1, 0, _height - 1);
+                _cursorX = Math.Clamp(cursorToken.Column - 1, 0, _width - 1);
+                break;
+                
+            case ClearScreenToken clearToken:
+                ApplyClearScreen(clearToken.Mode);
+                break;
+                
+            case ClearLineToken clearLineToken:
+                ApplyClearLine(clearLineToken.Mode);
+                break;
+                
+            case PrivateModeToken privateModeToken:
+                if (privateModeToken.Mode == 1049)
+                {
+                    if (privateModeToken.Enable)
+                        DoEnterAlternateScreen();
+                    else
+                        DoExitAlternateScreen();
+                }
+                break;
+                
+            case OscToken oscToken:
+                ProcessOscSequence(oscToken.Command, oscToken.Parameters, oscToken.Payload);
+                break;
+                
+            case DcsToken dcsToken:
+                ProcessSixelData(dcsToken.Payload);
+                break;
+                
+            case ScrollRegionToken scrollRegionToken:
+                // Store scroll region for future scroll operations
+                // Not yet implemented in ProcessOutput either
+                break;
+                
+            case SaveCursorToken:
+                _savedCursorX = _cursorX;
+                _savedCursorY = _cursorY;
+                break;
+                
+            case RestoreCursorToken:
+                _cursorX = _savedCursorX;
+                _cursorY = _savedCursorY;
+                break;
+                
+            case CursorShapeToken:
+                // Cursor shape is presentation-only, no buffer state to update
+                break;
+                
+            case UnrecognizedSequenceToken:
+                // Ignore unrecognized sequences
+                break;
+        }
+    }
+
+    private void ApplyTextToken(TextToken token)
+    {
+        var text = token.Text;
+        int i = 0;
+        
+        while (i < text.Length)
+        {
+            var grapheme = GetGraphemeAt(text, i);
+            var graphemeWidth = DisplayWidth.GetGraphemeWidth(grapheme);
+            
+            // Scroll if cursor is past the bottom of the screen BEFORE writing
+            if (_cursorY >= _height)
+            {
+                ScrollUp();
+                _cursorY = _height - 1;
+            }
+            
+            if (_cursorX < _width && _cursorY < _height)
+            {
+                var sequence = ++_writeSequence;
+                var writtenAt = _timeProvider.GetUtcNow();
+                
+                _currentHyperlink?.AddRef();
+                
+                SetCell(_cursorY, _cursorX, new TerminalCell(
+                    grapheme, _currentForeground, _currentBackground, _currentAttributes,
+                    sequence, writtenAt, TrackedSixel: null, _currentHyperlink));
+                
+                for (int w = 1; w < graphemeWidth && _cursorX + w < _width; w++)
+                {
+                    _currentHyperlink?.AddRef();
+                    SetCell(_cursorY, _cursorX + w, new TerminalCell(
+                        "", _currentForeground, _currentBackground, _currentAttributes,
+                        sequence, writtenAt, TrackedSixel: null, _currentHyperlink));
+                }
+                
+                _cursorX += graphemeWidth;
+                if (_cursorX >= _width)
+                {
+                    _cursorX = 0;
+                    _cursorY++;
+                }
+            }
+            i += grapheme.Length;
+        }
+    }
+
+    private void ApplyControlCharacter(ControlCharacterToken token)
+    {
+        switch (token.Character)
+        {
+            case '\n':
+                _cursorY++;
+                _cursorX = 0;
+                if (_cursorY >= _height)
+                {
+                    ScrollUp();
+                    _cursorY = _height - 1;
+                }
+                break;
+                
+            case '\r':
+                _cursorX = 0;
+                break;
+                
+            case '\t':
+                // Move to next tab stop (every 8 columns)
+                _cursorX = Math.Min((_cursorX / 8 + 1) * 8, _width - 1);
+                break;
+        }
+    }
+
+    private void ApplyClearScreen(ClearMode mode)
+    {
+        switch (mode)
+        {
+            case ClearMode.ToEnd:
+                ClearFromCursor();
+                break;
+            case ClearMode.ToStart:
+                ClearToCursor();
+                break;
+            case ClearMode.All:
+            case ClearMode.AllAndScrollback:
+                ClearBuffer();
+                break;
+        }
+    }
+
+    private void ApplyClearLine(ClearMode mode)
+    {
+        switch (mode)
+        {
+            case ClearMode.ToEnd:
+                for (int x = _cursorX; x < _width; x++)
+                    SetCell(_cursorY, x, TerminalCell.Empty);
+                break;
+            case ClearMode.ToStart:
+                for (int x = 0; x <= _cursorX && x < _width; x++)
+                    SetCell(_cursorY, x, TerminalCell.Empty);
+                break;
+            case ClearMode.All:
+                for (int x = 0; x < _width; x++)
+                    SetCell(_cursorY, x, TerminalCell.Empty);
+                break;
         }
     }
 
@@ -1837,9 +2039,11 @@ public sealed class Hex1bTerminal : IDisposable
     {
         if (_workloadFilters.Count == 0) return;
         var elapsed = GetElapsed();
+        var text = Encoding.UTF8.GetString(data.Span);
+        var tokens = AnsiTokenizer.Tokenize(text);
         foreach (var filter in _workloadFilters)
         {
-            await filter.OnOutputAsync(data, elapsed);
+            await filter.OnOutputAsync(tokens, elapsed);
         }
     }
 

@@ -1,3 +1,5 @@
+using Hex1b.Tokens;
+
 namespace Hex1b.Terminal;
 
 /// <summary>
@@ -39,10 +41,11 @@ public interface IHex1bTerminalWorkloadFilter
     /// <remarks>
     /// This is called for each chunk of data read from the workload's output channel.
     /// Multiple chunks may arrive in quick succession before <see cref="OnFrameCompleteAsync"/> is called.
+    /// Use <see cref="AnsiTokenSerializer.Serialize(IEnumerable{AnsiToken})"/> to convert tokens back to bytes if needed.
     /// </remarks>
-    /// <param name="data">The raw output bytes (typically ANSI sequences).</param>
+    /// <param name="tokens">The parsed ANSI tokens from the workload output.</param>
     /// <param name="elapsed">Time elapsed since session start.</param>
-    ValueTask OnOutputAsync(ReadOnlyMemory<byte> data, TimeSpan elapsed);
+    ValueTask OnOutputAsync(IReadOnlyList<AnsiToken> tokens, TimeSpan elapsed);
 
     /// <summary>
     /// Called when the workload output channel is drained (no more data immediately available).

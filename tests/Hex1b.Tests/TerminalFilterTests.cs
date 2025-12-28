@@ -199,9 +199,9 @@ public class TerminalFilterTests
             return ValueTask.CompletedTask;
         }
 
-        public ValueTask OnOutputAsync(ReadOnlyMemory<byte> data, TimeSpan elapsed)
+        public ValueTask OnOutputAsync(IReadOnlyList<Hex1b.Tokens.AnsiToken> tokens, TimeSpan elapsed)
         {
-            OutputChunks.Add(System.Text.Encoding.UTF8.GetString(data.Span));
+            OutputChunks.Add(Hex1b.Tokens.AnsiTokenSerializer.Serialize(tokens));
             return ValueTask.CompletedTask;
         }
 

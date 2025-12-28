@@ -1,6 +1,7 @@
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using Hex1b.Tokens;
 
 namespace Hex1b.Terminal;
 
@@ -108,11 +109,12 @@ public sealed class AsciinemaRecorder : IHex1bTerminalWorkloadFilter, IAsyncDisp
     }
 
     /// <inheritdoc />
-    async ValueTask IHex1bTerminalWorkloadFilter.OnOutputAsync(ReadOnlyMemory<byte> data, TimeSpan elapsed)
+    async ValueTask IHex1bTerminalWorkloadFilter.OnOutputAsync(IReadOnlyList<AnsiToken> tokens, TimeSpan elapsed)
     {
-        if (data.IsEmpty) return;
+        if (tokens.Count == 0) return;
 
-        var text = Encoding.UTF8.GetString(data.Span);
+        // Serialize tokens back to ANSI text for recording
+        var text = AnsiTokenSerializer.Serialize(tokens);
         lock (_lock)
         {
             _pendingEvents.Add(new AsciinemaEvent(elapsed.TotalSeconds, "o", text));

@@ -296,7 +296,7 @@ public class AsciinemaRecorderTests : IDisposable
         var recorder = new AsciinemaRecorder(tempFile);
         var filter = (IHex1bTerminalWorkloadFilter)recorder;
         await filter.OnSessionStartAsync(80, 24, DateTimeOffset.UtcNow);
-        await filter.OnOutputAsync("test"u8.ToArray(), TimeSpan.FromSeconds(1));
+        await filter.OnOutputAsync(Hex1b.Tokens.AnsiTokenizer.Tokenize("test"), TimeSpan.FromSeconds(1));
 
         Assert.Equal(1, recorder.PendingEventCount);
 

@@ -18,9 +18,50 @@ public sealed class ScrollNode : Hex1bNode, ILayoutProvider
     public Hex1bNode? Child { get; set; }
     
     /// <summary>
-    /// The scroll state (offset, content size, viewport size).
+    /// The source widget that created this node.
+    /// Used to create event arguments for scroll events.
     /// </summary>
-    public ScrollState State { get; set; } = new();
+    public ScrollWidget? SourceWidget { get; set; }
+    
+    /// <summary>
+    /// The current scroll offset (in characters).
+    /// For vertical scrolling, this is the row offset.
+    /// For horizontal scrolling, this is the column offset.
+    /// </summary>
+    public int Offset { get; private set; }
+    
+    /// <summary>
+    /// The size of the content being scrolled (in characters).
+    /// This is set during layout.
+    /// </summary>
+    public int ContentSize { get; private set; }
+    
+    /// <summary>
+    /// The size of the visible viewport (in characters).
+    /// This is set during layout.
+    /// </summary>
+    public int ViewportSize { get; private set; }
+    
+    /// <summary>
+    /// Whether the scrollbar is currently needed (content exceeds viewport).
+    /// </summary>
+    public bool IsScrollable => ContentSize > ViewportSize;
+    
+    /// <summary>
+    /// The maximum scroll offset.
+    /// </summary>
+    public int MaxOffset => Math.Max(0, ContentSize - ViewportSize);
+    
+    /// <summary>
+    /// The scroll action to invoke when scrolling occurs.
+    /// Set during reconciliation from the ScrollWidget's ScrollHandler.
+    /// </summary>
+    internal Func<InputBindingActionContext, int, int, int, int, Task>? ScrollAction { get; set; }
+    
+    /// <summary>
+    /// Context for firing scroll events when not triggered by user input.
+    /// </summary>
+    private InputBindingActionContext? _pendingEventContext;
     
     private ScrollOrientation _orientation = ScrollOrientation.Vertical;
     /// <summary>
@@ -118,67 +159,20 @@ public sealed class ScrollNode : Hex1bNode, ILayoutProvider
     /// The clip mode for this layout region.
     /// </summary>
     public ClipMode ClipMode => ClipMode.Clip;
+    
+    /// <inheritdoc />
+    public ILayoutProvider? ParentLayoutProvider { get; set; }
 
     /// <summary>
     /// Determines if a character at the given absolute position should be rendered.
     /// </summary>
-    public bool ShouldRenderAt(int x, int y)
-    {
-        return x >= _viewportRect.X && 
-               x < _viewportRect.X + _viewportRect.Width &&
-               y >= _viewportRect.Y && 
-               y < _viewportRect.Y + _viewportRect.Height;
-    }
+    public bool ShouldRenderAt(int x, int y) => LayoutProviderHelper.ShouldRenderAt(this, x, y);
 
     /// <summary>
     /// Clips a string that starts at the given position, returning only the visible portion.
     /// </summary>
-    public (int adjustedX, string clippedText) ClipString(int x, int y, string text)
-    {
-        // If entire line is outside vertical bounds, return empty
-        if (y < _viewportRect.Y || y >= _viewportRect.Y + _viewportRect.Height)
-            return (x, "");
-            
-        var clipLeft = _viewportRect.X;
-        var clipRight = _viewportRect.X + _viewportRect.Width;
-
-        // Entirely outside horizontal bounds
-        if (x >= clipRight)
-            return (x, "");
-
-        // Use visible length for proper ANSI handling
-        var visibleLength = Terminal.AnsiString.VisibleLength(text);
-        if (visibleLength <= 0)
-            return (x, "");
-
-        var startColumn = Math.Max(0, clipLeft - x);
-        var endColumnExclusive = Math.Min(visibleLength, clipRight - x);
-
-        if (endColumnExclusive <= 0 || endColumnExclusive <= startColumn)
-            return (x, "");
-
-        var sliceLength = endColumnExclusive - startColumn;
-        
-        // Use SliceByDisplayWidth to properly handle wide characters
-        var (slicedText, _, paddingBefore, paddingAfter) = 
-            Terminal.DisplayWidth.SliceByDisplayWidthWithAnsi(text, startColumn, sliceLength);
-        
-        if (slicedText.Length == 0 && paddingBefore == 0)
-            return (x, "");
-
-        var clippedText = new string(' ', paddingBefore) + slicedText + new string(' ', paddingAfter);
-
-        // Preserve trailing escape suffix if we clipped on the right
-        if (endColumnExclusive < visibleLength)
-        {
-            var suffix = Terminal.AnsiString.TrailingEscapeSuffix(text);
-            if (!string.IsNullOrEmpty(suffix) && !clippedText.EndsWith(suffix, StringComparison.Ordinal))
-                clippedText += suffix;
-        }
-
-        var adjustedX = x + startColumn;
-        return (adjustedX, clippedText);
-    }
+    public (int adjustedX, string clippedText) ClipString(int x, int y, string text) 
+        => LayoutProviderHelper.ClipString(this, x, y, text);
 
     #endregion
 
@@ -200,8 +194,8 @@ public sealed class ScrollNode : Hex1bNode, ILayoutProvider
         bindings.Key(Hex1bKey.Escape).Action(FocusFirst, "Jump to first focusable");
         
         // Mouse wheel scrolling
-        bindings.Mouse(MouseButton.ScrollUp).Action(() => { State.ScrollUp(3); MarkDirty(); }, "Scroll up");
-        bindings.Mouse(MouseButton.ScrollDown).Action(() => { State.ScrollDown(3); MarkDirty(); }, "Scroll down");
+        bindings.Mouse(MouseButton.ScrollUp).Action(ctx => ScrollByAmount(-3, ctx), "Scroll up");
+        bindings.Mouse(MouseButton.ScrollDown).Action(ctx => ScrollByAmount(3, ctx), "Scroll down");
         
         // Mouse drag on scrollbar (handles both clicks and thumb dragging)
         bindings.Drag(MouseButton.Left).Action(HandleScrollbarDrag, "Drag scrollbar");
@@ -209,7 +203,7 @@ public sealed class ScrollNode : Hex1bNode, ILayoutProvider
 
     private DragHandler HandleScrollbarDrag(int localX, int localY)
     {
-        if (!State.IsScrollable || !ShowScrollbar)
+        if (!IsScrollable || !ShowScrollbar)
         {
             return new DragHandler(); // No-op
         }
@@ -234,25 +228,23 @@ public sealed class ScrollNode : Hex1bNode, ILayoutProvider
         }
         
         var scrollbarHeight = _viewportRect.Height;
-        var thumbSize = Math.Max(1, (int)Math.Ceiling((double)State.ViewportSize / State.ContentSize * (scrollbarHeight - 2)));
+        var thumbSize = Math.Max(1, (int)Math.Ceiling((double)ViewportSize / ContentSize * (scrollbarHeight - 2)));
         var scrollRange = scrollbarHeight - 2 - thumbSize;
         var thumbPosition = scrollRange > 0 
-            ? (int)Math.Round((double)State.Offset / State.MaxOffset * scrollRange) 
+            ? (int)Math.Round((double)Offset / MaxOffset * scrollRange) 
             : 0;
         
         // Check which part of the scrollbar was clicked
         if (localY == 0)
         {
             // Up arrow clicked
-            State.ScrollUp();
-            MarkDirty();
+            ScrollByAmount(-1);
             return new DragHandler(); // No drag
         }
         else if (localY == scrollbarHeight - 1)
         {
             // Down arrow clicked
-            State.ScrollDown();
-            MarkDirty();
+            ScrollByAmount(1);
             return new DragHandler(); // No drag
         }
         else if (localY > 0 && localY < scrollbarHeight - 1)
@@ -262,10 +254,10 @@ public sealed class ScrollNode : Hex1bNode, ILayoutProvider
             if (trackY >= thumbPosition && trackY < thumbPosition + thumbSize)
             {
                 // Clicked on thumb - start drag
-                var startOffset = State.Offset;
+                var startOffset = Offset;
                 var trackHeight = scrollbarHeight - 2; // Exclude arrows
-                var contentPerPixel = State.MaxOffset > 0 && trackHeight > thumbSize
-                    ? (double)State.MaxOffset / (trackHeight - thumbSize)
+                var contentPerPixel = MaxOffset > 0 && trackHeight > thumbSize
+                    ? (double)MaxOffset / (trackHeight - thumbSize)
                     : 0;
                 
                 return new DragHandler(
@@ -274,8 +266,7 @@ public sealed class ScrollNode : Hex1bNode, ILayoutProvider
                         if (contentPerPixel > 0)
                         {
                             var newOffset = (int)Math.Round(startOffset + deltaY * contentPerPixel);
-                            State.Offset = Math.Clamp(newOffset, 0, State.MaxOffset);
-                            MarkDirty();
+                            SetOffset(Math.Clamp(newOffset, 0, MaxOffset));
                         }
                     }
                 );
@@ -283,15 +274,13 @@ public sealed class ScrollNode : Hex1bNode, ILayoutProvider
             else if (trackY < thumbPosition)
             {
                 // Clicked above thumb - page up
-                State.PageUp();
-                MarkDirty();
+                ScrollByPage(-1);
                 return new DragHandler(); // No drag
             }
             else
             {
                 // Clicked below thumb - page down
-                State.PageDown();
-                MarkDirty();
+                ScrollByPage(1);
                 return new DragHandler(); // No drag
             }
         }
@@ -309,25 +298,23 @@ public sealed class ScrollNode : Hex1bNode, ILayoutProvider
         }
         
         var scrollbarWidth = _viewportRect.Width;
-        var thumbSize = Math.Max(1, (int)Math.Ceiling((double)State.ViewportSize / State.ContentSize * (scrollbarWidth - 2)));
+        var thumbSize = Math.Max(1, (int)Math.Ceiling((double)ViewportSize / ContentSize * (scrollbarWidth - 2)));
         var scrollRange = scrollbarWidth - 2 - thumbSize;
         var thumbPosition = scrollRange > 0 
-            ? (int)Math.Round((double)State.Offset / State.MaxOffset * scrollRange) 
+            ? (int)Math.Round((double)Offset / MaxOffset * scrollRange) 
             : 0;
         
         // Check which part of the scrollbar was clicked
         if (localX == 0)
         {
             // Left arrow clicked
-            State.ScrollUp(); // ScrollUp decreases offset
-            MarkDirty();
+            ScrollByAmount(-1);
             return new DragHandler(); // No drag
         }
         else if (localX == scrollbarWidth - 1)
         {
             // Right arrow clicked
-            State.ScrollDown(); // ScrollDown increases offset
-            MarkDirty();
+            ScrollByAmount(1);
             return new DragHandler(); // No drag
         }
         else if (localX > 0 && localX < scrollbarWidth - 1)
@@ -337,10 +324,10 @@ public sealed class ScrollNode : Hex1bNode, ILayoutProvider
             if (trackX >= thumbPosition && trackX < thumbPosition + thumbSize)
             {
                 // Clicked on thumb - start drag
-                var startOffset = State.Offset;
+                var startOffset = Offset;
                 var trackWidth = scrollbarWidth - 2; // Exclude arrows
-                var contentPerPixel = State.MaxOffset > 0 && trackWidth > thumbSize
-                    ? (double)State.MaxOffset / (trackWidth - thumbSize)
+                var contentPerPixel = MaxOffset > 0 && trackWidth > thumbSize
+                    ? (double)MaxOffset / (trackWidth - thumbSize)
                     : 0;
                 
                 return new DragHandler(
@@ -349,8 +336,7 @@ public sealed class ScrollNode : Hex1bNode, ILayoutProvider
                         if (contentPerPixel > 0)
                         {
                             var newOffset = (int)Math.Round(startOffset + deltaX * contentPerPixel);
-                            State.Offset = Math.Clamp(newOffset, 0, State.MaxOffset);
-                            MarkDirty();
+                            SetOffset(Math.Clamp(newOffset, 0, MaxOffset));
                         }
                     }
                 );
@@ -358,15 +344,13 @@ public sealed class ScrollNode : Hex1bNode, ILayoutProvider
             else if (trackX < thumbPosition)
             {
                 // Clicked left of thumb - page left
-                State.PageUp();
-                MarkDirty();
+                ScrollByPage(-1);
                 return new DragHandler(); // No drag
             }
             else
             {
                 // Clicked right of thumb - page right
-                State.PageDown();
-                MarkDirty();
+                ScrollByPage(1);
                 return new DragHandler(); // No drag
             }
         }
@@ -374,60 +358,98 @@ public sealed class ScrollNode : Hex1bNode, ILayoutProvider
         return new DragHandler(); // No-op
     }
 
-    private void ScrollUp()
+    #region Internal Scroll Methods
+    
+    /// <summary>
+    /// Sets the offset directly and fires the scroll event if changed.
+    /// </summary>
+    internal void SetOffset(int newOffset, InputBindingActionContext? context = null)
+    {
+        var clampedOffset = Math.Clamp(newOffset, 0, MaxOffset);
+        if (clampedOffset == Offset) return;
+        
+        var previousOffset = Offset;
+        Offset = clampedOffset;
+        MarkDirty();
+        
+        // Fire scroll event
+        if (ScrollAction != null && context != null)
+        {
+            // Fire async event - we don't await it here as it's fire-and-forget in input handling
+            _ = ScrollAction(context, Offset, previousOffset, ContentSize, ViewportSize);
+        }
+        else if (ScrollAction != null)
+        {
+            // Store context for deferred event firing
+            _pendingEventContext = context;
+        }
+    }
+    
+    /// <summary>
+    /// Scrolls by the specified amount (positive = down/right, negative = up/left).
+    /// </summary>
+    private void ScrollByAmount(int amount, InputBindingActionContext? context = null)
+    {
+        SetOffset(Offset + amount, context);
+    }
+    
+    /// <summary>
+    /// Scrolls by a full page (viewport size minus 1).
+    /// </summary>
+    private void ScrollByPage(int direction, InputBindingActionContext? context = null)
+    {
+        var pageSize = Math.Max(1, ViewportSize - 1);
+        ScrollByAmount(direction * pageSize, context);
+    }
+    
+    #endregion
+
+    private void ScrollUp(InputBindingActionContext ctx)
     {
         if (!IsFocused || Orientation != ScrollOrientation.Vertical) return;
-        State.ScrollUp();
-        MarkDirty();
+        ScrollByAmount(-1, ctx);
     }
 
-    private void ScrollDown()
+    private void ScrollDown(InputBindingActionContext ctx)
     {
         if (!IsFocused || Orientation != ScrollOrientation.Vertical) return;
-        State.ScrollDown();
-        MarkDirty();
+        ScrollByAmount(1, ctx);
     }
 
-    private void ScrollLeft()
+    private void ScrollLeft(InputBindingActionContext ctx)
     {
         if (!IsFocused || Orientation != ScrollOrientation.Horizontal) return;
-        State.ScrollUp(); // Uses ScrollUp because it decreases offset
-        MarkDirty();
+        ScrollByAmount(-1, ctx);
     }
 
-    private void ScrollRight()
+    private void ScrollRight(InputBindingActionContext ctx)
     {
         if (!IsFocused || Orientation != ScrollOrientation.Horizontal) return;
-        State.ScrollDown(); // Uses ScrollDown because it increases offset
-        MarkDirty();
+        ScrollByAmount(1, ctx);
     }
 
-    private void PageUp()
+    private void PageUp(InputBindingActionContext ctx)
     {
         if (!IsFocused) return;
-        State.PageUp();
-        MarkDirty();
+        ScrollByPage(-1, ctx);
     }
 
-    private void PageDown()
+    private void PageDown(InputBindingActionContext ctx)
     {
         if (!IsFocused) return;
-        State.PageDown();
-        MarkDirty();
+        ScrollByPage(1, ctx);
     }
 
-    private void ScrollToStart()
+    private void ScrollToStart(InputBindingActionContext ctx)
     {
         if (!IsFocused) return;
-        State.ScrollToStart();
-        MarkDirty();
+        SetOffset(0, ctx);
     }
 
-    private void ScrollToEnd()
+    private void ScrollToEnd(InputBindingActionContext ctx)
     {
         if (!IsFocused) return;
-        State.ScrollToEnd();
-        MarkDirty();
+        SetOffset(MaxOffset, ctx);
     }
 
     private void FocusFirst()
@@ -464,14 +486,14 @@ public sealed class ScrollNode : Hex1bNode, ILayoutProvider
         
         _contentSize = Child.Measure(childConstraints);
         
-        // Update state with content size
+        // Update content size
         if (Orientation == ScrollOrientation.Vertical)
         {
-            State.ContentSize = _contentSize.Height;
+            ContentSize = _contentSize.Height;
         }
         else
         {
-            State.ContentSize = _contentSize.Width;
+            ContentSize = _contentSize.Width;
         }
         
         // The scroll widget takes whatever space is given to it
@@ -498,7 +520,7 @@ public sealed class ScrollNode : Hex1bNode, ILayoutProvider
         if (Child == null) return;
 
         // Determine if scrollbar is needed and visible
-        var needsScrollbar = State.IsScrollable && ShowScrollbar;
+        var needsScrollbar = IsScrollable && ShowScrollbar;
         var scrollbarWidth = needsScrollbar && Orientation == ScrollOrientation.Vertical ? ScrollbarSize : 0;
         var scrollbarHeight = needsScrollbar && Orientation == ScrollOrientation.Horizontal ? ScrollbarSize : 0;
 
@@ -506,24 +528,24 @@ public sealed class ScrollNode : Hex1bNode, ILayoutProvider
         var viewportWidth = bounds.Width - scrollbarWidth;
         var viewportHeight = bounds.Height - scrollbarHeight;
         
-        // Update state with viewport size
+        // Update viewport size
         if (Orientation == ScrollOrientation.Vertical)
         {
-            State.ViewportSize = viewportHeight;
+            ViewportSize = viewportHeight;
         }
         else
         {
-            State.ViewportSize = viewportWidth;
+            ViewportSize = viewportWidth;
         }
         
         // Clamp offset to valid range
-        if (State.Offset > State.MaxOffset)
+        if (Offset > MaxOffset)
         {
-            State.Offset = State.MaxOffset;
+            Offset = MaxOffset;
         }
-        if (State.Offset < 0)
+        if (Offset < 0)
         {
-            State.Offset = 0;
+            Offset = 0;
         }
         
         // Set up viewport rect for clipping
@@ -534,13 +556,13 @@ public sealed class ScrollNode : Hex1bNode, ILayoutProvider
         if (Orientation == ScrollOrientation.Vertical)
         {
             // Child is positioned above the viewport by the scroll offset
-            var childY = bounds.Y - State.Offset;
+            var childY = bounds.Y - Offset;
             Child.Arrange(new Rect(bounds.X, childY, viewportWidth, _contentSize.Height));
         }
         else
         {
             // Child is positioned to the left of the viewport by the scroll offset
-            var childX = bounds.X - State.Offset;
+            var childX = bounds.X - Offset;
             Child.Arrange(new Rect(childX, bounds.Y, _contentSize.Width, viewportHeight));
         }
     }
@@ -551,15 +573,17 @@ public sealed class ScrollNode : Hex1bNode, ILayoutProvider
         
         // Store ourselves as the current layout provider to enable clipping
         var previousLayout = context.CurrentLayoutProvider;
+        ParentLayoutProvider = previousLayout;
         context.CurrentLayoutProvider = this;
         
         // Render child (will be clipped by ILayoutProvider)
         Child?.Render(context);
         
         context.CurrentLayoutProvider = previousLayout;
+        ParentLayoutProvider = null;
         
         // Render scrollbar if needed
-        if (State.IsScrollable && ShowScrollbar)
+        if (IsScrollable && ShowScrollbar)
         {
             RenderScrollbar(context, theme);
         }
@@ -594,10 +618,10 @@ public sealed class ScrollNode : Hex1bNode, ILayoutProvider
         
         // Calculate thumb position and size
         // Use a minimum thumb size of 1
-        var thumbSize = Math.Max(1, (int)Math.Ceiling((double)State.ViewportSize / State.ContentSize * (scrollbarHeight - 2)));
+        var thumbSize = Math.Max(1, (int)Math.Ceiling((double)ViewportSize / ContentSize * (scrollbarHeight - 2)));
         var scrollRange = scrollbarHeight - 2 - thumbSize;
         var thumbPosition = scrollRange > 0 
-            ? (int)Math.Round((double)State.Offset / State.MaxOffset * scrollRange) 
+            ? (int)Math.Round((double)Offset / MaxOffset * scrollRange) 
             : 0;
         
         // Render scrollbar
@@ -648,10 +672,10 @@ public sealed class ScrollNode : Hex1bNode, ILayoutProvider
         var scrollbarWidth = _viewportRect.Width;
         
         // Calculate thumb position and size
-        var thumbSize = Math.Max(1, (int)Math.Ceiling((double)State.ViewportSize / State.ContentSize * (scrollbarWidth - 2)));
+        var thumbSize = Math.Max(1, (int)Math.Ceiling((double)ViewportSize / ContentSize * (scrollbarWidth - 2)));
         var scrollRange = scrollbarWidth - 2 - thumbSize;
         var thumbPosition = scrollRange > 0 
-            ? (int)Math.Round((double)State.Offset / State.MaxOffset * scrollRange) 
+            ? (int)Math.Round((double)Offset / MaxOffset * scrollRange) 
             : 0;
         
         context.SetCursorPosition(Bounds.X, scrollbarY);

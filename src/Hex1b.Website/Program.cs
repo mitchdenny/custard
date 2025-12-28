@@ -83,6 +83,13 @@ builder.Services.AddSingleton<IGalleryExample, SplitterBasicExample>();
 builder.Services.AddSingleton<IGalleryExample, SplitterVerticalExample>();
 builder.Services.AddSingleton<IGalleryExample, SplitterNestedExample>();
 
+// Register Scroll widget documentation examples
+builder.Services.AddSingleton<IGalleryExample, ScrollBasicExample>();
+builder.Services.AddSingleton<IGalleryExample, ScrollHorizontalExample>();
+builder.Services.AddSingleton<IGalleryExample, ScrollEventExample>();
+builder.Services.AddSingleton<IGalleryExample, ScrollTrackingExample>();
+builder.Services.AddSingleton<IGalleryExample, ScrollInfiniteExample>();
+
 var app = builder.Build();
 
 // Enable WebSockets

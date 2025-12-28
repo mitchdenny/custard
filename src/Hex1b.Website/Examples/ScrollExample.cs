@@ -25,10 +25,6 @@ public class ScrollExample(ILogger<ScrollExample> logger) : Hex1bExample
         
         public int SelectedExampleIndex { get; set; } = 0;
         public string SelectedExampleId => ExampleIds[SelectedExampleIndex];
-        public ScrollState VerticalScrollState { get; } = new();
-        public ScrollState HorizontalScrollState { get; } = new();
-        public ScrollState LargeContentScrollState { get; } = new();
-        public ScrollState ButtonScrollState { get; } = new();
         
         public IReadOnlyList<string> ExampleItems { get; } =
         [
@@ -77,17 +73,17 @@ public class ScrollExample(ILogger<ScrollExample> logger) : Hex1bExample
     {
         return exampleId switch
         {
-            "vertical" => BuildVerticalExample(ctx, state),
-            "horizontal" => BuildHorizontalExample(ctx, state),
-            "large-content" => BuildLargeContentExample(ctx, state),
-            "with-buttons" => BuildWithButtonsExample(ctx, state),
+            "vertical" => BuildVerticalExample(ctx),
+            "horizontal" => BuildHorizontalExample(ctx),
+            "large-content" => BuildLargeContentExample(ctx),
+            "with-buttons" => BuildWithButtonsExample(ctx),
             "no-scrollbar" => BuildNoScrollbarExample(ctx),
             "nested" => BuildNestedExample(ctx),
-            _ => BuildVerticalExample(ctx, state)
+            _ => BuildVerticalExample(ctx)
         };
     }
 
-    private static Hex1bWidget BuildVerticalExample(RootContext ctx, ScrollExampleState state)
+    private static Hex1bWidget BuildVerticalExample(RootContext ctx)
     {
         return ctx.Border(
             ctx.VScroll(
@@ -117,14 +113,13 @@ public class ScrollExample(ILogger<ScrollExample> logger) : Hex1bExample
                     v.Text("to scroll when mouse is enabled."),
                     v.Text(""),
                     v.Text("── End of Content ──"),
-                ],
-                state.VerticalScrollState
+                ]
             ),
             title: "Vertical Scroll (↑↓)"
         );
     }
 
-    private static Hex1bWidget BuildHorizontalExample(RootContext ctx, ScrollExampleState state)
+    private static Hex1bWidget BuildHorizontalExample(RootContext ctx)
     {
         return ctx.Border(
             ctx.VStack(v => [
@@ -135,8 +130,7 @@ public class ScrollExample(ILogger<ScrollExample> logger) : Hex1bExample
                 v.HScroll(
                     h => [
                         h.Text("<<<START>>> | Column 1 | Column 2 | Column 3 | Column 4 | Column 5 | Column 6 | Column 7 | Column 8 | Column 9 | Column 10 | <<<END>>>"),
-                    ],
-                    state.HorizontalScrollState
+                    ]
                 ),
                 v.Text(""),
                 v.Text("Use ← → arrows when focused to scroll."),
@@ -146,12 +140,11 @@ public class ScrollExample(ILogger<ScrollExample> logger) : Hex1bExample
         );
     }
 
-    private static Hex1bWidget BuildLargeContentExample(RootContext ctx, ScrollExampleState state)
+    private static Hex1bWidget BuildLargeContentExample(RootContext ctx)
     {
         return ctx.Border(
             ctx.VScroll(
-                v => GenerateLargeContent(v, 100),
-                state.LargeContentScrollState
+                v => GenerateLargeContent(v, 100)
             ),
             title: "Large Content (100 lines)"
         );
@@ -188,7 +181,7 @@ public class ScrollExample(ILogger<ScrollExample> logger) : Hex1bExample
         return widgets.ToArray();
     }
 
-    private static Hex1bWidget BuildWithButtonsExample(RootContext ctx, ScrollExampleState state)
+    private static Hex1bWidget BuildWithButtonsExample(RootContext ctx)
     {
         return ctx.Border(
             ctx.VScroll(
@@ -217,8 +210,7 @@ public class ScrollExample(ILogger<ScrollExample> logger) : Hex1bExample
                     v.Text("Button 2 → Button 3 → Scroll"),
                     v.Text(""),
                     v.Text("── End of Content ──"),
-                ],
-                state.ButtonScrollState
+                ]
             ),
             title: "With Focusable Buttons"
         );

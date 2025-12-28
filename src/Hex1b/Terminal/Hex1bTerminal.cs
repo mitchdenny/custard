@@ -320,10 +320,13 @@ public sealed class Hex1bTerminal : IDisposable
                 // Forward to presentation if present
                 if (_presentation != null)
                 {
-                    // Notify presentation filters of output TO presentation
-                    await NotifyPresentationFiltersOutputAsync(data);
+                    // Tokenize, pass through presentation filters, serialize and send
+                    var tokens = AnsiTokenizer.Tokenize(text);
+                    var filteredTokens = await NotifyPresentationFiltersOutputAsync(tokens);
+                    var filteredText = AnsiTokenSerializer.Serialize(filteredTokens);
+                    var filteredBytes = Encoding.UTF8.GetBytes(filteredText);
                     
-                    await _presentation.WriteOutputAsync(data);
+                    await _presentation.WriteOutputAsync(filteredBytes);
                 }
             }
         }
@@ -2019,23 +2022,25 @@ public sealed class Hex1bTerminal : IDisposable
 
     private TimeSpan GetElapsed() => _timeProvider.GetUtcNow() - _sessionStart;
 
-    private async ValueTask NotifyWorkloadFiltersSessionStartAsync()
+    private async ValueTask NotifyWorkloadFiltersSessionStartAsync(CancellationToken ct = default)
     {
         foreach (var filter in _workloadFilters)
         {
-            await filter.OnSessionStartAsync(_width, _height, _sessionStart);
+            ct.ThrowIfCancellationRequested();
+            await filter.OnSessionStartAsync(_width, _height, _sessionStart, ct);
         }
     }
 
-    private async ValueTask NotifyWorkloadFiltersSessionEndAsync(TimeSpan elapsed)
+    private async ValueTask NotifyWorkloadFiltersSessionEndAsync(TimeSpan elapsed, CancellationToken ct = default)
     {
         foreach (var filter in _workloadFilters)
         {
-            await filter.OnSessionEndAsync(elapsed);
+            ct.ThrowIfCancellationRequested();
+            await filter.OnSessionEndAsync(elapsed, ct);
         }
     }
 
-    private async ValueTask NotifyWorkloadFiltersOutputAsync(ReadOnlyMemory<byte> data)
+    private async ValueTask NotifyWorkloadFiltersOutputAsync(ReadOnlyMemory<byte> data, CancellationToken ct = default)
     {
         if (_workloadFilters.Count == 0) return;
         var elapsed = GetElapsed();
@@ -2043,83 +2048,94 @@ public sealed class Hex1bTerminal : IDisposable
         var tokens = AnsiTokenizer.Tokenize(text);
         foreach (var filter in _workloadFilters)
         {
-            await filter.OnOutputAsync(tokens, elapsed);
+            ct.ThrowIfCancellationRequested();
+            await filter.OnOutputAsync(tokens, elapsed, ct);
         }
     }
 
-    private async ValueTask NotifyWorkloadFiltersFrameCompleteAsync()
+    private async ValueTask NotifyWorkloadFiltersFrameCompleteAsync(CancellationToken ct = default)
     {
         if (_workloadFilters.Count == 0) return;
         var elapsed = GetElapsed();
         foreach (var filter in _workloadFilters)
         {
-            await filter.OnFrameCompleteAsync(elapsed);
+            ct.ThrowIfCancellationRequested();
+            await filter.OnFrameCompleteAsync(elapsed, ct);
         }
     }
 
-    private async ValueTask NotifyWorkloadFiltersInputAsync(ReadOnlyMemory<byte> data)
+    private async ValueTask NotifyWorkloadFiltersInputAsync(ReadOnlyMemory<byte> data, CancellationToken ct = default)
     {
         if (_workloadFilters.Count == 0) return;
         var elapsed = GetElapsed();
         foreach (var filter in _workloadFilters)
         {
-            await filter.OnInputAsync(data, elapsed);
+            ct.ThrowIfCancellationRequested();
+            await filter.OnInputAsync(data, elapsed, ct);
         }
     }
 
-    private async ValueTask NotifyWorkloadFiltersResizeAsync(int width, int height)
+    private async ValueTask NotifyWorkloadFiltersResizeAsync(int width, int height, CancellationToken ct = default)
     {
         if (_workloadFilters.Count == 0) return;
         var elapsed = GetElapsed();
         foreach (var filter in _workloadFilters)
         {
-            await filter.OnResizeAsync(width, height, elapsed);
+            ct.ThrowIfCancellationRequested();
+            await filter.OnResizeAsync(width, height, elapsed, ct);
         }
     }
 
-    private async ValueTask NotifyPresentationFiltersSessionStartAsync()
+    private async ValueTask NotifyPresentationFiltersSessionStartAsync(CancellationToken ct = default)
     {
         foreach (var filter in _presentationFilters)
         {
-            await filter.OnSessionStartAsync(_width, _height, _sessionStart);
+            ct.ThrowIfCancellationRequested();
+            await filter.OnSessionStartAsync(_width, _height, _sessionStart, ct);
         }
     }
 
-    private async ValueTask NotifyPresentationFiltersSessionEndAsync(TimeSpan elapsed)
+    private async ValueTask NotifyPresentationFiltersSessionEndAsync(TimeSpan elapsed, CancellationToken ct = default)
     {
         foreach (var filter in _presentationFilters)
         {
-            await filter.OnSessionEndAsync(elapsed);
+            ct.ThrowIfCancellationRequested();
+            await filter.OnSessionEndAsync(elapsed, ct);
         }
     }
 
-    private async ValueTask NotifyPresentationFiltersOutputAsync(ReadOnlyMemory<byte> data)
+    private async ValueTask<IReadOnlyList<AnsiToken>> NotifyPresentationFiltersOutputAsync(IReadOnlyList<AnsiToken> tokens, CancellationToken ct = default)
+    {
+        if (_presentationFilters.Count == 0) return tokens;
+        var elapsed = GetElapsed();
+        var currentTokens = tokens;
+        foreach (var filter in _presentationFilters)
+        {
+            ct.ThrowIfCancellationRequested();
+            currentTokens = await filter.OnOutputAsync(currentTokens, elapsed, ct);
+        }
+        return currentTokens;
+    }
+
+    private async ValueTask NotifyPresentationFiltersInputAsync(ReadOnlyMemory<byte> data, CancellationToken ct = default)
     {
         if (_presentationFilters.Count == 0) return;
         var elapsed = GetElapsed();
         foreach (var filter in _presentationFilters)
         {
-            await filter.OnOutputAsync(data, elapsed);
+            ct.ThrowIfCancellationRequested();
+            await filter.OnInputAsync(data, elapsed, ct);
         }
     }
 
-    private async ValueTask NotifyPresentationFiltersInputAsync(ReadOnlyMemory<byte> data)
+    private async ValueTask NotifyPresentationFiltersResizeAsync(int width, int height, CancellationToken ct = default)
     {
         if (_presentationFilters.Count == 0) return;
         var elapsed = GetElapsed();
         foreach (var filter in _presentationFilters)
         {
-            await filter.OnInputAsync(data, elapsed);
-        }
-    }
-
-    private async ValueTask NotifyPresentationFiltersResizeAsync(int width, int height)
-    {
-        if (_presentationFilters.Count == 0) return;
-        var elapsed = GetElapsed();
-        foreach (var filter in _presentationFilters)
-        {
-            await filter.OnResizeAsync(width, height, elapsed);
+            ct.ThrowIfCancellationRequested();
+            await filter.OnResizeAsync(width, height, elapsed, ct);
         }
     }
 }

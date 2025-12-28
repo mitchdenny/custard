@@ -9,16 +9,16 @@ namespace Hex1b.Widgets;
 /// portion of your UI without affecting the rest of the application.
 /// </summary>
 /// <param name="ThemeMutator">
-/// A function that receives the current theme and returns a (possibly modified) theme.
+/// A function that receives a clone of the current theme and returns a (possibly modified) theme.
 /// The returned theme is used for rendering the child subtree.
-/// You can clone and modify the theme, or return a cached theme instance.
+/// The theme is already cloned, so you can safely call Set() directly.
 /// </param>
 /// <param name="Child">The child widget to render with the customized theme.</param>
 /// <example>
 /// <code>
 /// // Override button colors for this section only
 /// ctx.ThemePanel(
-///     theme => theme.Clone()
+///     theme => theme
 ///         .Set(ButtonTheme.ForegroundColor, Hex1bColor.White)
 ///         .Set(ButtonTheme.BackgroundColor, Hex1bColor.Blue),
 ///     ctx.VStack(v => [

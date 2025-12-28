@@ -33,8 +33,8 @@ public class ThemePanelBasicExample(ILogger<ThemePanelBasicExample> logger) : He
 
         var state = new SettingsState();
 
-        // Danger zone theme mutator
-        Func<Hex1bTheme, Hex1bTheme> dangerTheme = theme => theme.Clone()
+        // Danger zone theme mutator - theme is already cloned by ThemePanel
+        Func<Hex1bTheme, Hex1bTheme> dangerTheme = theme => theme
             .Set(GlobalTheme.ForegroundColor, Hex1bColor.FromRgb(255, 100, 100))
             .Set(BorderTheme.BorderColor, Hex1bColor.FromRgb(180, 0, 0))
             .Set(BorderTheme.TitleColor, Hex1bColor.Red)

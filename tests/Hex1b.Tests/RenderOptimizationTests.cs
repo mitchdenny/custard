@@ -499,7 +499,7 @@ public class RenderOptimizationTests
 
         using var app = new Hex1bApp(
             ctx => ctx.ThemePanel(
-                t => t.Clone().Set(Hex1bTheming.GlobalTheme.BackgroundColor, panelBgColor),
+                t => t.Set(Hex1bTheming.GlobalTheme.BackgroundColor, panelBgColor),
                 ctx.VStack(v => [
                     v.Text("Label before button"),
                     v.Button("Click Me"),

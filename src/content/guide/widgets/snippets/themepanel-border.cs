@@ -1,8 +1,9 @@
 ctx.ThemePanel(
-    theme => theme.Clone()
-        .Set(BorderTheme.BorderColor, Hex1bColor.Cyan)
-        .Set(GlobalTheme.ForegroundColor, Hex1bColor.White),
+    theme => theme
+        .Set(BorderTheme.BorderColor, Hex1bColor.Magenta)
+        .Set(GlobalTheme.ForegroundColor, Hex1bColor.Magenta),
     ctx.Border(b => [
-        b.Text("Content with themed border")
-    ], title: "Styled")
+        b.Text("Content with purple theme"),
+        b.Text("Border and text match")
+    ], title: "Purple Section")
 )

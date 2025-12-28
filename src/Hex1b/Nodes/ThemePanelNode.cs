@@ -53,9 +53,10 @@ public sealed class ThemePanelNode : Hex1bNode
         var originalTheme = context.Theme;
         
         // Apply the theme mutator if we have one
+        // We clone first so the mutator can safely modify without affecting the original
         if (ThemeMutator != null)
         {
-            context.Theme = ThemeMutator(originalTheme);
+            context.Theme = ThemeMutator(originalTheme.Clone());
         }
         
         // Render child content with the (possibly mutated) theme

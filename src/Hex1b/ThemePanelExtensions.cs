@@ -15,15 +15,15 @@ public static class ThemePanelExtensions
     /// <typeparam name="TParent">The parent widget type.</typeparam>
     /// <param name="ctx">The widget context.</param>
     /// <param name="themeMutator">
-    /// A function that receives the current theme and returns the theme to use.
-    /// You can clone and modify, or return a cached theme instance.
+    /// A function that receives a clone of the current theme and returns the theme to use.
+    /// The theme is already cloned, so you can safely call Set() directly.
     /// </param>
     /// <param name="child">The child widget to render with the customized theme.</param>
     /// <returns>A ThemePanelWidget.</returns>
     /// <example>
     /// <code>
     /// ctx.ThemePanel(
-    ///     theme => theme.Clone().Set(ButtonTheme.BackgroundColor, Hex1bColor.Blue),
+    ///     theme => theme.Set(ButtonTheme.BackgroundColor, Hex1bColor.Blue),
     ///     ctx.Button("Blue Button")
     /// )
     /// </code>
@@ -41,15 +41,15 @@ public static class ThemePanelExtensions
     /// <typeparam name="TParent">The parent widget type.</typeparam>
     /// <param name="ctx">The widget context.</param>
     /// <param name="themeMutator">
-    /// A function that receives the current theme and returns the theme to use.
-    /// You can clone and modify, or return a cached theme instance.
+    /// A function that receives a clone of the current theme and returns the theme to use.
+    /// The theme is already cloned, so you can safely call Set() directly.
     /// </param>
     /// <param name="builder">A builder function that creates the VStack children.</param>
     /// <returns>A ThemePanelWidget containing a VStack.</returns>
     /// <example>
     /// <code>
     /// ctx.ThemePanel(
-    ///     theme => theme.Clone()
+    ///     theme => theme
     ///         .Set(TextTheme.ForegroundColor, Hex1bColor.Green)
     ///         .Set(ButtonTheme.ForegroundColor, Hex1bColor.Yellow),
     ///     v => [

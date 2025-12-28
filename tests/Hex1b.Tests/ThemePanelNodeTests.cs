@@ -169,7 +169,7 @@ public class ThemePanelNodeTests
             ThemeMutator = theme =>
             {
                 mutatedThemeCaptured = true;
-                return theme.Clone()
+                return theme
                     .Set(ButtonTheme.FocusedBackgroundColor, Hex1bColor.FromRgb(255, 0, 0));
             }
         };
@@ -195,7 +195,7 @@ public class ThemePanelNodeTests
         var node = new ThemePanelNode
         {
             Child = new TextBlockNode { Text = "Test" },
-            ThemeMutator = theme => theme.Clone()
+            ThemeMutator = theme => theme
                 .Set(ButtonTheme.FocusedBackgroundColor, Hex1bColor.FromRgb(255, 0, 0))
         };
 
@@ -441,7 +441,7 @@ public class ThemePanelNodeTests
             Child = new TextBlockNode { Text = "Test" },
             ThemeMutator = t => t
         };
-        Func<Hex1bTheme, Hex1bTheme> newMutator = t => t.Clone().Set(ButtonTheme.FocusedBackgroundColor, Hex1bColor.Red);
+        Func<Hex1bTheme, Hex1bTheme> newMutator = t => t.Set(ButtonTheme.FocusedBackgroundColor, Hex1bColor.Red);
         var widget = new ThemePanelWidget(newMutator, new TextBlockWidget("Test"));
         var context = ReconcileContext.CreateRoot();
 
@@ -482,7 +482,7 @@ public class ThemePanelNodeTests
         var innerPanel = new ThemePanelNode
         {
             Child = innerButton,
-            ThemeMutator = theme => theme.Clone()
+            ThemeMutator = theme => theme
                 .Set(ButtonTheme.FocusedBackgroundColor, Hex1bColor.FromRgb(255, 0, 0))
         };
 
@@ -495,7 +495,7 @@ public class ThemePanelNodeTests
         var outerPanel = new ThemePanelNode
         {
             Child = outerVStack,
-            ThemeMutator = theme => theme.Clone()
+            ThemeMutator = theme => theme
                 .Set(ButtonTheme.FocusedBackgroundColor, Hex1bColor.FromRgb(0, 0, 255))
         };
 

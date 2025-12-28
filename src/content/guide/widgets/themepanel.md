@@ -1,5 +1,4 @@
 <script setup>
-import basicSnippet from './snippets/themepanel-basic.cs?raw'
 import buttonSnippet from './snippets/themepanel-button.cs?raw'
 import nestedSnippet from './snippets/themepanel-nested.cs?raw'
 import buttonThemedSnippet from './snippets/themepanel-button-themed.cs?raw'
@@ -13,17 +12,42 @@ const basicCode = `using Hex1b;
 using Hex1b.Theming;
 using Hex1b.Widgets;
 
-var app = new Hex1bApp(ctx => Task.FromResult<Hex1bWidget>(
-    ctx.ThemePanel(
-        theme => theme.Clone()
-            .Set(GlobalTheme.ForegroundColor, Hex1bColor.Yellow)
-            .Set(GlobalTheme.BackgroundColor, Hex1bColor.FromRgb(0, 0, 139)),
-        ctx.VStack(v => [
-            v.Text("Themed content"),
-            v.Text("Yellow on dark blue")
+var app = new Hex1bApp(ctx =>
+{
+    // Danger zone theme mutator
+    Func<Hex1bTheme, Hex1bTheme> dangerTheme = theme => theme.Clone()
+        .Set(GlobalTheme.ForegroundColor, Hex1bColor.FromRgb(255, 100, 100))
+        .Set(BorderTheme.BorderColor, Hex1bColor.FromRgb(180, 0, 0))
+        .Set(BorderTheme.TitleColor, Hex1bColor.Red)
+        .Set(ButtonTheme.BackgroundColor, Hex1bColor.FromRgb(100, 0, 0))
+        .Set(ButtonTheme.ForegroundColor, Hex1bColor.White)
+        .Set(ButtonTheme.FocusedBackgroundColor, Hex1bColor.Red)
+        .Set(ToggleSwitchTheme.FocusedSelectedBackgroundColor, Hex1bColor.Red)
+        .Set(ToggleSwitchTheme.UnfocusedSelectedBackgroundColor, Hex1bColor.FromRgb(100, 0, 0));
+
+    return ctx.VStack(v => [
+        v.Border(b => [
+            b.Text("  General Settings"),
+            b.HStack(h => [
+                h.Text("Telemetry: "),
+                h.ToggleSwitch(["Off", "On"], 1)
+            ])
+        ], title: "⚙ Settings"),
+
+        v.Text(""),
+
+        v.ThemePanel(dangerTheme, danger => [
+            danger.Border(db => [
+                db.Text("  These actions cannot be undone!"),
+                db.HStack(h => [
+                    h.Text("Factory reset: "),
+                    h.ToggleSwitch(["No", "Yes"], 0)
+                ]),
+                db.Button("☠ Wipe Everything")
+            ], title: "⚠ DANGER ZONE")
         ])
-    )
-));
+    ]);
+});
 
 await app.RunAsync();`
 </script>
@@ -43,14 +67,6 @@ Create a ThemePanel with a theme mutator function using the fluent API:
 ::: tip Functional API
 ThemePanelWidget uses a `Func<Hex1bTheme, Hex1bTheme>` pattern. Your function receives the current theme and returns a modified copy. Use `.Clone()` to create a new theme instance before applying modifications.
 :::
-
-## Basic ThemePanel
-
-A simple theme panel that changes text colors:
-
-<StaticTerminalPreview svgPath="/svg/themepanel-basic.svg" :code="basicSnippet" />
-
-The ThemePanel applies the theme mutations before rendering its child, then restores the original theme afterward.
 
 ## How Theme Mutations Work
 
@@ -93,9 +109,9 @@ For convenience, ThemePanel provides a VStack builder overload:
 
 ```csharp
 // These are equivalent:
-ctx.ThemePanel(theme => theme.Clone().Set(...), ctx.VStack(v => [...]))
+ctx.ThemePanel(theme => theme.Set(...), ctx.VStack(v => [...]))
 
-ctx.ThemePanel(theme => theme.Clone().Set(...), v => [
+ctx.ThemePanel(theme => theme.Set(...), v => [
     v.Text("Line 1"),
     v.Text("Line 2")
 ])

@@ -1,5 +1,5 @@
 ctx.ThemePanel(
-    theme => theme.Clone()
+    theme => theme
         .Set(ButtonTheme.BackgroundColor, Hex1bColor.FromRgb(139, 0, 0))
         .Set(ButtonTheme.FocusedBackgroundColor, Hex1bColor.Red),
     ctx.VStack(v => [

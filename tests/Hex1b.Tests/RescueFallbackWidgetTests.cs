@@ -219,14 +219,14 @@ public class RescueFallbackWidgetTests
         Assert.True(scrollNode.IsFocused);
         
         // Get initial scroll position
-        var initialOffset = scrollNode.State.Offset;
+        var initialOffset = scrollNode.Offset;
         System.Console.WriteLine($"Initial scroll offset: {initialOffset}");
         
         // Press ArrowDown
         var downEvent = new Hex1bKeyEvent(Hex1bKey.DownArrow, '\0', Hex1bModifiers.None);
         var result = await InputRouter.RouteInputAsync(node, downEvent, focusRing, routerState, null, TestContext.Current.CancellationToken);
         
-        System.Console.WriteLine($"ArrowDown result: {result}, new offset: {scrollNode.State.Offset}");
+        System.Console.WriteLine($"ArrowDown result: {result}, new offset: {scrollNode.Offset}");
         
         // Verify scroll happened (offset increased)
         Assert.Equal(InputResult.Handled, result);

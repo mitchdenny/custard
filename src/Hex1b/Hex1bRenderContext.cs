@@ -30,6 +30,8 @@ public class Hex1bRenderContext
     /// <summary>
     /// The current layout provider in scope. Child nodes can use this to query
     /// whether characters should be rendered (for clipping support).
+    /// Layout providers should consult their ParentLayoutProvider to ensure
+    /// proper nested clipping.
     /// </summary>
     public ILayoutProvider? CurrentLayoutProvider { get; set; }
     

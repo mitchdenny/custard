@@ -6,9 +6,17 @@ namespace Hex1b.Nodes;
 /// <summary>
 /// Interface for nodes that provide layout/clipping services to descendants.
 /// Child nodes can query their ancestor layout node to determine rendering behavior.
+/// Layout providers can be nested, with each consulting its parent for proper clipping.
 /// </summary>
 public interface ILayoutProvider
 {
+    /// <summary>
+    /// The parent layout provider, if any. Set when this provider becomes
+    /// the current layout provider and there was already one active.
+    /// Used to ensure nested clipping works correctly.
+    /// </summary>
+    ILayoutProvider? ParentLayoutProvider { get; set; }
+    
     /// <summary>
     /// The effective clipping rectangle for this layout region.
     /// </summary>
@@ -21,6 +29,7 @@ public interface ILayoutProvider
     
     /// <summary>
     /// Determines if a character at the given absolute position should be rendered.
+    /// Implementations should also check the ParentLayoutProvider if present.
     /// </summary>
     /// <param name="x">Absolute X position in terminal coordinates.</param>
     /// <param name="y">Absolute Y position in terminal coordinates.</param>
@@ -29,6 +38,7 @@ public interface ILayoutProvider
     
     /// <summary>
     /// Clips a string that starts at the given position, returning only the visible portion.
+    /// Implementations should also consult the ParentLayoutProvider if present.
     /// </summary>
     /// <param name="x">Starting absolute X position.</param>
     /// <param name="y">Absolute Y position.</param>

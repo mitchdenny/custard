@@ -13,10 +13,9 @@ public static class ScrollExtensions
     public static ScrollWidget VScroll<TParent>(
         this WidgetContext<TParent> ctx,
         Hex1bWidget child,
-        ScrollState? state = null,
         bool showScrollbar = true)
         where TParent : Hex1bWidget
-        => new(child, state, ScrollOrientation.Vertical, showScrollbar);
+        => new(child, ScrollOrientation.Vertical, showScrollbar);
 
     /// <summary>
     /// Creates a vertical scroll widget with a VStack child built from a callback.
@@ -24,14 +23,12 @@ public static class ScrollExtensions
     public static ScrollWidget VScroll<TParent>(
         this WidgetContext<TParent> ctx,
         Func<WidgetContext<VStackWidget>, Hex1bWidget[]> childBuilder,
-        ScrollState? state = null,
         bool showScrollbar = true)
         where TParent : Hex1bWidget
     {
         var childCtx = new WidgetContext<VStackWidget>();
         return new ScrollWidget(
             new VStackWidget(childBuilder(childCtx)),
-            state,
             ScrollOrientation.Vertical,
             showScrollbar);
     }
@@ -42,10 +39,9 @@ public static class ScrollExtensions
     public static ScrollWidget HScroll<TParent>(
         this WidgetContext<TParent> ctx,
         Hex1bWidget child,
-        ScrollState? state = null,
         bool showScrollbar = true)
         where TParent : Hex1bWidget
-        => new(child, state, ScrollOrientation.Horizontal, showScrollbar);
+        => new(child, ScrollOrientation.Horizontal, showScrollbar);
 
     /// <summary>
     /// Creates a horizontal scroll widget with an HStack child built from a callback.
@@ -53,14 +49,12 @@ public static class ScrollExtensions
     public static ScrollWidget HScroll<TParent>(
         this WidgetContext<TParent> ctx,
         Func<WidgetContext<HStackWidget>, Hex1bWidget[]> childBuilder,
-        ScrollState? state = null,
         bool showScrollbar = true)
         where TParent : Hex1bWidget
     {
         var childCtx = new WidgetContext<HStackWidget>();
         return new ScrollWidget(
             new HStackWidget(childBuilder(childCtx)),
-            state,
             ScrollOrientation.Horizontal,
             showScrollbar);
     }
@@ -72,8 +66,7 @@ public static class ScrollExtensions
         this WidgetContext<TParent> ctx,
         Hex1bWidget child,
         ScrollOrientation orientation,
-        ScrollState? state = null,
         bool showScrollbar = true)
         where TParent : Hex1bWidget
-        => new(child, state, orientation, showScrollbar);
+        => new(child, orientation, showScrollbar);
 }

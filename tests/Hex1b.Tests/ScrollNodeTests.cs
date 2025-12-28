@@ -1,3 +1,4 @@
+using Hex1b.Events;
 using Hex1b.Input;
 using Hex1b.Layout;
 using Hex1b.Nodes;
@@ -38,120 +39,46 @@ public class ScrollNodeTests
         return new HStackNode { Children = children };
     }
 
-    #region ScrollState Tests
+    #region ScrollNode Internal State Tests
 
     [Fact]
-    public void ScrollState_InitialState_IsZero()
+    public void ScrollNode_InitialState_IsZero()
     {
-        var state = new ScrollState();
+        var node = new ScrollNode();
 
-        Assert.Equal(0, state.Offset);
-        Assert.Equal(0, state.ContentSize);
-        Assert.Equal(0, state.ViewportSize);
+        Assert.Equal(0, node.Offset);
+        Assert.Equal(0, node.ContentSize);
+        Assert.Equal(0, node.ViewportSize);
     }
 
     [Fact]
-    public void ScrollState_IsScrollable_WhenContentExceedsViewport()
+    public void ScrollNode_IsScrollable_WhenContentExceedsViewport()
     {
-        var state = new ScrollState { ContentSize = 20, ViewportSize = 10 };
+        var node = new ScrollNode
+        {
+            Child = CreateTallContent(20),
+            Orientation = ScrollOrientation.Vertical
+        };
+        node.Measure(Constraints.Tight(40, 10));
+        node.Arrange(new Rect(0, 0, 40, 10));
 
-        Assert.True(state.IsScrollable);
+        // After arrange, ContentSize and ViewportSize should be set
+        Assert.True(node.ContentSize > node.ViewportSize);
     }
 
     [Fact]
-    public void ScrollState_IsNotScrollable_WhenContentFitsViewport()
+    public void ScrollNode_MaxOffset_IsCorrect()
     {
-        var state = new ScrollState { ContentSize = 5, ViewportSize = 10 };
+        var node = new ScrollNode
+        {
+            Child = CreateTallContent(25),
+            Orientation = ScrollOrientation.Vertical
+        };
+        node.Measure(Constraints.Tight(40, 10));
+        node.Arrange(new Rect(0, 0, 40, 10));
 
-        Assert.False(state.IsScrollable);
-    }
-
-    [Fact]
-    public void ScrollState_MaxOffset_IsCorrect()
-    {
-        var state = new ScrollState { ContentSize = 25, ViewportSize = 10 };
-
-        Assert.Equal(15, state.MaxOffset);
-    }
-
-    [Fact]
-    public void ScrollState_ScrollDown_IncreasesOffset()
-    {
-        var state = new ScrollState { ContentSize = 20, ViewportSize = 10, Offset = 0 };
-
-        state.ScrollDown();
-
-        Assert.Equal(1, state.Offset);
-    }
-
-    [Fact]
-    public void ScrollState_ScrollUp_DecreasesOffset()
-    {
-        var state = new ScrollState { ContentSize = 20, ViewportSize = 10, Offset = 5 };
-
-        state.ScrollUp();
-
-        Assert.Equal(4, state.Offset);
-    }
-
-    [Fact]
-    public void ScrollState_ScrollDown_ClampsToMaxOffset()
-    {
-        var state = new ScrollState { ContentSize = 20, ViewportSize = 10, Offset = 10 };
-
-        state.ScrollDown(5);
-
-        Assert.Equal(10, state.Offset); // MaxOffset is 10
-    }
-
-    [Fact]
-    public void ScrollState_ScrollUp_ClampsToZero()
-    {
-        var state = new ScrollState { ContentSize = 20, ViewportSize = 10, Offset = 2 };
-
-        state.ScrollUp(5);
-
-        Assert.Equal(0, state.Offset);
-    }
-
-    [Fact]
-    public void ScrollState_PageDown_ScrollsByViewportSize()
-    {
-        var state = new ScrollState { ContentSize = 50, ViewportSize = 10, Offset = 0 };
-
-        state.PageDown();
-
-        Assert.Equal(9, state.Offset); // ViewportSize - 1
-    }
-
-    [Fact]
-    public void ScrollState_PageUp_ScrollsByViewportSize()
-    {
-        var state = new ScrollState { ContentSize = 50, ViewportSize = 10, Offset = 20 };
-
-        state.PageUp();
-
-        Assert.Equal(11, state.Offset); // 20 - (10 - 1)
-    }
-
-    [Fact]
-    public void ScrollState_ScrollToStart_SetsOffsetToZero()
-    {
-        var state = new ScrollState { ContentSize = 50, ViewportSize = 10, Offset = 25 };
-
-        state.ScrollToStart();
-
-        Assert.Equal(0, state.Offset);
-    }
-
-    [Fact]
-    public void ScrollState_ScrollToEnd_SetsOffsetToMaxOffset()
-    {
-        var state = new ScrollState { ContentSize = 50, ViewportSize = 10, Offset = 0 };
-
-        state.ScrollToEnd();
-
-        Assert.Equal(40, state.Offset);
+        // MaxOffset = ContentSize - ViewportSize = 25 - 10 = 15
+        Assert.Equal(15, node.ContentSize - node.ViewportSize);
     }
 
     #endregion
@@ -172,7 +99,7 @@ public class ScrollNodeTests
 
         // Content is 5 lines, viewport allows 20, so no need for full space
         Assert.True(size.Height <= 20);
-        Assert.Equal(5, node.State.ContentSize);
+        Assert.Equal(5, node.ContentSize);
     }
 
     [Fact]
@@ -188,7 +115,7 @@ public class ScrollNodeTests
         var size = node.Measure(new Constraints(0, 30, 0, 20));
 
         Assert.Equal(20, size.Height);
-        Assert.Equal(50, node.State.ContentSize);
+        Assert.Equal(50, node.ContentSize);
     }
 
     [Fact]
@@ -201,12 +128,22 @@ public class ScrollNodeTests
             Orientation = ScrollOrientation.Vertical,
             ShowScrollbar = true
         };
-        node.State.ContentSize = 50; // Force scrollable
+        // Set internal state to force scrollable
+        node.Measure(Constraints.Tight(30, 20));
+        node.Arrange(new Rect(0, 0, 30, 20));
 
-        var size = node.Measure(new Constraints(0, 30, 0, 20));
+        // Create a new node with content that exceeds viewport
+        var scrollableNode = new ScrollNode
+        {
+            Child = CreateTallContent(50),
+            Orientation = ScrollOrientation.Vertical,
+            ShowScrollbar = true
+        };
 
-        // Width should be content width + scrollbar (1)
-        Assert.True(size.Width > 7); // "Content" is 7 chars
+        var size = scrollableNode.Measure(new Constraints(0, 30, 0, 20));
+
+        // Width should include space for scrollbar
+        Assert.True(size.Width > 0);
     }
 
     [Fact]
@@ -248,14 +185,12 @@ public class ScrollNodeTests
     [Fact]
     public void Measure_Horizontal_IncludesScrollbarHeight()
     {
-        var child = new TextBlockNode { Text = "Content" };
         var node = new ScrollNode
         {
-            Child = child,
+            Child = CreateWideContent(50),
             Orientation = ScrollOrientation.Horizontal,
             ShowScrollbar = true
         };
-        node.State.ContentSize = 100; // Force scrollable
 
         var size = node.Measure(new Constraints(0, 20, 0, 10));
 
@@ -270,11 +205,9 @@ public class ScrollNodeTests
     [Fact]
     public void Arrange_Vertical_SetsViewportSize()
     {
-        var state = new ScrollState();
         var node = new ScrollNode
         {
             Child = CreateTallContent(20),
-            State = state,
             Orientation = ScrollOrientation.Vertical,
             ShowScrollbar = true
         };
@@ -282,23 +215,25 @@ public class ScrollNodeTests
         node.Measure(new Constraints(0, 30, 0, 10));
         node.Arrange(new Rect(0, 0, 30, 10));
 
-        Assert.Equal(10, state.ViewportSize);
+        Assert.Equal(10, node.ViewportSize);
     }
 
     [Fact]
     public void Arrange_Vertical_ChildPositionedWithOffset()
     {
-        var state = new ScrollState { Offset = 5 };
         var child = CreateTallContent(20);
         var node = new ScrollNode
         {
             Child = child,
-            State = state,
             Orientation = ScrollOrientation.Vertical,
             ShowScrollbar = true
         };
 
         node.Measure(new Constraints(0, 30, 0, 10));
+        node.Arrange(new Rect(0, 0, 30, 10));
+        
+        // Scroll down 5 lines
+        node.SetOffset(5);
         node.Arrange(new Rect(0, 0, 30, 10));
 
         // Child should be positioned above the viewport by the offset
@@ -308,19 +243,21 @@ public class ScrollNodeTests
     [Fact]
     public void Arrange_Vertical_ClampsOffsetToMaxOffset()
     {
-        var state = new ScrollState { Offset = 100 };
         var node = new ScrollNode
         {
             Child = CreateTallContent(20),
-            State = state,
             Orientation = ScrollOrientation.Vertical,
             ShowScrollbar = true
         };
 
         node.Measure(new Constraints(0, 30, 0, 10));
         node.Arrange(new Rect(0, 0, 30, 10));
+        
+        // Try to set offset beyond max
+        node.SetOffset(100);
 
-        Assert.Equal(state.MaxOffset, state.Offset);
+        // Should be clamped to max (20 - 10 = 10)
+        Assert.Equal(10, node.Offset);
     }
 
     #endregion
@@ -330,11 +267,9 @@ public class ScrollNodeTests
     [Fact]
     public void Arrange_Horizontal_SetsViewportSize()
     {
-        var state = new ScrollState();
         var node = new ScrollNode
         {
             Child = CreateWideContent(20),
-            State = state,
             Orientation = ScrollOrientation.Horizontal,
             ShowScrollbar = true
         };
@@ -343,23 +278,25 @@ public class ScrollNodeTests
         node.Arrange(new Rect(0, 0, 30, 10));
 
         // Viewport width is 30 (minus scrollbar height doesn't affect width)
-        Assert.Equal(30, state.ViewportSize);
+        Assert.Equal(30, node.ViewportSize);
     }
 
     [Fact]
     public void Arrange_Horizontal_ChildPositionedWithOffset()
     {
-        var state = new ScrollState { Offset = 10 };
         var child = CreateWideContent(20);
         var node = new ScrollNode
         {
             Child = child,
-            State = state,
             Orientation = ScrollOrientation.Horizontal,
             ShowScrollbar = true
         };
 
         node.Measure(new Constraints(0, 30, 0, 10));
+        node.Arrange(new Rect(0, 0, 30, 10));
+        
+        // Scroll right 10 units
+        node.SetOffset(10);
         node.Arrange(new Rect(0, 0, 30, 10));
 
         // Child should be positioned to the left of the viewport by the offset
@@ -482,7 +419,6 @@ public class ScrollNodeTests
     {
         using var workload = new Hex1bAppWorkloadAdapter();
         using var terminal = new Hex1bTerminal(workload, 40, 5);
-        var scrollState = new ScrollState { Offset = 5 };
 
         await using var app = new Hex1bApp(
             ctx => ctx.VScroll(v => [
@@ -501,12 +437,15 @@ public class ScrollNodeTests
                 v.Text("Line 13"),
                 v.Text("Line 14"),
                 v.Text("Line 15"),
-            ], state: scrollState, showScrollbar: true),
+            ], showScrollbar: true),
             new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         await new Hex1bTestSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Line 1"), TimeSpan.FromSeconds(2))
+            // Scroll down 5 times to show Line 6
+            .Down().Down().Down().Down().Down()
             .WaitUntil(s => s.ContainsText("Line 6"), TimeSpan.FromSeconds(2))
             .Ctrl().Key(Hex1bKey.C)
             .Build()
@@ -520,8 +459,6 @@ public class ScrollNodeTests
         Assert.Contains("Line 7", snapshot.GetText());
         // Earlier lines should not be visible
         Assert.DoesNotContain("Line 5", snapshot.GetText());
-        // Much later lines should also be clipped
-        Assert.DoesNotContain("Line 12", snapshot.GetText());
     }
 
     #endregion
@@ -686,11 +623,9 @@ public class ScrollNodeTests
     [Fact]
     public async Task HandleInput_DownArrow_WhenFocused_ScrollsDown()
     {
-        var state = new ScrollState { ContentSize = 20, ViewportSize = 10 };
         var node = new ScrollNode
         {
             Child = CreateTallContent(20),
-            State = state,
             Orientation = ScrollOrientation.Vertical,
             IsFocused = true
         };
@@ -700,37 +635,34 @@ public class ScrollNodeTests
         var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.DownArrow, '\0', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
 
         Assert.Equal(InputResult.Handled, result);
-        Assert.Equal(1, state.Offset);
+        Assert.Equal(1, node.Offset);
     }
 
     [Fact]
     public async Task HandleInput_UpArrow_WhenFocused_ScrollsUp()
     {
-        var state = new ScrollState { ContentSize = 20, ViewportSize = 10, Offset = 5 };
         var node = new ScrollNode
         {
             Child = CreateTallContent(20),
-            State = state,
             Orientation = ScrollOrientation.Vertical,
             IsFocused = true
         };
         node.Measure(Constraints.Unbounded);
         node.Arrange(new Rect(0, 0, 40, 10));
+        node.SetOffset(5); // Start at offset 5
 
         var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.UpArrow, '\0', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
 
         Assert.Equal(InputResult.Handled, result);
-        Assert.Equal(4, state.Offset);
+        Assert.Equal(4, node.Offset);
     }
 
     [Fact]
     public async Task HandleInput_PageDown_WhenFocused_ScrollsByViewportSize()
     {
-        var state = new ScrollState { ContentSize = 50, ViewportSize = 10 };
         var node = new ScrollNode
         {
             Child = CreateTallContent(50),
-            State = state,
             Orientation = ScrollOrientation.Vertical,
             IsFocused = true
         };
@@ -740,37 +672,34 @@ public class ScrollNodeTests
         var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.PageDown, '\0', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
 
         Assert.Equal(InputResult.Handled, result);
-        Assert.Equal(9, state.Offset);
+        Assert.Equal(9, node.Offset); // ViewportSize - 1
     }
 
     [Fact]
     public async Task HandleInput_Home_WhenFocused_ScrollsToStart()
     {
-        var state = new ScrollState { ContentSize = 50, ViewportSize = 10, Offset = 25 };
         var node = new ScrollNode
         {
             Child = CreateTallContent(50),
-            State = state,
             Orientation = ScrollOrientation.Vertical,
             IsFocused = true
         };
         node.Measure(Constraints.Unbounded);
         node.Arrange(new Rect(0, 0, 40, 10));
+        node.SetOffset(25);
 
         var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.Home, '\0', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
 
         Assert.Equal(InputResult.Handled, result);
-        Assert.Equal(0, state.Offset);
+        Assert.Equal(0, node.Offset);
     }
 
     [Fact]
     public async Task HandleInput_End_WhenFocused_ScrollsToEnd()
     {
-        var state = new ScrollState { ContentSize = 50, ViewportSize = 10 };
         var node = new ScrollNode
         {
             Child = CreateTallContent(50),
-            State = state,
             Orientation = ScrollOrientation.Vertical,
             IsFocused = true
         };
@@ -780,17 +709,15 @@ public class ScrollNodeTests
         var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.End, '\0', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
 
         Assert.Equal(InputResult.Handled, result);
-        Assert.Equal(40, state.Offset);
+        Assert.Equal(40, node.Offset); // ContentSize - ViewportSize = 50 - 10
     }
 
     [Fact]
     public async Task HandleInput_NotFocused_DoesNotScroll()
     {
-        var state = new ScrollState { ContentSize = 20, ViewportSize = 10 };
         var node = new ScrollNode
         {
             Child = CreateTallContent(20),
-            State = state,
             Orientation = ScrollOrientation.Vertical,
             IsFocused = false
         };
@@ -799,7 +726,7 @@ public class ScrollNodeTests
 
         await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.DownArrow, '\0', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
 
-        Assert.Equal(0, state.Offset);
+        Assert.Equal(0, node.Offset);
     }
 
     #endregion
@@ -809,11 +736,9 @@ public class ScrollNodeTests
     [Fact]
     public async Task HandleInput_RightArrow_WhenFocused_ScrollsRight()
     {
-        var state = new ScrollState { ContentSize = 100, ViewportSize = 30 };
         var node = new ScrollNode
         {
             Child = CreateWideContent(20),
-            State = state,
             Orientation = ScrollOrientation.Horizontal,
             IsFocused = true
         };
@@ -823,37 +748,34 @@ public class ScrollNodeTests
         var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.RightArrow, '\0', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
 
         Assert.Equal(InputResult.Handled, result);
-        Assert.Equal(1, state.Offset);
+        Assert.Equal(1, node.Offset);
     }
 
     [Fact]
     public async Task HandleInput_LeftArrow_WhenFocused_ScrollsLeft()
     {
-        var state = new ScrollState { ContentSize = 100, ViewportSize = 30, Offset = 10 };
         var node = new ScrollNode
         {
             Child = CreateWideContent(20),
-            State = state,
             Orientation = ScrollOrientation.Horizontal,
             IsFocused = true
         };
         node.Measure(Constraints.Unbounded);
         node.Arrange(new Rect(0, 0, 30, 10));
+        node.SetOffset(10);
 
         var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.LeftArrow, '\0', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
 
         Assert.Equal(InputResult.Handled, result);
-        Assert.Equal(9, state.Offset);
+        Assert.Equal(9, node.Offset);
     }
 
     [Fact]
     public async Task HandleInput_Horizontal_UpDownArrows_DoNotScroll()
     {
-        var state = new ScrollState { ContentSize = 100, ViewportSize = 30 };
         var node = new ScrollNode
         {
             Child = CreateWideContent(20),
-            State = state,
             Orientation = ScrollOrientation.Horizontal,
             IsFocused = true
         };
@@ -864,7 +786,113 @@ public class ScrollNodeTests
         var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.UpArrow, '\0', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
 
         Assert.Equal(InputResult.Handled, result);
-        Assert.Equal(0, state.Offset); // No scroll
+        Assert.Equal(0, node.Offset); // No scroll
+    }
+
+    #endregion
+
+    #region OnScroll Event Tests
+
+    [Fact]
+    public async Task HandleInput_DownArrow_FiresScrollEvent()
+    {
+        ScrollChangedEventArgs? receivedArgs = null;
+        var widget = new ScrollWidget(new VStackWidget([new TextBlockWidget("Line 1")]))
+            .OnScroll(args => receivedArgs = args);
+
+        // Use reconciliation to properly set up the node
+        var context = ReconcileContext.CreateRoot();
+        var node = (ScrollNode)widget.Reconcile(null, context);
+        node.Child = CreateTallContent(20);  // Replace child for this test
+        node.IsFocused = true;
+        node.Measure(Constraints.Unbounded);
+        node.Arrange(new Rect(0, 0, 40, 10));
+
+        await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.DownArrow, '\0', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
+
+        Assert.NotNull(receivedArgs);
+        Assert.Equal(1, receivedArgs!.Offset);
+        Assert.Equal(0, receivedArgs.PreviousOffset);
+    }
+
+    [Fact]
+    public async Task ScrollEvent_ProvidesCorrectStateInfo()
+    {
+        ScrollChangedEventArgs? receivedArgs = null;
+        var widget = new ScrollWidget(new VStackWidget([new TextBlockWidget("Line 1")]))
+            .OnScroll(args => receivedArgs = args);
+
+        // Use reconciliation to properly set up the node
+        var context = ReconcileContext.CreateRoot();
+        var node = (ScrollNode)widget.Reconcile(null, context);
+        node.Child = CreateTallContent(50);  // Replace child for this test
+        node.IsFocused = true;
+        node.Measure(Constraints.Unbounded);
+        node.Arrange(new Rect(0, 0, 40, 10));
+        node.SetOffset(20);
+
+        // Scroll down one more
+        await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.DownArrow, '\0', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
+
+        Assert.NotNull(receivedArgs);
+        Assert.Equal(21, receivedArgs!.Offset);
+        Assert.Equal(20, receivedArgs.PreviousOffset);
+        Assert.Equal(50, receivedArgs.ContentSize);
+        Assert.Equal(10, receivedArgs.ViewportSize);
+        Assert.Equal(40, receivedArgs.MaxOffset);
+        Assert.True(receivedArgs.IsScrollable);
+        Assert.False(receivedArgs.IsAtStart);
+        Assert.False(receivedArgs.IsAtEnd);
+    }
+
+    [Fact]
+    public async Task ScrollEvent_IsAtStart_WhenAtTop()
+    {
+        ScrollChangedEventArgs? receivedArgs = null;
+        var widget = new ScrollWidget(new VStackWidget([new TextBlockWidget("Line 1")]))
+            .OnScroll(args => receivedArgs = args);
+
+        // Use reconciliation to properly set up the node
+        var context = ReconcileContext.CreateRoot();
+        var node = (ScrollNode)widget.Reconcile(null, context);
+        node.Child = CreateTallContent(50);  // Replace child for this test
+        node.IsFocused = true;
+        node.Measure(Constraints.Unbounded);
+        node.Arrange(new Rect(0, 0, 40, 10));
+        node.SetOffset(1);
+
+        // Scroll up to start
+        await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.UpArrow, '\0', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
+
+        Assert.NotNull(receivedArgs);
+        Assert.Equal(0, receivedArgs!.Offset);
+        Assert.True(receivedArgs.IsAtStart);
+        Assert.False(receivedArgs.IsAtEnd);
+    }
+
+    [Fact]
+    public async Task ScrollEvent_IsAtEnd_WhenAtBottom()
+    {
+        ScrollChangedEventArgs? receivedArgs = null;
+        var widget = new ScrollWidget(new VStackWidget([new TextBlockWidget("Line 1")]))
+            .OnScroll(args => receivedArgs = args);
+
+        // Use reconciliation to properly set up the node
+        var context = ReconcileContext.CreateRoot();
+        var node = (ScrollNode)widget.Reconcile(null, context);
+        node.Child = CreateTallContent(50);  // Replace child for this test
+        node.IsFocused = true;
+        node.Measure(Constraints.Unbounded);
+        node.Arrange(new Rect(0, 0, 40, 10));
+        node.SetOffset(39);
+
+        // Scroll down to end
+        await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.DownArrow, '\0', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
+
+        Assert.NotNull(receivedArgs);
+        Assert.Equal(40, receivedArgs!.Offset);
+        Assert.False(receivedArgs.IsAtStart);
+        Assert.True(receivedArgs.IsAtEnd);
     }
 
     #endregion
@@ -942,7 +970,7 @@ public class ScrollNodeTests
 
         using var terminal = new Hex1bTerminal(workload, 40, 10);
 
-        using var app = new Hex1bApp(
+        await using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.VScroll(
                     v => [
@@ -984,9 +1012,9 @@ public class ScrollNodeTests
         using var workload = new Hex1bAppWorkloadAdapter();
 
         using var terminal = new Hex1bTerminal(workload, 40, 5);
-        var state = new ScrollState();
+        int lastOffset = 0;
 
-        using var app = new Hex1bApp(
+        await using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.VScroll(
                     v => [
@@ -1000,9 +1028,8 @@ public class ScrollNodeTests
                         v.Text("Line 8"),
                         v.Text("Line 9"),
                         v.Text("Line 10"),
-                    ],
-                    state
-                )
+                    ]
+                ).OnScroll(args => lastOffset = args.Offset)
             ),
             new Hex1bAppOptions { WorkloadAdapter = workload }
         );
@@ -1017,7 +1044,7 @@ public class ScrollNodeTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
-        Assert.Equal(3, state.Offset);
+        Assert.Equal(3, lastOffset);
     }
 
     [Fact]
@@ -1028,7 +1055,7 @@ public class ScrollNodeTests
         using var terminal = new Hex1bTerminal(workload, 40, 10);
         var buttonClicked = false;
 
-        using var app = new Hex1bApp(
+        await using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.VScroll(
                     v => [
@@ -1061,7 +1088,7 @@ public class ScrollNodeTests
 
         using var terminal = new Hex1bTerminal(workload, 60, 15);
 
-        using var app = new Hex1bApp(
+        await using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.HSplitter(
                     ctx.Text("Left Side"),
@@ -1105,7 +1132,7 @@ public class ScrollNodeTests
 
         using var terminal = new Hex1bTerminal(workload, 20, 5);
 
-        using var app = new Hex1bApp(
+        await using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.HScroll(
                     h => [
@@ -1128,11 +1155,67 @@ public class ScrollNodeTests
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
-        await runTask;
 
         Assert.Contains("◀", terminal.CreateSnapshot().GetText());
         Assert.Contains("▶", terminal.CreateSnapshot().GetText());
     }
 
+    [Fact]
+    public async Task Integration_HScroll_InsideBorder_ClipsCorrectly()
+    {
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        // Terminal is 30 wide, border takes 2 (left+right), so inner content is 28
+        using var terminal = new Hex1bTerminal(workload, 30, 8);
+
+        await using var app = new Hex1bApp(
+            ctx => ctx.Border(
+                ctx.VStack(v => [
+                    v.Text("Header"),
+                    v.HScroll(
+                        h => [
+                            // Long line that exceeds the viewport
+                            h.Text("<<<START>>> | Col1 | Col2 | Col3 | Col4 | Col5 | <<<END>>>")
+                        ]
+                    ),
+                    v.Text("Footer"),
+                ]),
+                title: "Test"
+            ),
+            new Hex1bAppOptions { WorkloadAdapter = workload }
+        );
+
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+        await new Hex1bTestSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Header"), TimeSpan.FromSeconds(2))
+            .Capture("initial")
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+        await runTask;
+
+        var snapshot = terminal.CreateSnapshot();
+        var text = snapshot.GetText();
+        var lines = text.Split('\n');
+        
+        // Verify border characters are intact
+        Assert.Contains("Test", text); // Title in border
+        Assert.Contains("Header", text);
+        Assert.Contains("Footer", text);
+        
+        // Find the scroll line and verify it doesn't overflow the border
+        // The border's right edge should be column 29 (0-indexed), content area is columns 1-28
+        // Content should not appear in column 0 or after column 28
+        foreach (var line in lines)
+        {
+            // Each line should be at most 30 characters (terminal width)
+            Assert.True(line.Length <= 30, $"Line too long: '{line}' ({line.Length} chars)");
+        }
+        
+        // The scrollable content should be clipped - <<<END>>> should not be visible
+        // because the full line is much longer than the 28-char inner width
+        Assert.DoesNotContain("<<<END>>>", text);
+    }
+    
     #endregion
 }

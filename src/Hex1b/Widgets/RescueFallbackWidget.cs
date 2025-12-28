@@ -12,8 +12,7 @@ namespace Hex1b.Widgets;
 public sealed record RescueFallbackWidget(
     RescueState State, 
     bool ShowDetails,
-    IReadOnlyList<RescueAction>? Actions = null,
-    RescueFallbackState? FallbackState = null) : Hex1bWidget
+    IReadOnlyList<RescueAction>? Actions = null) : Hex1bWidget
 {
     // Hardcoded colors that don't rely on theming
     internal static readonly Hex1bColor BackgroundColor = Hex1bColor.FromRgb(40, 0, 0);       // Dark red background
@@ -51,7 +50,6 @@ public sealed record RescueFallbackWidget(
     
     private Hex1bWidget BuildWidgetTree()
     {
-        var fallbackState = FallbackState ?? new RescueFallbackState();
         var actions = Actions ?? [];
         
         // Build content lines as a list of widgets
@@ -159,8 +157,7 @@ public sealed record RescueFallbackWidget(
         
         // Scrollable content - use Fill() to take remaining space
         mainChildren.Add(new ScrollWidget(
-            new VStackWidget([..contentWidgets]),
-            fallbackState.ScrollState
+            new VStackWidget([..contentWidgets])
         ).Fill());
         
         var mainContent = new VStackWidget([..mainChildren]);

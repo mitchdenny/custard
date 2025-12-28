@@ -44,73 +44,14 @@ public sealed class BorderNode : Hex1bNode, ILayoutProvider
         Math.Max(0, Bounds.Width - 2),
         Math.Max(0, Bounds.Height - 2)
     );
+    
+    /// <inheritdoc />
+    public ILayoutProvider? ParentLayoutProvider { get; set; }
 
-    public bool ShouldRenderAt(int x, int y)
-    {
-        if (ClipMode == ClipMode.Overflow)
-            return true;
-            
-        return x >= ClipRect.X && 
-               x < ClipRect.X + ClipRect.Width &&
-               y >= ClipRect.Y && 
-               y < ClipRect.Y + ClipRect.Height;
-    }
+    public bool ShouldRenderAt(int x, int y) => LayoutProviderHelper.ShouldRenderAt(this, x, y);
 
     public (int adjustedX, string clippedText) ClipString(int x, int y, string text)
-    {
-        if (ClipMode == ClipMode.Overflow)
-            return (x, text);
-            
-        // If entire line is outside vertical bounds, return empty
-        if (y < ClipRect.Y || y >= ClipRect.Y + ClipRect.Height)
-            return (x, "");
-            
-        var clipLeft = ClipRect.X;
-        var clipRight = ClipRect.X + ClipRect.Width;
-
-        // Entirely outside horizontal bounds (based on starting X)
-        if (x >= clipRight)
-            return (x, "");
-
-        // Clip by visible columns (ANSI-aware) so we never cut escape sequences.
-        var visibleLength = AnsiString.VisibleLength(text);
-        if (visibleLength <= 0)
-            return (x, "");
-
-        var startColumn = Math.Max(0, clipLeft - x);
-        var endColumnExclusive = Math.Min(visibleLength, clipRight - x);
-
-        // Entirely left of the clip region.
-        if (endColumnExclusive <= 0)
-            return (x, "");
-
-        if (endColumnExclusive <= startColumn)
-            return (x, "");
-
-        var sliceLength = endColumnExclusive - startColumn;
-        
-        // Use SliceByDisplayWidth to properly handle wide characters and get padding info
-        var (slicedText, _, paddingBefore, paddingAfter) = 
-            DisplayWidth.SliceByDisplayWidthWithAnsi(text, startColumn, sliceLength);
-        
-        if (slicedText.Length == 0 && paddingBefore == 0)
-            return (x, "");
-
-        // Build the result with padding if needed
-        var clippedText = new string(' ', paddingBefore) + slicedText + new string(' ', paddingAfter);
-
-        // If we clipped away printable characters on the right, preserve any trailing
-        // escape suffix (typically a reset-to-inherited) to avoid style leaking.
-        if (endColumnExclusive < visibleLength)
-        {
-            var suffix = AnsiString.TrailingEscapeSuffix(text);
-            if (!string.IsNullOrEmpty(suffix) && !clippedText.EndsWith(suffix, StringComparison.Ordinal))
-                clippedText += suffix;
-        }
-
-        var adjustedX = x + startColumn;
-        return (adjustedX, clippedText);
-    }
+        => LayoutProviderHelper.ClipString(this, x, y, text);
     
     #endregion
 
@@ -221,12 +162,14 @@ public sealed class BorderNode : Hex1bNode, ILayoutProvider
         if (Child != null)
         {
             var previousLayout = context.CurrentLayoutProvider;
+            ParentLayoutProvider = previousLayout;
             context.CurrentLayoutProvider = this;
             
             context.SetCursorPosition(Child.Bounds.X, Child.Bounds.Y);
             Child.Render(context);
             
             context.CurrentLayoutProvider = previousLayout;
+            ParentLayoutProvider = null;
         }
     }
 

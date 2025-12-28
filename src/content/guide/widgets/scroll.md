@@ -1,18 +1,19 @@
 <!--
   MIRROR WARNING: The code samples below must stay in sync with their WebSocket example counterparts:
-  - basicCode → src/Hex1b.Website/Examples/ScrollExample.cs
+  - basicCode → src/Hex1b.Website/Examples/ScrollBasicExample.cs
+  - horizontalCode → src/Hex1b.Website/Examples/ScrollHorizontalExample.cs
+  - eventCode → src/Hex1b.Website/Examples/ScrollEventExample.cs
+  - trackingCode → src/Hex1b.Website/Examples/ScrollTrackingExample.cs
+  - infiniteCode → src/Hex1b.Website/Examples/ScrollInfiniteExample.cs
   When updating code here, update the corresponding Example file and vice versa.
 -->
 <script setup>
-import verticalSnippet from './snippets/scroll-vertical-basic.cs?raw'
-import horizontalSnippet from './snippets/scroll-horizontal-basic.cs?raw'
-import stateSnippet from './snippets/scroll-with-state.cs?raw'
 import noScrollbarSnippet from './snippets/scroll-no-scrollbar.cs?raw'
 
 const basicCode = `using Hex1b;
 using Hex1b.Widgets;
 
-var app = new Hex1bApp(ctx => Task.FromResult<Hex1bWidget>(
+var app = new Hex1bApp(ctx =>
     ctx.Border(
         ctx.VScroll(
             v => [
@@ -34,49 +35,132 @@ var app = new Hex1bApp(ctx => Task.FromResult<Hex1bWidget>(
         ),
         title: "Scroll Demo"
     )
-));
+);
 
 await app.RunAsync();`
 
-const stateCode = `using Hex1b;
+const horizontalCode = `using Hex1b;
 using Hex1b.Widgets;
 
-var scrollState = new ScrollState();
+var app = new Hex1bApp(ctx =>
+    ctx.Border(
+        ctx.VStack(v => [
+            v.Text("Wide content below - use ← → to scroll:"),
+            v.Text(""),
+            v.HScroll(
+                h => [
+                    h.Text("START | Column 1 | Column 2 | Column 3 | Column 4 | Column 5 | Column 6 | Column 7 | Column 8 | END"),
+                ]
+            ),
+        ]),
+        title: "Horizontal Scroll"
+    )
+);
 
-var app = new Hex1bApp(ctx => Task.FromResult<Hex1bWidget>(
+await app.RunAsync();`
+
+const eventCode = `using Hex1b;
+using Hex1b.Widgets;
+
+int currentOffset = 0;
+int maxOffset = 0;
+int contentSize = 0;
+int viewportSize = 0;
+
+var app = new Hex1bApp(ctx =>
     ctx.VStack(v => [
-        v.Text($"Position: {scrollState.Offset}/{scrollState.MaxOffset}"),
-        v.Text($"Content: {scrollState.ContentSize} lines"),
-        v.Text($"Viewport: {scrollState.ViewportSize} lines"),
+        v.Text($"Position: {currentOffset}/{maxOffset}"),
+        v.Text($"Content: {contentSize} lines, Viewport: {viewportSize} lines"),
         v.Text(""),
         v.Border(
             v.VScroll(
                 inner => [
-                    inner.Text("Content line 1"),
-                    inner.Text("Content line 2"),
-                    inner.Text("Content line 3"),
-                    inner.Text("Content line 4"),
-                    inner.Text("Content line 5"),
-                    inner.Text("Content line 6"),
-                    inner.Text("Content line 7"),
-                    inner.Text("Content line 8")
-                ],
-                scrollState
-            ),
+                    inner.Text("Line 1 - Scroll to see position update"),
+                    inner.Text("Line 2"),
+                    inner.Text("Line 3"),
+                    inner.Text("Line 4"),
+                    inner.Text("Line 5"),
+                    inner.Text("Line 6"),
+                    inner.Text("Line 7"),
+                    inner.Text("Line 8"),
+                    inner.Text("Line 9"),
+                    inner.Text("Line 10"),
+                    inner.Text("Line 11"),
+                    inner.Text("Line 12 - End"),
+                ]
+            ).OnScroll(args => {
+                currentOffset = args.Offset;
+                maxOffset = args.MaxOffset;
+                contentSize = args.ContentSize;
+                viewportSize = args.ViewportSize;
+            }),
             title: "Scrollable Area"
-        ),
-        v.Text(""),
-        v.HStack(h => [
-            h.Button("Page Up").OnClick(_ => scrollState.PageUp()),
-            h.Text(" "),
-            h.Button("Page Down").OnClick(_ => scrollState.PageDown()),
-            h.Text(" "),
-            h.Button("To Top").OnClick(_ => scrollState.ScrollToStart()),
-            h.Text(" "),
-            h.Button("To End").OnClick(_ => scrollState.ScrollToEnd())
-        ])
+        )
     ])
-));
+);
+
+await app.RunAsync();`
+
+const trackingCode = `using Hex1b;
+using Hex1b.Widgets;
+
+var items = Enumerable.Range(1, 50).Select(i => $"Item {i}").ToList();
+int scrollPosition = 0;
+int viewportSize = 0;
+
+var app = new Hex1bApp(ctx => {
+    var totalContent = items.Count;
+    var endVisible = Math.Min(scrollPosition + viewportSize, totalContent);
+    
+    return ctx.VStack(v => [
+        v.Text($"Viewing: {scrollPosition + 1} - {endVisible} of {totalContent}"),
+        v.Text(""),
+        v.Border(
+            v.VScroll(
+                inner => items.Select(item => inner.Text(item)).ToArray()
+            ).OnScroll(args => {
+                scrollPosition = args.Offset;
+                viewportSize = args.ViewportSize;
+            }),
+            title: "Scrollable List"
+        )
+    ]);
+});
+
+await app.RunAsync();`
+
+const infiniteCode = `using Hex1b;
+using Hex1b.Widgets;
+
+var loadedItems = Enumerable.Range(1, 20).Select(i => $"Item {i}").ToList();
+int loadCount = 1;
+string status = "Scroll down to load more...";
+
+var app = new Hex1bApp(ctx =>
+    ctx.VStack(v => [
+        v.Text($"Loaded: {loadedItems.Count} items (batch {loadCount})"),
+        v.Text(status),
+        v.Text(""),
+        v.Border(
+            v.VScroll(
+                inner => loadedItems.Select(item => inner.Text(item)).ToArray()
+            ).OnScroll(args => {
+                // Load more when scrolled past 80%
+                if (args.Progress > 0.8 && args.IsScrollable)
+                {
+                    loadCount++;
+                    var startIndex = loadedItems.Count + 1;
+                    var newItems = Enumerable.Range(startIndex, 10)
+                        .Select(i => $"Item {i} (batch {loadCount})")
+                        .ToList();
+                    loadedItems.AddRange(newItems);
+                    status = $"Loaded batch {loadCount}!";
+                }
+            }),
+            title: "Infinite Scroll"
+        )
+    ])
+);
 
 await app.RunAsync();`
 </script>
@@ -91,76 +175,51 @@ The scroll widget displays a scrollbar indicator and handles keyboard navigation
 
 Create a vertical scroll widget using the fluent API. The scroll widget automatically shows a scrollbar when content exceeds the viewport:
 
-<CodeBlock lang="csharp" :code="basicCode" command="dotnet run" example="scroll" exampleTitle="Scroll Widget - Basic Usage" />
+<CodeBlock lang="csharp" :code="basicCode" command="dotnet run" example="scroll-basic" exampleTitle="Scroll Widget - Basic Usage" />
 
 ::: tip Keyboard Navigation
 Use **↑↓** arrow keys to scroll vertically, or **←→** for horizontal scrolling. **PgUp/PgDn** jumps by pages, and **Home/End** jumps to the start or end of content.
 :::
 
-## Vertical Scrolling
-
-The most common scrolling direction for lists, text content, and menus:
-
-<StaticTerminalPreview svgPath="/svg/scroll-vertical-basic.svg" :code="verticalSnippet" />
-
-Use `VScroll()` to create a vertical scroll widget. The scrollbar appears on the right side when content height exceeds the viewport height.
-
 ## Horizontal Scrolling
 
-For wide content like tables or long text lines:
+For wide content like tables or long text lines, use `HScroll()`:
 
-<StaticTerminalPreview svgPath="/svg/scroll-horizontal-basic.svg" :code="horizontalSnippet" />
+<CodeBlock lang="csharp" :code="horizontalCode" command="dotnet run" example="scroll-horizontal" exampleTitle="Scroll Widget - Horizontal" />
 
-Use `HScroll()` to create a horizontal scroll widget. The scrollbar appears at the bottom when content width exceeds the viewport width.
+The scrollbar appears at the bottom when content width exceeds the viewport width.
 
-## Scroll State
+## Scroll Events
 
-The `ScrollState` object tracks the current scroll position and provides methods for programmatic scrolling:
+Use the `OnScroll()` event handler to react to scroll position changes. The `ScrollChangedEventArgs` provides comprehensive information about the current scroll state:
 
-<CodeBlock lang="csharp" :code="stateCode" command="dotnet run" example="scroll" exampleTitle="Scroll Widget - State Management" />
+<CodeBlock lang="csharp" :code="eventCode" command="dotnet run" example="scroll-event" exampleTitle="Scroll Widget - Event Handling" />
 
-### ScrollState Properties
+### ScrollChangedEventArgs Properties
 
 | Property | Type | Description |
 |----------|------|-------------|
-| `Offset` | `int` | Current scroll offset (read/write) |
-| `ContentSize` | `int` | Total size of content in characters (read-only) |
-| `ViewportSize` | `int` | Size of visible viewport in characters (read-only) |
+| `Offset` | `int` | Current scroll offset after the change |
+| `PreviousOffset` | `int` | Scroll offset before the change |
+| `ContentSize` | `int` | Total size of content in characters |
+| `ViewportSize` | `int` | Size of visible viewport in characters |
 | `MaxOffset` | `int` | Maximum scroll offset (computed) |
-| `IsScrollable` | `bool` | Whether content exceeds viewport (computed) |
+| `IsScrollable` | `bool` | Whether content exceeds viewport |
+| `Progress` | `double` | Scroll position as 0.0-1.0 value |
+| `IsAtStart` | `bool` | True when scrolled to the beginning |
+| `IsAtEnd` | `bool` | True when scrolled to the end |
 
-### ScrollState Methods
+### Tracking Scroll Position
 
-```csharp
-// Scroll by single lines/columns
-scrollState.ScrollUp();      // Up or left by 1
-scrollState.ScrollDown();    // Down or right by 1
+Display the current scroll position in your UI:
 
-// Scroll by custom amounts
-scrollState.ScrollUp(5);     // Up or left by 5
-scrollState.ScrollDown(3);   // Down or right by 3
+<CodeBlock lang="csharp" :code="trackingCode" command="dotnet run" example="scroll-tracking" exampleTitle="Scroll Widget - Position Tracking" />
 
-// Page scrolling (by viewport size)
-scrollState.PageUp();        // Up or left by one page
-scrollState.PageDown();      // Down or right by one page
+### Infinite Scroll
 
-// Jump to boundaries
-scrollState.ScrollToStart(); // Jump to beginning
-scrollState.ScrollToEnd();   // Jump to end
-```
+Load more content when the user scrolls near the end:
 
-::: tip State Persistence
-Create a `ScrollState` instance and pass it to the scroll widget to track position across re-renders. Without an explicit state, a new state is created each time, causing the scroll position to reset to the top whenever the widget rebuilds.
-
-```csharp
-// ✅ Position preserved across re-renders
-var scrollState = new ScrollState();
-ctx.VScroll(v => [...], scrollState)
-
-// ❌ Position resets to top on each re-render
-ctx.VScroll(v => [...])  // New state created each time
-```
-:::
+<CodeBlock lang="csharp" :code="infiniteCode" command="dotnet run" example="scroll-infinite" exampleTitle="Scroll Widget - Infinite Scroll" />
 
 ## Scrollbar Visibility
 
@@ -184,18 +243,14 @@ When the scroll widget is focused, these keys control scrolling:
 
 | Key | Action |
 |-----|--------|
-| `↑` or `k` | Scroll up one line (vertical) |
-| `↓` or `j` | Scroll down one line (vertical) |
-| `←` or `h` | Scroll left one column (horizontal) |
-| `→` or `l` | Scroll right one column (horizontal) |
+| `↑` | Scroll up one line (vertical) |
+| `↓` | Scroll down one line (vertical) |
+| `←` | Scroll left one column (horizontal) |
+| `→` | Scroll right one column (horizontal) |
 | `PgUp` | Scroll up one page |
 | `PgDn` | Scroll down one page |
 | `Home` | Jump to start |
 | `End` | Jump to end |
-
-::: tip Vim-style Navigation
-The scroll widget supports Vim-style navigation keys (`h`, `j`, `k`, `l`) in addition to arrow keys for users familiar with Vim keybindings.
-:::
 
 ## Focus Management
 
@@ -316,18 +371,24 @@ ctx.VStack(v => [
 ])
 ```
 
-Each scroll widget maintains its own independent scroll position.
+Each scroll widget maintains its own independent scroll position (managed internally by the node).
 
-### Programmatic Scrolling
+### Tracking Scroll Position for UI Display
 
 ```csharp
-var scrollState = new ScrollState();
+// Use local variables to capture scroll state for display
+int scrollPosition = 0;
+int totalContent = 0;
 
-// In event handlers
-buttonNode.OnClick(_ => {
-    scrollState.ScrollToEnd();
-    app.Invalidate();  // Trigger re-render
-});
+ctx.VStack(v => [
+    v.Text($"Viewing: {scrollPosition + 1} - {Math.Min(scrollPosition + 10, totalContent)} of {totalContent}"),
+    v.VScroll(
+        inner => items.Select(item => inner.Text(item)).ToArray()
+    ).OnScroll(args => {
+        scrollPosition = args.Offset;
+        totalContent = args.ContentSize;
+    })
+])
 ```
 
 ## Related Widgets

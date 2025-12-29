@@ -322,14 +322,14 @@ public sealed class Hex1bTerminal : IDisposable
                 // Notify workload filters with tokens
                 await NotifyWorkloadFiltersOutputAsync(tokens);
                 
-                // Apply tokens to our internal buffer
-                ApplyTokens(tokens);
+                // Apply tokens to our internal buffer and collect cell impacts
+                var appliedTokens = ApplyTokensWithImpacts(tokens);
                 
                 // Forward to presentation if present
                 if (_presentation != null)
                 {
                     // Pass through presentation filters, serialize and send
-                    var filteredTokens = await NotifyPresentationFiltersOutputAsync(tokens);
+                    var filteredTokens = await NotifyPresentationFiltersOutputAsync(appliedTokens);
                     var filteredText = AnsiTokenSerializer.Serialize(filteredTokens);
                     var filteredBytes = Encoding.UTF8.GetBytes(filteredText);
                     
@@ -2054,17 +2054,21 @@ public sealed class Hex1bTerminal : IDisposable
         }
     }
 
-    private async ValueTask<IReadOnlyList<AnsiToken>> NotifyPresentationFiltersOutputAsync(IReadOnlyList<AnsiToken> tokens, CancellationToken ct = default)
+    private async ValueTask<IReadOnlyList<AnsiToken>> NotifyPresentationFiltersOutputAsync(IReadOnlyList<AppliedToken> appliedTokens, CancellationToken ct = default)
     {
-        if (_presentationFilters.Count == 0) return tokens;
+        if (_presentationFilters.Count == 0) return appliedTokens.Select(at => at.Token).ToList();
         var elapsed = GetElapsed();
-        var currentTokens = tokens;
+        var currentAppliedTokens = appliedTokens;
+        IReadOnlyList<AnsiToken> resultTokens = appliedTokens.Select(at => at.Token).ToList();
         foreach (var filter in _presentationFilters)
         {
             ct.ThrowIfCancellationRequested();
-            currentTokens = await filter.OnOutputAsync(currentTokens, elapsed, ct);
+            resultTokens = await filter.OnOutputAsync(currentAppliedTokens, elapsed, ct);
+            // For subsequent filters, wrap the result tokens as AppliedTokens with no cell impacts
+            // (since they may have been transformed by the previous filter)
+            currentAppliedTokens = resultTokens.Select(t => AppliedToken.WithNoCellImpacts(t, 0, 0, 0, 0)).ToList();
         }
-        return currentTokens;
+        return resultTokens;
     }
 
     private async ValueTask NotifyPresentationFiltersInputAsync(ReadOnlyMemory<byte> data, CancellationToken ct = default)

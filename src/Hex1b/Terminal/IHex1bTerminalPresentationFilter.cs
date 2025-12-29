@@ -38,14 +38,20 @@ public interface IHex1bTerminalPresentationFilter
     /// Called when output is being sent to the presentation layer.
     /// </summary>
     /// <remarks>
-    /// The filter receives tokens and can modify, filter, or pass them through.
+    /// <para>
+    /// The filter receives applied tokens with their cell impacts, allowing filters to
+    /// understand exactly which cells were affected by each token. This enables advanced
+    /// optimizations like delta encoding where only changed cells are transmitted.
+    /// </para>
+    /// <para>
     /// Use <see cref="AnsiTokenSerializer.Serialize(IEnumerable{AnsiToken})"/> to convert tokens to bytes if needed.
+    /// </para>
     /// </remarks>
-    /// <param name="tokens">The ANSI tokens being sent to display.</param>
+    /// <param name="appliedTokens">The applied tokens with their cell impacts.</param>
     /// <param name="elapsed">Time elapsed since session start.</param>
     /// <param name="ct">Cancellation token.</param>
-    /// <returns>The tokens to send to the presentation layer. Return the same tokens to pass through, or a modified list.</returns>
-    ValueTask<IReadOnlyList<AnsiToken>> OnOutputAsync(IReadOnlyList<AnsiToken> tokens, TimeSpan elapsed, CancellationToken ct = default);
+    /// <returns>The tokens to send to the presentation layer. Return the original tokens to pass through, or a modified list.</returns>
+    ValueTask<IReadOnlyList<AnsiToken>> OnOutputAsync(IReadOnlyList<AppliedToken> appliedTokens, TimeSpan elapsed, CancellationToken ct = default);
 
     /// <summary>
     /// Called when input is received from the presentation layer.

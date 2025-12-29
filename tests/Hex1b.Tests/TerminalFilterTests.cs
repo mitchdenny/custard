@@ -274,10 +274,11 @@ public class TerminalFilterTests
             return ValueTask.CompletedTask;
         }
 
-        public ValueTask<IReadOnlyList<Hex1b.Tokens.AnsiToken>> OnOutputAsync(IReadOnlyList<Hex1b.Tokens.AnsiToken> tokens, TimeSpan elapsed, CancellationToken ct = default)
+        public ValueTask<IReadOnlyList<Hex1b.Tokens.AnsiToken>> OnOutputAsync(IReadOnlyList<Hex1b.Tokens.AppliedToken> appliedTokens, TimeSpan elapsed, CancellationToken ct = default)
         {
+            var tokens = appliedTokens.Select(at => at.Token).ToList();
             OutputChunks.Add(Hex1b.Tokens.AnsiTokenSerializer.Serialize(tokens));
-            return ValueTask.FromResult(tokens);
+            return ValueTask.FromResult<IReadOnlyList<Hex1b.Tokens.AnsiToken>>(tokens);
         }
 
         public ValueTask OnInputAsync(ReadOnlyMemory<byte> data, TimeSpan elapsed, CancellationToken ct = default)

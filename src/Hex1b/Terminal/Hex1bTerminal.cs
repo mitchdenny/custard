@@ -58,6 +58,7 @@ public sealed class Hex1bTerminal : IDisposable
     private readonly DateTimeOffset _sessionStart;
     private readonly TrackedObjectStore _trackedObjects = new();
     private readonly TimeProvider _timeProvider;
+    private readonly bool _useTokenBasedFilters;
     private TerminalCell[,] _screenBuffer;
     private int _cursorX;
     private int _cursorY;
@@ -98,7 +99,8 @@ public sealed class Hex1bTerminal : IDisposable
             height: options.Height,
             workloadFilters: options.WorkloadFilters,
             presentationFilters: options.PresentationFilters,
-            timeProvider: options.TimeProvider)
+            timeProvider: options.TimeProvider,
+            useTokenBasedFilters: options.UseTokenBasedFilters)
     {
     }
 
@@ -112,6 +114,7 @@ public sealed class Hex1bTerminal : IDisposable
     /// <param name="workloadFilters">Filters applied on the workload side.</param>
     /// <param name="presentationFilters">Filters applied on the presentation side.</param>
     /// <param name="timeProvider">The time provider for all time-related operations. Defaults to system time.</param>
+    /// <param name="useTokenBasedFilters">When true, uses token-based ANSI processing for filters.</param>
     public Hex1bTerminal(
         IHex1bTerminalPresentationAdapter? presentation,
         IHex1bTerminalWorkloadAdapter workload,
@@ -119,13 +122,15 @@ public sealed class Hex1bTerminal : IDisposable
         int height = 24,
         IEnumerable<IHex1bTerminalWorkloadFilter>? workloadFilters = null,
         IEnumerable<IHex1bTerminalPresentationFilter>? presentationFilters = null,
-        TimeProvider? timeProvider = null)
+        TimeProvider? timeProvider = null,
+        bool useTokenBasedFilters = false)
     {
         _presentation = presentation;
         _workload = workload ?? throw new ArgumentNullException(nameof(workload));
         _workloadFilters = workloadFilters?.ToList() ?? [];
         _presentationFilters = presentationFilters?.ToList() ?? [];
         _timeProvider = timeProvider ?? TimeProvider.System;
+        _useTokenBasedFilters = useTokenBasedFilters;
         _sessionStart = _timeProvider.GetUtcNow();
         
         // Get dimensions from presentation if available, otherwise use provided dimensions
@@ -311,22 +316,47 @@ public sealed class Hex1bTerminal : IDisposable
                     continue;
                 }
 
-                // Notify workload filters of output FROM workload
-                await NotifyWorkloadFiltersOutputAsync(data);
-
                 var text = Encoding.UTF8.GetString(data.Span);
-                ProcessOutput(text);
 
-                // Forward to presentation if present
-                if (_presentation != null)
+                if (_useTokenBasedFilters)
                 {
-                    // Tokenize, pass through presentation filters, serialize and send
+                    // Token-based processing: parse once, filter at semantic level
                     var tokens = AnsiTokenizer.Tokenize(text);
-                    var filteredTokens = await NotifyPresentationFiltersOutputAsync(tokens);
-                    var filteredText = AnsiTokenSerializer.Serialize(filteredTokens);
-                    var filteredBytes = Encoding.UTF8.GetBytes(filteredText);
                     
-                    await _presentation.WriteOutputAsync(filteredBytes);
+                    // Notify workload filters with tokens
+                    await NotifyWorkloadFiltersOutputAsync(tokens);
+                    
+                    // Apply tokens to our internal buffer
+                    ApplyTokens(tokens);
+                    
+                    // Forward to presentation if present
+                    if (_presentation != null)
+                    {
+                        // Pass through presentation filters, serialize and send
+                        var filteredTokens = await NotifyPresentationFiltersOutputAsync(tokens);
+                        var filteredText = AnsiTokenSerializer.Serialize(filteredTokens);
+                        var filteredBytes = Encoding.UTF8.GetBytes(filteredText);
+                        
+                        await _presentation.WriteOutputAsync(filteredBytes);
+                    }
+                }
+                else
+                {
+                    // Legacy byte-based processing
+                    await NotifyWorkloadFiltersOutputAsync(data);
+                    ProcessOutput(text);
+                    
+                    // Forward to presentation if present
+                    if (_presentation != null)
+                    {
+                        // Tokenize, pass through presentation filters, serialize and send
+                        var tokens = AnsiTokenizer.Tokenize(text);
+                        var filteredTokens = await NotifyPresentationFiltersOutputAsync(tokens);
+                        var filteredText = AnsiTokenSerializer.Serialize(filteredTokens);
+                        var filteredBytes = Encoding.UTF8.GetBytes(filteredText);
+                        
+                        await _presentation.WriteOutputAsync(filteredBytes);
+                    }
                 }
             }
         }
@@ -2046,6 +2076,17 @@ public sealed class Hex1bTerminal : IDisposable
         var elapsed = GetElapsed();
         var text = Encoding.UTF8.GetString(data.Span);
         var tokens = AnsiTokenizer.Tokenize(text);
+        foreach (var filter in _workloadFilters)
+        {
+            ct.ThrowIfCancellationRequested();
+            await filter.OnOutputAsync(tokens, elapsed, ct);
+        }
+    }
+
+    private async ValueTask NotifyWorkloadFiltersOutputAsync(IReadOnlyList<AnsiToken> tokens, CancellationToken ct = default)
+    {
+        if (_workloadFilters.Count == 0) return;
+        var elapsed = GetElapsed();
         foreach (var filter in _workloadFilters)
         {
             ct.ThrowIfCancellationRequested();

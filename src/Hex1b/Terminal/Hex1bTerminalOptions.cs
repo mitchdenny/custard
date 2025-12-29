@@ -71,6 +71,22 @@ public sealed class Hex1bTerminalOptions
     public TimeProvider TimeProvider { get; set; } = TimeProvider.System;
 
     /// <summary>
+    /// When true, uses token-based ANSI processing for filters.
+    /// This enables semantic-level filtering where filters receive parsed ANSI tokens
+    /// instead of raw bytes, allowing for more sophisticated transformations.
+    /// Default is false for backward compatibility.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Token-based processing tokenizes ANSI sequences once, passes them through
+    /// filter chains, and serializes the filtered tokens back to bytes.
+    /// This approach enables filters to work at a semantic level (e.g., modifying
+    /// colors, suppressing specific sequences) rather than at the byte level.
+    /// </para>
+    /// </remarks>
+    public bool UseTokenBasedFilters { get; set; }
+
+    /// <summary>
     /// Validates the options and throws if invalid.
     /// </summary>
     internal void Validate()

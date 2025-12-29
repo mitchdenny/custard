@@ -8,9 +8,17 @@ namespace Hex1b.Terminal;
 /// </summary>
 /// <remarks>
 /// <para>
-/// This filter maintains a "shadow buffer" representing what has been sent to the presentation
-/// layer. When new output arrives, it compares the cell impacts against the shadow buffer and
-/// only generates tokens for cells that have actually changed.
+/// This filter maintains dual buffers for delta encoding:
+/// <list type="bullet">
+///   <item><b>Pending buffer</b>: Accumulates changes during the current frame</item>
+///   <item><b>Committed buffer</b>: Represents what was last sent to the presentation layer</item>
+/// </list>
+/// </para>
+/// <para>
+/// When frame buffering is enabled (via <see cref="FrameBeginToken"/> and <see cref="FrameEndToken"/>),
+/// updates are accumulated in the pending buffer without emitting output. When the frame ends,
+/// the filter compares pending vs committed and emits only the net changes, eliminating
+/// intermediate states (like clear-then-render) that cause flicker.
 /// </para>
 /// <para>
 /// Benefits:
@@ -18,12 +26,18 @@ namespace Hex1b.Terminal;
 ///   <item>Reduces bandwidth for remote terminal connections</item>
 ///   <item>Improves rendering performance by avoiding redundant updates</item>
 ///   <item>Enables efficient partial screen updates</item>
+///   <item>Eliminates flicker from intermediate render states</item>
 /// </list>
 /// </para>
 /// </remarks>
 public sealed class DeltaEncodingFilter : IHex1bTerminalPresentationFilter
 {
-    private ShadowCell[,]? _shadowBuffer;
+    // Pending buffer: accumulates changes during the current frame
+    private ShadowCell[,]? _pendingBuffer;
+    
+    // Committed buffer: represents what was last sent to the terminal
+    private ShadowCell[,]? _committedBuffer;
+    
     private int _width;
     private int _height;
     private bool _forceFullRefresh;
@@ -54,7 +68,7 @@ public sealed class DeltaEncodingFilter : IHex1bTerminalPresentationFilter
     /// <inheritdoc />
     public ValueTask OnSessionStartAsync(int width, int height, DateTimeOffset timestamp, CancellationToken ct = default)
     {
-        InitializeShadowBuffer(width, height);
+        InitializeBuffers(width, height);
         _forceFullRefresh = true; // First frame should pass through
         return ValueTask.CompletedTask;
     }
@@ -65,18 +79,20 @@ public sealed class DeltaEncodingFilter : IHex1bTerminalPresentationFilter
         TimeSpan elapsed,
         CancellationToken ct = default)
     {
-        if (_shadowBuffer is null || _forceFullRefresh)
+        if (_pendingBuffer is null || _committedBuffer is null || _forceFullRefresh)
         {
             _forceFullRefresh = false;
             
-            // Update shadow buffer with all impacts, then pass through tokens
+            // Update both buffers with all impacts, then pass through tokens
             foreach (var appliedToken in appliedTokens)
             {
                 foreach (var impact in appliedToken.CellImpacts)
                 {
                     if (impact.X >= 0 && impact.X < _width && impact.Y >= 0 && impact.Y < _height)
                     {
-                        _shadowBuffer![impact.Y, impact.X] = ShadowCell.FromTerminalCell(impact.Cell);
+                        var cell = ShadowCell.FromTerminalCell(impact.Cell);
+                        _pendingBuffer![impact.Y, impact.X] = cell;
+                        _committedBuffer![impact.Y, impact.X] = cell;
                     }
                 }
             }
@@ -100,8 +116,9 @@ public sealed class DeltaEncodingFilter : IHex1bTerminalPresentationFilter
             switch (token)
             {
                 case ClearScreenToken clearToken:
-                    // Clear screen - update shadow buffer and pass through
-                    ClearShadowBuffer(clearToken.Mode);
+                    // Clear screen - update both buffers and pass through
+                    ClearBuffer(_pendingBuffer, clearToken.Mode);
+                    ClearBuffer(_committedBuffer, clearToken.Mode);
                     controlTokens.Add(token);
                     continue;
                     
@@ -132,13 +149,17 @@ public sealed class DeltaEncodingFilter : IHex1bTerminalPresentationFilter
                     continue;
 
                 var newShadowCell = ShadowCell.FromTerminalCell(impact.Cell);
-                var currentShadowCell = _shadowBuffer[impact.Y, impact.X];
+                var currentCommittedCell = _committedBuffer[impact.Y, impact.X];
 
-                // Only record if the cell actually changed
-                if (newShadowCell != currentShadowCell)
+                // Update pending buffer
+                _pendingBuffer[impact.Y, impact.X] = newShadowCell;
+
+                // Only record if the cell actually changed from committed state
+                if (newShadowCell != currentCommittedCell)
                 {
                     changedCells.Add(new ChangedCell(impact.X, impact.Y, newShadowCell));
-                    _shadowBuffer[impact.Y, impact.X] = newShadowCell;
+                    // Update committed buffer since we're emitting immediately in Phase 2
+                    _committedBuffer[impact.Y, impact.X] = newShadowCell;
                 }
             }
         }
@@ -164,8 +185,8 @@ public sealed class DeltaEncodingFilter : IHex1bTerminalPresentationFilter
     /// <inheritdoc />
     public ValueTask OnResizeAsync(int width, int height, TimeSpan elapsed, CancellationToken ct = default)
     {
-        // Reinitialize shadow buffer on resize and force a full refresh
-        InitializeShadowBuffer(width, height);
+        // Reinitialize both buffers on resize and force a full refresh
+        InitializeBuffers(width, height);
         _forceFullRefresh = true;
         return ValueTask.CompletedTask;
     }
@@ -173,35 +194,38 @@ public sealed class DeltaEncodingFilter : IHex1bTerminalPresentationFilter
     /// <inheritdoc />
     public ValueTask OnSessionEndAsync(TimeSpan elapsed, CancellationToken ct = default)
     {
-        _shadowBuffer = null;
+        _pendingBuffer = null;
+        _committedBuffer = null;
         _width = 0;
         _height = 0;
         _forceFullRefresh = false;
         return ValueTask.CompletedTask;
     }
 
-    private void InitializeShadowBuffer(int width, int height)
+    private void InitializeBuffers(int width, int height)
     {
         _width = width;
         _height = height;
-        _shadowBuffer = new ShadowCell[height, width];
+        _pendingBuffer = new ShadowCell[height, width];
+        _committedBuffer = new ShadowCell[height, width];
 
-        // Initialize with empty cells
+        // Initialize both buffers with empty cells
         for (int y = 0; y < height; y++)
         {
             for (int x = 0; x < width; x++)
             {
-                _shadowBuffer[y, x] = ShadowCell.Empty;
+                _pendingBuffer[y, x] = ShadowCell.Empty;
+                _committedBuffer[y, x] = ShadowCell.Empty;
             }
         }
     }
 
     /// <summary>
-    /// Clears the shadow buffer based on the clear mode.
+    /// Clears a buffer based on the clear mode.
     /// </summary>
-    private void ClearShadowBuffer(ClearMode mode)
+    private void ClearBuffer(ShadowCell[,]? buffer, ClearMode mode)
     {
-        if (_shadowBuffer is null) return;
+        if (buffer is null) return;
         
         // For simplicity, treat all clear modes as full clear
         // A more sophisticated implementation could track cursor position
@@ -209,7 +233,7 @@ public sealed class DeltaEncodingFilter : IHex1bTerminalPresentationFilter
         {
             for (int x = 0; x < _width; x++)
             {
-                _shadowBuffer[y, x] = ShadowCell.Empty;
+                buffer[y, x] = ShadowCell.Empty;
             }
         }
     }

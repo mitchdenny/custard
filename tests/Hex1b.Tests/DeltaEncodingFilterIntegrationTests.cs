@@ -821,6 +821,10 @@ public class DeltaEncodingFilterIntegrationTests
         // Wait for the frame after the left arrow action to complete
         await captureFilter.WaitForFrameAsync(TestContext.Current.CancellationToken);
         
+        // Capture measurements BEFORE Ctrl+C to avoid shutdown-related frames polluting our data
+        var framePositionsCaptured = captureFilter.FrameCellPositions.ToList();
+        var frameCountCaptured = captureFilter.CompleteFrameCount;
+        
         // Now exit the app
         await new Hex1bTestSequenceBuilder()
             .Capture("after_move")
@@ -829,15 +833,15 @@ public class DeltaEncodingFilterIntegrationTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
-        // Assert - analyze the frames after the move
-        Assert.True(captureFilter.FrameCellPositions.Count > 0,
-            $"Should have frames after the move. Count: {captureFilter.FrameCellPositions.Count}");
+        // Assert - analyze the frames after the move (using captured data before shutdown)
+        Assert.True(framePositionsCaptured.Count > 0,
+            $"Should have frames after the move. Count: {framePositionsCaptured.Count}");
         
         // Get all cell positions updated after the move
         var allUpdatedCells = new HashSet<(int X, int Y)>();
-        for (int i = 0; i < captureFilter.FrameCellPositions.Count; i++)
+        for (int i = 0; i < framePositionsCaptured.Count; i++)
         {
-            foreach (var cell in captureFilter.FrameCellPositions[i])
+            foreach (var cell in framePositionsCaptured[i])
             {
                 allUpdatedCells.Add(cell);
             }

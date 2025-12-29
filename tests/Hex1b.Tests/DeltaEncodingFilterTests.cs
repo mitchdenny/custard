@@ -238,6 +238,95 @@ public class DeltaEncodingFilterTests
     }
 
     [Fact]
+    public async Task OnResizeAsync_DuringFrameBuffering_CancelsCurrentFrame()
+    {
+        // Arrange - this tests the fix for resize during frame buffering
+        // When a resize happens mid-frame, the buffered content is invalid
+        // (it was for the old terminal dimensions) so we must cancel the frame
+        var filter = new DeltaEncodingFilter();
+        await filter.OnSessionStartAsync(80, 24, DateTimeOffset.UtcNow);
+
+        // Start a frame
+        var frameBegin = new List<AppliedToken>
+        {
+            new(FrameBeginToken.Instance, [], 0, 0, 0, 0)
+        };
+        await filter.OnOutputAsync(frameBegin, TimeSpan.Zero);
+
+        // Write some content during the frame
+        var cellImpacts = new List<CellImpact>
+        {
+            new(0, 0, new TerminalCell("A", null, null))
+        };
+        var contentTokens = new List<AppliedToken>
+        {
+            new(new TextToken("A"), cellImpacts, 0, 0, 1, 0)
+        };
+        await filter.OnOutputAsync(contentTokens, TimeSpan.FromMilliseconds(10));
+
+        // Resize happens mid-frame - this should cancel the buffering
+        await filter.OnResizeAsync(100, 30, TimeSpan.FromMilliseconds(20));
+
+        // End the frame - since buffering was cancelled by resize, this FrameEndToken
+        // is orphaned and should be handled gracefully without consuming forceFullRefresh
+        var frameEnd = new List<AppliedToken>
+        {
+            new(FrameEndToken.Instance, [], 0, 0, 0, 0)
+        };
+        var result = await filter.OnOutputAsync(frameEnd, TimeSpan.FromMilliseconds(30));
+
+        // Assert - orphaned FrameEndToken should return empty (no content to output)
+        // and should NOT consume the forceFullRefresh flag
+        Assert.Empty(result);
+    }
+
+    [Fact]
+    public async Task OnResizeAsync_DuringFrameBuffering_NextFrameIsFullRefresh()
+    {
+        // Arrange - verify that after resize, the next content is a full refresh
+        var filter = new DeltaEncodingFilter();
+        await filter.OnSessionStartAsync(80, 24, DateTimeOffset.UtcNow);
+
+        // Write initial content (before any buffering) - this consumes forceFullRefresh
+        var cellImpacts1 = new List<CellImpact>
+        {
+            new(0, 0, new TerminalCell("X", null, null))
+        };
+        var contentTokens1 = new List<AppliedToken>
+        {
+            new(new TextToken("X"), cellImpacts1, 0, 0, 1, 0)
+        };
+        await filter.OnOutputAsync(contentTokens1, TimeSpan.Zero);
+
+        // Start a frame
+        var frameBegin = new List<AppliedToken>
+        {
+            new(FrameBeginToken.Instance, [], 0, 0, 0, 0)
+        };
+        await filter.OnOutputAsync(frameBegin, TimeSpan.FromMilliseconds(10));
+
+        // Resize mid-frame - sets forceFullRefresh = true and cancels buffering
+        await filter.OnResizeAsync(100, 30, TimeSpan.FromMilliseconds(20));
+
+        // Orphaned FrameEndToken - should NOT consume forceFullRefresh
+        var frameEnd = new List<AppliedToken>
+        {
+            new(FrameEndToken.Instance, [], 0, 0, 0, 0)
+        };
+        await filter.OnOutputAsync(frameEnd, TimeSpan.FromMilliseconds(25));
+
+        // Write the same content again (the cell "X" at position 0,0)
+        // Since forceFullRefresh should still be true, this should produce output
+        var result = await filter.OnOutputAsync(contentTokens1, TimeSpan.FromMilliseconds(30));
+
+        // Assert - should produce output because resize triggered force refresh
+        // and the orphaned FrameEndToken did NOT consume it
+        Assert.NotEmpty(result);
+        Assert.IsType<SgrToken>(result[0]); // SGR reset prepended
+        Assert.IsType<TextToken>(result[1]); // Original text token passes through
+    }
+
+    [Fact]
     public async Task OnOutputAsync_WithAttributeChange_ProducesOutput()
     {
         // Arrange
@@ -368,8 +457,12 @@ public class DeltaEncodingFilterTests
         var filter = new DeltaEncodingFilter();
         await filter.OnSessionStartAsync(10, 5, DateTimeOffset.Now);
         
-        // Consume the first frame (force refresh) with empty content
-        await filter.OnOutputAsync([], TimeSpan.Zero);
+        // Consume the first frame (force refresh) with actual content
+        var consumeForceRefresh = new List<AppliedToken>
+        {
+            new AppliedToken(new TextToken("X"), [new CellImpact(9, 4, new TerminalCell { Character = "X" })], 0, 0, 0, 0)
+        };
+        await filter.OnOutputAsync(consumeForceRefresh, TimeSpan.Zero);
         
         // Act - send FrameBegin and some content (but no FrameEnd)
         var frameTokens = new List<AppliedToken>
@@ -389,7 +482,13 @@ public class DeltaEncodingFilterTests
         // Arrange
         var filter = new DeltaEncodingFilter();
         await filter.OnSessionStartAsync(10, 5, DateTimeOffset.Now);
-        await filter.OnOutputAsync([], TimeSpan.Zero); // Consume force refresh
+        
+        // Consume force refresh with actual content
+        var consumeForceRefresh = new List<AppliedToken>
+        {
+            new AppliedToken(new TextToken("X"), [new CellImpact(9, 4, new TerminalCell { Character = "X" })], 0, 0, 0, 0)
+        };
+        await filter.OnOutputAsync(consumeForceRefresh, TimeSpan.Zero);
         
         // Act - send a complete frame
         var beginFrame = new List<AppliedToken>
@@ -550,7 +649,13 @@ public class DeltaEncodingFilterTests
         // Arrange
         var filter = new DeltaEncodingFilter();
         await filter.OnSessionStartAsync(10, 5, DateTimeOffset.Now);
-        await filter.OnOutputAsync([], TimeSpan.Zero); // Consume force refresh
+        
+        // Consume force refresh with actual content
+        var consumeForceRefresh = new List<AppliedToken>
+        {
+            new AppliedToken(new TextToken("X"), [new CellImpact(9, 4, new TerminalCell { Character = "X" })], 0, 0, 0, 0)
+        };
+        await filter.OnOutputAsync(consumeForceRefresh, TimeSpan.Zero);
         
         // Act - send FrameBegin, some content, then another FrameBegin (should flush first frame)
         var firstBegin = new List<AppliedToken>

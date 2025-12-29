@@ -86,6 +86,34 @@ public sealed class DeltaEncodingFilter : IHex1bTerminalPresentationFilter
         // Handle force full refresh (first frame or after resize)
         if (_pendingBuffer is null || _committedBuffer is null || _forceFullRefresh)
         {
+            // Check if there are any content tokens (not just frame boundary tokens)
+            // We don't want orphaned frame tokens after a resize to consume the force refresh flag
+            var contentTokens = appliedTokens
+                .Where(at => at.Token is not FrameBeginToken and not FrameEndToken)
+                .ToList();
+            
+            if (contentTokens.Count == 0)
+            {
+                // Only frame boundary tokens - handle them but don't consume force refresh
+                foreach (var appliedToken in appliedTokens)
+                {
+                    switch (appliedToken.Token)
+                    {
+                        case FrameBeginToken:
+                            _isBuffering = true;
+                            _bufferedControlTokens = [];
+                            break;
+                        case FrameEndToken:
+                            // Ignore orphaned FrameEnd - the frame was cancelled by resize
+                            _isBuffering = false;
+                            _bufferedControlTokens = null;
+                            break;
+                    }
+                }
+                return ValueTask.FromResult<IReadOnlyList<AnsiToken>>([]);
+            }
+            
+            // We have real content - consume the force refresh flag
             _forceFullRefresh = false;
             
             // Update both buffers with all impacts, then pass through tokens
@@ -103,10 +131,15 @@ public sealed class DeltaEncodingFilter : IHex1bTerminalPresentationFilter
                 }
             }
             
-            // Prepend an SGR reset to ensure clean state after resize
-            // This prevents leftover colors/attributes from bleeding into new content
-            // Filter out internal frame tokens - they're not meant for the terminal
-            var result = new List<AnsiToken> { new SgrToken("0") };
+            // On force refresh (after resize), we must clear the entire screen first.
+            // The terminal's buffer may have old content in newly expanded areas that our
+            // shadow buffers don't know about. 
+            // IMPORTANT: Reset SGR BEFORE clearing, so the clear uses default colors.
+            var result = new List<AnsiToken> 
+            { 
+                new SgrToken("0"),                     // Reset attributes first!
+                new ClearScreenToken(ClearMode.All),   // Clear entire terminal buffer (uses current bg)
+            };
             result.AddRange(appliedTokens
                 .Select(at => at.Token)
                 .Where(t => t is not FrameBeginToken and not FrameEndToken));
@@ -336,6 +369,15 @@ public sealed class DeltaEncodingFilter : IHex1bTerminalPresentationFilter
         // Reinitialize both buffers on resize and force a full refresh
         InitializeBuffers(width, height);
         _forceFullRefresh = true;
+        
+        // If we were buffering when the resize happened, cancel the current frame.
+        // The buffered content is now invalid because:
+        // 1. The buffers have been reinitialized to the new size
+        // 2. The pending content was for the old terminal dimensions
+        // The next frame will be a full refresh due to _forceFullRefresh = true
+        _isBuffering = false;
+        _bufferedControlTokens = null;
+        
         return ValueTask.CompletedTask;
     }
 

@@ -154,7 +154,7 @@ try
     
     // Create the terminal that bridges presentation ↔ workload
     // The terminal auto-starts I/O pumps when a presentation adapter is provided
-    using var terminal = new Hex1bTerminal(presentation, workload, useTokenBasedFilters: true);
+    using var terminal = new Hex1bTerminal(presentation, workload);
 
     await using var app = new Hex1bApp(
         ctx => ctx.VStack(root => [

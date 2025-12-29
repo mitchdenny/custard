@@ -701,7 +701,11 @@ public sealed class Hex1bTerminal : IDisposable
     /// Sets a cell in the screen buffer, properly managing tracked object references.
     /// Releases the old cell's tracked object (if any) and adds a reference for the new one (if any).
     /// </summary>
-    private void SetCell(int y, int x, TerminalCell newCell)
+    /// <param name="y">The row position (0-based).</param>
+    /// <param name="x">The column position (0-based).</param>
+    /// <param name="newCell">The new cell value.</param>
+    /// <param name="impacts">Optional list to record the cell impact for delta tracking.</param>
+    private void SetCell(int y, int x, TerminalCell newCell, List<CellImpact>? impacts = null)
     {
         ref var oldCell = ref _screenBuffer[y, x];
         
@@ -717,6 +721,9 @@ public sealed class Hex1bTerminal : IDisposable
         // with the correct refcount
         
         oldCell = newCell;
+        
+        // Record the impact if tracking is enabled
+        impacts?.Add(new CellImpact(x, y, newCell));
     }
 
     /// <summary>
@@ -824,13 +831,13 @@ public sealed class Hex1bTerminal : IDisposable
         return false;
     }
 
-    private void ClearBuffer()
+    private void ClearBuffer(List<CellImpact>? impacts = null)
     {
         for (int y = 0; y < _height; y++)
         {
             for (int x = 0; x < _width; x++)
             {
-                SetCell(y, x, TerminalCell.Empty);
+                SetCell(y, x, TerminalCell.Empty, impacts);
             }
         }
         _currentForeground = null;
@@ -849,19 +856,53 @@ public sealed class Hex1bTerminal : IDisposable
     {
         foreach (var token in tokens)
         {
-            ApplyToken(token);
+            ApplyToken(token, null);
         }
+    }
+
+    /// <summary>
+    /// Applies a list of ANSI tokens to the screen buffer and captures the impact of each token.
+    /// </summary>
+    /// <remarks>
+    /// This method tracks which cells were modified by each token and captures cursor movement.
+    /// The returned <see cref="AppliedToken"/> list contains metadata useful for delta encoding
+    /// and other presentation filters.
+    /// </remarks>
+    /// <param name="tokens">The tokens to apply.</param>
+    /// <returns>A list of applied tokens with their cell impacts and cursor state changes.</returns>
+    internal IReadOnlyList<AppliedToken> ApplyTokensWithImpacts(IReadOnlyList<AnsiToken> tokens)
+    {
+        var result = new List<AppliedToken>(tokens.Count);
+        
+        foreach (var token in tokens)
+        {
+            int cursorXBefore = _cursorX;
+            int cursorYBefore = _cursorY;
+            
+            var impacts = new List<CellImpact>();
+            ApplyToken(token, impacts);
+            
+            result.Add(new AppliedToken(
+                token,
+                impacts,
+                cursorXBefore, cursorYBefore,
+                _cursorX, _cursorY));
+        }
+        
+        return result;
     }
 
     /// <summary>
     /// Applies a single ANSI token to the screen buffer.
     /// </summary>
-    private void ApplyToken(AnsiToken token)
+    /// <param name="token">The token to apply.</param>
+    /// <param name="impacts">Optional list to record cell impacts for delta tracking.</param>
+    private void ApplyToken(AnsiToken token, List<CellImpact>? impacts)
     {
         switch (token)
         {
             case TextToken textToken:
-                ApplyTextToken(textToken);
+                ApplyTextToken(textToken, impacts);
                 break;
                 
             case ControlCharacterToken controlToken:
@@ -878,11 +919,11 @@ public sealed class Hex1bTerminal : IDisposable
                 break;
                 
             case ClearScreenToken clearToken:
-                ApplyClearScreen(clearToken.Mode);
+                ApplyClearScreen(clearToken.Mode, impacts);
                 break;
                 
             case ClearLineToken clearLineToken:
-                ApplyClearLine(clearLineToken.Mode);
+                ApplyClearLine(clearLineToken.Mode, impacts);
                 break;
                 
             case PrivateModeToken privateModeToken:
@@ -900,7 +941,7 @@ public sealed class Hex1bTerminal : IDisposable
                 break;
                 
             case DcsToken dcsToken:
-                ProcessSixelData(dcsToken.Payload);
+                ProcessSixelData(dcsToken.Payload, impacts);
                 break;
                 
             case ScrollRegionToken scrollRegionToken:
@@ -928,7 +969,7 @@ public sealed class Hex1bTerminal : IDisposable
         }
     }
 
-    private void ApplyTextToken(TextToken token)
+    private void ApplyTextToken(TextToken token, List<CellImpact>? impacts)
     {
         var text = token.Text;
         int i = 0;
@@ -954,14 +995,14 @@ public sealed class Hex1bTerminal : IDisposable
                 
                 SetCell(_cursorY, _cursorX, new TerminalCell(
                     grapheme, _currentForeground, _currentBackground, _currentAttributes,
-                    sequence, writtenAt, TrackedSixel: null, _currentHyperlink));
+                    sequence, writtenAt, TrackedSixel: null, _currentHyperlink), impacts);
                 
                 for (int w = 1; w < graphemeWidth && _cursorX + w < _width; w++)
                 {
                     _currentHyperlink?.AddRef();
                     SetCell(_cursorY, _cursorX + w, new TerminalCell(
                         "", _currentForeground, _currentBackground, _currentAttributes,
-                        sequence, writtenAt, TrackedSixel: null, _currentHyperlink));
+                        sequence, writtenAt, TrackedSixel: null, _currentHyperlink), impacts);
                 }
                 
                 _cursorX += graphemeWidth;
@@ -1000,38 +1041,38 @@ public sealed class Hex1bTerminal : IDisposable
         }
     }
 
-    private void ApplyClearScreen(ClearMode mode)
+    private void ApplyClearScreen(ClearMode mode, List<CellImpact>? impacts)
     {
         switch (mode)
         {
             case ClearMode.ToEnd:
-                ClearFromCursor();
+                ClearFromCursor(impacts);
                 break;
             case ClearMode.ToStart:
-                ClearToCursor();
+                ClearToCursor(impacts);
                 break;
             case ClearMode.All:
             case ClearMode.AllAndScrollback:
-                ClearBuffer();
+                ClearBuffer(impacts);
                 break;
         }
     }
 
-    private void ApplyClearLine(ClearMode mode)
+    private void ApplyClearLine(ClearMode mode, List<CellImpact>? impacts)
     {
         switch (mode)
         {
             case ClearMode.ToEnd:
                 for (int x = _cursorX; x < _width; x++)
-                    SetCell(_cursorY, x, TerminalCell.Empty);
+                    SetCell(_cursorY, x, TerminalCell.Empty, impacts);
                 break;
             case ClearMode.ToStart:
                 for (int x = 0; x <= _cursorX && x < _width; x++)
-                    SetCell(_cursorY, x, TerminalCell.Empty);
+                    SetCell(_cursorY, x, TerminalCell.Empty, impacts);
                 break;
             case ClearMode.All:
                 for (int x = 0; x < _width; x++)
-                    SetCell(_cursorY, x, TerminalCell.Empty);
+                    SetCell(_cursorY, x, TerminalCell.Empty, impacts);
                 break;
         }
     }
@@ -1289,33 +1330,33 @@ public sealed class Hex1bTerminal : IDisposable
         }
     }
 
-    private void ClearFromCursor()
+    private void ClearFromCursor(List<CellImpact>? impacts = null)
     {
         for (int x = _cursorX; x < _width; x++)
         {
-            SetCell(_cursorY, x, TerminalCell.Empty);
+            SetCell(_cursorY, x, TerminalCell.Empty, impacts);
         }
         for (int y = _cursorY + 1; y < _height; y++)
         {
             for (int x = 0; x < _width; x++)
             {
-                SetCell(y, x, TerminalCell.Empty);
+                SetCell(y, x, TerminalCell.Empty, impacts);
             }
         }
     }
 
-    private void ClearToCursor()
+    private void ClearToCursor(List<CellImpact>? impacts = null)
     {
         for (int y = 0; y < _cursorY; y++)
         {
             for (int x = 0; x < _width; x++)
             {
-                SetCell(y, x, TerminalCell.Empty);
+                SetCell(y, x, TerminalCell.Empty, impacts);
             }
         }
         for (int x = 0; x <= _cursorX && x < _width; x++)
         {
-            SetCell(_cursorY, x, TerminalCell.Empty);
+            SetCell(_cursorY, x, TerminalCell.Empty, impacts);
         }
     }
 
@@ -1414,7 +1455,7 @@ public sealed class Hex1bTerminal : IDisposable
     /// <summary>
     /// Processes Sixel data by creating a tracked object and marking cells.
     /// </summary>
-    private void ProcessSixelData(string sixelPayload)
+    private void ProcessSixelData(string sixelPayload, List<CellImpact>? impacts)
     {
         // Estimate the size in cells based on Sixel data
         // This is approximate - Sixel images can specify dimensions in the data
@@ -1442,7 +1483,7 @@ public sealed class Hex1bTerminal : IDisposable
                     SetCell(y, x, new TerminalCell(
                         " ", _currentForeground, _currentBackground,
                         _currentAttributes | CellAttributes.Sixel,
-                        sequence, writtenAt, sixelData));
+                        sequence, writtenAt, sixelData), impacts);
                 }
                 else
                 {
@@ -1451,7 +1492,7 @@ public sealed class Hex1bTerminal : IDisposable
                     SetCell(y, x, new TerminalCell(
                         "", _currentForeground, _currentBackground,
                         _currentAttributes | CellAttributes.Sixel,
-                        sequence, writtenAt));
+                        sequence, writtenAt), impacts);
                 }
             }
         }

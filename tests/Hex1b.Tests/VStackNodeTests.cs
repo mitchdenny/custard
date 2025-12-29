@@ -643,4 +643,86 @@ public class VStackNodeTests
     }
 
     #endregion
+
+    #region Orphan Tracking Tests
+
+    [Fact]
+    public void Reconcile_FewerChildren_TracksOrphanedBounds()
+    {
+        // Arrange - create a VStack with 5 children
+        var initialWidget = new VStackWidget(new Hex1bWidget[]
+        {
+            new TextBlockWidget("Line 1"),
+            new TextBlockWidget("Line 2"),
+            new TextBlockWidget("Line 3"),
+            new TextBlockWidget("Line 4"),
+            new TextBlockWidget("Line 5"),
+        });
+        
+        var context = ReconcileContext.CreateRoot();
+        var node = initialWidget.Reconcile(null, context) as VStackNode;
+        Assert.NotNull(node);
+        Assert.Equal(5, node.Children.Count);
+        
+        // Set up bounds for each child (simulating what Arrange would do)
+        node.Arrange(new Rect(0, 0, 50, 5));
+        for (int i = 0; i < node.Children.Count; i++)
+        {
+            node.Children[i].Arrange(new Rect(0, i, 50, 1));
+        }
+        node.ClearDirty();
+        foreach (var child in node.Children)
+        {
+            child.ClearDirty();
+        }
+        
+        // Act - reconcile with fewer children
+        var fewerWidget = new VStackWidget(new Hex1bWidget[]
+        {
+            new TextBlockWidget("Only one line"),
+        });
+        var reconciledNode = fewerWidget.Reconcile(node, context) as VStackNode;
+        
+        // Assert - orphaned bounds should be tracked
+        Assert.Same(node, reconciledNode); // Same node reused
+        Assert.Single(reconciledNode!.Children);
+        Assert.NotNull(reconciledNode.OrphanedChildBounds);
+        Assert.Equal(4, reconciledNode.OrphanedChildBounds.Count); // Children 1-4 were orphaned
+        Assert.True(reconciledNode.IsDirty); // Should be marked dirty
+        
+        // Verify the orphaned bounds match the old children's positions
+        Assert.Equal(new Rect(0, 1, 50, 1), reconciledNode.OrphanedChildBounds[0]);
+        Assert.Equal(new Rect(0, 2, 50, 1), reconciledNode.OrphanedChildBounds[1]);
+        Assert.Equal(new Rect(0, 3, 50, 1), reconciledNode.OrphanedChildBounds[2]);
+        Assert.Equal(new Rect(0, 4, 50, 1), reconciledNode.OrphanedChildBounds[3]);
+    }
+
+    [Fact]
+    public void Reconcile_SameOrMoreChildren_NoOrphanedBounds()
+    {
+        // Arrange - create a VStack with 2 children
+        var initialWidget = new VStackWidget(new Hex1bWidget[]
+        {
+            new TextBlockWidget("Line 1"),
+            new TextBlockWidget("Line 2"),
+        });
+        
+        var context = ReconcileContext.CreateRoot();
+        var node = initialWidget.Reconcile(null, context) as VStackNode;
+        Assert.NotNull(node);
+        node.Arrange(new Rect(0, 0, 50, 2));
+        
+        // Act - reconcile with same number of children
+        var sameWidget = new VStackWidget(new Hex1bWidget[]
+        {
+            new TextBlockWidget("Updated Line 1"),
+            new TextBlockWidget("Updated Line 2"),
+        });
+        var reconciledNode = sameWidget.Reconcile(node, context) as VStackNode;
+        
+        // Assert - no orphaned bounds
+        Assert.Null(reconciledNode!.OrphanedChildBounds);
+    }
+
+    #endregion
 }

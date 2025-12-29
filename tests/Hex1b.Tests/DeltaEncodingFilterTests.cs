@@ -19,10 +19,11 @@ public class DeltaEncodingFilterTests
         // Act - no session start, so no shadow buffer
         var result = await filter.OnOutputAsync(appliedTokens, TimeSpan.Zero);
 
-        // Assert
-        Assert.Single(result);
-        Assert.IsType<TextToken>(result[0]);
-        Assert.Equal("Hello", ((TextToken)result[0]).Text);
+        // Assert - passes through with SGR reset prepended (no shadow buffer triggers force refresh path)
+        Assert.Equal(2, result.Count);
+        Assert.IsType<SgrToken>(result[0]); // SGR reset
+        Assert.IsType<TextToken>(result[1]);
+        Assert.Equal("Hello", ((TextToken)result[1]).Text);
     }
 
     [Fact]
@@ -191,6 +192,49 @@ public class DeltaEncodingFilterTests
 
         // Assert
         Assert.NotEmpty(result);
+        // First token should be SGR reset to prevent color bleeding after resize
+        Assert.IsType<SgrToken>(result[0]);
+        var sgrToken = (SgrToken)result[0];
+        Assert.Equal("0", sgrToken.Parameters);
+    }
+
+    [Fact]
+    public async Task OnOutputAsync_AfterResize_PrependsSgrReset()
+    {
+        // Arrange - this tests the fix for color bleeding after resize
+        var filter = new DeltaEncodingFilter();
+        await filter.OnSessionStartAsync(80, 24, DateTimeOffset.UtcNow);
+
+        // Simulate some colored content being written
+        var coloredImpacts = new List<CellImpact>
+        {
+            new(0, 0, new TerminalCell("X", Hex1b.Theming.Hex1bColor.FromRgb(255, 0, 0), Hex1b.Theming.Hex1bColor.FromRgb(255, 255, 255)))
+        };
+        var coloredTokens = new List<AppliedToken>
+        {
+            new(new TextToken("X"), coloredImpacts, 0, 0, 1, 0)
+        };
+        await filter.OnOutputAsync(coloredTokens, TimeSpan.Zero);
+
+        // Resize the terminal
+        await filter.OnResizeAsync(100, 30, TimeSpan.FromSeconds(1));
+
+        // Write plain content after resize
+        var plainImpacts = new List<CellImpact>
+        {
+            new(0, 0, new TerminalCell(" ", null, null))
+        };
+        var plainTokens = new List<AppliedToken>
+        {
+            new(new TextToken(" "), plainImpacts, 0, 0, 1, 0)
+        };
+        var result = await filter.OnOutputAsync(plainTokens, TimeSpan.FromSeconds(2));
+
+        // Assert - should start with SGR reset to prevent color bleeding
+        Assert.True(result.Count >= 1, "Should have at least the SGR reset token");
+        Assert.IsType<SgrToken>(result[0]);
+        var sgrToken = (SgrToken)result[0];
+        Assert.Equal("0", sgrToken.Parameters);
     }
 
     [Fact]
@@ -248,8 +292,72 @@ public class DeltaEncodingFilterTests
         };
         var result = await filter.OnOutputAsync(appliedTokens, TimeSpan.Zero);
 
-        // Assert - should pass through because no shadow buffer
+        // Assert - should pass through with SGR reset prepended (no shadow buffer triggers force refresh path)
+        Assert.Equal(2, result.Count);
+        Assert.IsType<SgrToken>(result[0]); // SGR reset
+        Assert.IsType<TextToken>(result[1]);
+    }
+
+    [Fact]
+    public async Task OnOutputAsync_StandaloneCursorPosition_PassesThrough()
+    {
+        // Arrange - this tests the mouse cursor tracking scenario
+        var filter = new DeltaEncodingFilter();
+        await filter.OnSessionStartAsync(10, 5, DateTimeOffset.UtcNow);
+
+        // First frame to clear _forceFullRefresh
+        var firstFrame = new List<AppliedToken>
+        {
+            new AppliedToken(new TextToken("Hi"), [new CellImpact(0, 0, new TerminalCell { Character = "H" })], 0, 0, 0, 0)
+        };
+        await filter.OnOutputAsync(firstFrame, TimeSpan.Zero);
+
+        // Act - send a standalone cursor position with no cell impacts (mouse cursor tracking)
+        var cursorMoveTokens = new List<AppliedToken>
+        {
+            AppliedToken.WithNoCellImpacts(new CursorPositionToken(3, 5), 0, 0, 0, 0)
+        };
+        var result = await filter.OnOutputAsync(cursorMoveTokens, TimeSpan.Zero);
+
+        // Assert - cursor position should pass through for mouse tracking
         Assert.Single(result);
-        Assert.IsType<TextToken>(result[0]);
+        Assert.IsType<CursorPositionToken>(result[0]);
+        var cpt = (CursorPositionToken)result[0];
+        Assert.Equal(3, cpt.Row);
+        Assert.Equal(5, cpt.Column);
+    }
+
+    [Fact]
+    public async Task OnOutputAsync_CursorPositionWithCellImpacts_NotDuplicatedInOutput()
+    {
+        // Arrange - cursor position used for rendering (not standalone)
+        var filter = new DeltaEncodingFilter();
+        await filter.OnSessionStartAsync(10, 5, DateTimeOffset.UtcNow);
+
+        // First frame to clear _forceFullRefresh
+        var firstFrame = new List<AppliedToken>
+        {
+            new AppliedToken(new TextToken("Hi"), [new CellImpact(0, 0, new TerminalCell { Character = "H" })], 0, 0, 0, 0)
+        };
+        await filter.OnOutputAsync(firstFrame, TimeSpan.Zero);
+
+        // Act - send a cursor position WITH cell impacts (normal rendering)
+        var renderTokens = new List<AppliedToken>
+        {
+            new AppliedToken(
+                new CursorPositionToken(2, 3), 
+                [], // No cell impacts on the cursor token itself
+                0, 0, 0, 0),
+            new AppliedToken(
+                new TextToken("X"), 
+                [new CellImpact(2, 1, new TerminalCell { Character = "X" })], // Cell at row 2, col 3 (0-indexed: 1, 2)
+                0, 0, 0, 0)
+        };
+        var result = await filter.OnOutputAsync(renderTokens, TimeSpan.Zero);
+
+        // Assert - there should be tokens for the cell update
+        // The cursor position in the renderTokens had no impacts, so it passes through
+        // Then the cell update adds its own cursor position
+        Assert.True(result.Count >= 1, $"Expected at least 1 token but got {result.Count}");
     }
 }

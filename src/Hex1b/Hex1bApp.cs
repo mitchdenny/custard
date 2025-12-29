@@ -434,15 +434,25 @@ public class Hex1bApp : IDisposable, IAsyncDisposable
     /// intersected with any active clip rect from ancestor layout providers.
     /// Tracks theme from ThemePanelNodes to ensure proper clearing with the correct background.
     /// </summary>
-    private void ClearDirtyRegions(Hex1bNode node, Rect? clipRect = null)
+    private void ClearDirtyRegions(Hex1bNode node, Rect? clipRect = null, Rect? expandedClipRect = null)
     {
-        // If this node is an ILayoutProvider, intersect its clip rect with the current one
+        // Calculate this node's effective clip rect first
         var effectiveClipRect = clipRect;
+        var effectiveExpandedClipRect = expandedClipRect;
+        
         if (node is Nodes.ILayoutProvider layoutProvider && layoutProvider.ClipMode == Widgets.ClipMode.Clip)
         {
+            // For normal rendering, use current bounds as clip
             effectiveClipRect = effectiveClipRect.HasValue 
                 ? Intersect(effectiveClipRect.Value, layoutProvider.ClipRect)
                 : layoutProvider.ClipRect;
+            
+            // For orphan clearing, use union of current and previous bounds
+            // This allows clearing areas that were visible before the node shrunk
+            var expandedNodeClip = Union(node.Bounds, node.PreviousBounds);
+            effectiveExpandedClipRect = effectiveExpandedClipRect.HasValue 
+                ? Intersect(effectiveExpandedClipRect.Value, expandedNodeClip)
+                : expandedNodeClip;
         }
         
         // Track theme from ThemePanelNode
@@ -455,11 +465,25 @@ public class Hex1bApp : IDisposable, IAsyncDisposable
         
         if (node.IsDirty)
         {
-            // Clear the previous bounds (where the node was), clipped to effective clip rect
+            // Clear the previous bounds (where the node was)
+            // Use expanded clip rect if content shrunk (PreviousBounds larger than Bounds)
+            // This ensures areas outside current bounds but inside previous bounds get cleared
             if (node.PreviousBounds.Width > 0 && node.PreviousBounds.Height > 0)
             {
-                var regionToClear = effectiveClipRect.HasValue 
-                    ? Intersect(node.PreviousBounds, effectiveClipRect.Value)
+                // Check if content shrunk in either dimension
+                var shrunk = node.PreviousBounds.Width > node.Bounds.Width ||
+                             node.PreviousBounds.Height > node.Bounds.Height ||
+                             node.PreviousBounds.X < node.Bounds.X ||
+                             node.PreviousBounds.Y < node.Bounds.Y ||
+                             node.PreviousBounds.X + node.PreviousBounds.Width > node.Bounds.X + node.Bounds.Width ||
+                             node.PreviousBounds.Y + node.PreviousBounds.Height > node.Bounds.Y + node.Bounds.Height;
+                
+                var clipToUse = shrunk && effectiveExpandedClipRect.HasValue 
+                    ? effectiveExpandedClipRect.Value 
+                    : effectiveClipRect;
+                    
+                var regionToClear = clipToUse.HasValue 
+                    ? Intersect(node.PreviousBounds, clipToUse.Value)
                     : node.PreviousBounds;
                 if (regionToClear.Width > 0 && regionToClear.Height > 0)
                 {
@@ -479,12 +503,31 @@ public class Hex1bApp : IDisposable, IAsyncDisposable
                     _context.ClearRegion(regionToClear);
                 }
             }
+            
+            // Clear orphaned child bounds (children that were removed during reconciliation)
+            // Use the EXPANDED clip rect which includes both current and previous bounds
+            // of all ancestor nodes - this allows clearing areas that were visible before
+            // any ancestor container shrunk
+            if (node.OrphanedChildBounds != null)
+            {
+                foreach (var orphanedBounds in node.OrphanedChildBounds)
+                {
+                    var regionToClear = effectiveExpandedClipRect.HasValue 
+                        ? Intersect(orphanedBounds, effectiveExpandedClipRect.Value)
+                        : orphanedBounds;
+                    if (regionToClear.Width > 0 && regionToClear.Height > 0)
+                    {
+                        _context.ClearRegion(regionToClear);
+                    }
+                }
+                node.ClearOrphanedChildBounds();
+            }
         }
         
-        // Recurse into children with the effective clip rect
+        // Recurse into children with the effective clip rects
         foreach (var child in node.GetChildren())
         {
-            ClearDirtyRegions(child, effectiveClipRect);
+            ClearDirtyRegions(child, effectiveClipRect, effectiveExpandedClipRect);
         }
         
         // Restore previous theme after processing children
@@ -508,6 +551,24 @@ public class Hex1bApp : IDisposable, IAsyncDisposable
         return new Rect(x, y, width, height);
     }
     
+    /// <summary>
+    /// Computes the union (bounding box) of two rectangles.
+    /// If either rect is empty, returns the other.
+    /// </summary>
+    private static Rect Union(Rect a, Rect b)
+    {
+        // Handle empty rects
+        if (a.Width <= 0 || a.Height <= 0) return b;
+        if (b.Width <= 0 || b.Height <= 0) return a;
+        
+        var x = Math.Min(a.X, b.X);
+        var y = Math.Min(a.Y, b.Y);
+        var right = Math.Max(a.X + a.Width, b.X + b.Width);
+        var bottom = Math.Max(a.Y + a.Height, b.Y + b.Height);
+        
+        return new Rect(x, y, right - x, bottom - y);
+    }
+
     /// <summary>
     /// Recursively clears the dirty flag on a node and all its children.
     /// Called after rendering to prepare for the next frame.

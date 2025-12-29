@@ -81,8 +81,11 @@ public sealed class DeltaEncodingFilter : IHex1bTerminalPresentationFilter
                 }
             }
             
-            return ValueTask.FromResult<IReadOnlyList<AnsiToken>>(
-                appliedTokens.Select(at => at.Token).ToList());
+            // Prepend an SGR reset to ensure clean state after resize
+            // This prevents leftover colors/attributes from bleeding into new content
+            var result = new List<AnsiToken> { new SgrToken("0") };
+            result.AddRange(appliedTokens.Select(at => at.Token));
+            return ValueTask.FromResult<IReadOnlyList<AnsiToken>>(result);
         }
 
         // Collect control tokens that should always pass through
@@ -113,6 +116,12 @@ public sealed class DeltaEncodingFilter : IHex1bTerminalPresentationFilter
                     // These control tokens should pass through unchanged
                     controlTokens.Add(token);
                     continue;
+                    
+                case CursorPositionToken when appliedToken.CellImpacts.Count == 0:
+                    // Standalone cursor positioning (e.g., for mouse cursor tracking)
+                    // should pass through when not associated with cell changes
+                    controlTokens.Add(token);
+                    continue;
             }
             
             // Process cell impacts for content tokens
@@ -135,14 +144,14 @@ public sealed class DeltaEncodingFilter : IHex1bTerminalPresentationFilter
         }
 
         // Build result: control tokens first, then optimized cell updates
-        var result = new List<AnsiToken>(controlTokens);
+        var outputTokens = new List<AnsiToken>(controlTokens);
         
         if (changedCells.Count > 0)
         {
-            result.AddRange(GenerateTokens(changedCells));
+            outputTokens.AddRange(GenerateTokens(changedCells));
         }
 
-        return ValueTask.FromResult<IReadOnlyList<AnsiToken>>(result);
+        return ValueTask.FromResult<IReadOnlyList<AnsiToken>>(outputTokens);
     }
 
     /// <inheritdoc />

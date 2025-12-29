@@ -709,7 +709,7 @@ public class ProgressIntegrationTests : IDisposable
 
         // Resize to medium
         recorder.AddMarker("Resize to 60 cols");
-        await ((IHex1bTerminalWorkloadFilter)recorder).OnResizeAsync(60, 10, TimeSpan.FromSeconds(1));
+        await ((IHex1bTerminalWorkloadFilter)recorder).OnResizeAsync(60, 10, TimeSpan.FromSeconds(1), TestContext.Current.CancellationToken);
         terminal.Resize(60, 10);
         await workload.ResizeAsync(60, 10, TestContext.Current.CancellationToken);
         await Task.Delay(300, TestContext.Current.CancellationToken);
@@ -719,7 +719,7 @@ public class ProgressIntegrationTests : IDisposable
 
         // Resize to narrow
         recorder.AddMarker("Resize to 40 cols");
-        await ((IHex1bTerminalWorkloadFilter)recorder).OnResizeAsync(40, 10, TimeSpan.FromSeconds(2));
+        await ((IHex1bTerminalWorkloadFilter)recorder).OnResizeAsync(40, 10, TimeSpan.FromSeconds(2), TestContext.Current.CancellationToken);
         terminal.Resize(40, 10);
         await workload.ResizeAsync(40, 10, TestContext.Current.CancellationToken);
         await Task.Delay(300, TestContext.Current.CancellationToken);
@@ -729,7 +729,7 @@ public class ProgressIntegrationTests : IDisposable
 
         // Resize back to wide
         recorder.AddMarker("Resize to 120 cols");
-        await ((IHex1bTerminalWorkloadFilter)recorder).OnResizeAsync(120, 10, TimeSpan.FromSeconds(3));
+        await ((IHex1bTerminalWorkloadFilter)recorder).OnResizeAsync(120, 10, TimeSpan.FromSeconds(3), TestContext.Current.CancellationToken);
         terminal.Resize(120, 10);
         await workload.ResizeAsync(120, 10, TestContext.Current.CancellationToken);
         await Task.Delay(300, TestContext.Current.CancellationToken);

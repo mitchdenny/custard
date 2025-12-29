@@ -58,7 +58,6 @@ public sealed class Hex1bTerminal : IDisposable
     private readonly DateTimeOffset _sessionStart;
     private readonly TrackedObjectStore _trackedObjects = new();
     private readonly TimeProvider _timeProvider;
-    private readonly bool _useTokenBasedFilters;
     private TerminalCell[,] _screenBuffer;
     private int _cursorX;
     private int _cursorY;
@@ -99,8 +98,7 @@ public sealed class Hex1bTerminal : IDisposable
             height: options.Height,
             workloadFilters: options.WorkloadFilters,
             presentationFilters: options.PresentationFilters,
-            timeProvider: options.TimeProvider,
-            useTokenBasedFilters: options.UseTokenBasedFilters)
+            timeProvider: options.TimeProvider)
     {
     }
 
@@ -114,7 +112,6 @@ public sealed class Hex1bTerminal : IDisposable
     /// <param name="workloadFilters">Filters applied on the workload side.</param>
     /// <param name="presentationFilters">Filters applied on the presentation side.</param>
     /// <param name="timeProvider">The time provider for all time-related operations. Defaults to system time.</param>
-    /// <param name="useTokenBasedFilters">When true, uses token-based ANSI processing for filters.</param>
     public Hex1bTerminal(
         IHex1bTerminalPresentationAdapter? presentation,
         IHex1bTerminalWorkloadAdapter workload,
@@ -122,15 +119,13 @@ public sealed class Hex1bTerminal : IDisposable
         int height = 24,
         IEnumerable<IHex1bTerminalWorkloadFilter>? workloadFilters = null,
         IEnumerable<IHex1bTerminalPresentationFilter>? presentationFilters = null,
-        TimeProvider? timeProvider = null,
-        bool useTokenBasedFilters = false)
+        TimeProvider? timeProvider = null)
     {
         _presentation = presentation;
         _workload = workload ?? throw new ArgumentNullException(nameof(workload));
         _workloadFilters = workloadFilters?.ToList() ?? [];
         _presentationFilters = presentationFilters?.ToList() ?? [];
         _timeProvider = timeProvider ?? TimeProvider.System;
-        _useTokenBasedFilters = useTokenBasedFilters;
         _sessionStart = _timeProvider.GetUtcNow();
         
         // Get dimensions from presentation if available, otherwise use provided dimensions
@@ -250,11 +245,14 @@ public sealed class Hex1bTerminal : IDisposable
                 break;
             }
 
-            // Notify workload filters of output FROM workload (fire-and-forget in sync context)
-            _ = NotifyWorkloadFiltersOutputAsync(data);
-
+            // Tokenize once, use for both notifications and buffer application
             var text = Encoding.UTF8.GetString(data.Span);
             var tokens = AnsiTokenizer.Tokenize(text);
+            
+            // Notify workload filters (fire-and-forget in sync context)
+            _ = NotifyWorkloadFiltersOutputAsync(tokens);
+            
+            // Apply tokens to buffer
             ApplyTokens(tokens);
         }
 
@@ -317,47 +315,25 @@ public sealed class Hex1bTerminal : IDisposable
                     continue;
                 }
 
+                // Tokenize once, use for all processing
                 var text = Encoding.UTF8.GetString(data.Span);
-
-                if (_useTokenBasedFilters)
+                var tokens = AnsiTokenizer.Tokenize(text);
+                
+                // Notify workload filters with tokens
+                await NotifyWorkloadFiltersOutputAsync(tokens);
+                
+                // Apply tokens to our internal buffer
+                ApplyTokens(tokens);
+                
+                // Forward to presentation if present
+                if (_presentation != null)
                 {
-                    // Token-based processing: parse once, filter at semantic level
-                    var tokens = AnsiTokenizer.Tokenize(text);
+                    // Pass through presentation filters, serialize and send
+                    var filteredTokens = await NotifyPresentationFiltersOutputAsync(tokens);
+                    var filteredText = AnsiTokenSerializer.Serialize(filteredTokens);
+                    var filteredBytes = Encoding.UTF8.GetBytes(filteredText);
                     
-                    // Notify workload filters with tokens
-                    await NotifyWorkloadFiltersOutputAsync(tokens);
-                    
-                    // Apply tokens to our internal buffer
-                    ApplyTokens(tokens);
-                    
-                    // Forward to presentation if present
-                    if (_presentation != null)
-                    {
-                        // Pass through presentation filters, serialize and send
-                        var filteredTokens = await NotifyPresentationFiltersOutputAsync(tokens);
-                        var filteredText = AnsiTokenSerializer.Serialize(filteredTokens);
-                        var filteredBytes = Encoding.UTF8.GetBytes(filteredText);
-                        
-                        await _presentation.WriteOutputAsync(filteredBytes);
-                    }
-                }
-                else
-                {
-                    // Legacy byte-based processing (deprecated path - should not be reached when UseTokenBasedFilters=true)
-                    var tokens = AnsiTokenizer.Tokenize(text);
-                    await NotifyWorkloadFiltersOutputAsync(tokens);
-                    ApplyTokens(tokens);
-                    
-                    // Forward to presentation if present
-                    if (_presentation != null)
-                    {
-                        // Pass through presentation filters, serialize and send
-                        var filteredTokens = await NotifyPresentationFiltersOutputAsync(tokens);
-                        var filteredText = AnsiTokenSerializer.Serialize(filteredTokens);
-                        var filteredBytes = Encoding.UTF8.GetBytes(filteredText);
-                        
-                        await _presentation.WriteOutputAsync(filteredBytes);
-                    }
+                    await _presentation.WriteOutputAsync(filteredBytes);
                 }
             }
         }
@@ -862,23 +838,11 @@ public sealed class Hex1bTerminal : IDisposable
     }
 
     /// <summary>
-    /// Process ANSI output text into the screen buffer.
-    /// </summary>
-    /// <param name="text">Text containing ANSI escape sequences.</param>
-    [Obsolete("Use ApplyTokens instead. This method will be removed in a future version.")]
-    internal void ProcessOutput(string text)
-    {
-        // Route through the token-based path
-        var tokens = AnsiTokenizer.Tokenize(text);
-        ApplyTokens(tokens);
-    }
-
-    /// <summary>
     /// Applies a list of ANSI tokens to the screen buffer.
     /// </summary>
     /// <remarks>
-    /// This is an alternative to <see cref="ProcessOutput(string)"/> that works with pre-tokenized input.
-    /// It is useful when tokens have been processed through workload filters.
+    /// This method works with pre-tokenized input, which is useful when tokens
+    /// have been processed through workload filters.
     /// </remarks>
     /// <param name="tokens">The tokens to apply.</param>
     internal void ApplyTokens(IReadOnlyList<AnsiToken> tokens)
@@ -1984,19 +1948,6 @@ public sealed class Hex1bTerminal : IDisposable
         {
             ct.ThrowIfCancellationRequested();
             await filter.OnSessionEndAsync(elapsed, ct);
-        }
-    }
-
-    private async ValueTask NotifyWorkloadFiltersOutputAsync(ReadOnlyMemory<byte> data, CancellationToken ct = default)
-    {
-        if (_workloadFilters.Count == 0) return;
-        var elapsed = GetElapsed();
-        var text = Encoding.UTF8.GetString(data.Span);
-        var tokens = AnsiTokenizer.Tokenize(text);
-        foreach (var filter in _workloadFilters)
-        {
-            ct.ThrowIfCancellationRequested();
-            await filter.OnOutputAsync(tokens, elapsed, ct);
         }
     }
 

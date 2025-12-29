@@ -343,61 +343,43 @@ public class AnsiTokenApplyTests
     #region Round-trip Tests
 
     [Fact]
-    public void ApplyTokens_RoundTrip_ProducesSameResult()
+    public void ApplyTokens_RoundTrip_TokenizeAndApply_ProducesExpectedResult()
     {
         // Arrange - complex ANSI sequence
         var ansi = "\x1b[2J\x1b[H\x1b[1;31mHello\x1b[0m World\r\n\x1b[4mLine 2\x1b[0m";
         
-        using var workload1 = new Hex1bAppWorkloadAdapter();
-        using var terminal1 = new Hex1bTerminal(workload1, 20, 5);
-        
-        using var workload2 = new Hex1bAppWorkloadAdapter();
-        using var terminal2 = new Hex1bTerminal(workload2, 20, 5);
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = new Hex1bTerminal(workload, 20, 5);
 
-        // Act - process via string
-        terminal1.ProcessOutput(ansi);
-        
-        // Act - process via tokens
+        // Act - tokenize and apply
         var tokens = AnsiTokenizer.Tokenize(ansi);
-        terminal2.ApplyTokens(tokens);
+        terminal.ApplyTokens(tokens);
 
-        // Assert - both should produce same buffer content
-        var snapshot1 = terminal1.CreateSnapshot();
-        var snapshot2 = terminal2.CreateSnapshot();
-        
-        for (int y = 0; y < 5; y++)
-        {
-            Assert.Equal(snapshot1.GetLine(y), snapshot2.GetLine(y));
-        }
+        // Assert - buffer should have expected content
+        var snapshot = terminal.CreateSnapshot();
+        Assert.Equal("Hello World", snapshot.GetLine(0).TrimEnd());
+        Assert.Equal("Line 2", snapshot.GetLine(1).TrimEnd());
     }
 
     [Fact]
-    public void ApplyTokens_ComplexSequence_MatchesProcessOutput()
+    public void ApplyTokens_ComplexSequence_AppliesCorrectly()
     {
         // Arrange
         var ansi = "\x1b[38;2;255;128;64mOrange\x1b[0m \x1b[1;3mBold Italic\x1b[0m";
         
-        using var workload1 = new Hex1bAppWorkloadAdapter();
-        using var terminal1 = new Hex1bTerminal(workload1, 30, 5);
-        
-        using var workload2 = new Hex1bAppWorkloadAdapter();
-        using var terminal2 = new Hex1bTerminal(workload2, 30, 5);
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = new Hex1bTerminal(workload, 30, 5);
 
         // Act
-        terminal1.ProcessOutput(ansi);
-        terminal2.ApplyTokens(AnsiTokenizer.Tokenize(ansi));
+        terminal.ApplyTokens(AnsiTokenizer.Tokenize(ansi));
 
         // Assert
-        var snapshot1 = terminal1.CreateSnapshot();
-        var snapshot2 = terminal2.CreateSnapshot();
+        var snapshot = terminal.CreateSnapshot();
+        Assert.Equal("Orange Bold Italic", snapshot.GetLine(0).TrimEnd());
         
-        Assert.Equal(snapshot1.GetLine(0), snapshot2.GetLine(0));
-        
-        // Check cell attributes match
-        var cell1 = snapshot1.GetCell(0, 0);
-        var cell2 = snapshot2.GetCell(0, 0);
-        Assert.Equal(cell1.Foreground, cell2.Foreground);
-        Assert.Equal(cell1.Attributes, cell2.Attributes);
+        // Check cell attributes
+        var cell = snapshot.GetCell(0, 0);
+        Assert.Equal(Hex1bColor.FromRgb(255, 128, 64), cell.Foreground);
     }
 
     #endregion

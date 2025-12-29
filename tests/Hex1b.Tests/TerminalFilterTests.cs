@@ -149,7 +149,6 @@ public class TerminalFilterTests
         Assert.Null(options.PresentationAdapter);
         Assert.Empty(options.WorkloadFilters);
         Assert.Empty(options.PresentationFilters);
-        Assert.True(options.UseTokenBasedFilters);
     }
 
     [Fact]
@@ -181,7 +180,7 @@ public class TerminalFilterTests
     }
 
     [Fact]
-    public void UseTokenBasedFilters_WhenEnabled_UsesApplyTokensPath()
+    public void TokenBasedFilters_UsesApplyTokensPath()
     {
         // Arrange
         var filter = new TestWorkloadFilter();
@@ -190,8 +189,7 @@ public class TerminalFilterTests
         {
             Width = 80,
             Height = 24,
-            WorkloadAdapter = workload,
-            UseTokenBasedFilters = true
+            WorkloadAdapter = workload
         };
         options.WorkloadFilters.Add(filter);
         using var terminal = new Hex1bTerminal(options);
@@ -209,73 +207,6 @@ public class TerminalFilterTests
         // Verify terminal buffer was updated correctly
         var snapshot = terminal.CreateSnapshot();
         Assert.Equal("HelloRedWorld", snapshot.GetLine(0).TrimEnd());
-    }
-
-    [Fact]
-    public void UseTokenBasedFilters_WhenDisabled_UsesLegacyProcessOutputPath()
-    {
-        // Arrange
-        var filter = new TestWorkloadFilter();
-        var workload = new Hex1bAppWorkloadAdapter();
-        var options = new Hex1bTerminalOptions
-        {
-            Width = 80,
-            Height = 24,
-            WorkloadAdapter = workload,
-            UseTokenBasedFilters = false
-        };
-        options.WorkloadFilters.Add(filter);
-        using var terminal = new Hex1bTerminal(options);
-
-        // Act
-        workload.Write("Hello");
-        terminal.FlushOutput();
-
-        // Assert
-        Assert.Single(filter.OutputChunks);
-        Assert.Equal("Hello", filter.OutputChunks[0]);
-        
-        // Verify terminal buffer was updated
-        var snapshot = terminal.CreateSnapshot();
-        Assert.Equal("Hello", snapshot.GetLine(0).TrimEnd());
-    }
-
-    [Fact]
-    public void UseTokenBasedFilters_BothPathsProduceSameBufferResult()
-    {
-        // Arrange
-        var testSequence = "AB\x1b[31mCD\x1b[0mEF";
-        
-        // Token-based path
-        var workload1 = new Hex1bAppWorkloadAdapter();
-        var options1 = new Hex1bTerminalOptions
-        {
-            Width = 80,
-            Height = 24,
-            WorkloadAdapter = workload1,
-            UseTokenBasedFilters = true
-        };
-        using var terminal1 = new Hex1bTerminal(options1);
-        workload1.Write(testSequence);
-        terminal1.FlushOutput();
-        
-        // Legacy path
-        var workload2 = new Hex1bAppWorkloadAdapter();
-        var options2 = new Hex1bTerminalOptions
-        {
-            Width = 80,
-            Height = 24,
-            WorkloadAdapter = workload2,
-            UseTokenBasedFilters = false
-        };
-        using var terminal2 = new Hex1bTerminal(options2);
-        workload2.Write(testSequence);
-        terminal2.FlushOutput();
-
-        // Assert - both terminals should have the same buffer content
-        var snapshot1 = terminal1.CreateSnapshot();
-        var snapshot2 = terminal2.CreateSnapshot();
-        Assert.Equal(snapshot1.GetLine(0).TrimEnd(), snapshot2.GetLine(0).TrimEnd());
     }
 
     // Test helpers

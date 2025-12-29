@@ -44,6 +44,8 @@ public static class AnsiTokenSerializer
             PrivateModeToken pm => SerializePrivateMode(pm),
             OscToken osc => SerializeOsc(osc),
             DcsToken dcs => SerializeDcs(dcs),
+            FrameBeginToken => SerializeApc("HEX1B:FRAME:BEGIN"),
+            FrameEndToken => SerializeApc("HEX1B:FRAME:END"),
             UnrecognizedSequenceToken unrec => unrec.Sequence,
             _ => throw new ArgumentException($"Unknown token type: {token.GetType().Name}", nameof(token))
         };
@@ -126,5 +128,11 @@ public static class AnsiTokenSerializer
     {
         // ESC P payload ESC \
         return $"\x1bP{token.Payload}\x1b\\";
+    }
+
+    private static string SerializeApc(string content)
+    {
+        // APC (Application Program Command): ESC _ content ESC \
+        return $"\x1b_{content}\x1b\\";
     }
 }

@@ -30,6 +30,19 @@ public static class AnsiTokenizer
                 tokens.Add(new OscToken(oscCommand, oscParams, oscPayload));
                 i += oscConsumed;
             }
+            // Check for APC sequence (ESC _ or 0x9F) - used for frame boundaries
+            else if (TryParseApcSequence(text, i, out var apcConsumed, out var apcContent))
+            {
+                FlushTextToken(text, ref textStart, i, tokens);
+                var apcToken = apcContent switch
+                {
+                    "HEX1B:FRAME:BEGIN" => (AnsiToken)FrameBeginToken.Instance,
+                    "HEX1B:FRAME:END" => FrameEndToken.Instance,
+                    _ => new UnrecognizedSequenceToken($"\x1b_{apcContent}\x1b\\")
+                };
+                tokens.Add(apcToken);
+                i += apcConsumed;
+            }
             // Check for DCS sequence (ESC P or 0x90) - Sixel starts with ESC P q
             else if (TryParseDcsSequence(text, i, out var dcsConsumed, out var dcsPayload))
             {
@@ -455,6 +468,55 @@ public static class AnsiTokenizer
 
         // Extract the full DCS payload (between DCS header and ST)
         payload = text.Substring(dataStart, dataEnd - dataStart);
+        return true;
+    }
+
+    private static bool TryParseApcSequence(string text, int start, out int consumed, out string content)
+    {
+        consumed = 0;
+        content = "";
+
+        // Check for APC start: ESC _ (0x1b 0x5f) or 0x9F
+        bool isApcStart = false;
+        int dataStart = start;
+
+        if (start + 1 < text.Length && text[start] == '\x1b' && text[start + 1] == '_')
+        {
+            isApcStart = true;
+            dataStart = start + 2;
+        }
+        else if (start < text.Length && text[start] == '\x9f')
+        {
+            isApcStart = true;
+            dataStart = start + 1;
+        }
+
+        if (!isApcStart)
+            return false;
+
+        // Find the ST (String Terminator): ESC \ (0x1b 0x5c) or 0x9C
+        int dataEnd = -1;
+        for (int j = dataStart; j < text.Length; j++)
+        {
+            if (j + 1 < text.Length && text[j] == '\x1b' && text[j + 1] == '\\')
+            {
+                dataEnd = j;
+                consumed = j + 2 - start; // Include ESC \
+                break;
+            }
+            else if (text[j] == '\x9c')
+            {
+                dataEnd = j;
+                consumed = j + 1 - start; // Include 0x9C
+                break;
+            }
+        }
+
+        if (dataEnd < 0)
+            return false; // No terminator found
+
+        // Extract the APC content (between APC header and ST)
+        content = text.Substring(dataStart, dataEnd - dataStart);
         return true;
     }
 

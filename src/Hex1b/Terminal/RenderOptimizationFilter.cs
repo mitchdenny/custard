@@ -30,7 +30,7 @@ namespace Hex1b.Terminal;
 /// </list>
 /// </para>
 /// </remarks>
-public sealed class DeltaEncodingFilter : IHex1bTerminalPresentationFilter
+public sealed class RenderOptimizationFilter : IHex1bTerminalPresentationFilter
 {
     // Pending buffer: accumulates changes during the current frame
     private ShadowCell[,]? _pendingBuffer;

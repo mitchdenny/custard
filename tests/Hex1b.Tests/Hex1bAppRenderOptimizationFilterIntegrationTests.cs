@@ -426,7 +426,7 @@ public class Hex1bAppRenderOptimizationFilterIntegrationTests
                     leftWidth: splitterPosition
                 )
             ),
-            new Hex1bAppOptions { WorkloadAdapter = workload }
+            new Hex1bAppOptions { WorkloadAdapter = workload, EnableInputCoalescing = false }
         );
 
         // Act

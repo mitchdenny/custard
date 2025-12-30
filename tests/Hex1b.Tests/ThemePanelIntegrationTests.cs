@@ -791,7 +791,7 @@ public class ThemePanelIntegrationTests : IDisposable
     /// This test is currently flaky when run with other tests due to what appears
     /// to be a test isolation issue. It passes reliably when run in isolation.
     /// </remarks>
-    [Fact(Skip = "Flaky test - passes in isolation, fails with other tests. Needs investigation.")]
+    [Fact]
     public async Task ThemePanel_PassthroughTheme_HasNoEffect()
     {
         using var workload = new Hex1bAppWorkloadAdapter();

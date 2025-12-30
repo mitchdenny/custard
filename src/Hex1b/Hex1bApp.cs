@@ -455,7 +455,8 @@ public class Hex1bApp : IDisposable, IAsyncDisposable
         var effectiveTheme = currentTheme ?? _context.Theme;
         if (node is Nodes.ThemePanelNode themePanelNode && themePanelNode.ThemeMutator != null)
         {
-            effectiveTheme = themePanelNode.ThemeMutator(effectiveTheme);
+            // Clone the theme before passing to mutator to prevent mutation of parent themes
+            effectiveTheme = themePanelNode.ThemeMutator(effectiveTheme.Clone());
         }
         
         // If this specific node is dirty, render it (and its children)
@@ -533,8 +534,8 @@ public class Hex1bApp : IDisposable, IAsyncDisposable
         var previousTheme = _context.Theme;
         if (node is Nodes.ThemePanelNode themePanelNode && themePanelNode.ThemeMutator != null)
         {
-            // Apply the theme mutator to see what background it sets
-            _context.Theme = themePanelNode.ThemeMutator(previousTheme);
+            // Clone the theme before passing to mutator to prevent mutation of parent themes
+            _context.Theme = themePanelNode.ThemeMutator(previousTheme.Clone());
         }
         
         if (node.IsDirty)

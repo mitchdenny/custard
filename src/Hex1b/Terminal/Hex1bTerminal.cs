@@ -58,6 +58,12 @@ public sealed class Hex1bTerminal : IDisposable
     private readonly DateTimeOffset _sessionStart;
     private readonly TrackedObjectStore _trackedObjects = new();
     private readonly TimeProvider _timeProvider;
+    
+    // Lock to protect screen buffer state from concurrent access.
+    // The resize event comes from the input thread while the output pump
+    // runs on a separate thread, both accessing _screenBuffer, _width, _height.
+    private readonly object _bufferLock = new();
+    
     private TerminalCell[,] _screenBuffer;
     private int _cursorX;
     private int _cursorY;
@@ -660,47 +666,50 @@ public sealed class Hex1bTerminal : IDisposable
     /// </summary>
     public void Resize(int newWidth, int newHeight)
     {
-        var newBuffer = new TerminalCell[newHeight, newWidth];
-        
-        // Initialize with empty cells
-        for (int y = 0; y < newHeight; y++)
+        lock (_bufferLock)
         {
-            for (int x = 0; x < newWidth; x++)
+            var newBuffer = new TerminalCell[newHeight, newWidth];
+            
+            // Initialize with empty cells
+            for (int y = 0; y < newHeight; y++)
             {
-                newBuffer[y, x] = TerminalCell.Empty;
+                for (int x = 0; x < newWidth; x++)
+                {
+                    newBuffer[y, x] = TerminalCell.Empty;
+                }
             }
-        }
 
-        // Copy existing content that fits in the new size
-        var copyHeight = Math.Min(_height, newHeight);
-        var copyWidth = Math.Min(_width, newWidth);
-        for (int y = 0; y < copyHeight; y++)
-        {
-            for (int x = 0; x < copyWidth; x++)
+            // Copy existing content that fits in the new size
+            var copyHeight = Math.Min(_height, newHeight);
+            var copyWidth = Math.Min(_width, newWidth);
+            for (int y = 0; y < copyHeight; y++)
             {
-                newBuffer[y, x] = _screenBuffer[y, x];
+                for (int x = 0; x < copyWidth; x++)
+                {
+                    newBuffer[y, x] = _screenBuffer[y, x];
+                }
             }
-        }
-        
-        // Release tracked objects from cells that are being removed
-        // (cells outside the new bounds)
-        for (int y = 0; y < _height; y++)
-        {
-            for (int x = 0; x < _width; x++)
+            
+            // Release tracked objects from cells that are being removed
+            // (cells outside the new bounds)
+            for (int y = 0; y < _height; y++)
             {
-                // Skip cells that were copied to the new buffer
-                if (y < copyHeight && x < copyWidth)
-                    continue;
-                    
-                _screenBuffer[y, x].TrackedSixel?.Release();
+                for (int x = 0; x < _width; x++)
+                {
+                    // Skip cells that were copied to the new buffer
+                    if (y < copyHeight && x < copyWidth)
+                        continue;
+                        
+                    _screenBuffer[y, x].TrackedSixel?.Release();
+                }
             }
-        }
 
-        _screenBuffer = newBuffer;
-        _width = newWidth;
-        _height = newHeight;
-        _cursorX = Math.Min(_cursorX, newWidth - 1);
-        _cursorY = Math.Min(_cursorY, newHeight - 1);
+            _screenBuffer = newBuffer;
+            _width = newWidth;
+            _height = newHeight;
+            _cursorX = Math.Min(_cursorX, newWidth - 1);
+            _cursorY = Math.Min(_cursorY, newHeight - 1);
+        }
     }
 
     // === Screen Buffer Parsing ===
@@ -862,9 +871,12 @@ public sealed class Hex1bTerminal : IDisposable
     /// <param name="tokens">The tokens to apply.</param>
     internal void ApplyTokens(IReadOnlyList<AnsiToken> tokens)
     {
-        foreach (var token in tokens)
+        lock (_bufferLock)
         {
-            ApplyToken(token, null);
+            foreach (var token in tokens)
+            {
+                ApplyToken(token, null);
+            }
         }
     }
 
@@ -880,24 +892,27 @@ public sealed class Hex1bTerminal : IDisposable
     /// <returns>A list of applied tokens with their cell impacts and cursor state changes.</returns>
     internal IReadOnlyList<AppliedToken> ApplyTokensWithImpacts(IReadOnlyList<AnsiToken> tokens)
     {
-        var result = new List<AppliedToken>(tokens.Count);
-        
-        foreach (var token in tokens)
+        lock (_bufferLock)
         {
-            int cursorXBefore = _cursorX;
-            int cursorYBefore = _cursorY;
+            var result = new List<AppliedToken>(tokens.Count);
             
-            var impacts = new List<CellImpact>();
-            ApplyToken(token, impacts);
+            foreach (var token in tokens)
+            {
+                int cursorXBefore = _cursorX;
+                int cursorYBefore = _cursorY;
+                
+                var impacts = new List<CellImpact>();
+                ApplyToken(token, impacts);
+                
+                result.Add(new AppliedToken(
+                    token,
+                    impacts,
+                    cursorXBefore, cursorYBefore,
+                    _cursorX, _cursorY));
+            }
             
-            result.Add(new AppliedToken(
-                token,
-                impacts,
-                cursorXBefore, cursorYBefore,
-                _cursorX, _cursorY));
+            return result;
         }
-        
-        return result;
     }
 
     /// <summary>

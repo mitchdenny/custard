@@ -93,6 +93,9 @@ builder.Services.AddSingleton<IGalleryExample, ScrollEventExample>();
 builder.Services.AddSingleton<IGalleryExample, ScrollTrackingExample>();
 builder.Services.AddSingleton<IGalleryExample, ScrollInfiniteExample>();
 
+// Register Align widget documentation examples
+builder.Services.AddSingleton<IGalleryExample, AlignDemoExample>();
+
 var app = builder.Build();
 
 // Enable WebSockets

@@ -46,6 +46,7 @@ export default defineConfig({
         {
           text: 'Widgets',
           items: [
+            { text: 'Align', link: '/guide/widgets/align' },
             { text: 'Border & ThemePanel', link: '/guide/widgets/containers' },
             { text: 'Button', link: '/guide/widgets/button' },
             { text: 'Hyperlink', link: '/guide/widgets/hyperlink' },

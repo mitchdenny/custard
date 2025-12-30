@@ -402,16 +402,16 @@ public class Hex1bApp : IDisposable, IAsyncDisposable
             RenderTree(_rootNode);
         }
         
-        // Step 9: Render mouse cursor overlay if enabled
-        RenderMouseCursor();
-        
-        // Step 9.5: End frame buffering - Hex1bAppRenderOptimizationFilter will now emit only
+        // Step 9: End frame buffering - Hex1bAppRenderOptimizationFilter will now emit only
         // the net changes (e.g., clear + re-render same content = no output)
         _context.EndFrame();
         
-        // Step 9.6: Ensure cursor is hidden after rendering to prevent it showing at last write position
-        // RenderMouseCursor will show it at the correct position if mouse cursor is enabled
+        // Step 9.5: Ensure cursor is hidden after rendering to prevent it showing at last write position
         _context.Write("\x1b[?25l");
+        
+        // Step 9.6: Render mouse cursor overlay if enabled (after hiding default cursor)
+        // This positions and shows the cursor at the mouse location
+        RenderMouseCursor();
         
         // Step 10: Clear dirty flags on all nodes (they've been rendered)
         if (_rootNode != null)

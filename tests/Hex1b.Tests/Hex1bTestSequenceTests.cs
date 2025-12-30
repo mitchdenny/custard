@@ -474,7 +474,7 @@ public class Hex1bTestSequenceTests
                     new ListWidget(items)
                 ])
             ),
-            new Hex1bAppOptions { WorkloadAdapter = workload }
+            new Hex1bAppOptions { WorkloadAdapter = workload, EnableInputCoalescing = false }
         );
 
         var sequence = new Hex1bTestSequenceBuilder()
@@ -512,7 +512,7 @@ public class Hex1bTestSequenceTests
                     new TextBoxWidget("").OnTextChanged(args => { text2 = args.NewText; return Task.CompletedTask; })
                 ])
             ),
-            new Hex1bAppOptions { WorkloadAdapter = workload }
+            new Hex1bAppOptions { WorkloadAdapter = workload, EnableInputCoalescing = false }
         );
 
         var sequence = new Hex1bTestSequenceBuilder()

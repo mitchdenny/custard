@@ -101,6 +101,11 @@ public class Hex1bApp : IDisposable, IAsyncDisposable
     
     // Default CTRL-C binding option
     private readonly bool _enableDefaultCtrlCExit;
+    
+    // Input coalescing options
+    private readonly bool _enableInputCoalescing;
+    private readonly int _inputCoalescingInitialDelayMs;
+    private readonly int _inputCoalescingMaxDelayMs;
 
     /// <summary>
     /// Creates a Hex1bApp with an async widget builder.
@@ -145,6 +150,11 @@ public class Hex1bApp : IDisposable, IAsyncDisposable
         
         // Default CTRL-C binding option
         _enableDefaultCtrlCExit = options.EnableDefaultCtrlCExit;
+        
+        // Input coalescing options
+        _enableInputCoalescing = options.EnableInputCoalescing;
+        _inputCoalescingInitialDelayMs = options.InputCoalescingInitialDelayMs;
+        _inputCoalescingMaxDelayMs = options.InputCoalescingMaxDelayMs;
     }
 
     /// <summary>
@@ -210,23 +220,26 @@ public class Hex1bApp : IDisposable, IAsyncDisposable
                     var inputEvent = await inputTask;
                     await ProcessInputEventAsync(inputEvent, cancellationToken);
                     
-                    // DRAIN ALL PENDING INPUT before rendering
+                    // Input coalescing: batch rapid inputs together before rendering
                     // This prevents back pressure from rapid input (key repeats, mouse moves)
-                    // by processing all queued events and rendering once at the final state
-                    
-                    // Adaptive input coalescing: if output is backing up, wait longer to batch more input
-                    // Base delay is 5ms, increases based on output queue depth (up to 100ms max)
-                    var outputBacklog = _adapter.OutputQueueDepth;
-                    var coalescingDelayMs = Math.Min(5 + (outputBacklog * 10), 100);
-                    await Task.Delay(coalescingDelayMs, cancellationToken);
-                    
-                    while (_adapter.InputEvents.TryRead(out var pendingEvent))
+                    if (_enableInputCoalescing)
                     {
-                        await ProcessInputEventAsync(pendingEvent, cancellationToken);
-                        
-                        // Check for stop request between events
-                        if (_stopRequested || cancellationToken.IsCancellationRequested)
-                            break;
+                        // Adaptive delay: scales based on output queue depth
+                        var outputBacklog = _adapter.OutputQueueDepth;
+                        var coalescingDelayMs = Math.Min(
+                            _inputCoalescingInitialDelayMs + (outputBacklog * 10), 
+                            _inputCoalescingMaxDelayMs);
+                        await Task.Delay(coalescingDelayMs, cancellationToken);
+                    
+                        // Drain any pending input that arrived during the delay
+                        while (_adapter.InputEvents.TryRead(out var pendingEvent))
+                        {
+                            await ProcessInputEventAsync(pendingEvent, cancellationToken);
+                            
+                            // Check for stop request between events
+                            if (_stopRequested || cancellationToken.IsCancellationRequested)
+                                break;
+                        }
                     }
                 }
                 // If invalidateTask completed, we just need to re-render (no input to handle)

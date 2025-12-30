@@ -55,7 +55,7 @@ public class RenderOptimizationTests
                 // Text changes each frame - node should be marked dirty
                 return Task.FromResult<Hex1bWidget>(ctx.Text($"Counter: {counter}"));
             },
-            new Hex1bAppOptions { WorkloadAdapter = workload }
+            new Hex1bAppOptions { WorkloadAdapter = workload, EnableInputCoalescing = false }
         );
 
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
@@ -130,7 +130,7 @@ public class RenderOptimizationTests
                     ])
                 );
             },
-            new Hex1bAppOptions { WorkloadAdapter = workload }
+            new Hex1bAppOptions { WorkloadAdapter = workload, EnableInputCoalescing = false }
         );
 
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
@@ -182,7 +182,7 @@ public class RenderOptimizationTests
                     ctx.VStack(v => [testWidget])
                 );
             },
-            new Hex1bAppOptions { WorkloadAdapter = workload }
+            new Hex1bAppOptions { WorkloadAdapter = workload, EnableInputCoalescing = false }
         );
 
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
@@ -272,7 +272,7 @@ public class RenderOptimizationTests
                     ctx.VStack(v => [testWidget])
                 );
             },
-            new Hex1bAppOptions { WorkloadAdapter = workload }
+            new Hex1bAppOptions { WorkloadAdapter = workload, EnableInputCoalescing = false }
         );
 
         // Frame 1: [testWidget] - new node, rendered

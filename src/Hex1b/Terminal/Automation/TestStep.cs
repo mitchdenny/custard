@@ -11,7 +11,7 @@ public abstract record TestStep
     /// </summary>
     internal abstract Task ExecuteAsync(
         Hex1bTerminal terminal,
-        Hex1bTestSequenceOptions options,
+        Hex1bTerminalInputSequenceOptions options,
         CancellationToken ct);
 
     /// <summary>

@@ -7,7 +7,7 @@ public sealed record WaitStep(TimeSpan Duration) : TestStep
 {
     internal override async Task ExecuteAsync(
         Hex1bTerminal terminal,
-        Hex1bTestSequenceOptions options,
+        Hex1bTerminalInputSequenceOptions options,
         CancellationToken ct)
     {
         if (options.TimeProvider is { } timeProvider)

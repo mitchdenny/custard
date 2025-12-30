@@ -61,7 +61,7 @@ public class ThemingExhibitRepro
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
 
         // Wait for the content to render, then exit
-        await new Hex1bTestSequenceBuilder()
+        await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Sample text"), TimeSpan.FromSeconds(2), "Wait for initial render")
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
@@ -186,7 +186,7 @@ public class ThemingExhibitRepro
         
         // Wait for the cursor color (white background) to appear, which indicates the TextBox has focus
         // The TextBox IS focusable and is the first focusable widget, so it WILL have focus.
-        await new Hex1bTestSequenceBuilder()
+        await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.HasBackgroundColor(Hex1bColor.FromRgb(255, 255, 255)), TimeSpan.FromSeconds(2),
                 "cursor background color (white) to appear")
             .Ctrl().Key(Hex1bKey.C)
@@ -221,7 +221,7 @@ public class ThemingExhibitRepro
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         
         // Wait for the cursor color to appear (white background), which is more reliable than waiting for text
-        await new Hex1bTestSequenceBuilder()
+        await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.HasBackgroundColor(Hex1bColor.FromRgb(255, 255, 255)), TimeSpan.FromSeconds(2),
                 "cursor background color (white) to appear")
             .Ctrl().Key(Hex1bKey.C)
@@ -293,7 +293,7 @@ public class ThemingExhibitRepro
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
 
         // Wait for the content to render, then exit
-        await new Hex1bTestSequenceBuilder()
+        await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Sample text"), TimeSpan.FromSeconds(2), "Wait for initial render")
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)

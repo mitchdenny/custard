@@ -9,7 +9,7 @@ public sealed record TextInputStep(string Text, TimeSpan DelayBetweenKeys) : Tes
 {
     internal override async Task ExecuteAsync(
         Hex1bTerminal terminal,
-        Hex1bTestSequenceOptions options,
+        Hex1bTerminalInputSequenceOptions options,
         CancellationToken ct)
     {
         foreach (var c in Text)

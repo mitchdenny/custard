@@ -3,12 +3,12 @@ namespace Hex1b.Terminal.Automation;
 /// <summary>
 /// Options for configuring test sequence execution.
 /// </summary>
-public sealed class Hex1bTestSequenceOptions
+public sealed class Hex1bTerminalInputSequenceOptions
 {
     /// <summary>
     /// Default options instance.
     /// </summary>
-    public static Hex1bTestSequenceOptions Default { get; } = new();
+    public static Hex1bTerminalInputSequenceOptions Default { get; } = new();
 
     /// <summary>
     /// How frequently to poll when waiting for conditions.

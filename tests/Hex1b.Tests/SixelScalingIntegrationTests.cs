@@ -98,7 +98,7 @@ public class SixelScalingIntegrationTests
         
         // Run app briefly to render
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
-        await new Hex1bTestSequenceBuilder()
+        await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.Terminal.ContainsSixelData(), TimeSpan.FromSeconds(2))
             .Capture("rendered")
             .Ctrl().Key(Hex1bKey.C)
@@ -179,7 +179,7 @@ public class SixelScalingIntegrationTests
         );
         
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
-        await new Hex1bTestSequenceBuilder()
+        await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.Terminal.ContainsSixelData(), TimeSpan.FromSeconds(2))
             .Capture("rendered")
             .Ctrl().Key(Hex1bKey.C)

@@ -282,7 +282,7 @@ public class Hex1bAppRenderOptimizationFilterIntegrationTests
 
         // Act
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
-        await new Hex1bTestSequenceBuilder()
+        await new Hex1bTerminalInputSequenceBuilder()
             .Wait(50) // Give app time to initialize
             .WaitUntil(s => s.ContainsText("Static Content"), TimeSpan.FromSeconds(5))
             .Wait(100) // Let a few frames pass
@@ -355,7 +355,7 @@ public class Hex1bAppRenderOptimizationFilterIntegrationTests
 
         // Act
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
-        await new Hex1bTestSequenceBuilder()
+        await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Clicks: 0"), TimeSpan.FromSeconds(5))
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
@@ -365,7 +365,7 @@ public class Hex1bAppRenderOptimizationFilterIntegrationTests
         var frameCountBeforeClear = captureFilter.CompleteFrameCount;
         captureFilter.ClearCounts();
         
-        await new Hex1bTestSequenceBuilder()
+        await new Hex1bTerminalInputSequenceBuilder()
             .Key(Hex1bKey.Enter) // Click the focused button
             .WaitUntil(s => s.ContainsText("Clicks: 1"), TimeSpan.FromSeconds(5))
             .Capture("after_click")
@@ -431,7 +431,7 @@ public class Hex1bAppRenderOptimizationFilterIntegrationTests
 
         // Act
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
-        await new Hex1bTestSequenceBuilder()
+        await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Left Panel"), TimeSpan.FromSeconds(10))
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
@@ -442,7 +442,7 @@ public class Hex1bAppRenderOptimizationFilterIntegrationTests
         var totalScreenCells = 80 * 24; // 1920 cells
         
         // Navigate to splitter and drag it
-        await new Hex1bTestSequenceBuilder()
+        await new Hex1bTerminalInputSequenceBuilder()
             .Tab() // Focus should move to splitter handle
             .Right() // Drag splitter right
             .Right() // Drag more
@@ -505,7 +505,7 @@ public class Hex1bAppRenderOptimizationFilterIntegrationTests
 
         // Act
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
-        await new Hex1bTestSequenceBuilder()
+        await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Item 1"), TimeSpan.FromSeconds(5))
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
@@ -515,7 +515,7 @@ public class Hex1bAppRenderOptimizationFilterIntegrationTests
         captureFilter.ClearCounts();
         
         // Navigate down in the list - should only update 2 rows (old selection, new selection)
-        await new Hex1bTestSequenceBuilder()
+        await new Hex1bTerminalInputSequenceBuilder()
             .Down() // Move selection from Item 1 to Item 2
             .Capture("after_nav")
             .Ctrl().Key(Hex1bKey.C)
@@ -579,7 +579,7 @@ public class Hex1bAppRenderOptimizationFilterIntegrationTests
 
         // Act
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
-        await new Hex1bTestSequenceBuilder()
+        await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Count: 0"), TimeSpan.FromSeconds(5))
             .Tab() // Focus moves from - button to + button
             .Build()
@@ -590,7 +590,7 @@ public class Hex1bAppRenderOptimizationFilterIntegrationTests
         captureFilter.ClearCounts();
         
         // Increment the counter
-        await new Hex1bTestSequenceBuilder()
+        await new Hex1bTerminalInputSequenceBuilder()
             .Key(Hex1bKey.Enter) // Click +
             .WaitUntil(s => s.ContainsText("Count: 1"), TimeSpan.FromSeconds(5))
             .Capture("after_increment")
@@ -804,7 +804,7 @@ public class Hex1bAppRenderOptimizationFilterIntegrationTests
 
         // Act - wait for initial render by detecting the splitter divider character
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
-        await new Hex1bTestSequenceBuilder()
+        await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("│") || s.ContainsText("←") || s.ContainsText("→"), TimeSpan.FromSeconds(5))
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
@@ -814,7 +814,7 @@ public class Hex1bAppRenderOptimizationFilterIntegrationTests
         captureFilter.ClearCounts();
         
         // Move splitter left by pressing Left arrow (splitter should auto-focus or we Tab to it)
-        await new Hex1bTestSequenceBuilder()
+        await new Hex1bTerminalInputSequenceBuilder()
             .Left() // Move splitter left by 1 cell
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
@@ -827,7 +827,7 @@ public class Hex1bAppRenderOptimizationFilterIntegrationTests
         var frameCountCaptured = captureFilter.CompleteFrameCount;
         
         // Now exit the app
-        await new Hex1bTestSequenceBuilder()
+        await new Hex1bTerminalInputSequenceBuilder()
             .Capture("after_move")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
@@ -929,7 +929,7 @@ public class Hex1bAppRenderOptimizationFilterIntegrationTests
 
         // Act - wait for initial render with large widget (5 lines)
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
-        var beforeToggle = await new Hex1bTestSequenceBuilder()
+        var beforeToggle = await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Line 5"), TimeSpan.FromSeconds(5))
             .Wait(50)
             .Capture("before_toggle")
@@ -941,7 +941,7 @@ public class Hex1bAppRenderOptimizationFilterIntegrationTests
         Assert.True(beforeToggle.ContainsText("Line 5"), "Should have Line 5 before toggle");
         
         // Toggle to small widget by clicking the button
-        var afterToggle = await new Hex1bTestSequenceBuilder()
+        var afterToggle = await new Hex1bTerminalInputSequenceBuilder()
             .Key(Hex1bKey.Enter) // Click Toggle button
             .WaitUntil(s => s.ContainsText("SMALL"), TimeSpan.FromSeconds(5))
             .Wait(50)

@@ -9,7 +9,7 @@ public sealed record KeyInputStep(Hex1bKey Key, string Text, Hex1bModifiers Modi
 {
     internal override Task ExecuteAsync(
         Hex1bTerminal terminal,
-        Hex1bTestSequenceOptions options,
+        Hex1bTerminalInputSequenceOptions options,
         CancellationToken ct)
     {
         terminal.SendEvent(new Hex1bKeyEvent(Key, Text, Modifiers));

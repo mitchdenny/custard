@@ -9,7 +9,7 @@ namespace Hex1b.Terminal.Automation;
 /// <code>
 /// var runTask = app.RunAsync();
 /// 
-/// await new Hex1bTestSequenceBuilder()
+/// await new Hex1bTerminalInputSequenceBuilder()
 ///     .WaitUntil(s => s.ContainsText("Enter name:"), TimeSpan.FromSeconds(2))
 ///     .Type("Hello")
 ///     .Enter()
@@ -20,18 +20,18 @@ namespace Hex1b.Terminal.Automation;
 /// await runTask;
 /// </code>
 /// </example>
-public sealed class Hex1bTestSequenceBuilder
+public sealed class Hex1bTerminalInputSequenceBuilder
 {
     internal readonly List<TestStep> _steps = [];
     private Hex1bModifiers _pendingModifiers = Hex1bModifiers.None;
     private int _mouseX;
     private int _mouseY;
-    private Hex1bTestSequenceOptions _options = Hex1bTestSequenceOptions.Default;
+    private Hex1bTerminalInputSequenceOptions _options = Hex1bTerminalInputSequenceOptions.Default;
 
     /// <summary>
     /// Configures options for this sequence.
     /// </summary>
-    public Hex1bTestSequenceBuilder WithOptions(Hex1bTestSequenceOptions options)
+    public Hex1bTerminalInputSequenceBuilder WithOptions(Hex1bTerminalInputSequenceOptions options)
     {
         _options = options;
         return this;
@@ -40,9 +40,9 @@ public sealed class Hex1bTestSequenceBuilder
     /// <summary>
     /// Configures options for this sequence using a configuration action.
     /// </summary>
-    public Hex1bTestSequenceBuilder WithOptions(Action<Hex1bTestSequenceOptions> configure)
+    public Hex1bTerminalInputSequenceBuilder WithOptions(Action<Hex1bTerminalInputSequenceOptions> configure)
     {
-        var options = new Hex1bTestSequenceOptions();
+        var options = new Hex1bTerminalInputSequenceOptions();
         configure(options);
         _options = options;
         return this;
@@ -58,7 +58,7 @@ public sealed class Hex1bTestSequenceBuilder
     /// <param name="predicate">The condition to wait for. Receives a snapshot of the terminal state.</param>
     /// <param name="timeout">Maximum time to wait before throwing TimeoutException.</param>
     /// <param name="description">Optional description for error messages.</param>
-    public Hex1bTestSequenceBuilder WaitUntil(
+    public Hex1bTerminalInputSequenceBuilder WaitUntil(
         Func<Hex1bTerminalSnapshot, bool> predicate,
         TimeSpan timeout,
         string? description = null)
@@ -74,7 +74,7 @@ public sealed class Hex1bTestSequenceBuilder
     /// <summary>
     /// Adds Ctrl modifier to the next key or mouse action.
     /// </summary>
-    public Hex1bTestSequenceBuilder Ctrl()
+    public Hex1bTerminalInputSequenceBuilder Ctrl()
     {
         _pendingModifiers |= Hex1bModifiers.Control;
         return this;
@@ -83,7 +83,7 @@ public sealed class Hex1bTestSequenceBuilder
     /// <summary>
     /// Adds Shift modifier to the next key or mouse action.
     /// </summary>
-    public Hex1bTestSequenceBuilder Shift()
+    public Hex1bTerminalInputSequenceBuilder Shift()
     {
         _pendingModifiers |= Hex1bModifiers.Shift;
         return this;
@@ -92,7 +92,7 @@ public sealed class Hex1bTestSequenceBuilder
     /// <summary>
     /// Adds Alt modifier to the next key or mouse action.
     /// </summary>
-    public Hex1bTestSequenceBuilder Alt()
+    public Hex1bTerminalInputSequenceBuilder Alt()
     {
         _pendingModifiers |= Hex1bModifiers.Alt;
         return this;
@@ -105,7 +105,7 @@ public sealed class Hex1bTestSequenceBuilder
     /// <summary>
     /// Sends a key press event.
     /// </summary>
-    public Hex1bTestSequenceBuilder Key(Hex1bKey key)
+    public Hex1bTerminalInputSequenceBuilder Key(Hex1bKey key)
     {
         var text = GetDefaultTextForKey(key, _pendingModifiers);
         _steps.Add(new KeyInputStep(key, text, _pendingModifiers));
@@ -116,7 +116,7 @@ public sealed class Hex1bTestSequenceBuilder
     /// <summary>
     /// Sends a key press event with the specified modifiers.
     /// </summary>
-    public Hex1bTestSequenceBuilder Key(Hex1bKey key, Hex1bModifiers modifiers)
+    public Hex1bTerminalInputSequenceBuilder Key(Hex1bKey key, Hex1bModifiers modifiers)
     {
         // Combine with any pending modifiers
         var combinedModifiers = _pendingModifiers | modifiers;
@@ -129,12 +129,12 @@ public sealed class Hex1bTestSequenceBuilder
     /// <summary>
     /// Types text quickly (no delay between keystrokes).
     /// </summary>
-    public Hex1bTestSequenceBuilder Type(string text) => FastType(text);
+    public Hex1bTerminalInputSequenceBuilder Type(string text) => FastType(text);
 
     /// <summary>
     /// Types text quickly (no delay between keystrokes).
     /// </summary>
-    public Hex1bTestSequenceBuilder FastType(string text)
+    public Hex1bTerminalInputSequenceBuilder FastType(string text)
     {
         _steps.Add(new TextInputStep(text, TimeSpan.Zero));
         return this;
@@ -143,7 +143,7 @@ public sealed class Hex1bTestSequenceBuilder
     /// <summary>
     /// Types text slowly with the default delay between keystrokes.
     /// </summary>
-    public Hex1bTestSequenceBuilder SlowType(string text)
+    public Hex1bTerminalInputSequenceBuilder SlowType(string text)
     {
         _steps.Add(new TextInputStep(text, _options.SlowTypeDelay));
         return this;
@@ -152,7 +152,7 @@ public sealed class Hex1bTestSequenceBuilder
     /// <summary>
     /// Types text slowly with a custom delay between keystrokes.
     /// </summary>
-    public Hex1bTestSequenceBuilder SlowType(string text, TimeSpan delay)
+    public Hex1bTerminalInputSequenceBuilder SlowType(string text, TimeSpan delay)
     {
         _steps.Add(new TextInputStep(text, delay));
         return this;
@@ -163,46 +163,46 @@ public sealed class Hex1bTestSequenceBuilder
     // ========================================
 
     /// <summary>Sends Enter key.</summary>
-    public Hex1bTestSequenceBuilder Enter() => Key(Hex1bKey.Enter);
+    public Hex1bTerminalInputSequenceBuilder Enter() => Key(Hex1bKey.Enter);
 
     /// <summary>Sends Tab key.</summary>
-    public Hex1bTestSequenceBuilder Tab() => Key(Hex1bKey.Tab);
+    public Hex1bTerminalInputSequenceBuilder Tab() => Key(Hex1bKey.Tab);
 
     /// <summary>Sends Escape key.</summary>
-    public Hex1bTestSequenceBuilder Escape() => Key(Hex1bKey.Escape);
+    public Hex1bTerminalInputSequenceBuilder Escape() => Key(Hex1bKey.Escape);
 
     /// <summary>Sends Backspace key.</summary>
-    public Hex1bTestSequenceBuilder Backspace() => Key(Hex1bKey.Backspace);
+    public Hex1bTerminalInputSequenceBuilder Backspace() => Key(Hex1bKey.Backspace);
 
     /// <summary>Sends Delete key.</summary>
-    public Hex1bTestSequenceBuilder Delete() => Key(Hex1bKey.Delete);
+    public Hex1bTerminalInputSequenceBuilder Delete() => Key(Hex1bKey.Delete);
 
     /// <summary>Sends Space key.</summary>
-    public Hex1bTestSequenceBuilder Space() => Key(Hex1bKey.Spacebar);
+    public Hex1bTerminalInputSequenceBuilder Space() => Key(Hex1bKey.Spacebar);
 
     /// <summary>Sends Up arrow key.</summary>
-    public Hex1bTestSequenceBuilder Up() => Key(Hex1bKey.UpArrow);
+    public Hex1bTerminalInputSequenceBuilder Up() => Key(Hex1bKey.UpArrow);
 
     /// <summary>Sends Down arrow key.</summary>
-    public Hex1bTestSequenceBuilder Down() => Key(Hex1bKey.DownArrow);
+    public Hex1bTerminalInputSequenceBuilder Down() => Key(Hex1bKey.DownArrow);
 
     /// <summary>Sends Left arrow key.</summary>
-    public Hex1bTestSequenceBuilder Left() => Key(Hex1bKey.LeftArrow);
+    public Hex1bTerminalInputSequenceBuilder Left() => Key(Hex1bKey.LeftArrow);
 
     /// <summary>Sends Right arrow key.</summary>
-    public Hex1bTestSequenceBuilder Right() => Key(Hex1bKey.RightArrow);
+    public Hex1bTerminalInputSequenceBuilder Right() => Key(Hex1bKey.RightArrow);
 
     /// <summary>Sends Home key.</summary>
-    public Hex1bTestSequenceBuilder Home() => Key(Hex1bKey.Home);
+    public Hex1bTerminalInputSequenceBuilder Home() => Key(Hex1bKey.Home);
 
     /// <summary>Sends End key.</summary>
-    public Hex1bTestSequenceBuilder End() => Key(Hex1bKey.End);
+    public Hex1bTerminalInputSequenceBuilder End() => Key(Hex1bKey.End);
 
     /// <summary>Sends Page Up key.</summary>
-    public Hex1bTestSequenceBuilder PageUp() => Key(Hex1bKey.PageUp);
+    public Hex1bTerminalInputSequenceBuilder PageUp() => Key(Hex1bKey.PageUp);
 
     /// <summary>Sends Page Down key.</summary>
-    public Hex1bTestSequenceBuilder PageDown() => Key(Hex1bKey.PageDown);
+    public Hex1bTerminalInputSequenceBuilder PageDown() => Key(Hex1bKey.PageDown);
 
     // ========================================
     // Mouse input
@@ -211,7 +211,7 @@ public sealed class Hex1bTestSequenceBuilder
     /// <summary>
     /// Moves the mouse to an absolute position.
     /// </summary>
-    public Hex1bTestSequenceBuilder MouseMoveTo(int x, int y)
+    public Hex1bTerminalInputSequenceBuilder MouseMoveTo(int x, int y)
     {
         _mouseX = x;
         _mouseY = y;
@@ -223,7 +223,7 @@ public sealed class Hex1bTestSequenceBuilder
     /// <summary>
     /// Moves the mouse by a relative delta.
     /// </summary>
-    public Hex1bTestSequenceBuilder MouseMove(int deltaX, int deltaY)
+    public Hex1bTerminalInputSequenceBuilder MouseMove(int deltaX, int deltaY)
     {
         _mouseX += deltaX;
         _mouseY += deltaY;
@@ -235,7 +235,7 @@ public sealed class Hex1bTestSequenceBuilder
     /// <summary>
     /// Presses a mouse button down at the current position.
     /// </summary>
-    public Hex1bTestSequenceBuilder MouseDown(MouseButton button = MouseButton.Left)
+    public Hex1bTerminalInputSequenceBuilder MouseDown(MouseButton button = MouseButton.Left)
     {
         _steps.Add(new MouseInputStep(button, MouseAction.Down, _mouseX, _mouseY, _pendingModifiers));
         _pendingModifiers = Hex1bModifiers.None;
@@ -245,7 +245,7 @@ public sealed class Hex1bTestSequenceBuilder
     /// <summary>
     /// Releases a mouse button at the current position.
     /// </summary>
-    public Hex1bTestSequenceBuilder MouseUp(MouseButton button = MouseButton.Left)
+    public Hex1bTerminalInputSequenceBuilder MouseUp(MouseButton button = MouseButton.Left)
     {
         _steps.Add(new MouseInputStep(button, MouseAction.Up, _mouseX, _mouseY, _pendingModifiers));
         _pendingModifiers = Hex1bModifiers.None;
@@ -255,7 +255,7 @@ public sealed class Hex1bTestSequenceBuilder
     /// <summary>
     /// Performs a click (down + up) at the current position.
     /// </summary>
-    public Hex1bTestSequenceBuilder Click(MouseButton button = MouseButton.Left)
+    public Hex1bTerminalInputSequenceBuilder Click(MouseButton button = MouseButton.Left)
     {
         _steps.Add(new MouseInputStep(button, MouseAction.Down, _mouseX, _mouseY, _pendingModifiers, ClickCount: 1));
         _steps.Add(new MouseInputStep(button, MouseAction.Up, _mouseX, _mouseY, _pendingModifiers, ClickCount: 1));
@@ -266,7 +266,7 @@ public sealed class Hex1bTestSequenceBuilder
     /// <summary>
     /// Performs a click at the specified position.
     /// </summary>
-    public Hex1bTestSequenceBuilder ClickAt(int x, int y, MouseButton button = MouseButton.Left)
+    public Hex1bTerminalInputSequenceBuilder ClickAt(int x, int y, MouseButton button = MouseButton.Left)
     {
         _mouseX = x;
         _mouseY = y;
@@ -276,7 +276,7 @@ public sealed class Hex1bTestSequenceBuilder
     /// <summary>
     /// Performs a double-click at the current position.
     /// </summary>
-    public Hex1bTestSequenceBuilder DoubleClick(MouseButton button = MouseButton.Left)
+    public Hex1bTerminalInputSequenceBuilder DoubleClick(MouseButton button = MouseButton.Left)
     {
         _steps.Add(new MouseInputStep(button, MouseAction.Down, _mouseX, _mouseY, _pendingModifiers, ClickCount: 2));
         _steps.Add(new MouseInputStep(button, MouseAction.Up, _mouseX, _mouseY, _pendingModifiers, ClickCount: 2));
@@ -287,7 +287,7 @@ public sealed class Hex1bTestSequenceBuilder
     /// <summary>
     /// Performs a drag from one position to another.
     /// </summary>
-    public Hex1bTestSequenceBuilder Drag(int fromX, int fromY, int toX, int toY, MouseButton button = MouseButton.Left)
+    public Hex1bTerminalInputSequenceBuilder Drag(int fromX, int fromY, int toX, int toY, MouseButton button = MouseButton.Left)
     {
         _mouseX = fromX;
         _mouseY = fromY;
@@ -305,7 +305,7 @@ public sealed class Hex1bTestSequenceBuilder
     /// <summary>
     /// Scrolls up at the current position.
     /// </summary>
-    public Hex1bTestSequenceBuilder ScrollUp(int ticks = 1)
+    public Hex1bTerminalInputSequenceBuilder ScrollUp(int ticks = 1)
     {
         for (int i = 0; i < ticks; i++)
         {
@@ -318,7 +318,7 @@ public sealed class Hex1bTestSequenceBuilder
     /// <summary>
     /// Scrolls down at the current position.
     /// </summary>
-    public Hex1bTestSequenceBuilder ScrollDown(int ticks = 1)
+    public Hex1bTerminalInputSequenceBuilder ScrollDown(int ticks = 1)
     {
         for (int i = 0; i < ticks; i++)
         {
@@ -335,7 +335,7 @@ public sealed class Hex1bTestSequenceBuilder
     /// <summary>
     /// Pauses for the specified duration.
     /// </summary>
-    public Hex1bTestSequenceBuilder Wait(TimeSpan duration)
+    public Hex1bTerminalInputSequenceBuilder Wait(TimeSpan duration)
     {
         _steps.Add(new WaitStep(duration));
         return this;
@@ -344,7 +344,7 @@ public sealed class Hex1bTestSequenceBuilder
     /// <summary>
     /// Pauses for the specified number of milliseconds.
     /// </summary>
-    public Hex1bTestSequenceBuilder Wait(int milliseconds)
+    public Hex1bTerminalInputSequenceBuilder Wait(int milliseconds)
         => Wait(TimeSpan.FromMilliseconds(milliseconds));
 
     // ========================================
@@ -354,9 +354,9 @@ public sealed class Hex1bTestSequenceBuilder
     /// <summary>
     /// Builds the test sequence.
     /// </summary>
-    public Hex1bTestSequence Build()
+    public Hex1bTerminalInputSequence Build()
     {
-        return new Hex1bTestSequence(_steps.ToList(), _options);
+        return new Hex1bTerminalInputSequence(_steps.ToList(), _options);
     }
 
     // ========================================

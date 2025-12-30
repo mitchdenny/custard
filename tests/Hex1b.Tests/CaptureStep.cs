@@ -13,7 +13,7 @@ internal sealed record CaptureStep(string Name) : TestStep
     /// </summary>
     internal override Task ExecuteAsync(
         Hex1bTerminal terminal,
-        Hex1bTestSequenceOptions options,
+        Hex1bTerminalInputSequenceOptions options,
         CancellationToken ct)
     {
         TestCaptureHelper.Capture(terminal, Name);

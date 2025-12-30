@@ -402,7 +402,7 @@ public class AsciinemaRecorderTests : IDisposable
         // === Phase 1: Initial render at 120 cols (wide layout) ===
         recorder.AddMarker("App Start - Wide Layout (120 cols)");
         
-        await new Hex1bTestSequenceBuilder()
+        await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Todo Items"), TimeSpan.FromSeconds(2))
             .Wait(TimeSpan.FromMilliseconds(500))
             .Build()
@@ -411,7 +411,7 @@ public class AsciinemaRecorderTests : IDisposable
         // === Phase 2: Navigate the todo list ===
         recorder.AddMarker("Navigating Todo List");
         
-        await new Hex1bTestSequenceBuilder()
+        await new Hex1bTerminalInputSequenceBuilder()
             .Key(Hex1bKey.DownArrow)
             .Wait(TimeSpan.FromMilliseconds(300))
             .Key(Hex1bKey.DownArrow)
@@ -424,7 +424,7 @@ public class AsciinemaRecorderTests : IDisposable
         // === Phase 3: Toggle a todo item ===
         recorder.AddMarker("Toggling Todo Item");
         
-        await new Hex1bTestSequenceBuilder()
+        await new Hex1bTerminalInputSequenceBuilder()
             .Key(Hex1bKey.Spacebar)  // Toggle the selected item
             .Wait(TimeSpan.FromMilliseconds(500))
             .Key(Hex1bKey.DownArrow)
@@ -437,7 +437,7 @@ public class AsciinemaRecorderTests : IDisposable
         // === Phase 4: Tab to the text input and add a new todo ===
         recorder.AddMarker("Adding New Todo Item");
         
-        await new Hex1bTestSequenceBuilder()
+        await new Hex1bTerminalInputSequenceBuilder()
             .Tab()
             .Wait(TimeSpan.FromMilliseconds(300))
             .Type("Buy holiday gifts")
@@ -457,7 +457,7 @@ public class AsciinemaRecorderTests : IDisposable
         terminal.Resize(80, 24);
         await workload.ResizeAsync(80, 24, TestContext.Current.CancellationToken);
         
-        await new Hex1bTestSequenceBuilder()
+        await new Hex1bTerminalInputSequenceBuilder()
             .Wait(TimeSpan.FromMilliseconds(800))
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
@@ -465,7 +465,7 @@ public class AsciinemaRecorderTests : IDisposable
         // === Phase 6: Navigate in medium layout ===
         recorder.AddMarker("Navigating in Medium Layout");
         
-        await new Hex1bTestSequenceBuilder()
+        await new Hex1bTerminalInputSequenceBuilder()
             .Shift().Tab()  // Go back to list
             .Wait(TimeSpan.FromMilliseconds(300))
             .Shift().Tab()
@@ -486,7 +486,7 @@ public class AsciinemaRecorderTests : IDisposable
         terminal.Resize(50, 20);
         await workload.ResizeAsync(50, 20, TestContext.Current.CancellationToken);
         
-        await new Hex1bTestSequenceBuilder()
+        await new Hex1bTerminalInputSequenceBuilder()
             .Wait(TimeSpan.FromMilliseconds(800))
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
@@ -494,7 +494,7 @@ public class AsciinemaRecorderTests : IDisposable
         // === Phase 8: Add another todo in compact mode ===
         recorder.AddMarker("Adding Todo in Compact Mode");
         
-        await new Hex1bTestSequenceBuilder()
+        await new Hex1bTerminalInputSequenceBuilder()
             .Tab()
             .Wait(TimeSpan.FromMilliseconds(300))
             .Type("Call mom")
@@ -513,7 +513,7 @@ public class AsciinemaRecorderTests : IDisposable
         terminal.Resize(160, 35);
         await workload.ResizeAsync(160, 35, TestContext.Current.CancellationToken);
         
-        await new Hex1bTestSequenceBuilder()
+        await new Hex1bTerminalInputSequenceBuilder()
             .Wait(TimeSpan.FromMilliseconds(800))
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
@@ -521,7 +521,7 @@ public class AsciinemaRecorderTests : IDisposable
         // === Phase 10: Final navigation and interactions ===
         recorder.AddMarker("Final Interactions");
         
-        await new Hex1bTestSequenceBuilder()
+        await new Hex1bTerminalInputSequenceBuilder()
             .Shift().Tab()
             .Wait(TimeSpan.FromMilliseconds(200))
             .Shift().Tab()
@@ -542,7 +542,7 @@ public class AsciinemaRecorderTests : IDisposable
         // === Shutdown ===
         recorder.AddMarker("Session End");
         
-        await new Hex1bTestSequenceBuilder()
+        await new Hex1bTerminalInputSequenceBuilder()
             .Wait(TimeSpan.FromMilliseconds(500))
             .Ctrl().Key(Hex1bKey.C)
             .Build()

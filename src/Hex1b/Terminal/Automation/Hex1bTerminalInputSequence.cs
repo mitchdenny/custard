@@ -2,14 +2,14 @@ namespace Hex1b.Terminal.Automation;
 
 /// <summary>
 /// A sequence of test steps that can be applied to a terminal.
-/// Built using <see cref="Hex1bTestSequenceBuilder"/>.
+/// Built using <see cref="Hex1bTerminalInputSequenceBuilder"/>.
 /// </summary>
-public sealed class Hex1bTestSequence
+public sealed class Hex1bTerminalInputSequence
 {
     private readonly IReadOnlyList<TestStep> _steps;
-    private readonly Hex1bTestSequenceOptions _options;
+    private readonly Hex1bTerminalInputSequenceOptions _options;
 
-    internal Hex1bTestSequence(IReadOnlyList<TestStep> steps, Hex1bTestSequenceOptions options)
+    internal Hex1bTerminalInputSequence(IReadOnlyList<TestStep> steps, Hex1bTerminalInputSequenceOptions options)
     {
         _steps = steps;
         _options = options;
@@ -23,7 +23,7 @@ public sealed class Hex1bTestSequence
     /// <summary>
     /// Gets the options for this sequence.
     /// </summary>
-    public Hex1bTestSequenceOptions Options => _options;
+    public Hex1bTerminalInputSequenceOptions Options => _options;
 
     /// <summary>
     /// Applies this test sequence to the terminal.

@@ -403,7 +403,7 @@ public class ToggleSwitchNodeTests
         );
 
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
-        await new Hex1bTestSequenceBuilder()
+        await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Manual"), TimeSpan.FromSeconds(2))
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
@@ -435,7 +435,7 @@ public class ToggleSwitchNodeTests
         );
 
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
-        await new Hex1bTestSequenceBuilder()
+        await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Off"), TimeSpan.FromSeconds(2))
             .Right()
             .Capture("final")
@@ -466,7 +466,7 @@ public class ToggleSwitchNodeTests
         );
 
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
-        await new Hex1bTestSequenceBuilder()
+        await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Low"), TimeSpan.FromSeconds(2))
             .Right().Right()
             .Capture("final")
@@ -500,7 +500,7 @@ public class ToggleSwitchNodeTests
 
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         // Navigate right on toggle, then tab to button, then click
-        await new Hex1bTestSequenceBuilder()
+        await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Click"), TimeSpan.FromSeconds(2))
             .Right().Tab().Enter()
             .Capture("final")
@@ -532,7 +532,7 @@ public class ToggleSwitchNodeTests
         );
 
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
-        await new Hex1bTestSequenceBuilder()
+        await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Mode1"), TimeSpan.FromSeconds(2))
             .Right()
             .Capture("final")

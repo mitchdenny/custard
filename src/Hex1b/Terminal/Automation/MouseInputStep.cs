@@ -15,7 +15,7 @@ public sealed record MouseInputStep(
 {
     internal override Task ExecuteAsync(
         Hex1bTerminal terminal,
-        Hex1bTestSequenceOptions options,
+        Hex1bTerminalInputSequenceOptions options,
         CancellationToken ct)
     {
         terminal.SendEvent(new Hex1bMouseEvent(Button, Action, X, Y, Modifiers, ClickCount));

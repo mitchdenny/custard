@@ -461,9 +461,31 @@ public class Hex1bApp : IDisposable, IAsyncDisposable
         }
         
         // Node is clean but has dirty descendants - traverse children with the current theme
+        // Check if this node provides custom layout/clipping for its children
+        var childLayoutProvider = node as Nodes.IChildLayoutProvider;
+        
         foreach (var child in node.GetChildren())
         {
-            RenderTree(child, effectiveTheme);
+            if (!child.NeedsRender()) continue;
+            
+            // Get layout provider for this child (if any)
+            var layoutForChild = childLayoutProvider?.GetChildLayoutProvider(child);
+            
+            if (layoutForChild != null)
+            {
+                // Set up clipping context for this child
+                var previousLayout = _context.CurrentLayoutProvider;
+                layoutForChild.ParentLayoutProvider = previousLayout;
+                _context.CurrentLayoutProvider = layoutForChild;
+                
+                RenderTree(child, effectiveTheme);
+                
+                _context.CurrentLayoutProvider = previousLayout;
+            }
+            else
+            {
+                RenderTree(child, effectiveTheme);
+            }
         }
     }
     

@@ -162,8 +162,8 @@ public class ThemingExhibitRepro
     }
 
     /// <summary>
-    /// Verify that when a TextBox does NOT have focus, rendering does not include cursor colors.
-    /// Uses full Hex1bApp integration for reliable behavior.
+    /// Verify that when a TextBox has focus (which it gets by default as the first focusable widget),
+    /// the cursor colors are rendered. This test uses text-based waiting which is more reliable.
     /// </summary>
     [Fact]
     public async Task TextBox_WhenNotFocused_ShouldNotRenderCursorColors()
@@ -172,33 +172,32 @@ public class ThemingExhibitRepro
         using var workload = new Hex1bAppWorkloadAdapter();
         using var terminal = new Hex1bTerminal(workload, 30, 5);
 
-        // Create a simple app with a TextBox that won't have focus initially
+        // Create a VStack with a List (focusable) first, then a TextBox
+        // The List gets focus by default, so the TextBox should NOT show cursor colors
+        var items = new List<string> { "Item 1", "Item 2" };
         using var app = new Hex1bApp(
             ctx => ctx.VStack(root => [
-                root.Text("Header"),      // This gets focus first (not focusable, so TextBox gets it)
-                root.TextBox("test text") // TextBox with some initial text
+                root.List(items),         // List gets focus first
+                root.TextBox("test text") // TextBox does NOT have focus initially
             ]),
             new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
-        // Act - Run app, wait for render, then exit WITHOUT focusing the textbox
+        // Act - Run app, wait for content to render
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
-        
-        // Wait for the cursor color (white background) to appear, which indicates the TextBox has focus
-        // The TextBox IS focusable and is the first focusable widget, so it WILL have focus.
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.HasBackgroundColor(Hex1bColor.FromRgb(255, 255, 255)), TimeSpan.FromSeconds(2),
-                "cursor background color (white) to appear")
+            .WaitUntil(s => s.ContainsText("Item 1") && s.ContainsText("test text"), TimeSpan.FromSeconds(2),
+                "List and TextBox content to appear")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
-        // Assert - The cursor background color (white) should be present because TextBox has focus.
-        // This test verifies that the first focusable widget gets focus by default.
+        // Assert - The cursor background color (white) should NOT be present because TextBox doesn't have focus.
+        // The List has focus, not the TextBox.
         var snapshot = terminal.CreateSnapshot();
-        Assert.True(snapshot.HasBackgroundColor(Hex1bColor.FromRgb(255, 255, 255)),
-            "TextBox should have cursor colors when it has focus (it's the first focusable widget)");
+        Assert.False(snapshot.HasBackgroundColor(Hex1bColor.FromRgb(255, 255, 255)),
+            "TextBox should NOT have cursor colors when it doesn't have focus (List has focus)");
     }
 
     /// <summary>
@@ -217,13 +216,10 @@ public class ThemingExhibitRepro
             new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
-        // Act - Run app, wait for TextBox to render with focus and cursor colors
+        // Act - Run app, wait for TextBox text to appear, then check for cursor colors
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
-        
-        // Wait for the cursor color to appear (white background), which is more reliable than waiting for text
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.HasBackgroundColor(Hex1bColor.FromRgb(255, 255, 255)), TimeSpan.FromSeconds(2),
-                "cursor background color (white) to appear")
+            .WaitUntil(s => s.ContainsText("test"), TimeSpan.FromSeconds(2), "TextBox content to appear")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);

@@ -1,7 +1,7 @@
 using System.Text;
 using Hex1b.Theming;
 
-namespace Hex1b.Terminal.Testing;
+namespace Hex1b.Terminal.Automation;
 
 /// <summary>
 /// Extension methods for rendering terminal regions to ANSI escape code format.

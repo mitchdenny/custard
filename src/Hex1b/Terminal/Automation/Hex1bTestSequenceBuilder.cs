@@ -1,6 +1,6 @@
 using Hex1b.Input;
 
-namespace Hex1b.Terminal.Testing;
+namespace Hex1b.Terminal.Automation;
 
 /// <summary>
 /// Fluent builder for creating test sequences to simulate user interaction.

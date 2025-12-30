@@ -80,7 +80,7 @@ Add the Hex1b package to your test project:
 ```csharp
 using Hex1b;
 using Hex1b.Terminal;
-using Hex1b.Terminal.Testing;
+using Hex1b.Terminal.Automation;
 using Hex1b.Widgets;
 using Xunit;
 
@@ -463,7 +463,7 @@ Here's a full test class for the counter app:
 using Hex1b;
 using Hex1b.Input;
 using Hex1b.Terminal;
-using Hex1b.Terminal.Testing;
+using Hex1b.Terminal.Automation;
 using Hex1b.Widgets;
 using Xunit;
 

@@ -1,6 +1,6 @@
 using System.Text;
 
-namespace Hex1b.Terminal.Testing;
+namespace Hex1b.Terminal.Automation;
 
 /// <summary>
 /// Extension methods for <see cref="IHex1bTerminalRegion"/> providing common text operations.

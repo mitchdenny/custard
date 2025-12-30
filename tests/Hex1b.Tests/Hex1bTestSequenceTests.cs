@@ -1,5 +1,5 @@
 using Hex1b.Input;
-using Hex1b.Terminal.Testing;
+using Hex1b.Terminal.Automation;
 using Hex1b.Widgets;
 
 namespace Hex1b.Tests;
@@ -399,7 +399,7 @@ public class Hex1bTestSequenceTests
                     new TextBoxWidget("").OnTextChanged(args => { textEntered = args.NewText; return Task.CompletedTask; })
                 ])
             ),
-            new Hex1bAppOptions { WorkloadAdapter = workload }
+            new Hex1bAppOptions { WorkloadAdapter = workload, EnableInputCoalescing = false }
         );
 
         var sequence = new Hex1bTestSequenceBuilder()

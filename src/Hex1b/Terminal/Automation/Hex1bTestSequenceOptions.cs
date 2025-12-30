@@ -1,4 +1,4 @@
-namespace Hex1b.Terminal.Testing;
+namespace Hex1b.Terminal.Automation;
 
 /// <summary>
 /// Options for configuring test sequence execution.

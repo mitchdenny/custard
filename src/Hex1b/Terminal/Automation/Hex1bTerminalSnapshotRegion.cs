@@ -1,6 +1,6 @@
 using Hex1b.Layout;
 
-namespace Hex1b.Terminal.Testing;
+namespace Hex1b.Terminal.Automation;
 
 /// <summary>
 /// A lightweight view into a terminal snapshot that provides localized coordinates.

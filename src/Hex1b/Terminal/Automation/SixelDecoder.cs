@@ -1,6 +1,6 @@
 using System.Text.RegularExpressions;
 
-namespace Hex1b.Terminal.Testing;
+namespace Hex1b.Terminal.Automation;
 
 /// <summary>
 /// Decodes Sixel graphics data to raw pixel arrays for SVG rendering.

@@ -649,10 +649,10 @@ public sealed class Hex1bTerminal : IDisposable
     /// Useful for assertions and wait conditions in tests.
     /// Automatically flushes pending output before creating the snapshot.
     /// </summary>
-    public Testing.Hex1bTerminalSnapshot CreateSnapshot()
+    public Automation.Hex1bTerminalSnapshot CreateSnapshot()
     {
         FlushOutput();
-        return new Testing.Hex1bTerminalSnapshot(this);
+        return new Automation.Hex1bTerminalSnapshot(this);
     }
 
     /// <summary>

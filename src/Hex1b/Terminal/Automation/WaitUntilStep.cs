@@ -1,4 +1,4 @@
-namespace Hex1b.Terminal.Testing;
+namespace Hex1b.Terminal.Automation;
 
 /// <summary>
 /// A step that waits until a condition is met on the terminal.

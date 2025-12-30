@@ -1,4 +1,4 @@
-namespace Hex1b.Terminal.Testing;
+namespace Hex1b.Terminal.Automation;
 
 /// <summary>
 /// A sequence of test steps that can be applied to a terminal.

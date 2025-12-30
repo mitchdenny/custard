@@ -1,6 +1,6 @@
 using Hex1b.Input;
 
-namespace Hex1b.Terminal.Testing;
+namespace Hex1b.Terminal.Automation;
 
 /// <summary>
 /// A step that sends a mouse event at a specific position.

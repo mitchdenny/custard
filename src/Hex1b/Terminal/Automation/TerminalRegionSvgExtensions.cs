@@ -2,7 +2,7 @@ using System.Text;
 using System.Web;
 using Hex1b.Terminal;
 
-namespace Hex1b.Terminal.Testing;
+namespace Hex1b.Terminal.Automation;
 
 /// <summary>
 /// Extension methods for rendering terminal regions to SVG format.

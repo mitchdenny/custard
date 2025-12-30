@@ -1,4 +1,4 @@
-namespace Hex1b.Terminal.Testing;
+namespace Hex1b.Terminal.Automation;
 
 /// <summary>
 /// Base class for test sequence steps.

@@ -1,6 +1,6 @@
 using Hex1b.Input;
 using Hex1b.Layout;
-using Hex1b.Terminal.Testing;
+using Hex1b.Terminal.Automation;
 using Hex1b.Theming;
 
 namespace Hex1b.Tests;

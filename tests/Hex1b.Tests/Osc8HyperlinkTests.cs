@@ -1,7 +1,7 @@
 using Hex1b;
 using Hex1b.Input;
 using Hex1b.Terminal;
-using Hex1b.Terminal.Testing;
+using Hex1b.Terminal.Automation;
 using Hex1b.Tokens;
 using Hex1b.Widgets;
 

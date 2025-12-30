@@ -2,7 +2,7 @@ using System.Text;
 using System.Text.Json;
 using System.Web;
 
-namespace Hex1b.Terminal.Testing;
+namespace Hex1b.Terminal.Automation;
 
 /// <summary>
 /// Extension methods for rendering terminal regions to interactive HTML format.

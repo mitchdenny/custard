@@ -52,6 +52,13 @@ public sealed class PopupEntry
     /// Gets whether this popup is a barrier that stops cascade dismissal.
     /// </summary>
     public bool IsBarrier { get; internal set; }
+    
+    /// <summary>
+    /// The reconciled content node for this popup entry.
+    /// Used to check if click coordinates fall within content bounds.
+    /// Set by the reconciler after building popup widgets.
+    /// </summary>
+    internal Hex1bNode? ContentNode { get; set; }
 }
 
 /// <summary>
@@ -119,6 +126,11 @@ public sealed class PopupStack
     /// Gets the number of popups currently open.
     /// </summary>
     public int Count => _entries.Count;
+    
+    /// <summary>
+    /// Gets the popup entries for internal use by the reconciler.
+    /// </summary>
+    internal IReadOnlyList<PopupEntry> Entries => _entries;
 
     /// <summary>
     /// Pushes a new popup onto the stack (full-screen backdrop, not anchored).
@@ -254,6 +266,31 @@ public sealed class PopupStack
     /// <returns>True if any popups were removed, false if stack was empty.</returns>
     public bool PopToBarrier()
     {
+        return PopAtPosition(-1, -1);
+    }
+    
+    /// <summary>
+    /// Removes popups from the stack, stopping if the click position falls within
+    /// content bounds of a lower layer (not just its backdrop).
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// This method extends cascade dismissal with geometry awareness:
+    /// - Pops the topmost popup (where the click was registered on the backdrop)
+    /// - For each subsequent layer, checks if the click position hits content
+    /// - Stops unwinding if the click would land on a lower layer's content
+    /// - Also stops at barriers as with <see cref="PopToBarrier"/>
+    /// </para>
+    /// <para>
+    /// This enables nested menu UX where clicking outside a submenu but inside
+    /// the parent menu dismisses only the submenu, not the entire menu stack.
+    /// </para>
+    /// </remarks>
+    /// <param name="x">The X coordinate of the click (screen position), or -1 to skip position check.</param>
+    /// <param name="y">The Y coordinate of the click (screen position), or -1 to skip position check.</param>
+    /// <returns>True if any popups were removed, false if stack was empty.</returns>
+    public bool PopAtPosition(int x, int y)
+    {
         if (_entries.Count == 0) return false;
         
         // If the top entry is a barrier, just pop it (explicit click-away on barrier)
@@ -262,12 +299,23 @@ public sealed class PopupStack
             return Pop();
         }
         
-        // Pop until we hit a barrier or empty the stack
+        // Pop until we hit a barrier, content bounds, or empty the stack
         bool popped = false;
         while (_entries.Count > 0 && !_entries[^1].IsBarrier)
         {
             _entries.RemoveAt(_entries.Count - 1);
             popped = true;
+            
+            // Check if remaining top entry's content contains the click position
+            if (_entries.Count > 0 && x >= 0 && y >= 0)
+            {
+                var topEntry = _entries[^1];
+                if (topEntry.ContentNode != null && topEntry.ContentNode.ContentBounds.Contains(x, y))
+                {
+                    // Click falls within this layer's content - stop unwinding
+                    break;
+                }
+            }
         }
         
         return popped;
@@ -311,7 +359,7 @@ public sealed class PopupStack
     
     /// <summary>
     /// Builds popup widgets wrapped in backdrops for internal use by the reconciler.
-    /// Each popup is wrapped in a transparent Backdrop that uses PopToBarrier when clicked away.
+    /// Each popup is wrapped in a transparent Backdrop that uses PopAtPosition when clicked away.
     /// Anchored popups are positioned relative to their anchor node.
     /// Theme context is preserved from the original push location.
     /// </summary>
@@ -334,11 +382,11 @@ public sealed class PopupStack
                 content = new AnchoredWidget(content, entry.AnchorNode, entry.Position);
             }
             
-            // Click-away uses PopToBarrier for cascade dismissal
+            // Click-away uses PopAtPosition for coordinate-aware cascade dismissal
             yield return new BackdropWidget(content)
             {
                 Style = BackdropStyle.Transparent,
-                ClickAwayHandler = () => { PopToBarrier(); return Task.CompletedTask; }
+                ClickAwayEventHandler = args => { PopAtPosition(args.X, args.Y); return Task.CompletedTask; }
             };
         }
     }

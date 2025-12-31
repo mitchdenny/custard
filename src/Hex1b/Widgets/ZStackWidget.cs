@@ -69,6 +69,20 @@ public sealed record ZStackWidget(IReadOnlyList<Hex1bWidget> Children) : Hex1bWi
             }
         }
         node.Children = newChildren;
+        
+        // Update popup entries with their reconciled content nodes for coordinate-aware dismissal
+        var popupEntries = node.Popups.Entries;
+        var popupStartIndex = Children.Count;
+        for (int i = 0; i < popupEntries.Count; i++)
+        {
+            var childIndex = popupStartIndex + i;
+            if (childIndex < newChildren.Count)
+            {
+                // The child is a BackdropNode - get its content child for bounds checking
+                var backdropNode = newChildren[childIndex] as BackdropNode;
+                popupEntries[i].ContentNode = backdropNode?.Child;
+            }
+        }
 
         // Focus management: Focus the first focusable in the topmost layer that has focusables
         // This gives overlay content focus priority

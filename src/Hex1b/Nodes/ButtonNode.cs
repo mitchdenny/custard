@@ -87,6 +87,13 @@ public sealed class ButtonNode : Hex1bNode
             var bg = theme.Get(ButtonTheme.FocusedBackgroundColor);
             output = $"{fg.ToForegroundAnsi()}{bg.ToBackgroundAnsi()}{leftBracket}{Label}{rightBracket}{resetToGlobal}";
         }
+        else if (IsHovered)
+        {
+            var fg = theme.Get(ButtonTheme.ForegroundColor);
+            var bg = theme.Get(ButtonTheme.HoveredBackgroundColor);
+            var fgCode = fg.IsDefault ? theme.GetGlobalForeground().ToForegroundAnsi() : fg.ToForegroundAnsi();
+            output = $"{fgCode}{bg.ToBackgroundAnsi()}{leftBracket}{Label}{rightBracket}{resetToGlobal}";
+        }
         else
         {
             var fg = theme.Get(ButtonTheme.ForegroundColor);

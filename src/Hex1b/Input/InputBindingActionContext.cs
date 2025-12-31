@@ -1,3 +1,5 @@
+using Hex1b.Nodes;
+
 namespace Hex1b.Input;
 
 /// <summary>
@@ -76,4 +78,33 @@ public sealed class InputBindingActionContext
     /// </summary>
     /// <returns>True if the node was found and focused.</returns>
     public bool Focus(Hex1bNode node) => _focusRing.Focus(node);
+    
+    /// <summary>
+    /// Gets the popup stack for the nearest popup host (typically a ZStack) in the focused node's ancestry.
+    /// Use this to push popups, menus, and dialogs from event handlers.
+    /// The root ZStack automatically provides a PopupStack, so this is never null within a Hex1bApp.
+    /// </summary>
+    /// <example>
+    /// <code>
+    /// ctx.Button("File")
+    ///    .OnClick(ctx => ctx.Popups.Push(() => BuildFileMenu()));
+    /// </code>
+    /// </example>
+    public PopupStack Popups => FindNearestPopupHost()?.Popups 
+        ?? throw new InvalidOperationException("No popup host found. Ensure code runs within a Hex1bApp context.");
+    
+    private IPopupHost? FindNearestPopupHost()
+    {
+        // Walk from the focused node up the parent chain to find the nearest popup host
+        Hex1bNode? current = FocusedNode;
+        while (current != null)
+        {
+            if (current is IPopupHost host)
+            {
+                return host;
+            }
+            current = current.Parent;
+        }
+        return null;
+    }
 }

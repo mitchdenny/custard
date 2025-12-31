@@ -1,6 +1,7 @@
 #pragma warning disable HEX1B001 // Navigator API is experimental - internal usage is allowed
 
 using Hex1b.Input;
+using Hex1b.Nodes;
 
 namespace Hex1b.Widgets;
 
@@ -46,7 +47,8 @@ public sealed class ReconcileContext
     /// <summary>
     /// Creates a root reconcile context (no parent).
     /// </summary>
-    internal static ReconcileContext CreateRoot(FocusRing? focusRing = null) => new(null, focusRing ?? new FocusRing());
+    internal static ReconcileContext CreateRoot(FocusRing? focusRing = null) 
+        => new(null, focusRing ?? new FocusRing());
 
     /// <summary>
     /// Creates a child context with the specified parent.

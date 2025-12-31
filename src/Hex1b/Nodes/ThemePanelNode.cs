@@ -59,7 +59,24 @@ public sealed class ThemePanelNode : Hex1bNode
             context.Theme = ThemeMutator(originalTheme.Clone());
         }
         
+        // Fill our entire bounds with the global background color (if set)
+        // This ensures empty areas within the themed region have the correct background
+        var bg = context.Theme.GetGlobalBackground();
+        if (!bg.IsDefault && Bounds.Width > 0 && Bounds.Height > 0)
+        {
+            var bgCode = bg.ToBackgroundAnsi();
+            var resetCode = context.Theme.GetResetToGlobalCodes();
+            var spaces = new string(' ', Bounds.Width);
+            
+            for (int y = Bounds.Y; y < Bounds.Y + Bounds.Height; y++)
+            {
+                context.SetCursorPosition(Bounds.X, y);
+                context.Write($"{bgCode}{spaces}{resetCode}");
+            }
+        }
+        
         // Render child content with the (possibly mutated) theme
+        context.SetCursorPosition(Child.Bounds.X, Child.Bounds.Y);
         Child.Render(context);
         
         // Restore original theme

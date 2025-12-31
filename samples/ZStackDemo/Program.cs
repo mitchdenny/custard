@@ -3,7 +3,7 @@ using Hex1b.Terminal;
 using Hex1b.Theming;
 using Hex1b.Widgets;
 
-// PopupStack Demo - The root ZStack is automatic, so just use ctx.Popups
+// PopupStack Demo - Anchored menus with automatic positioning
 // Run with: dotnet run --project samples/ZStackDemo
 
 var selectedAction = "None selected";
@@ -22,42 +22,41 @@ try
     
     using var terminal = new Hex1bTerminal(terminalOptions);
 
-    // No need to wrap in ZStack - the root is automatically a ZStack
     await using var app = new Hex1bApp(
         ctx => ctx.ThemePanel(
             theme => theme.Set(GlobalTheme.BackgroundColor, Hex1bColor.FromRgb(40, 40, 40)),
             ctx.VStack(main => [
-                // Menu bar
+                // Menu bar - buttons use PushAnchored for positioned menus
                 main.HStack(menuBar => [
                     menuBar.Button(" File ")
-                        .OnClick(e => e.Popups.Push(() => BuildFileMenu(ctx, e.Popups))),
+                        .OnClick(e => e.PushAnchored(AnchorPosition.Below, () => BuildFileMenu(ctx, e.Popups))),
                     menuBar.Button(" Edit ")
-                        .OnClick(e => e.Popups.Push(() => BuildEditMenu(ctx, e.Popups, a => selectedAction = a))),
+                        .OnClick(e => e.PushAnchored(AnchorPosition.Below, () => BuildEditMenu(ctx, e.Popups, a => selectedAction = a))),
                     menuBar.Button(" View ")
-                        .OnClick(e => e.Popups.Push(() => BuildViewMenu(ctx, e.Popups, a => selectedAction = a))),
+                        .OnClick(e => e.PushAnchored(AnchorPosition.Below, () => BuildViewMenu(ctx, e.Popups, a => selectedAction = a))),
                     menuBar.Button(" Help ")
-                        .OnClick(e => e.Popups.Push(() => BuildHelpMenu(ctx, e.Popups, a => selectedAction = a))),
+                        .OnClick(e => e.PushAnchored(AnchorPosition.Below, () => BuildHelpMenu(ctx, e.Popups, a => selectedAction = a))),
                     menuBar.Text("").Fill(),
                 ]).ContentHeight(),
                 
                 // Main content area
                 main.Border(
                     main.VStack(content => [
-                        content.Text("PopupStack Demo - Automatic Root ZStack"),
+                        content.Text("Anchored PopupStack Demo"),
                         content.Text("════════════════════════════════════════"),
                         content.Text(""),
-                        content.Text("The root widget is now automatically a ZStack."),
-                        content.Text("Just use e.Popups.Push() - no ZStack wrapper needed!"),
+                        content.Text("Menus are now positioned relative to their trigger button!"),
+                        content.Text("Use e.PushAnchored(AnchorPosition.Below, ...) for automatic positioning."),
                         content.Text(""),
                         content.Text($"Selected action: {selectedAction}"),
                         content.Text(""),
-                        content.Text("Click the menu buttons above to open cascading menus."),
-                        content.Text("Clicking outside a popup dismisses that layer."),
+                        content.Text("Try clicking different menu buttons - each menu appears"),
+                        content.Text("directly below its trigger button."),
                     ]),
                     title: "Main Content"
                 ).Fill(),
                 
-                main.InfoBar([                    
+                main.InfoBar([
                     "Tab", "Navigate",
                     "Enter/Click", "Activate",
                     "Ctrl+C", "Exit"
@@ -81,7 +80,7 @@ catch (Exception ex)
     Console.ReadKey(true);
 }
 
-// Menu builders - note PopupStack is now non-nullable
+// Menu builders - cascading uses AnchorPosition.Right
 Hex1bWidget BuildFileMenu<TParent>(WidgetContext<TParent> ctx, PopupStack popups)
     where TParent : Hex1bWidget
 {
@@ -91,7 +90,7 @@ Hex1bWidget BuildFileMenu<TParent>(WidgetContext<TParent> ctx, PopupStack popups
             ctx.VStack(m => [
                 m.Button(" New         ").OnClick(_ => popups.Clear()),
                 m.Button(" Open        ").OnClick(_ => popups.Clear()),
-                m.Button(" Recent    ► ").OnClick(_ => popups.Push(() => BuildRecentMenu(ctx, popups))),
+                m.Button(" Recent    ► ").OnClick(e => e.Popups.PushAnchored(e.Node, AnchorPosition.Right, () => BuildRecentMenu(ctx, popups))),
                 m.Text("─────────────"),
                 m.Button(" Save        ").OnClick(_ => popups.Clear()),
                 m.Button(" Save As...  ").OnClick(_ => popups.Clear()),
@@ -114,7 +113,7 @@ Hex1bWidget BuildRecentMenu<TParent>(WidgetContext<TParent> ctx, PopupStack popu
                 m.Button(" report.md      ").OnClick(_ => popups.Clear()),
                 m.Button(" code.cs        ").OnClick(_ => popups.Clear()),
                 m.Text("────────────────"),
-                m.Button(" More...      ► ").OnClick(_ => popups.Push(() => BuildMoreRecentMenu(ctx, popups))),
+                m.Button(" More...      ► ").OnClick(e => e.Popups.PushAnchored(e.Node, AnchorPosition.Right, () => BuildMoreRecentMenu(ctx, popups))),
             ]),
             title: "Recent"
         ).FixedWidth(20)

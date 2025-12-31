@@ -60,4 +60,32 @@ public abstract class WidgetEventArgs<TWidget, TNode> : WidgetEventArgs
         Widget = widget ?? throw new ArgumentNullException(nameof(widget));
         Node = node ?? throw new ArgumentNullException(nameof(node));
     }
+    
+    /// <summary>
+    /// Pushes an anchored popup positioned relative to the node that triggered this event.
+    /// This is a convenience method for the common pattern of anchoring a menu to the clicked button.
+    /// </summary>
+    /// <param name="position">Where to position the popup relative to this node.</param>
+    /// <param name="contentBuilder">A function that builds the widget content for the popup.</param>
+    /// <example>
+    /// <code>
+    /// menuBar.Button(" File ")
+    ///     .OnClick(e => e.PushAnchored(AnchorPosition.Below, () => BuildFileMenu()));
+    /// </code>
+    /// </example>
+    public void PushAnchored(AnchorPosition position, Func<Hex1bWidget> contentBuilder)
+    {
+        Popups.PushAnchored(Node, position, contentBuilder);
+    }
+    
+    /// <summary>
+    /// Pushes an anchored popup positioned relative to the node that triggered this event.
+    /// This is a convenience method for the common pattern of anchoring a menu to the clicked button.
+    /// </summary>
+    /// <param name="position">Where to position the popup relative to this node.</param>
+    /// <param name="content">The widget content for the popup.</param>
+    public void PushAnchored(AnchorPosition position, Hex1bWidget content)
+    {
+        Popups.PushAnchored(Node, position, content);
+    }
 }

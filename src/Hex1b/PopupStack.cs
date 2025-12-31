@@ -3,6 +3,15 @@ using Hex1b.Widgets;
 namespace Hex1b;
 
 /// <summary>
+/// Internal record representing a popup entry with optional anchor information.
+/// </summary>
+internal sealed record PopupEntry(
+    Func<Hex1bWidget> ContentBuilder,
+    Hex1bNode? AnchorNode = null,
+    AnchorPosition Position = AnchorPosition.Below
+);
+
+/// <summary>
 /// Manages a stack of popups for menu-like overlay behavior.
 /// Each popup has a transparent backdrop - clicking the backdrop pops that layer.
 /// </summary>
@@ -20,19 +29,16 @@ namespace Hex1b;
 /// </remarks>
 /// <example>
 /// <code>
-/// var popups = new PopupStack();
+/// // Simple popup (full-screen backdrop)
+/// e.Popups.Push(() => BuildDialog());
 /// 
-/// ctx.ZStack(z => [
-///     z.VStack(v => [
-///         v.Button("File").OnClick(_ => popups.Push(() => BuildFileMenu(z, popups))),
-///     ]),
-///     ..popups.BuildWidgets(z)
-/// ])
+/// // Anchored popup (positioned relative to triggering element)
+/// e.Popups.PushAnchored(AnchorPosition.Below, () => BuildMenu());
 /// </code>
 /// </example>
 public sealed class PopupStack
 {
-    private readonly List<Func<Hex1bWidget>> _entries = [];
+    private readonly List<PopupEntry> _entries = [];
     
     /// <summary>
     /// Gets whether any popups are currently open.
@@ -45,21 +51,43 @@ public sealed class PopupStack
     public int Count => _entries.Count;
 
     /// <summary>
-    /// Pushes a new popup onto the stack.
+    /// Pushes a new popup onto the stack (full-screen backdrop, not anchored).
     /// </summary>
     /// <param name="contentBuilder">A function that builds the widget content for the popup.</param>
     public void Push(Func<Hex1bWidget> contentBuilder)
     {
-        _entries.Add(contentBuilder);
+        _entries.Add(new PopupEntry(contentBuilder));
     }
     
     /// <summary>
-    /// Pushes a new popup onto the stack with static content.
+    /// Pushes a new popup onto the stack with static content (full-screen backdrop, not anchored).
     /// </summary>
     /// <param name="content">The widget content for the popup.</param>
     public void Push(Hex1bWidget content)
     {
         Push(() => content);
+    }
+    
+    /// <summary>
+    /// Pushes an anchored popup positioned relative to a specific node.
+    /// </summary>
+    /// <param name="anchorNode">The node to anchor the popup to.</param>
+    /// <param name="position">Where to position the popup relative to the anchor.</param>
+    /// <param name="contentBuilder">A function that builds the widget content for the popup.</param>
+    public void PushAnchored(Hex1bNode anchorNode, AnchorPosition position, Func<Hex1bWidget> contentBuilder)
+    {
+        _entries.Add(new PopupEntry(contentBuilder, anchorNode, position));
+    }
+    
+    /// <summary>
+    /// Pushes an anchored popup positioned relative to a specific node.
+    /// </summary>
+    /// <param name="anchorNode">The node to anchor the popup to.</param>
+    /// <param name="position">Where to position the popup relative to the anchor.</param>
+    /// <param name="content">The widget content for the popup.</param>
+    public void PushAnchored(Hex1bNode anchorNode, AnchorPosition position, Hex1bWidget content)
+    {
+        PushAnchored(anchorNode, position, () => content);
     }
 
     /// <summary>
@@ -84,6 +112,7 @@ public sealed class PopupStack
     /// <summary>
     /// Builds the ZStack widgets for all popups in the stack.
     /// Each popup is wrapped in a transparent Backdrop that calls Pop() when clicked.
+    /// Anchored popups are positioned relative to their anchor node.
     /// </summary>
     /// <typeparam name="TParent">The parent widget type.</typeparam>
     /// <param name="ctx">The widget context (typically from a ZStack).</param>
@@ -91,9 +120,15 @@ public sealed class PopupStack
     public IEnumerable<Hex1bWidget> BuildWidgets<TParent>(WidgetContext<TParent> ctx)
         where TParent : Hex1bWidget
     {
-        foreach (var contentBuilder in _entries)
+        foreach (var entry in _entries)
         {
-            var content = contentBuilder();
+            var content = entry.ContentBuilder();
+            
+            // If anchored, wrap content in AnchoredWidget for positioning
+            if (entry.AnchorNode != null)
+            {
+                content = new AnchoredWidget(content, entry.AnchorNode, entry.Position);
+            }
             
             yield return ctx.Backdrop(content)
                 .Transparent()
@@ -104,13 +139,20 @@ public sealed class PopupStack
     /// <summary>
     /// Builds popup widgets wrapped in backdrops for internal use by the reconciler.
     /// Each popup is wrapped in a transparent Backdrop that calls Pop() when clicked.
+    /// Anchored popups are positioned relative to their anchor node.
     /// </summary>
     /// <returns>An enumerable of backdrop-wrapped popup widgets.</returns>
     internal IEnumerable<Hex1bWidget> BuildPopupWidgets()
     {
-        foreach (var contentBuilder in _entries)
+        foreach (var entry in _entries)
         {
-            var content = contentBuilder();
+            var content = entry.ContentBuilder();
+            
+            // If anchored, wrap content in AnchoredWidget for positioning
+            if (entry.AnchorNode != null)
+            {
+                content = new AnchoredWidget(content, entry.AnchorNode, entry.Position);
+            }
             
             yield return new BackdropWidget(content)
             {

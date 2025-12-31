@@ -9,6 +9,13 @@ public abstract class Hex1bNode
     /// The bounds assigned to this node after layout.
     /// </summary>
     public Rect Bounds { get; set; }
+    
+    /// <summary>
+    /// The bounds of this node's actual content for hit testing purposes.
+    /// Defaults to <see cref="Bounds"/>. Override for nodes that position content
+    /// within a larger layout area (e.g., AnchoredNode).
+    /// </summary>
+    public virtual Rect ContentBounds => Bounds;
 
     /// <summary>
     /// The bounds from the previous frame, used for dirty region tracking.

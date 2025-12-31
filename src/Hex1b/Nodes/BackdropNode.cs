@@ -137,8 +137,10 @@ public sealed class BackdropNode : Hex1bNode
         {
             bindings.Mouse(MouseButton.Left).Action(async ctx =>
             {
-                // Check if click is on child bounds - if so, don't trigger click-away
-                if (Child != null && Child.Bounds.Contains(ctx.MouseX, ctx.MouseY))
+                // Check if click is on child content bounds - if so, don't trigger click-away
+                // Use ContentBounds instead of Bounds for nodes like AnchoredNode that
+                // have layout bounds larger than their actual content
+                if (Child != null && Child.ContentBounds.Contains(ctx.MouseX, ctx.MouseY))
                 {
                     return; // Click is on child, not backdrop
                 }

@@ -18,6 +18,13 @@ public abstract class WidgetEventArgs
     /// Convenience accessor for the cancellation token from the application run loop.
     /// </summary>
     public CancellationToken CancellationToken => Context.CancellationToken;
+    
+    /// <summary>
+    /// Convenience accessor for the popup stack of the nearest popup host.
+    /// Use this to push popups, menus, and dialogs from event handlers.
+    /// The root ZStack automatically provides a PopupStack, so this is never null within a Hex1bApp.
+    /// </summary>
+    public PopupStack Popups => Context.Popups;
 
     protected WidgetEventArgs(InputBindingActionContext context)
     {

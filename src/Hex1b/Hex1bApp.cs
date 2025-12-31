@@ -366,6 +366,10 @@ public class Hex1bApp : IDisposable, IAsyncDisposable
         {
             widgetTree = new RescueWidget(widgetTree, _rescueState, _rescueFallbackBuilder, actions: _rescueActions);
         }
+        
+        // Step 2.5: Wrap in root ZStack for popup support
+        // This ensures ctx.Popups is always available from any event handler
+        widgetTree = new ZStackWidget([widgetTree]);
 
         // Step 3: Reconcile - update the node tree to match the widget tree
         _rootNode = Reconcile(_rootNode, widgetTree);

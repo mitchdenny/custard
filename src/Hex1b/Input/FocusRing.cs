@@ -10,6 +10,11 @@ public sealed class FocusRing
     private readonly List<Hex1bNode> _focusables = [];
     
     /// <summary>
+    /// Tracks the previously focused node so we can clear its focus if it leaves the ring.
+    /// </summary>
+    private Hex1bNode? _previouslyFocusedNode;
+    
+    /// <summary>
     /// Gets all focusable nodes in render order.
     /// </summary>
     public IReadOnlyList<Hex1bNode> Focusables => _focusables;
@@ -30,10 +35,22 @@ public sealed class FocusRing
     /// </summary>
     public void Rebuild(Hex1bNode? root)
     {
+        // Remember who was focused before rebuilding
+        _previouslyFocusedNode = FocusedNode;
+        
         _focusables.Clear();
         if (root != null)
         {
             _focusables.AddRange(root.GetFocusableNodes());
+        }
+        
+        // If the previously focused node is no longer in the ring, clear its focus
+        if (_previouslyFocusedNode != null && 
+            _previouslyFocusedNode.IsFocused && 
+            !_focusables.Contains(_previouslyFocusedNode))
+        {
+            _previouslyFocusedNode.IsFocused = false;
+            _previouslyFocusedNode = null;
         }
     }
 

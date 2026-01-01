@@ -299,8 +299,8 @@ public sealed class MenuNode : Hex1bNode, ILayoutProvider
     
     private Task CloseParentMenu(InputBindingActionContext ctx)
     {
-        // Pop the current popup
-        ctx.Popups.Pop();
+        // Pop the current popup and get the focus restore node
+        ctx.Popups.Pop(out var focusRestoreNode);
         
         // Find and close the owner menu
         var parent = Parent;
@@ -313,6 +313,17 @@ public sealed class MenuNode : Hex1bNode, ILayoutProvider
                 break;
             }
             parent = parent.Parent;
+        }
+        
+        // Restore focus to the designated node
+        var currentFocused = ctx.FocusedNode;
+        if (currentFocused != null)
+        {
+            currentFocused.IsFocused = false;
+        }
+        if (focusRestoreNode != null)
+        {
+            focusRestoreNode.IsFocused = true;
         }
         
         return Task.CompletedTask;
@@ -331,8 +342,15 @@ public sealed class MenuNode : Hex1bNode, ILayoutProvider
             ? AnchorPosition.Below 
             : AnchorPosition.Right;
         
-        // Push the menu content to the popup stack
-        ctx.Popups.PushAnchored(this, anchorPosition, () => BuildMenuContent(), focusRestoreNode: this);
+        // Push the menu content to the popup stack with an onDismiss callback to clear state
+        ctx.Popups.PushAnchored(this, anchorPosition, () => BuildMenuContent(), 
+            focusRestoreNode: this,
+            onDismiss: () =>
+            {
+                IsOpen = false;
+                IsSelected = false;
+                MarkDirty();
+            });
         
         return Task.CompletedTask;
     }

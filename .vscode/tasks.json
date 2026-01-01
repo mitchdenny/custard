@@ -222,6 +222,66 @@
 			"type": "shell",
 			"command": "dotnet test tests/Hex1b.Tests/Hex1b.Tests.csproj --filter \"FullyQualifiedName~Menu\" 2>&1 | tail -10",
 			"isBackground": false
+		},
+		{
+			"label": "build library",
+			"type": "shell",
+			"command": "dotnet build src/Hex1b/Hex1b.csproj 2>&1 | tail -15",
+			"isBackground": false
+		},
+		{
+			"label": "run menu tests",
+			"type": "shell",
+			"command": "dotnet test tests/Hex1b.Tests/Hex1b.Tests.csproj --filter \"FullyQualifiedName~Menu\" 2>&1 | tail -10",
+			"isBackground": false
+		},
+		{
+			"label": "run integration tests",
+			"type": "shell",
+			"command": "dotnet test tests/Hex1b.Tests/Hex1b.Tests.csproj --filter \"MenuBarIntegration\" 2>&1 | tail -10",
+			"isBackground": false
+		},
+		{
+			"label": "run all integration tests",
+			"type": "shell",
+			"command": "dotnet test tests/Hex1b.Tests/Hex1b.Tests.csproj --filter \"MenuBarIntegrationTests\" 2>&1 | tail -10",
+			"isBackground": false
+		},
+		{
+			"label": "run click away test",
+			"type": "shell",
+			"command": "dotnet test tests/Hex1b.Tests/Hex1b.Tests.csproj --filter \"Menu_ClickAwayThenClickAnotherMenu_Works\" 2>&1 | tail -20",
+			"isBackground": false
+		},
+		{
+			"label": "run all menu integration tests",
+			"type": "shell",
+			"command": "dotnet test tests/Hex1b.Tests/Hex1b.Tests.csproj --filter \"MenuBarIntegrationTests\" 2>&1 | tail -10",
+			"isBackground": false
+		},
+		{
+			"label": "run menu tests",
+			"type": "shell",
+			"command": "dotnet test tests/Hex1b.Tests/Hex1b.Tests.csproj --filter \"FullyQualifiedName~Menu\" 2>&1 | tail -10",
+			"isBackground": false
+		},
+		{
+			"label": "run menu integration tests",
+			"type": "shell",
+			"command": "dotnet test tests/Hex1b.Tests/Hex1b.Tests.csproj --filter \"MenuBarIntegration\" 2>&1 | tail -10",
+			"isBackground": false
+		},
+		{
+			"label": "run all menu integration tests",
+			"type": "shell",
+			"command": "dotnet test tests/Hex1b.Tests/Hex1b.Tests.csproj --filter \"MenuBarIntegrationTests\" 2>&1 | tail -10",
+			"isBackground": false
+		},
+		{
+			"label": "run menu integration tests",
+			"type": "shell",
+			"command": "dotnet test tests/Hex1b.Tests/Hex1b.Tests.csproj --filter \"MenuBarIntegrationTests\" 2>&1 | tail -10",
+			"isBackground": false
 		}
 	]
 }

@@ -120,14 +120,25 @@ public sealed class MenuPopupNode : Hex1bNode, ILayoutProvider
     
     private Task CloseMenu(InputBindingActionContext ctx)
     {
-        // Pop this popup
-        ctx.Popups.Pop();
+        // Pop this popup and get the focus restore node
+        ctx.Popups.Pop(out var focusRestoreNode);
         
         // Mark owner as closed and deselected
         if (OwnerNode != null)
         {
             OwnerNode.IsOpen = false;
             OwnerNode.IsSelected = false;
+        }
+        
+        // Restore focus to the designated node
+        var currentFocused = ctx.FocusedNode;
+        if (currentFocused != null)
+        {
+            currentFocused.IsFocused = false;
+        }
+        if (focusRestoreNode != null)
+        {
+            focusRestoreNode.IsFocused = true;
         }
         
         return Task.CompletedTask;

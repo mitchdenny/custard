@@ -922,6 +922,42 @@ public class MenuBarIntegrationTests
         Assert.False(terminal.CreateSnapshot().ContainsText("Save"));
     }
     
+    [Fact]
+    public async Task Menu_ClickAwayThenClickAnotherMenu_Works()
+    {
+        // Arrange
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        var lastAction = "";
+        
+        using var app = new Hex1bApp(
+            ctx => Task.FromResult(CreateTestMenuBar(ctx, a => lastAction = a)),
+            new Hex1bAppOptions { WorkloadAdapter = workload, EnableMouse = true }
+        );
+
+        // Act - Open Edit menu, click away, then click on Help menu
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("File") && s.ContainsText("Edit") && s.ContainsText("Help"), TimeSpan.FromSeconds(2), "menu bar to render")
+            // Click on Edit menu to open it (Edit is around position 6-9)
+            .ClickAt(7, 0, MouseButton.Left)
+            .WaitUntil(s => s.ContainsText("Undo"), TimeSpan.FromSeconds(2), "Edit menu to open")
+            // Click away on backdrop to close
+            .ClickAt(70, 20, MouseButton.Left)
+            .WaitUntil(s => !s.ContainsText("Undo"), TimeSpan.FromSeconds(2), "menu to close after click-away")
+            // Now click on Help menu (Help is around position 11-14)
+            .ClickAt(13, 0, MouseButton.Left)
+            .WaitUntil(s => s.ContainsText("About"), TimeSpan.FromSeconds(2), "Help menu to open")
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+        await runTask;
+
+        // Assert - Help menu should be open
+        var snapshot = terminal.CreateSnapshot();
+        Assert.True(snapshot.ContainsText("About"));
+    }
+    
     #endregion
     
     #region Disabled Items

@@ -148,9 +148,48 @@ public sealed class MenuItemNode : Hex1bNode
     
     /// <summary>
     /// Navigates to the previous menu in the menu bar, closing the current menu and opening the previous.
+    /// If in a submenu, closes the submenu and returns focus to the parent menu item.
     /// </summary>
     private Task NavigateToPreviousMenu(InputBindingActionContext ctx)
     {
+        // Find the MenuPopupNode that contains this item
+        var popupNode = FindParentPopupNode();
+        if (popupNode == null)
+        {
+            return Task.CompletedTask;
+        }
+        
+        // Get the owning MenuNode
+        var ownerNode = popupNode.OwnerNode;
+        if (ownerNode == null)
+        {
+            return Task.CompletedTask;
+        }
+        
+        // Check if we're in a submenu (owner's parent is another MenuPopupNode, not a MenuBarNode)
+        if (ownerNode.Parent is MenuPopupNode)
+        {
+            // We're in a submenu - close this popup and focus will be restored to the owner
+            // The focusRestoreNode was set when the popup was pushed (set to the MenuNode trigger)
+            ctx.Popups.Pop(out var focusRestoreNode);
+            ownerNode.IsOpen = false;
+            ownerNode.IsSelected = false;
+            
+            // Clear current focus and set focus directly on the restore node
+            // The focus ring doesn't include parent popup nodes, so ctx.Focus won't work
+            var currentFocused = ctx.FocusedNode;
+            if (currentFocused != null)
+            {
+                currentFocused.IsFocused = false;
+            }
+            if (focusRestoreNode != null)
+            {
+                focusRestoreNode.IsFocused = true;
+            }
+            return Task.CompletedTask;
+        }
+        
+        // We're in a top-level menu from MenuBar - navigate to previous menu
         return NavigateToAdjacentMenu(ctx, direction: -1);
     }
     
@@ -231,8 +270,8 @@ public sealed class MenuItemNode : Hex1bNode
     
     private Task CloseParentMenu(InputBindingActionContext ctx)
     {
-        // Pop the current popup
-        ctx.Popups.Pop();
+        // Pop the current popup and get the focus restore node
+        ctx.Popups.Pop(out var focusRestoreNode);
         
         // Find and close the owner menu
         var parent = Parent;
@@ -245,6 +284,18 @@ public sealed class MenuItemNode : Hex1bNode
                 break;
             }
             parent = parent.Parent;
+        }
+        
+        // Clear current focus and set focus directly on the restore node
+        // The focus ring doesn't include parent popup nodes, so ctx.Focus won't work
+        var currentFocused = ctx.FocusedNode;
+        if (currentFocused != null)
+        {
+            currentFocused.IsFocused = false;
+        }
+        if (focusRestoreNode != null)
+        {
+            focusRestoreNode.IsFocused = true;
         }
         
         return Task.CompletedTask;

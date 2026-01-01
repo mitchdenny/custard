@@ -60,14 +60,16 @@ public sealed record ZStackWidget(IReadOnlyList<Hex1bWidget> Children) : Hex1bWi
         var currentPopupCount = popupWidgets.Count;
         var newPopupsAdded = currentPopupCount > previousPopupCount;
         
-        // Also check if the topmost popup changed (same count but different entry)
+        // Check if the topmost popup was replaced (same or more count, different entry)
         // This handles the case of replacing one popup with another via Pop() + PushAnchored()
-        var topmostPopupChanged = false;
+        // We should NOT trigger focus management when popups are simply removed
+        var topmostPopupReplaced = false;
         var currentTopmostEntry = node.Popups.Entries.Count > 0 ? node.Popups.Entries[^1] : null;
         if (currentTopmostEntry != null && node.LastTopmostPopupEntry != null && 
-            !ReferenceEquals(currentTopmostEntry, node.LastTopmostPopupEntry))
+            !ReferenceEquals(currentTopmostEntry, node.LastTopmostPopupEntry) &&
+            currentPopupCount >= previousPopupCount)  // Only if count stayed same or increased
         {
-            topmostPopupChanged = true;
+            topmostPopupReplaced = true;
         }
         // Update the tracked topmost entry for next reconcile
         node.LastTopmostPopupEntry = currentTopmostEntry;
@@ -114,14 +116,15 @@ public sealed record ZStackWidget(IReadOnlyList<Hex1bWidget> Children) : Hex1bWi
         // 1. The ZStack node is newly created (and parent doesn't manage focus), OR
         // 2. New popups were added (popups ALWAYS take focus, even if parent manages focus), OR
         // 3. The topmost popup was replaced with a different one (e.g., navigating between menus)
+        // We should NOT focus when popups are simply removed - let existing focus persist
         var shouldFocusTopmost = 
             (context.IsNew && !context.ParentManagesFocus()) || 
             newPopupsAdded ||
-            topmostPopupChanged;
+            topmostPopupReplaced;
         
         // Debug: Track focus management state - only update when shouldFocusTopmost is true
         // to capture the moment focus is supposed to be set
-        var debugInfo = $"shouldFocusTopmost={shouldFocusTopmost}, context.IsNew={context.IsNew}, newPopupsAdded={newPopupsAdded}, topmostPopupChanged={topmostPopupChanged}, previousPopupCount={previousPopupCount}, currentPopupCount={currentPopupCount}";
+        var debugInfo = $"shouldFocusTopmost={shouldFocusTopmost}, context.IsNew={context.IsNew}, newPopupsAdded={newPopupsAdded}, topmostPopupReplaced={topmostPopupReplaced}, previousPopupCount={previousPopupCount}, currentPopupCount={currentPopupCount}";
         if (shouldFocusTopmost)
         {
             LastFocusDebug = debugInfo + " [FOCUS TRIGGERED]";

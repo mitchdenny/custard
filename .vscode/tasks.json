@@ -1,0 +1,227 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "run menu tests",
+			"type": "shell",
+			"command": "dotnet test tests/Hex1b.Tests/Hex1b.Tests.csproj --filter \"MenuNodeTests\" --logger \"console;verbosity=detailed\"",
+			"isBackground": false
+		},
+		{
+			"label": "show build errors",
+			"type": "shell",
+			"command": "dotnet build tests/Hex1b.Tests/Hex1b.Tests.csproj 2>&1 | grep -i error",
+			"isBackground": false
+		},
+		{
+			"label": "run specific test",
+			"type": "shell",
+			"command": "dotnet test tests/Hex1b.Tests/Hex1b.Tests.csproj --filter \"MenuNode_InMenuBar_RightArrow_FocusesNextMenu\" --logger \"console;verbosity=detailed\" 2>&1 | tail -30",
+			"isBackground": false
+		},
+		{
+			"label": "run all menu tests",
+			"type": "shell",
+			"command": "dotnet test tests/Hex1b.Tests/Hex1b.Tests.csproj --filter \"MenuBar\" 2>&1 | tail -10",
+			"isBackground": false
+		},
+		{
+			"label": "run menu bar tests",
+			"type": "shell",
+			"command": "dotnet test tests/Hex1b.Tests/Hex1b.Tests.csproj --filter \"MenuBar\" --no-build 2>&1 | tail -10",
+			"isBackground": false
+		},
+		{
+			"label": "run menu node tests",
+			"type": "shell",
+			"command": "dotnet test tests/Hex1b.Tests/Hex1b.Tests.csproj --filter \"MenuNodeTests\" --no-build 2>&1 | tail -10",
+			"isBackground": false
+		},
+		{
+			"label": "run in menubar tests",
+			"type": "shell",
+			"command": "dotnet test tests/Hex1b.Tests/Hex1b.Tests.csproj --filter \"MenuNode_InMenuBar\" 2>&1 | tail -10",
+			"isBackground": false
+		},
+		{
+			"label": "run arrow nav tests",
+			"type": "shell",
+			"command": "dotnet test tests/Hex1b.Tests/Hex1b.Tests.csproj --filter \"MenuBar_RightArrow_NavigatesToNextMenu or MenuBar_LeftArrow_NavigatesToPreviousMenu\" 2>&1 | tail -10",
+			"isBackground": false
+		},
+		{
+			"label": "run arrow tests",
+			"type": "shell",
+			"command": "dotnet test tests/Hex1b.Tests/Hex1b.Tests.csproj --filter \"FullyQualifiedName~MenuBar_RightArrow\" --no-build 2>&1 | tail -10",
+			"isBackground": false
+		},
+		{
+			"label": "run all menu tests",
+			"type": "shell",
+			"command": "dotnet test tests/Hex1b.Tests/Hex1b.Tests.csproj --filter \"FullyQualifiedName~Menu\" --no-build 2>&1 | tail -5",
+			"isBackground": false
+		},
+		{
+			"label": "run menu tests final",
+			"type": "shell",
+			"command": "dotnet test tests/Hex1b.Tests/Hex1b.Tests.csproj --filter \"MenuBar|MenuNode\" --no-build 2>&1 | grep -E 'Passed|Failed'",
+			"isBackground": false
+		},
+		{
+			"label": "run all menu tests 2",
+			"type": "shell",
+			"command": "dotnet test tests/Hex1b.Tests/Hex1b.Tests.csproj --filter \"MenuBar|MenuNode\" 2>&1 | tail -5",
+			"isBackground": false
+		},
+		{
+			"label": "run menu tests",
+			"type": "shell",
+			"command": "dotnet test tests/Hex1b.Tests/Hex1b.Tests.csproj --filter \"Menu\" 2>&1 | tail -10",
+			"isBackground": false
+		},
+		{
+			"label": "run menu tests 2",
+			"type": "shell",
+			"command": "dotnet test tests/Hex1b.Tests/Hex1b.Tests.csproj --filter \"Menu\" 2>&1 | tail -10",
+			"isBackground": false
+		},
+		{
+			"label": "build and test",
+			"type": "shell",
+			"command": "dotnet build src/Hex1b/Hex1b.csproj --no-incremental 2>&1 && dotnet test tests/Hex1b.Tests/Hex1b.Tests.csproj --no-build --filter \"Menu\" 2>&1 | tail -10",
+			"isBackground": false
+		},
+		{
+			"label": "run up arrow test",
+			"type": "shell",
+			"command": "dotnet test tests/Hex1b.Tests/Hex1b.Tests.csproj --filter \"MenuItem_UpArrowOnFirstItem_ClosesMenu\" 2>&1",
+			"isBackground": false
+		},
+		{
+			"label": "run up arrow tests",
+			"type": "shell",
+			"command": "dotnet test tests/Hex1b.Tests/Hex1b.Tests.csproj --filter \"MenuItem_UpArrow\" 2>&1 | tail -15",
+			"isBackground": false
+		},
+		{
+			"label": "run all menu tests",
+			"type": "shell",
+			"command": "dotnet test tests/Hex1b.Tests/Hex1b.Tests.csproj --filter \"Menu\" 2>&1 | tail -10",
+			"isBackground": false
+		},
+		{
+			"label": "run all menu tests 3",
+			"type": "shell",
+			"command": "dotnet test tests/Hex1b.Tests/Hex1b.Tests.csproj --filter \"Menu\" --no-build 2>&1 | tail -5",
+			"isBackground": false
+		},
+		{
+			"label": "run menu tests",
+			"type": "shell",
+			"command": "dotnet test tests/Hex1b.Tests/Hex1b.Tests.csproj --filter \"Menu\" 2>&1 | tail -10",
+			"isBackground": false
+		},
+		{
+			"label": "run menu bar integration tests",
+			"type": "shell",
+			"command": "dotnet test tests/Hex1b.Tests/Hex1b.Tests.csproj --filter \"MenuBar\" 2>&1 | tail -10",
+			"isBackground": false
+		},
+		{
+			"label": "run integration tests",
+			"type": "shell",
+			"command": "dotnet test tests/Hex1b.Tests/Hex1b.Tests.csproj --filter \"MenuBarIntegration\" 2>&1 | tail -10",
+			"isBackground": false
+		},
+		{
+			"label": "run submenu left arrow test",
+			"type": "shell",
+			"command": "dotnet test tests/Hex1b.Tests/Hex1b.Tests.csproj --filter \"Submenu_LeftArrow\" 2>&1 | tail -10",
+			"isBackground": false
+		},
+		{
+			"label": "run submenu test",
+			"type": "shell",
+			"command": "dotnet test tests/Hex1b.Tests/Hex1b.Tests.csproj --filter \"Submenu_LeftArrow\" 2>&1 | tail -10",
+			"isBackground": false
+		},
+		{
+			"label": "run submenu focus test",
+			"type": "shell",
+			"command": "dotnet test tests/Hex1b.Tests/Hex1b.Tests.csproj --filter \"Submenu_LeftArrow\" 2>&1 | tail -15",
+			"isBackground": false
+		},
+		{
+			"label": "run focus test details",
+			"type": "shell",
+			"command": "dotnet test tests/Hex1b.Tests/Hex1b.Tests.csproj --filter \"Submenu_LeftArrow_FocusReturnsToSubmenuTrigger\" 2>&1",
+			"isBackground": false
+		},
+		{
+			"label": "run focus restore test",
+			"type": "shell",
+			"command": "dotnet test tests/Hex1b.Tests/Hex1b.Tests.csproj --filter \"Submenu_LeftArrow_FocusReturnsToSubmenuTrigger\" 2>&1 | tail -15",
+			"isBackground": false
+		},
+		{
+			"label": "run focus test",
+			"type": "shell",
+			"command": "dotnet test tests/Hex1b.Tests/Hex1b.Tests.csproj --filter \"Submenu_LeftArrow_FocusReturnsToSubmenuTrigger\" 2>&1 | tail -10",
+			"isBackground": false
+		},
+		{
+			"label": "run focus test 2",
+			"type": "shell",
+			"command": "dotnet test tests/Hex1b.Tests/Hex1b.Tests.csproj --filter \"Submenu_LeftArrow_FocusReturnsToSubmenuTrigger\" 2>&1 | tail -15",
+			"isBackground": false
+		},
+		{
+			"label": "run all submenu tests",
+			"type": "shell",
+			"command": "dotnet test tests/Hex1b.Tests/Hex1b.Tests.csproj --filter \"Submenu\" 2>&1 | tail -10",
+			"isBackground": false
+		},
+		{
+			"label": "run all menu tests final",
+			"type": "shell",
+			"command": "dotnet test tests/Hex1b.Tests/Hex1b.Tests.csproj --filter \"Menu\" 2>&1 | tail -10",
+			"isBackground": false
+		},
+		{
+			"label": "run all menu tests v2",
+			"type": "shell",
+			"command": "dotnet test tests/Hex1b.Tests/Hex1b.Tests.csproj --filter \"MenuBar|MenuNode\" 2>&1 | tail -10",
+			"isBackground": false
+		},
+		{
+			"label": "run all tests",
+			"type": "shell",
+			"command": "dotnet test tests/Hex1b.Tests/Hex1b.Tests.csproj 2>&1 | tail -10",
+			"isBackground": false
+		},
+		{
+			"label": "run up arrow focus test",
+			"type": "shell",
+			"command": "dotnet test tests/Hex1b.Tests/Hex1b.Tests.csproj --filter \"MenuItem_UpArrowOnFirstItem_FocusStaysOnMenuTrigger\" 2>&1 | tail -15",
+			"isBackground": false
+		},
+		{
+			"label": "run all menu tests",
+			"type": "shell",
+			"command": "dotnet test tests/Hex1b.Tests/Hex1b.Tests.csproj --filter \"MenuBar|MenuNode\" 2>&1 | tail -10",
+			"isBackground": false
+		},
+		{
+			"label": "run all menu tests v2",
+			"type": "shell",
+			"command": "dotnet test tests/Hex1b.Tests/Hex1b.Tests.csproj --filter \"MenuBarIntegration|MenuNodeTests\" 2>&1 | tail -10",
+			"isBackground": false
+		},
+		{
+			"label": "run all menu tests v3",
+			"type": "shell",
+			"command": "dotnet test tests/Hex1b.Tests/Hex1b.Tests.csproj --filter \"FullyQualifiedName~Menu\" 2>&1 | tail -10",
+			"isBackground": false
+		}
+	]
+}

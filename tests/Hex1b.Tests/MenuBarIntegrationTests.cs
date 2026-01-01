@@ -587,6 +587,40 @@ public class MenuBarIntegrationTests
     }
     
     [Fact]
+    public async Task MenuItem_UpArrowOnFirstItem_FocusStaysOnMenuTrigger()
+    {
+        // Arrange
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        var lastAction = "";
+        
+        using var app = new Hex1bApp(
+            ctx => Task.FromResult(CreateTestMenuBar(ctx, a => lastAction = a)),
+            new Hex1bAppOptions { WorkloadAdapter = workload }
+        );
+
+        // Act - Navigate to Edit menu, open it, press Up to close, verify focus stays on Edit
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("File"), TimeSpan.FromSeconds(2), "menu bar to render")
+            .Right()  // Navigate to Edit menu (without opening)
+            .Enter()  // Open Edit menu, focus is on "Undo" (first item)
+            .WaitUntil(s => s.ContainsText("Undo"), TimeSpan.FromSeconds(2), "Edit menu to open")
+            .Up()     // On first item, Up should close the menu
+            .WaitUntil(s => !s.ContainsText("Undo"), TimeSpan.FromSeconds(2), "menu to close")
+            .Down()   // If focus is on Edit, this should reopen Edit menu
+            .WaitUntil(s => s.ContainsText("Undo"), TimeSpan.FromSeconds(2), "Edit menu to reopen")
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+        await runTask;
+
+        // Assert - Edit menu should be open again (proving focus stayed on Edit)
+        var snapshot = terminal.CreateSnapshot();
+        Assert.True(snapshot.ContainsText("Undo"));
+    }
+    
+    [Fact]
     public async Task MenuItem_AcceleratorKey_ActivatesItem()
     {
         // Arrange
@@ -718,6 +752,42 @@ public class MenuBarIntegrationTests
         var snapshot = terminal.CreateSnapshot();
         Assert.False(snapshot.ContainsText("Doc1.txt")); // Submenu closed
         Assert.True(snapshot.ContainsText("Save"));       // Parent menu still visible
+    }
+    
+    [Fact]
+    public async Task Submenu_LeftArrow_FocusReturnsToSubmenuTrigger()
+    {
+        // Arrange
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        var lastAction = "";
+        
+        using var app = new Hex1bApp(
+            ctx => Task.FromResult(CreateTestMenuBar(ctx, a => lastAction = a, includeSubmenus: true)),
+            new Hex1bAppOptions { WorkloadAdapter = workload }
+        );
+
+        // Act - Open submenu, close it with left arrow, verify focus by pressing right to reopen
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("File"), TimeSpan.FromSeconds(2), "menu bar to render")
+            .Enter()  // Open File menu
+            .WaitUntil(s => s.ContainsText("Recent"), TimeSpan.FromSeconds(2), "File menu to open")
+            .Down().Down()  // Navigate to Recent (New -> Open -> Recent)
+            .Right()  // Open Recent submenu
+            .WaitUntil(s => s.ContainsText("Doc1.txt"), TimeSpan.FromSeconds(2), "Recent submenu to open")
+            .Left()   // Close submenu, return to parent - focus should be on "Recent"
+            .WaitUntil(s => !s.ContainsText("Doc1.txt") && s.ContainsText("Recent"), TimeSpan.FromSeconds(2), "submenu to close")
+            .Right()  // If focus is on Recent, this should reopen the submenu
+            .WaitUntil(s => s.ContainsText("Doc1.txt"), TimeSpan.FromSeconds(2), "Recent submenu to reopen")
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+        await runTask;
+
+        // Assert - Submenu should be open again, proving focus was on "Recent"
+        var snapshot = terminal.CreateSnapshot();
+        Assert.True(snapshot.ContainsText("Doc1.txt")); // Submenu is open
     }
     
     [Fact]

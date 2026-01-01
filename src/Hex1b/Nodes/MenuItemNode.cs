@@ -42,9 +42,9 @@ public sealed class MenuItemNode : Hex1bNode
     public MenuItemWidget? SourceWidget { get; set; }
     
     /// <summary>
-    /// The action to execute when the item is selected.
+    /// The action to execute when the item is activated.
     /// </summary>
-    public Func<InputBindingActionContext, Task>? SelectAction { get; set; }
+    public Func<InputBindingActionContext, Task>? ActivatedAction { get; set; }
 
     private bool _isFocused;
     public override bool IsFocused
@@ -78,12 +78,40 @@ public sealed class MenuItemNode : Hex1bNode
 
     public override void ConfigureDefaultBindings(InputBindingsBuilder bindings)
     {
-        if (SelectAction != null && !IsDisabled)
+        // Navigation within the parent menu popup
+        bindings.Key(Hex1bKey.DownArrow).Action(ctx => ctx.FocusNext(), "Next item");
+        bindings.Key(Hex1bKey.UpArrow).Action(ctx => ctx.FocusPrevious(), "Previous item");
+        bindings.Key(Hex1bKey.Escape).Action(CloseParentMenu, "Close menu");
+        bindings.Key(Hex1bKey.LeftArrow).Action(CloseParentMenu, "Close menu");
+        
+        // Activation
+        if (ActivatedAction != null && !IsDisabled)
         {
-            bindings.Key(Hex1bKey.Enter).Action(SelectAction, "Select item");
-            bindings.Key(Hex1bKey.Spacebar).Action(SelectAction, "Select item");
-            bindings.Mouse(MouseButton.Left).Action(SelectAction, "Click item");
+            bindings.Key(Hex1bKey.Enter).Action(ActivatedAction, "Activate item");
+            bindings.Key(Hex1bKey.Spacebar).Action(ActivatedAction, "Activate item");
+            bindings.Mouse(MouseButton.Left).Action(ActivatedAction, "Click item");
         }
+    }
+    
+    private Task CloseParentMenu(InputBindingActionContext ctx)
+    {
+        // Pop the current popup
+        ctx.Popups.Pop();
+        
+        // Find and close the owner menu
+        var parent = Parent;
+        while (parent != null)
+        {
+            if (parent is MenuPopupNode popupNode && popupNode.OwnerNode != null)
+            {
+                popupNode.OwnerNode.IsOpen = false;
+                popupNode.OwnerNode.IsSelected = false;
+                break;
+            }
+            parent = parent.Parent;
+        }
+        
+        return Task.CompletedTask;
     }
 
     public override Size Measure(Constraints constraints)

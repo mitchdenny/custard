@@ -18,18 +18,18 @@ public static class MenuExtensions
     /// <code>
     /// ctx.MenuBar(m => [
     ///     m.Menu("File", m => [
-    ///         m.MenuItem("New").OnSelect(e => { /* action */ }),
-    ///         m.MenuItem("Open").OnSelect(e => { /* action */ }),
+    ///         m.MenuItem("New").OnActivated(e => { /* action */ }),
+    ///         m.MenuItem("Open").OnActivated(e => { /* action */ }),
     ///         m.Separator(),
-    ///         m.MenuItem("Quit").OnSelect(e => e.CloseMenu())
+    ///         m.MenuItem("Quit").OnActivated(e => e.Context.RequestStop())
     ///     ]),
     ///     m.Menu("Edit", m => [
     ///         m.MenuItem("Undo").Disabled(),
     ///         m.MenuItem("Redo").Disabled(),
     ///         m.Separator(),
-    ///         m.MenuItem("Cut").OnSelect(e => { /* action */ }),
-    ///         m.MenuItem("Copy").OnSelect(e => { /* action */ }),
-    ///         m.MenuItem("Paste").OnSelect(e => { /* action */ })
+    ///         m.MenuItem("Cut").OnActivated(e => { /* action */ }),
+    ///         m.MenuItem("Copy").OnActivated(e => { /* action */ }),
+    ///         m.MenuItem("Paste").OnActivated(e => { /* action */ })
     ///     ])
     /// ])
     /// </code>

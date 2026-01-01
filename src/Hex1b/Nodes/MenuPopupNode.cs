@@ -23,18 +23,11 @@ public sealed class MenuPopupNode : Hex1bNode, ILayoutProvider
     public List<Hex1bNode> ChildNodes { get; set; } = [];
     
     /// <summary>
-    /// The index of the currently focused child.
-    /// </summary>
-    private int _focusedIndex = 0;
-    
-    /// <summary>
     /// The calculated width of menu content (max item width).
     /// </summary>
     private int _contentWidth;
 
     public override bool IsFocusable => false; // Container, not directly focusable
-    
-    public override bool ManagesChildFocus => true;
 
     #region ILayoutProvider Implementation
     
@@ -51,9 +44,9 @@ public sealed class MenuPopupNode : Hex1bNode, ILayoutProvider
 
     public override void ConfigureDefaultBindings(InputBindingsBuilder bindings)
     {
-        // Navigation within the menu
-        bindings.Key(Hex1bKey.DownArrow).Action(FocusNext, "Next item");
-        bindings.Key(Hex1bKey.UpArrow).Action(FocusPrevious, "Previous item");
+        // Navigation within the menu - use global focus ring
+        bindings.Key(Hex1bKey.DownArrow).Action(ctx => ctx.FocusNext(), "Next item");
+        bindings.Key(Hex1bKey.UpArrow).Action(ctx => ctx.FocusPrevious(), "Previous item");
         bindings.Key(Hex1bKey.LeftArrow).Action(CloseMenu, "Close menu");
         bindings.Key(Hex1bKey.Escape).Action(CloseMenu, "Close menu");
         
@@ -103,14 +96,14 @@ public sealed class MenuPopupNode : Hex1bNode, ILayoutProvider
                 if (nodeIndex >= 0 && nodeIndex < ChildNodes.Count)
                 {
                     var node = ChildNodes[nodeIndex];
-                    if (node is MenuItemNode itemNode && itemNode.SelectAction != null && !itemNode.IsDisabled)
+                    if (node is MenuItemNode itemNode && itemNode.ActivatedAction != null && !itemNode.IsDisabled)
                     {
-                        await itemNode.SelectAction(ctx);
+                        await itemNode.ActivatedAction(ctx);
                     }
                     else if (node is MenuNode menuNode)
                     {
-                        // Focus and open submenu
-                        SetFocus(nodeIndex);
+                        // Focus and open submenu using the FocusRing
+                        ctx.Focus(menuNode);
                         // The menu will open via its own bindings
                     }
                 }
@@ -125,67 +118,16 @@ public sealed class MenuPopupNode : Hex1bNode, ILayoutProvider
         return childIndex;
     }
     
-    private Task FocusNext(InputBindingActionContext ctx)
-    {
-        MoveFocus(1);
-        return Task.CompletedTask;
-    }
-    
-    private Task FocusPrevious(InputBindingActionContext ctx)
-    {
-        MoveFocus(-1);
-        return Task.CompletedTask;
-    }
-    
-    private void MoveFocus(int direction)
-    {
-        if (ChildNodes.Count == 0) return;
-        
-        var startIndex = _focusedIndex;
-        var newIndex = _focusedIndex;
-        
-        do
-        {
-            newIndex = (newIndex + direction + ChildNodes.Count) % ChildNodes.Count;
-            
-            // Check if this node is focusable
-            if (ChildNodes[newIndex].IsFocusable)
-            {
-                SetFocus(newIndex);
-                return;
-            }
-        }
-        while (newIndex != startIndex);
-    }
-    
-    private void SetFocus(int index)
-    {
-        // Clear old focus
-        if (_focusedIndex >= 0 && _focusedIndex < ChildNodes.Count)
-        {
-            ChildNodes[_focusedIndex].IsFocused = false;
-        }
-        
-        _focusedIndex = index;
-        
-        // Set new focus
-        if (_focusedIndex >= 0 && _focusedIndex < ChildNodes.Count)
-        {
-            ChildNodes[_focusedIndex].IsFocused = true;
-        }
-        
-        MarkDirty();
-    }
-    
     private Task CloseMenu(InputBindingActionContext ctx)
     {
         // Pop this popup
         ctx.Popups.Pop();
         
-        // Mark owner as closed
+        // Mark owner as closed and deselected
         if (OwnerNode != null)
         {
             OwnerNode.IsOpen = false;
+            OwnerNode.IsSelected = false;
         }
         
         return Task.CompletedTask;
@@ -301,15 +243,7 @@ public sealed class MenuPopupNode : Hex1bNode, ILayoutProvider
         
         ChildNodes = newChildren;
         
-        // Set initial focus to first focusable item
-        for (int i = 0; i < ChildNodes.Count; i++)
-        {
-            if (ChildNodes[i].IsFocusable)
-            {
-                SetFocus(i);
-                break;
-            }
-        }
+        // Focus will be set by the popup opening mechanism through the FocusRing
     }
     
     private MenuItemNode CreateMenuItemNode(MenuItemWidget widget, char? accel, int accelIndex)
@@ -323,13 +257,24 @@ public sealed class MenuPopupNode : Hex1bNode, ILayoutProvider
             SourceWidget = widget
         };
         
-        // Set up select action
-        if (widget.SelectHandler != null)
+        // Set up activated action with auto-close behavior
+        if (widget.ActivatedHandler != null)
         {
-            node.SelectAction = async ctx =>
+            node.ActivatedAction = async ctx =>
             {
-                var args = new Events.MenuItemSelectedEventArgs(widget, node, ctx);
-                await widget.SelectHandler(args);
+                var args = new Events.MenuItemActivatedEventArgs(widget, node, ctx);
+                await widget.ActivatedHandler(args);
+                // Auto-close all menus after activation
+                ctx.Popups.Clear();
+            };
+        }
+        else
+        {
+            // Even without a handler, activation closes the menu
+            node.ActivatedAction = ctx =>
+            {
+                ctx.Popups.Clear();
+                return Task.CompletedTask;
             };
         }
         

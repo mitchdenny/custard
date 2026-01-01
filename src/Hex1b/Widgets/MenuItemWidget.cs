@@ -4,15 +4,15 @@ using Hex1b.Nodes;
 namespace Hex1b.Widgets;
 
 /// <summary>
-/// A menu item that can be selected to trigger an action.
+/// A menu item that can be activated to trigger an action.
 /// </summary>
 /// <param name="Label">The display label for the item.</param>
 public sealed record MenuItemWidget(string Label) : Hex1bWidget, IMenuChild
 {
     /// <summary>
-    /// The handler called when the item is selected.
+    /// The handler called when the item is activated (user triggers the action).
     /// </summary>
-    internal Func<MenuItemSelectedEventArgs, Task>? SelectHandler { get; init; }
+    internal Func<MenuItemActivatedEventArgs, Task>? ActivatedHandler { get; init; }
     
     /// <summary>
     /// Whether the item is disabled (grayed out and non-interactive).
@@ -35,16 +35,16 @@ public sealed record MenuItemWidget(string Label) : Hex1bWidget, IMenuChild
     internal bool DisableAccelerator { get; init; }
 
     /// <summary>
-    /// Sets a synchronous handler called when the item is selected.
+    /// Sets a synchronous handler called when the item is activated.
     /// </summary>
-    public MenuItemWidget OnSelect(Action<MenuItemSelectedEventArgs> handler)
-        => this with { SelectHandler = args => { handler(args); return Task.CompletedTask; } };
+    public MenuItemWidget OnActivated(Action<MenuItemActivatedEventArgs> handler)
+        => this with { ActivatedHandler = args => { handler(args); return Task.CompletedTask; } };
 
     /// <summary>
-    /// Sets an asynchronous handler called when the item is selected.
+    /// Sets an asynchronous handler called when the item is activated.
     /// </summary>
-    public MenuItemWidget OnSelect(Func<MenuItemSelectedEventArgs, Task> handler)
-        => this with { SelectHandler = handler };
+    public MenuItemWidget OnActivated(Func<MenuItemActivatedEventArgs, Task> handler)
+        => this with { ActivatedHandler = handler };
 
     /// <summary>
     /// Sets whether the item is disabled.
@@ -74,17 +74,25 @@ public sealed record MenuItemWidget(string Label) : Hex1bWidget, IMenuChild
         node.SourceWidget = this;
         
         // Convert the typed event handler to the internal handler
-        if (SelectHandler != null)
+        // Menu items always close all menus after activation
+        if (ActivatedHandler != null)
         {
-            node.SelectAction = async ctx =>
+            node.ActivatedAction = async ctx =>
             {
-                var args = new MenuItemSelectedEventArgs(this, node, ctx);
-                await SelectHandler(args);
+                var args = new MenuItemActivatedEventArgs(this, node, ctx);
+                await ActivatedHandler(args);
+                // Auto-close all menus after activation
+                ctx.Popups.Clear();
             };
         }
         else
         {
-            node.SelectAction = null;
+            // Even without a handler, activation closes the menu
+            node.ActivatedAction = ctx =>
+            {
+                ctx.Popups.Clear();
+                return Task.CompletedTask;
+            };
         }
         
         return Task.FromResult<Hex1bNode>(node);

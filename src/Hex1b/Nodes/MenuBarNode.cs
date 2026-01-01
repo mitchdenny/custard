@@ -99,6 +99,7 @@ public sealed class MenuBarNode : Hex1bNode, ILayoutProvider
                 if (!menuNode.IsOpen)
                 {
                     menuNode.IsOpen = true;
+                    menuNode.IsSelected = true;
                     menuNode.MarkDirty();
                     ctx.Popups.PushAnchored(menuNode, AnchorPosition.Below, () => new MenuPopupWidget(menuNode), focusRestoreNode: menuNode);
                 }
@@ -222,12 +223,10 @@ public sealed class MenuBarNode : Hex1bNode, ILayoutProvider
         
         MenuNodes = newNodes;
         
-        // Set initial focus if we have menus and none are focused
-        if (MenuNodes.Count > 0 && !MenuNodes.Any(n => n.IsFocused))
-        {
-            _focusedIndex = 0;
-            MenuNodes[0].IsFocused = true;
-        }
+        // Note: We no longer auto-focus MenuNodes[0] here during layout.
+        // Focus is managed by FocusRing and should not be overridden during Measure.
+        // The menu bar receives focus when the user explicitly navigates to it
+        // (via Tab, mouse click, or accelerator).
     }
     
     private static void ProcessAccelerator(

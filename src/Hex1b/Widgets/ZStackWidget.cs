@@ -11,6 +11,11 @@ namespace Hex1b.Widgets;
 public sealed record ZStackWidget(IReadOnlyList<Hex1bWidget> Children) : Hex1bWidget
 {
     /// <summary>
+    /// Debug: Last focus management state. Used for testing.
+    /// </summary>
+    public static string? LastFocusDebug { get; internal set; }
+    
+    /// <summary>
     /// The clipping scope for this ZStack's content.
     /// Defaults to parent bounds.
     /// </summary>
@@ -45,7 +50,15 @@ public sealed record ZStackWidget(IReadOnlyList<Hex1bWidget> Children) : Hex1bWi
         
         // Build the complete list of children: explicit children + popup children
         var allChildren = Children.ToList();
-        allChildren.AddRange(node.Popups.BuildPopupWidgets());
+        var popupWidgets = node.Popups.BuildPopupWidgets().ToList();
+        allChildren.AddRange(popupWidgets);
+        
+        // Track whether new popups were added (for focus management)
+        var previousChildCount = node.Children.Count;
+        var popupStartIndex = Children.Count;
+        var previousPopupCount = previousChildCount > popupStartIndex ? previousChildCount - popupStartIndex : 0;
+        var currentPopupCount = popupWidgets.Count;
+        var newPopupsAdded = currentPopupCount > previousPopupCount;
         
         // Track children that will be removed (their bounds need clearing)
         for (int i = allChildren.Count; i < node.Children.Count; i++)
@@ -72,7 +85,6 @@ public sealed record ZStackWidget(IReadOnlyList<Hex1bWidget> Children) : Hex1bWi
         
         // Update popup entries with their reconciled content nodes for coordinate-aware dismissal
         var popupEntries = node.Popups.Entries;
-        var popupStartIndex = Children.Count;
         for (int i = 0; i < popupEntries.Count; i++)
         {
             var childIndex = popupStartIndex + i;
@@ -86,18 +98,57 @@ public sealed record ZStackWidget(IReadOnlyList<Hex1bWidget> Children) : Hex1bWi
 
         // Focus management: Focus the first focusable in the topmost layer that has focusables
         // This gives overlay content focus priority
-        if (context.IsNew && !context.ParentManagesFocus())
+        // We need to focus when:
+        // 1. The ZStack node is newly created (and parent doesn't manage focus), OR
+        // 2. New popups were added (popups ALWAYS take focus, even if parent manages focus)
+        var shouldFocusTopmost = 
+            (context.IsNew && !context.ParentManagesFocus()) || 
+            newPopupsAdded;
+        
+        // Debug: Track focus management state - only update when shouldFocusTopmost is true
+        // to capture the moment focus is supposed to be set
+        var debugInfo = $"shouldFocusTopmost={shouldFocusTopmost}, context.IsNew={context.IsNew}, newPopupsAdded={newPopupsAdded}, previousPopupCount={previousPopupCount}, currentPopupCount={currentPopupCount}";
+        if (shouldFocusTopmost)
         {
+            LastFocusDebug = debugInfo + " [FOCUS TRIGGERED]";
+        }
+        else
+        {
+            // Only update if we haven't captured a trigger yet
+            LastFocusDebug ??= debugInfo;
+        }
+            
+        if (shouldFocusTopmost)
+        {
+            // First, clear focus on ALL focusables in the tree
+            // This ensures only the new popup content has focus
+            var clearedNodes = new List<string>();
+            foreach (var child in node.Children)
+            {
+                foreach (var focusable in child.GetFocusableNodes())
+                {
+                    if (focusable.IsFocused)
+                    {
+                        clearedNodes.Add(focusable.GetType().Name);
+                        ReconcileContext.SetNodeFocus(focusable, false);
+                    }
+                }
+            }
+            
             // Iterate children in reverse (topmost first) to find focusables
+            string? focusedNodeType = null;
             for (int i = node.Children.Count - 1; i >= 0; i--)
             {
                 var focusables = node.Children[i].GetFocusableNodes().ToList();
                 if (focusables.Count > 0)
                 {
+                    focusedNodeType = focusables[0].GetType().Name;
                     ReconcileContext.SetNodeFocus(focusables[0], true);
                     break;
                 }
             }
+            
+            LastFocusDebug = debugInfo + $" [FOCUS TRIGGERED: cleared=[{string.Join(",", clearedNodes)}], focused={focusedNodeType}]";
         }
         
         return node;

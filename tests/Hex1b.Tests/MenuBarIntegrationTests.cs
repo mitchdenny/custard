@@ -1,0 +1,1136 @@
+using Hex1b.Input;
+using Hex1b.Nodes;
+using Hex1b.Terminal.Automation;
+using Hex1b.Widgets;
+
+namespace Hex1b.Tests;
+
+/// <summary>
+/// Integration tests for the MenuBar widget and menu navigation.
+/// These tests verify the full keyboard and mouse navigation patterns
+/// for menus, submenus, and menu item activation.
+/// </summary>
+public class MenuBarIntegrationTests
+{
+    #region Helper Methods
+    
+    /// <summary>
+    /// Creates a standard menu bar for testing with callbacks to track actions.
+    /// Uses the fluent API.
+    /// </summary>
+    private static Hex1bWidget CreateTestMenuBar(
+        WidgetContext<RootWidget> ctx,
+        Action<string> onAction,
+        bool includeSubmenus = false,
+        bool includeDisabledItems = false)
+    {
+        return ctx.VStack(main => [
+            ctx.MenuBar(m => BuildMenus(m, onAction, includeSubmenus, includeDisabledItems)),
+            ctx.Text("Content area - click here to dismiss menus")
+        ]);
+    }
+    
+    private static IEnumerable<MenuWidget> BuildMenus(
+        MenuContext m,
+        Action<string> onAction,
+        bool includeSubmenus,
+        bool includeDisabledItems)
+    {
+        yield return m.Menu("&File", m => BuildFileMenu(m, onAction, includeSubmenus, includeDisabledItems));
+        yield return m.Menu("&Edit", m => [
+            m.MenuItem("&Undo").OnActivated(e => onAction("Edit > Undo")),
+            m.MenuItem("&Redo").OnActivated(e => onAction("Edit > Redo")),
+            m.Separator(),
+            m.MenuItem("Cu&t").OnActivated(e => onAction("Edit > Cut")),
+            m.MenuItem("&Copy").OnActivated(e => onAction("Edit > Copy")),
+            m.MenuItem("&Paste").OnActivated(e => onAction("Edit > Paste"))
+        ]);
+        yield return m.Menu("&Help", m => [
+            m.MenuItem("&About").OnActivated(e => onAction("Help > About"))
+        ]);
+    }
+    
+    private static IEnumerable<IMenuChild> BuildFileMenu(
+        MenuContext m,
+        Action<string> onAction,
+        bool includeSubmenus,
+        bool includeDisabledItems)
+    {
+        yield return m.MenuItem("&New").OnActivated(e => onAction("File > New"));
+        yield return m.MenuItem("&Open").OnActivated(e => onAction("File > Open"));
+        yield return m.Separator();
+        
+        if (includeSubmenus)
+        {
+            yield return m.Menu("&Recent", m => [
+                m.MenuItem("Doc1.txt").OnActivated(e => onAction("File > Recent > Doc1.txt")),
+                m.MenuItem("Doc2.txt").OnActivated(e => onAction("File > Recent > Doc2.txt"))
+            ]);
+        }
+        else
+        {
+            yield return m.MenuItem("&Recent").Disabled();
+        }
+        
+        yield return m.Separator();
+        yield return m.MenuItem("&Save").OnActivated(e => onAction("File > Save"));
+        
+        if (includeDisabledItems)
+        {
+            yield return m.MenuItem("Save &As").Disabled();
+        }
+        else
+        {
+            yield return m.MenuItem("Save &As").OnActivated(e => onAction("File > Save As"));
+        }
+        
+        yield return m.Separator();
+        yield return m.MenuItem("&Quit").OnActivated(e =>
+        {
+            onAction("File > Quit");
+            e.Context.RequestStop();
+        });
+    }
+    
+    #endregion
+    
+    #region Menu Bar Focus and Opening
+    
+    [Fact]
+    public async Task MenuBar_EnterKey_OpensFirstMenu()
+    {
+        // Arrange
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        var lastAction = "";
+        
+        using var app = new Hex1bApp(
+            ctx => Task.FromResult(CreateTestMenuBar(ctx, a => lastAction = a)),
+            new Hex1bAppOptions { WorkloadAdapter = workload }
+        );
+
+        // Act
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("File") && s.ContainsText("Edit"), TimeSpan.FromSeconds(2), "menu bar to render")
+            .Enter()  // Open the File menu (first focused menu)
+            .WaitUntil(s => s.ContainsText("New") && s.ContainsText("Open"), TimeSpan.FromSeconds(2), "File menu to open")
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+        await runTask;
+
+        // Assert - File menu items should be visible
+        var snapshot = terminal.CreateSnapshot();
+        Assert.True(snapshot.ContainsText("New"));
+        Assert.True(snapshot.ContainsText("Open"));
+        Assert.True(snapshot.ContainsText("Save"));
+    }
+    
+    [Fact]
+    public async Task MenuBar_DownArrow_OpensMenu()
+    {
+        // Arrange
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        var lastAction = "";
+        
+        using var app = new Hex1bApp(
+            ctx => Task.FromResult(CreateTestMenuBar(ctx, a => lastAction = a)),
+            new Hex1bAppOptions { WorkloadAdapter = workload }
+        );
+
+        // Act
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("File"), TimeSpan.FromSeconds(2), "menu bar to render")
+            .Down()  // Down arrow should also open the menu
+            .WaitUntil(s => s.ContainsText("New") && s.ContainsText("Open"), TimeSpan.FromSeconds(2), "File menu to open")
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+        await runTask;
+
+        // Assert
+        Assert.True(terminal.CreateSnapshot().ContainsText("New"));
+    }
+    
+    [Fact]
+    public async Task MenuBar_AltF_OpensFileMenu()
+    {
+        // Arrange
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        var lastAction = "";
+        
+        using var app = new Hex1bApp(
+            ctx => Task.FromResult(CreateTestMenuBar(ctx, a => lastAction = a)),
+            new Hex1bAppOptions { WorkloadAdapter = workload }
+        );
+
+        // Act
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("File"), TimeSpan.FromSeconds(2), "menu bar to render")
+            .Alt().Key(Hex1bKey.F)  // Alt+F accelerator
+            .WaitUntil(s => s.ContainsText("New") && s.ContainsText("Open"), TimeSpan.FromSeconds(2), "File menu to open via Alt+F")
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+        await runTask;
+
+        // Assert
+        Assert.True(terminal.CreateSnapshot().ContainsText("New"));
+    }
+    
+    [Fact]
+    public async Task MenuBar_AltE_OpensEditMenu()
+    {
+        // Arrange
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        var lastAction = "";
+        
+        using var app = new Hex1bApp(
+            ctx => Task.FromResult(CreateTestMenuBar(ctx, a => lastAction = a)),
+            new Hex1bAppOptions { WorkloadAdapter = workload }
+        );
+
+        // Act
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Edit"), TimeSpan.FromSeconds(2), "menu bar to render")
+            .Alt().Key(Hex1bKey.E)  // Alt+E accelerator
+            .WaitUntil(s => s.ContainsText("Undo") && s.ContainsText("Redo"), TimeSpan.FromSeconds(2), "Edit menu to open via Alt+E")
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+        await runTask;
+
+        // Assert
+        Assert.True(terminal.CreateSnapshot().ContainsText("Cut"));
+        Assert.True(terminal.CreateSnapshot().ContainsText("Copy"));
+    }
+    
+    [Fact]
+    public async Task MenuBar_RightArrow_NavigatesToNextMenu()
+    {
+        // Arrange
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        var lastAction = "";
+        
+        using var app = new Hex1bApp(
+            ctx => Task.FromResult(CreateTestMenuBar(ctx, a => lastAction = a)),
+            new Hex1bAppOptions { WorkloadAdapter = workload }
+        );
+
+        // Act - Start at File, arrow right to Edit, then open it
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("File"), TimeSpan.FromSeconds(2), "menu bar to render")
+            .Right()  // Move from File to Edit
+            .Enter()  // Open Edit menu
+            .WaitUntil(s => s.ContainsText("Undo") && s.ContainsText("Copy"), TimeSpan.FromSeconds(2), "Edit menu to open")
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+        await runTask;
+
+        // Assert - Edit menu should be open, not File menu
+        var snapshot = terminal.CreateSnapshot();
+        Assert.True(snapshot.ContainsText("Undo"));
+        Assert.True(snapshot.ContainsText("Cut"));
+    }
+    
+    [Fact]
+    public async Task MenuBar_LeftArrow_NavigatesToPreviousMenu()
+    {
+        // Arrange
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        var lastAction = "";
+        
+        using var app = new Hex1bApp(
+            ctx => Task.FromResult(CreateTestMenuBar(ctx, a => lastAction = a)),
+            new Hex1bAppOptions { WorkloadAdapter = workload }
+        );
+
+        // Act - Navigate right twice to Help, then left back to Edit, then open it
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Help"), TimeSpan.FromSeconds(2), "menu bar to render")
+            .Right()  // File -> Edit
+            .Right()  // Edit -> Help
+            .Left()   // Help -> Edit
+            .Enter()  // Open Edit menu
+            .WaitUntil(s => s.ContainsText("Undo"), TimeSpan.FromSeconds(2), "Edit menu to open")
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+        await runTask;
+
+        // Assert
+        Assert.True(terminal.CreateSnapshot().ContainsText("Undo"));
+    }
+    
+    #endregion
+    
+    #region Menu Item Navigation and Activation
+    
+    [Fact]
+    public async Task MenuItem_DownArrow_NavigatesToNextItem()
+    {
+        // Arrange
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        var lastAction = "";
+        
+        using var app = new Hex1bApp(
+            ctx => Task.FromResult(CreateTestMenuBar(ctx, a => lastAction = a)),
+            new Hex1bAppOptions { WorkloadAdapter = workload }
+        );
+
+        // Act - Open menu, navigate down, verify selection, then activate
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("File"), TimeSpan.FromSeconds(2), "menu bar to render")
+            .Enter()  // Open File menu
+            .WaitUntil(s => s.ContainsText("New"), TimeSpan.FromSeconds(2), "File menu to open")
+            .Down()   // Navigate from New to Open
+            .WaitUntil(s => IsMenuItemSelected(s, "Open"), TimeSpan.FromSeconds(2), "Open to be selected after Down arrow")
+            .Enter()  // Activate Open
+            .WaitUntil(s => !s.ContainsText("Save"), TimeSpan.FromSeconds(2), "menu to close after activation")
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+        await runTask;
+
+        // Assert - "Open" action should have been triggered
+        Assert.Equal("File > Open", lastAction);
+    }
+    
+    /// <summary>
+    /// Checks if a menu item is selected by verifying it has the focused background color (white).
+    /// </summary>
+    private static bool IsMenuItemSelected(IHex1bTerminalRegion snapshot, string itemText)
+    {
+        // Find the text position
+        var positions = snapshot.FindText(itemText);
+        if (positions.Count == 0)
+            return false;
+        
+        // Check the first occurrence - the first character should have white background
+        var (line, column) = positions[0];
+        var cell = snapshot.GetCell(column, line);
+        
+        // The focused menu item should have white background (Hex1bColor.White = RGB 255,255,255)
+        if (cell.Background is not null)
+        {
+            return cell.Background.Value.R == 255 && 
+                   cell.Background.Value.G == 255 && 
+                   cell.Background.Value.B == 255;
+        }
+        
+        return false;
+    }
+    
+    [Fact]
+    public async Task MenuItem_Tab_NavigatesToNextItem()
+    {
+        // Arrange
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        var lastAction = "";
+        
+        using var app = new Hex1bApp(
+            ctx => Task.FromResult(CreateTestMenuBar(ctx, a => lastAction = a)),
+            new Hex1bAppOptions { WorkloadAdapter = workload }
+        );
+
+        // Act - Open menu, navigate with Tab, verify selection, then activate
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("File"), TimeSpan.FromSeconds(2), "menu bar to render")
+            .Enter()  // Open File menu
+            .WaitUntil(s => s.ContainsText("New"), TimeSpan.FromSeconds(2), "File menu to open")
+            .Tab()    // Navigate from New to Open using Tab
+            .WaitUntil(s => IsMenuItemSelected(s, "Open"), TimeSpan.FromSeconds(2), "Open to be selected after Tab")
+            .Enter()  // Activate Open
+            .WaitUntil(s => !s.ContainsText("Save"), TimeSpan.FromSeconds(2), "menu to close after activation")
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+        await runTask;
+
+        // Assert - "Open" action should have been triggered
+        Assert.Equal("File > Open", lastAction);
+    }
+    
+    [Fact]
+    public async Task MenuItem_UpArrow_NavigatesToPreviousItem()
+    {
+        // Arrange
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        var lastAction = "";
+        
+        using var app = new Hex1bApp(
+            ctx => Task.FromResult(CreateTestMenuBar(ctx, a => lastAction = a)),
+            new Hex1bAppOptions { WorkloadAdapter = workload }
+        );
+
+        // Act - Open menu, navigate down twice then up once, activate
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("File"), TimeSpan.FromSeconds(2), "menu bar to render")
+            .Enter()  // Open File menu
+            .WaitUntil(s => s.ContainsText("New"), TimeSpan.FromSeconds(2), "File menu to open")
+            .Down()   // New -> Open
+            .Down()   // Open -> (skip separator) -> Recent or Save
+            .Up()     // Back to Open
+            .Enter()  // Activate Open
+            .WaitUntil(s => !s.ContainsText("Save"), TimeSpan.FromSeconds(2), "menu to close after activation")
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+        await runTask;
+
+        // Assert
+        Assert.Equal("File > Open", lastAction);
+    }
+    
+    [Fact]
+    public async Task MenuItem_Enter_ActivatesItemAndClosesMenu()
+    {
+        // Arrange
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        var lastAction = "";
+        
+        using var app = new Hex1bApp(
+            ctx => Task.FromResult(CreateTestMenuBar(ctx, a => lastAction = a)),
+            new Hex1bAppOptions { WorkloadAdapter = workload }
+        );
+
+        // Act
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("File"), TimeSpan.FromSeconds(2), "menu bar to render")
+            .Enter()  // Open File menu
+            .WaitUntil(s => s.ContainsText("New"), TimeSpan.FromSeconds(2), "File menu to open")
+            .Enter()  // Activate "New" (first item)
+            .WaitUntil(s => !s.ContainsText("Save"), TimeSpan.FromSeconds(2), "menu to close")
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+        await runTask;
+
+        // Assert - Action was triggered and menu closed
+        Assert.Equal("File > New", lastAction);
+        Assert.False(terminal.CreateSnapshot().ContainsText("Open")); // Menu closed
+    }
+    
+    [Fact]
+    public async Task MenuItem_Spacebar_ActivatesItem()
+    {
+        // Arrange
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        var lastAction = "";
+        
+        using var app = new Hex1bApp(
+            ctx => Task.FromResult(CreateTestMenuBar(ctx, a => lastAction = a)),
+            new Hex1bAppOptions { WorkloadAdapter = workload }
+        );
+
+        // Act
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("File"), TimeSpan.FromSeconds(2), "menu bar to render")
+            .Key(Hex1bKey.Spacebar)  // Open File menu
+            .WaitUntil(s => s.ContainsText("New"), TimeSpan.FromSeconds(2), "File menu to open")
+            .Key(Hex1bKey.Spacebar)  // Activate "New" with spacebar
+            .WaitUntil(s => !s.ContainsText("Save"), TimeSpan.FromSeconds(2), "menu to close")
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+        await runTask;
+
+        // Assert
+        Assert.Equal("File > New", lastAction);
+    }
+    
+    [Fact]
+    public async Task MenuItem_Escape_ClosesMenuWithoutActivating()
+    {
+        // Arrange
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        var lastAction = "";
+        
+        using var app = new Hex1bApp(
+            ctx => Task.FromResult(CreateTestMenuBar(ctx, a => lastAction = a)),
+            new Hex1bAppOptions { WorkloadAdapter = workload }
+        );
+
+        // Act
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("File"), TimeSpan.FromSeconds(2), "menu bar to render")
+            .Enter()  // Open File menu
+            .WaitUntil(s => s.ContainsText("New"), TimeSpan.FromSeconds(2), "File menu to open")
+            .Down()   // Navigate to Open
+            .Escape() // Dismiss without activating
+            .WaitUntil(s => !s.ContainsText("Save"), TimeSpan.FromSeconds(2), "menu to close")
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+        await runTask;
+
+        // Assert - No action should have been triggered
+        Assert.Equal("", lastAction);
+    }
+    
+    [Fact]
+    public async Task MenuItem_LeftArrow_ClosesMenu()
+    {
+        // Arrange
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        var lastAction = "";
+        
+        using var app = new Hex1bApp(
+            ctx => Task.FromResult(CreateTestMenuBar(ctx, a => lastAction = a)),
+            new Hex1bAppOptions { WorkloadAdapter = workload }
+        );
+
+        // Act
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("File"), TimeSpan.FromSeconds(2), "menu bar to render")
+            .Enter()  // Open File menu
+            .WaitUntil(s => s.ContainsText("New"), TimeSpan.FromSeconds(2), "File menu to open")
+            .Left()   // Close menu (back navigation)
+            .WaitUntil(s => !s.ContainsText("Save"), TimeSpan.FromSeconds(2), "menu to close")
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+        await runTask;
+
+        // Assert - Menu should be closed, no action triggered
+        Assert.Equal("", lastAction);
+        Assert.False(terminal.CreateSnapshot().ContainsText("Open"));
+    }
+    
+    [Fact]
+    public async Task MenuItem_AcceleratorKey_ActivatesItem()
+    {
+        // Arrange
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        var lastAction = "";
+        
+        using var app = new Hex1bApp(
+            ctx => Task.FromResult(CreateTestMenuBar(ctx, a => lastAction = a)),
+            new Hex1bAppOptions { WorkloadAdapter = workload }
+        );
+
+        // Act - Open File menu, press 'O' to activate Open
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("File"), TimeSpan.FromSeconds(2), "menu bar to render")
+            .Enter()  // Open File menu
+            .WaitUntil(s => s.ContainsText("Open"), TimeSpan.FromSeconds(2), "File menu to open")
+            .Key(Hex1bKey.O)  // Accelerator for "Open"
+            .WaitUntil(s => !s.ContainsText("Save"), TimeSpan.FromSeconds(2), "menu to close")
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+        await runTask;
+
+        // Assert
+        Assert.Equal("File > Open", lastAction);
+    }
+    
+    #endregion
+    
+    #region Submenu Navigation
+    
+    [Fact]
+    public async Task Submenu_RightArrow_OpensSubmenu()
+    {
+        // Arrange
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        var lastAction = "";
+        
+        using var app = new Hex1bApp(
+            ctx => Task.FromResult(CreateTestMenuBar(ctx, a => lastAction = a, includeSubmenus: true)),
+            new Hex1bAppOptions { WorkloadAdapter = workload }
+        );
+
+        // Act - Open File menu, navigate to Recent submenu, open it with right arrow
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("File"), TimeSpan.FromSeconds(2), "menu bar to render")
+            .Enter()  // Open File menu
+            .WaitUntil(s => s.ContainsText("Recent"), TimeSpan.FromSeconds(2), "File menu to open")
+            .Down()   // New -> Open
+            .Down()   // Open -> Recent (skip separator)
+            .Right()  // Open Recent submenu
+            .WaitUntil(s => s.ContainsText("Doc1.txt"), TimeSpan.FromSeconds(2), "Recent submenu to open")
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+        await runTask;
+
+        // Assert - Submenu items should be visible
+        var snapshot = terminal.CreateSnapshot();
+        Assert.True(snapshot.ContainsText("Doc1.txt"));
+        Assert.True(snapshot.ContainsText("Doc2.txt"));
+    }
+    
+    [Fact]
+    public async Task Submenu_Enter_OpensSubmenu()
+    {
+        // Arrange
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        var lastAction = "";
+        
+        using var app = new Hex1bApp(
+            ctx => Task.FromResult(CreateTestMenuBar(ctx, a => lastAction = a, includeSubmenus: true)),
+            new Hex1bAppOptions { WorkloadAdapter = workload }
+        );
+
+        // Act - Open File menu, navigate to Recent, open with Enter
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("File"), TimeSpan.FromSeconds(2), "menu bar to render")
+            .Enter()  // Open File menu
+            .WaitUntil(s => s.ContainsText("Recent"), TimeSpan.FromSeconds(2), "File menu to open")
+            .Down().Down()  // Navigate to Recent (New -> Open -> Recent)
+            .Enter()  // Open Recent submenu
+            .WaitUntil(s => s.ContainsText("Doc1.txt"), TimeSpan.FromSeconds(2), "Recent submenu to open")
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+        await runTask;
+
+        // Assert
+        Assert.True(terminal.CreateSnapshot().ContainsText("Doc1.txt"));
+    }
+    
+    [Fact]
+    public async Task Submenu_LeftArrow_ClosesSubmenuReturnsToParent()
+    {
+        // Arrange
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        var lastAction = "";
+        
+        using var app = new Hex1bApp(
+            ctx => Task.FromResult(CreateTestMenuBar(ctx, a => lastAction = a, includeSubmenus: true)),
+            new Hex1bAppOptions { WorkloadAdapter = workload }
+        );
+
+        // Act - Open submenu, then close it with left arrow
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("File"), TimeSpan.FromSeconds(2), "menu bar to render")
+            .Enter()  // Open File menu
+            .WaitUntil(s => s.ContainsText("Recent"), TimeSpan.FromSeconds(2), "File menu to open")
+            .Down().Down()  // Navigate to Recent (New -> Open -> Recent)
+            .Right()  // Open Recent submenu
+            .WaitUntil(s => s.ContainsText("Doc1.txt"), TimeSpan.FromSeconds(2), "Recent submenu to open")
+            .Left()   // Close submenu, return to parent
+            .WaitUntil(s => !s.ContainsText("Doc1.txt") && s.ContainsText("Recent"), TimeSpan.FromSeconds(2), "submenu to close")
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+        await runTask;
+
+        // Assert - Submenu closed but parent menu still open
+        var snapshot = terminal.CreateSnapshot();
+        Assert.False(snapshot.ContainsText("Doc1.txt")); // Submenu closed
+        Assert.True(snapshot.ContainsText("Save"));       // Parent menu still visible
+    }
+    
+    [Fact]
+    public async Task Submenu_ActivateItem_ClosesAllMenus()
+    {
+        // Arrange
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        var lastAction = "";
+        
+        using var app = new Hex1bApp(
+            ctx => Task.FromResult(CreateTestMenuBar(ctx, a => lastAction = a, includeSubmenus: true)),
+            new Hex1bAppOptions { WorkloadAdapter = workload }
+        );
+
+        // Act - Navigate into submenu and activate an item
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("File"), TimeSpan.FromSeconds(2), "menu bar to render")
+            .Enter()  // Open File menu
+            .WaitUntil(s => s.ContainsText("Recent"), TimeSpan.FromSeconds(2), "File menu to open")
+            .Down().Down()  // Navigate to Recent (New -> Open -> Recent)
+            .Right()  // Open Recent submenu
+            .WaitUntil(s => s.ContainsText("Doc1.txt"), TimeSpan.FromSeconds(2), "Recent submenu to open")
+            .Enter()  // Activate Doc1.txt
+            .WaitUntil(s => !s.ContainsText("Doc1.txt") && !s.ContainsText("Save"), TimeSpan.FromSeconds(2), "all menus to close")
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+        await runTask;
+
+        // Assert
+        Assert.Equal("File > Recent > Doc1.txt", lastAction);
+        // All menus should be closed
+        var snapshot = terminal.CreateSnapshot();
+        Assert.False(snapshot.ContainsText("Doc1.txt"));
+        Assert.False(snapshot.ContainsText("Save"));
+    }
+    
+    #endregion
+    
+    #region Mouse Navigation
+    
+    [Fact]
+    public async Task Menu_ClickOnTrigger_OpensMenu()
+    {
+        // Arrange
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        var lastAction = "";
+        
+        using var app = new Hex1bApp(
+            ctx => Task.FromResult(CreateTestMenuBar(ctx, a => lastAction = a)),
+            new Hex1bAppOptions { WorkloadAdapter = workload, EnableMouse = true }
+        );
+
+        // Act - Click on "File" menu trigger
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("File"), TimeSpan.FromSeconds(2), "menu bar to render")
+            .ClickAt(2, 0, MouseButton.Left)  // Click on "File" (assuming it starts near x=1)
+            .WaitUntil(s => s.ContainsText("New") && s.ContainsText("Open"), TimeSpan.FromSeconds(2), "File menu to open")
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+        await runTask;
+
+        // Assert
+        Assert.True(terminal.CreateSnapshot().ContainsText("New"));
+    }
+    
+    [Fact]
+    public async Task Menu_ClickOnItem_ActivatesItem()
+    {
+        // Arrange
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        var lastAction = "";
+        
+        using var app = new Hex1bApp(
+            ctx => Task.FromResult(CreateTestMenuBar(ctx, a => lastAction = a)),
+            new Hex1bAppOptions { WorkloadAdapter = workload, EnableMouse = true }
+        );
+
+        // Act - Open menu with keyboard, then click on an item
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("File"), TimeSpan.FromSeconds(2), "menu bar to render")
+            .Enter()  // Open File menu with keyboard
+            .WaitUntil(s => s.ContainsText("New") && s.ContainsText("Open"), TimeSpan.FromSeconds(2), "File menu to open")
+            // Click on "Open" item (should be on line 2 or 3 depending on border)
+            .ClickAt(3, 2, MouseButton.Left)  // Approximate position of Open
+            .WaitUntil(s => !s.ContainsText("Save"), TimeSpan.FromSeconds(2), "menu to close")
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+        await runTask;
+
+        // Assert - Should have activated some item (position may vary)
+        Assert.NotEqual("", lastAction);
+    }
+    
+    [Fact]
+    public async Task Menu_ClickAwayOnBackdrop_ClosesMenu()
+    {
+        // Arrange
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        var lastAction = "";
+        
+        using var app = new Hex1bApp(
+            ctx => Task.FromResult(CreateTestMenuBar(ctx, a => lastAction = a)),
+            new Hex1bAppOptions { WorkloadAdapter = workload, EnableMouse = true }
+        );
+
+        // Act - Open menu, then click away on backdrop
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("File"), TimeSpan.FromSeconds(2), "menu bar to render")
+            .Enter()  // Open File menu
+            .WaitUntil(s => s.ContainsText("New"), TimeSpan.FromSeconds(2), "File menu to open")
+            // Click on backdrop (bottom right corner, far from menu)
+            .ClickAt(70, 20, MouseButton.Left)
+            .WaitUntil(s => !s.ContainsText("Save"), TimeSpan.FromSeconds(2), "menu to close after click-away")
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+        await runTask;
+
+        // Assert - No action should be triggered, menu should be closed
+        Assert.Equal("", lastAction);
+        Assert.False(terminal.CreateSnapshot().ContainsText("Save"));
+    }
+    
+    #endregion
+    
+    #region Disabled Items
+    
+    [Fact]
+    public async Task DisabledItem_Enter_DoesNotActivate()
+    {
+        // Arrange
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        var lastAction = "";
+        
+        using var app = new Hex1bApp(
+            ctx => Task.FromResult(CreateTestMenuBar(ctx, a => lastAction = a, includeDisabledItems: true)),
+            new Hex1bAppOptions { WorkloadAdapter = workload }
+        );
+
+        // Act - Open File menu, navigate to disabled "Save As", try to activate
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("File"), TimeSpan.FromSeconds(2), "menu bar to render")
+            .Enter()  // Open File menu
+            .WaitUntil(s => s.ContainsText("Save As"), TimeSpan.FromSeconds(2), "File menu to open")
+            // Navigate to Save As (disabled)
+            .Down().Down().Down().Down().Down().Down()  // Skip to Save As
+            .Enter()  // Try to activate disabled item
+            .Wait(100)  // Wait to see if anything happens
+            .Escape()  // Close menu
+            .WaitUntil(s => !s.ContainsText("Save"), TimeSpan.FromSeconds(2), "menu to close")
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+        await runTask;
+
+        // Assert - Action should NOT have been triggered for disabled item
+        Assert.NotEqual("File > Save As", lastAction);
+    }
+    
+    #endregion
+    
+    #region Focus Restoration
+    
+    [Fact]
+    public async Task Menu_AfterClose_FocusRestoresToMenuBar()
+    {
+        // Arrange
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        var lastAction = "";
+        
+        using var app = new Hex1bApp(
+            ctx => Task.FromResult(CreateTestMenuBar(ctx, a => lastAction = a)),
+            new Hex1bAppOptions { WorkloadAdapter = workload }
+        );
+
+        // Act - Open menu, close it, then open again to verify focus returned
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("File"), TimeSpan.FromSeconds(2), "menu bar to render")
+            .Enter()  // Open File menu
+            .WaitUntil(s => s.ContainsText("New"), TimeSpan.FromSeconds(2), "File menu to open")
+            .Escape() // Close menu
+            .WaitUntil(s => !s.ContainsText("Save"), TimeSpan.FromSeconds(2), "menu to close")
+            .Enter()  // Open again - this proves focus returned to menu bar
+            .WaitUntil(s => s.ContainsText("New"), TimeSpan.FromSeconds(2), "File menu to reopen")
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+        await runTask;
+
+        // Assert - If we got here, focus was restored correctly
+        Assert.True(terminal.CreateSnapshot().ContainsText("New"));
+    }
+    
+    [Fact]
+    public async Task Menu_QuitAction_StopsApplication()
+    {
+        // Arrange
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        var lastAction = "";
+        
+        using var app = new Hex1bApp(
+            ctx => Task.FromResult(CreateTestMenuBar(ctx, a => lastAction = a)),
+            new Hex1bAppOptions { WorkloadAdapter = workload }
+        );
+
+        // Act - Open File menu, navigate to Quit, activate it
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("File"), TimeSpan.FromSeconds(2), "menu bar to render")
+            .Enter()  // Open File menu
+            .WaitUntil(s => s.ContainsText("Quit"), TimeSpan.FromSeconds(2), "File menu to open")
+            // Navigate to Quit
+            .Down().Down().Down().Down().Down().Down().Down().Down()  // Navigate to last item
+            .Enter()  // Activate Quit
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+        
+        // The app should have stopped due to RequestStop()
+        await runTask;
+
+        // Assert
+        Assert.Equal("File > Quit", lastAction);
+    }
+    
+    #endregion
+    
+    #region Complex Workflows
+    
+    [Fact]
+    public async Task CompleteWorkflow_NavigateMultipleMenusAndActivateItems()
+    {
+        // Arrange
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        var actions = new List<string>();
+        
+        using var app = new Hex1bApp(
+            ctx => Task.FromResult(CreateTestMenuBar(ctx, a => actions.Add(a))),
+            new Hex1bAppOptions { WorkloadAdapter = workload }
+        );
+
+        // Act - Perform multiple menu operations
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("File"), TimeSpan.FromSeconds(2), "menu bar to render")
+            // First: File > New
+            .Enter()
+            .WaitUntil(s => s.ContainsText("New"), TimeSpan.FromSeconds(2), "File menu to open")
+            .Enter()  // Activate New
+            .WaitUntil(s => !s.ContainsText("Save"), TimeSpan.FromSeconds(2), "menu to close")
+            // Second: Navigate to Edit, activate Undo
+            .Right()  // Move to Edit
+            .Enter()
+            .WaitUntil(s => s.ContainsText("Undo"), TimeSpan.FromSeconds(2), "Edit menu to open")
+            .Enter()  // Activate Undo
+            .WaitUntil(s => !s.ContainsText("Paste"), TimeSpan.FromSeconds(2), "menu to close")
+            // Third: Use Alt+H for Help
+            .Alt().Key(Hex1bKey.H)
+            .WaitUntil(s => s.ContainsText("About"), TimeSpan.FromSeconds(2), "Help menu to open")
+            .Enter()  // Activate About
+            .WaitUntil(s => !s.ContainsText("About"), TimeSpan.FromSeconds(2), "menu to close")
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+        await runTask;
+
+        // Assert - All three actions should have been recorded
+        Assert.Contains("File > New", actions);
+        Assert.Contains("Edit > Undo", actions);
+        Assert.Contains("Help > About", actions);
+    }
+    
+    #endregion
+    
+    #region Focus Debugging Tests
+    
+    [Fact]
+    public void Debug_BackdropFocusDelegation_ToMenuItems()
+    {
+        // Arrange - Create the node hierarchy manually
+        var menuPopupNode = new MenuPopupNode();
+        var anchoredNode = new AnchoredNode { Child = menuPopupNode };
+        var backdropNode = new BackdropNode { Child = anchoredNode };
+        
+        // Create menu items as if reconciled
+        var menuItemNode1 = new MenuItemNode { Label = "New", Parent = menuPopupNode };
+        var menuItemNode2 = new MenuItemNode { Label = "Open", Parent = menuPopupNode };
+        menuPopupNode.ChildNodes.Add(menuItemNode1);
+        menuPopupNode.ChildNodes.Add(menuItemNode2);
+        
+        // Act - Get focusable nodes from backdrop
+        var focusables = backdropNode.GetFocusableNodes().ToList();
+        
+        // Assert - Should include backdrop and menu items
+        Assert.True(focusables.Count >= 3, $"Expected at least 3 focusables (backdrop + 2 items), got {focusables.Count}");
+        Assert.Contains(menuItemNode1, focusables);
+        Assert.Contains(menuItemNode2, focusables);
+        
+        // Act - Set focus on backdrop (simulating what ZStack does)
+        backdropNode.IsFocused = true;
+        
+        // Assert - Focus should have been delegated to first menu item
+        Assert.True(menuItemNode1.IsFocused, "First menu item should have focus after setting backdrop focus");
+    }
+    
+    [Fact]
+    public async Task Debug_FirstMenuItem_HasFocus_WhenMenuOpens()
+    {
+        // This test verifies that when a menu opens, the first menu item automatically gets focus
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        
+        using var app = new Hex1bApp(
+            ctx => Task.FromResult(CreateTestMenuBar(ctx, _ => { })),
+            new Hex1bAppOptions { WorkloadAdapter = workload }
+        );
+
+        Hex1bNode? focusedAfterMenuOpen = null;
+        int focusableCount = 0;
+        
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("File"), TimeSpan.FromSeconds(2), "menu bar to render")
+            .Enter()  // Open File menu
+            .WaitUntil(s => {
+                // Capture focus state when menu is open
+                if (s.ContainsText("New"))
+                {
+                    focusedAfterMenuOpen = app.FocusedNode;
+                    focusableCount = app.Focusables.Count;
+                    return true;
+                }
+                return false;
+            }, TimeSpan.FromSeconds(2), "File menu to open")
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+        await runTask;
+        
+        // Assert - Focus should be on the first MenuItemNode
+        Assert.True(focusableCount > 0, $"Expected focusables in the ring, got {focusableCount}");
+        Assert.NotNull(focusedAfterMenuOpen);
+        Assert.IsType<MenuItemNode>(focusedAfterMenuOpen);
+        Assert.Equal("New", ((MenuItemNode)focusedAfterMenuOpen).Label);
+    }
+    
+    [Fact]
+    public async Task Debug_DownArrow_MovesFocus_WhenMenuOpen()
+    {
+        // This test checks if Down arrow moves focus from "New" to "Open"
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        
+        using var app = new Hex1bApp(
+            ctx => Task.FromResult(CreateTestMenuBar(ctx, _ => { })),
+            new Hex1bAppOptions { WorkloadAdapter = workload }
+        );
+
+        Hex1bNode? focusedAfterMenuOpen = null;
+        Hex1bNode? focusedAfterDownArrow = null;
+        List<(string type, string? label)> focusablesBefore = new();
+        List<(string type, string? label, bool focused)> focusablesAfter = new();
+        
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("File"), TimeSpan.FromSeconds(2), "menu bar to render")
+            .Enter()  // Open File menu
+            .WaitUntil(s => {
+                if (s.ContainsText("New"))
+                {
+                    focusedAfterMenuOpen = app.FocusedNode;
+                    focusablesBefore = app.Focusables
+                        .Select(n => (n.GetType().Name, (n as MenuItemNode)?.Label))
+                        .ToList();
+                    return true;
+                }
+                return false;
+            }, TimeSpan.FromSeconds(2), "File menu to open")
+            .Down()   // Navigate from New to Open
+            .Wait(TimeSpan.FromMilliseconds(200))
+            .WaitUntil(_ => {
+                focusedAfterDownArrow = app.FocusedNode;
+                focusablesAfter = app.Focusables
+                    .Select(n => (n.GetType().Name, (n as MenuItemNode)?.Label, n.IsFocused))
+                    .ToList();
+                return true;
+            }, TimeSpan.FromSeconds(2), "capture state after Down arrow")
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+        await runTask;
+        
+        // Debug output
+        var focusedAfterMenuOpenLabel = (focusedAfterMenuOpen as MenuItemNode)?.Label ?? focusedAfterMenuOpen?.GetType().Name ?? "null";
+        var focusedAfterDownArrowLabel = (focusedAfterDownArrow as MenuItemNode)?.Label ?? focusedAfterDownArrow?.GetType().Name ?? "null";
+        
+        // Check which nodes have IsFocused = true
+        var focusedNodes = focusablesAfter.Where(f => f.focused).ToList();
+        
+        Assert.NotNull(focusedAfterDownArrow);
+        Assert.True(focusedAfterMenuOpen != focusedAfterDownArrow, 
+            $"Focus didn't move. Before Down: {focusedAfterMenuOpenLabel}, After Down: {focusedAfterDownArrowLabel}. " +
+            $"LastFocusChange: {app.LastFocusChange ?? "null"}. " +
+            $"LastPathDebug: {app.LastPathDebug ?? "null"}. " +
+            $"ZStackFocusDebug: {Hex1b.Widgets.ZStackWidget.LastFocusDebug ?? "null"}. " +
+            $"Focusables BEFORE: [{string.Join(", ", focusablesBefore.Select(f => f.type + (f.label != null ? ":" + f.label : "")))}]. " +
+            $"Focusables AFTER with IsFocused: [{string.Join(", ", focusablesAfter.Select(f => f.type + (f.label != null ? ":" + f.label : "") + (f.focused ? "*" : "")))}].");
+    }
+    
+    [Fact]
+    public async Task Debug_Submenu_RightArrow_OpensSubmenu()
+    {
+        // Debug test for submenu opening
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        
+        using var app = new Hex1bApp(
+            ctx => Task.FromResult(CreateTestMenuBar(ctx, _ => { }, includeSubmenus: true)),
+            new Hex1bAppOptions { WorkloadAdapter = workload }
+        );
+
+        Hex1bNode? focusedBeforeRight = null;
+        string? focusedParentType = null;
+        string? lastPath = null;
+        
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("File"), TimeSpan.FromSeconds(2), "menu bar to render")
+            .Enter()  // Open File menu
+            .WaitUntil(s => s.ContainsText("Recent"), TimeSpan.FromSeconds(2), "File menu to open")
+            .Down()   // New -> Open
+            .Down()   // Open -> Recent (skip separator)
+            .Wait(TimeSpan.FromMilliseconds(100))
+            .WaitUntil(_ => {
+                focusedBeforeRight = app.FocusedNode;
+                focusedParentType = focusedBeforeRight?.Parent?.GetType().Name;
+                return true;
+            }, TimeSpan.FromSeconds(1), "capture focus before Right")
+            .Right()  // Should open Recent submenu
+            .Wait(TimeSpan.FromMilliseconds(100))
+            .WaitUntil(_ => {
+                lastPath = app.LastPathDebug;
+                return true;
+            }, TimeSpan.FromSeconds(1), "capture path after Right")
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+        await runTask;
+        
+        var focusedLabel = (focusedBeforeRight as MenuNode)?.Label ?? 
+                           (focusedBeforeRight as MenuItemNode)?.Label ?? 
+                           focusedBeforeRight?.GetType().Name ?? "null";
+        var snapshot = terminal.CreateSnapshot();
+        var hasDoc1 = snapshot.ContainsText("Doc1.txt");
+        
+        Assert.True(hasDoc1, 
+            $"Submenu didn't open. Focus before Right: {focusedLabel}, Parent: {focusedParentType}. " +
+            $"LastPath: {lastPath ?? "null"}. " +
+            $"Screen has Doc1.txt: {hasDoc1}");
+    }
+    
+    #endregion
+}

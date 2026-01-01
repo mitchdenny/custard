@@ -49,6 +49,13 @@ public sealed class MenuNode : Hex1bNode, ILayoutProvider
     public bool IsOpen { get; set; }
     
     /// <summary>
+    /// Whether this menu is currently selected (highlighted).
+    /// Selection controls visual styling and is separate from focus.
+    /// A menu can be selected even when focus moves to its child popup.
+    /// </summary>
+    public bool IsSelected { get; set; }
+    
+    /// <summary>
     /// The source widget that was reconciled into this node.
     /// </summary>
     public MenuWidget? SourceWidget { get; set; }
@@ -115,8 +122,44 @@ public sealed class MenuNode : Hex1bNode, ILayoutProvider
         bindings.Key(Hex1bKey.Spacebar).Action(OpenMenu, "Open menu");
         bindings.Mouse(MouseButton.Left).Action(OpenMenu, "Open menu");
         
-        // Right arrow opens submenu (when this is a submenu item in a parent menu)
-        bindings.Key(Hex1bKey.RightArrow).Action(OpenMenu, "Open submenu");
+        // When this menu is rendered inside a popup (as a submenu trigger),
+        // it needs navigation bindings like a menu item
+        if (Parent is MenuPopupNode)
+        {
+            // Right arrow opens submenu (only in popup context)
+            bindings.Key(Hex1bKey.RightArrow).Action(OpenMenu, "Open submenu");
+            bindings.Key(Hex1bKey.DownArrow).Action(ctx => ctx.FocusNext(), "Next item");
+            bindings.Key(Hex1bKey.UpArrow).Action(ctx => ctx.FocusPrevious(), "Previous item");
+            bindings.Key(Hex1bKey.Escape).Action(CloseParentMenu, "Close menu");
+            bindings.Key(Hex1bKey.LeftArrow).Action(CloseParentMenu, "Close menu");
+        }
+        else
+        {
+            // When in a menu bar, Down arrow opens the menu (standard menu bar behavior)
+            // Right/Left arrow navigation is handled by MenuBarNode
+            bindings.Key(Hex1bKey.DownArrow).Action(OpenMenu, "Open menu");
+        }
+    }
+    
+    private Task CloseParentMenu(InputBindingActionContext ctx)
+    {
+        // Pop the current popup
+        ctx.Popups.Pop();
+        
+        // Find and close the owner menu
+        var parent = Parent;
+        while (parent != null)
+        {
+            if (parent is MenuPopupNode popupNode && popupNode.OwnerNode != null)
+            {
+                popupNode.OwnerNode.IsOpen = false;
+                popupNode.OwnerNode.IsSelected = false;
+                break;
+            }
+            parent = parent.Parent;
+        }
+        
+        return Task.CompletedTask;
     }
     
     private Task OpenMenu(InputBindingActionContext ctx)
@@ -124,6 +167,7 @@ public sealed class MenuNode : Hex1bNode, ILayoutProvider
         if (IsOpen) return Task.CompletedTask;
         
         IsOpen = true;
+        IsSelected = true; // Mark as selected when opened
         MarkDirty();
         
         // Determine anchor position based on context
@@ -188,7 +232,9 @@ public sealed class MenuNode : Hex1bNode, ILayoutProvider
     {
         var text = $" {Label} ";
         
-        if (IsFocused || IsOpen)
+        // Use IsSelected or IsOpen for styling in menu bar, not IsFocused
+        // This prevents highlighting just because the menu bar has keyboard focus
+        if (IsSelected || IsOpen)
         {
             var fg = theme.Get(MenuBarTheme.FocusedForegroundColor);
             var bg = theme.Get(MenuBarTheme.FocusedBackgroundColor);
@@ -227,7 +273,8 @@ public sealed class MenuNode : Hex1bNode, ILayoutProvider
         var labelWithIndicator = Label + indicator;
         var paddedLabel = labelWithIndicator.PadRight(width);
         
-        if (IsFocused)
+        // Use IsSelected for styling in submenus (focus navigates, selection highlights)
+        if (IsSelected || IsFocused)
         {
             var fg = theme.Get(MenuItemTheme.FocusedForegroundColor);
             var bg = theme.Get(MenuItemTheme.FocusedBackgroundColor);

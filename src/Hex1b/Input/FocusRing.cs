@@ -64,17 +64,30 @@ public sealed class FocusRing
         if (_focusables.Count == 0) return false;
         
         var currentIndex = FocusedIndex;
+        
+        // DEBUG: Track what we're doing
+        var fromNode = currentIndex >= 0 ? _focusables[currentIndex] : null;
+        
         if (currentIndex >= 0)
         {
             _focusables[currentIndex].IsFocused = false;
         }
         
         var nextIndex = (currentIndex + 1) % _focusables.Count;
+        var toNode = _focusables[nextIndex];
         _focusables[nextIndex].IsFocused = true;
         SyncAncestorFocusState(_focusables[nextIndex]);
         
+        // DEBUG: Log the focus change
+        LastFocusChange = $"FocusNext: from index {currentIndex} to {nextIndex}, from {fromNode?.GetType().Name} to {toNode.GetType().Name}";
+        
         return true;
     }
+    
+    /// <summary>
+    /// Debug log of the last focus change. Useful for testing.
+    /// </summary>
+    public string? LastFocusChange { get; private set; }
 
     /// <summary>
     /// Moves focus to the previous focusable node in the ring.

@@ -6,6 +6,16 @@ namespace Hex1b.Input;
 public static class InputRouter
 {
     /// <summary>
+    /// Debug: The last path that was built during input routing.
+    /// </summary>
+    public static string? LastPathDebug { get; private set; }
+    
+    /// <summary>
+    /// Debug: The key that was last routed and whether a match was found.
+    /// </summary>
+    public static string? LastRouteDebug { get; private set; }
+    
+    /// <summary>
     /// Routes a key event through the node tree using layered chord tries.
     /// 
     /// Algorithm:
@@ -31,10 +41,15 @@ public static class InputRouter
         
         // Build path from root to focused node
         var path = BuildPathToFocused(root);
+        
+        // Debug: capture path info
+        LastPathDebug = $"Path ({path.Count} nodes): [{string.Join(" -> ", path.Select(n => n.GetType().Name))}]";
+        
         if (path.Count == 0)
         {
             // No focused node found, nothing to route to
             state.Reset();
+            LastRouteDebug = $"Key {keyEvent.Key}: No path found, NotHandled";
             return InputResult.NotHandled;
         }
 

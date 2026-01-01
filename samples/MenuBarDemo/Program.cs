@@ -25,40 +25,34 @@ await using var app = new Hex1bApp(ctx =>
         // Menu bar at the top
         main.MenuBar(m => [
             m.Menu("File", m => [
-                m.MenuItem("New").OnSelect(e => {
+                m.MenuItem("New").OnActivated(e => {
                     documentName = "Untitled";
                     isModified = false;
                     lastAction = "Created new document";
-                    e.CloseMenu();
                 }),
-                m.MenuItem("Open").OnSelect(e => {
+                m.MenuItem("Open").OnActivated(e => {
                     lastAction = "Open dialog would appear here";
-                    e.CloseMenu();
                 }),
                 m.Separator(),
                 m.Menu("Recent", m => [
                     ..recentDocuments.Select(doc => 
-                        m.MenuItem(doc).OnSelect(e => {
+                        m.MenuItem(doc).OnActivated(e => {
                             documentName = doc;
                             isModified = false;
                             lastAction = $"Opened: {doc}";
-                            e.CloseMenu();
                         })
                     )
                 ]),
                 m.Separator(),
-                m.MenuItem("Save").OnSelect(e => {
+                m.MenuItem("Save").OnActivated(e => {
                     isModified = false;
                     lastAction = $"Saved: {documentName}";
-                    e.CloseMenu();
                 }),
-                m.MenuItem("Save As").OnSelect(e => {
+                m.MenuItem("Save As").OnActivated(e => {
                     lastAction = "Save As dialog would appear here";
-                    e.CloseMenu();
                 }),
                 m.Separator(),
-                m.MenuItem("Quit").OnSelect(e => {
-                    e.CloseMenu();
+                m.MenuItem("Quit").OnActivated(e => {
                     e.Context.RequestStop();
                 })
             ]),
@@ -66,64 +60,52 @@ await using var app = new Hex1bApp(ctx =>
                 m.MenuItem("Undo").Disabled(),
                 m.MenuItem("Redo").Disabled(),
                 m.Separator(),
-                m.MenuItem("Cut").OnSelect(e => {
+                m.MenuItem("Cut").OnActivated(e => {
                     lastAction = "Cut";
-                    e.CloseMenu();
                 }),
-                m.MenuItem("Copy").OnSelect(e => {
+                m.MenuItem("Copy").OnActivated(e => {
                     lastAction = "Copy";
-                    e.CloseMenu();
                 }),
-                m.MenuItem("Paste").OnSelect(e => {
+                m.MenuItem("Paste").OnActivated(e => {
                     lastAction = "Paste";
                     isModified = true;
-                    e.CloseMenu();
                 }),
                 m.Separator(),
-                m.MenuItem("Select All").OnSelect(e => {
+                m.MenuItem("Select All").OnActivated(e => {
                     lastAction = "Select All";
-                    e.CloseMenu();
                 })
             ]),
             m.Menu("View", m => [
-                m.MenuItem("Zoom In").OnSelect(e => {
+                m.MenuItem("Zoom In").OnActivated(e => {
                     lastAction = "Zoom In";
-                    e.CloseMenu();
                 }),
-                m.MenuItem("Zoom Out").OnSelect(e => {
+                m.MenuItem("Zoom Out").OnActivated(e => {
                     lastAction = "Zoom Out";
-                    e.CloseMenu();
                 }),
                 m.Separator(),
                 m.Menu("Appearance", m => [
-                    m.MenuItem("Light Theme").OnSelect(e => {
+                    m.MenuItem("Light Theme").OnActivated(e => {
                         lastAction = "Switched to Light Theme";
-                        e.CloseMenu();
                     }),
-                    m.MenuItem("Dark Theme").OnSelect(e => {
+                    m.MenuItem("Dark Theme").OnActivated(e => {
                         lastAction = "Switched to Dark Theme";
-                        e.CloseMenu();
                     })
                 ]),
                 m.Separator(),
-                m.MenuItem("Full Screen").OnSelect(e => {
+                m.MenuItem("Full Screen").OnActivated(e => {
                     lastAction = "Toggle Full Screen";
-                    e.CloseMenu();
                 })
             ]),
             m.Menu("Help", m => [
-                m.MenuItem("Documentation").OnSelect(e => {
+                m.MenuItem("Documentation").OnActivated(e => {
                     lastAction = "Opening documentation...";
-                    e.CloseMenu();
                 }),
-                m.MenuItem("Keyboard Shortcuts").OnSelect(e => {
+                m.MenuItem("Keyboard Shortcuts").OnActivated(e => {
                     lastAction = "Showing keyboard shortcuts...";
-                    e.CloseMenu();
                 }),
                 m.Separator(),
-                m.MenuItem("About").OnSelect(e => {
+                m.MenuItem("About").OnActivated(e => {
                     lastAction = "Hex1b Menu Demo v1.0";
-                    e.CloseMenu();
                 })
             ])
         ]),

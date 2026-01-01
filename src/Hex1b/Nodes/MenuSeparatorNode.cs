@@ -33,12 +33,13 @@ public sealed class MenuSeparatorNode : Hex1bNode
     {
         var theme = context.Theme;
         var separatorChar = theme.Get(MenuSeparatorTheme.Character);
-        var color = theme.Get(MenuSeparatorTheme.Color);
+        var fgColor = theme.Get(MenuSeparatorTheme.Color);
+        var bgColor = theme.Get(MenuSeparatorTheme.BackgroundColor);
         var resetToGlobal = theme.GetResetToGlobalCodes();
         
         var width = RenderWidth > 0 ? RenderWidth : Bounds.Width;
         var line = new string(separatorChar, width);
-        var output = $"{color.ToForegroundAnsi()}{line}{resetToGlobal}";
+        var output = $"{fgColor.ToForegroundAnsi()}{bgColor.ToBackgroundAnsi()}{line}{resetToGlobal}";
         
         if (context.CurrentLayoutProvider != null)
         {

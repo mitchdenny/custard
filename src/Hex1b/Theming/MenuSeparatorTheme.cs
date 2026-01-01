@@ -9,7 +9,13 @@ public static class MenuSeparatorTheme
     /// The color of the separator line.
     /// </summary>
     public static readonly Hex1bThemeElement<Hex1bColor> Color =
-        new($"{nameof(MenuSeparatorTheme)}.{nameof(Color)}", () => Hex1bColor.Gray);
+        new($"{nameof(MenuSeparatorTheme)}.{nameof(Color)}", () => Hex1bColor.Black);
+
+    /// <summary>
+    /// The background color of the separator.
+    /// </summary>
+    public static readonly Hex1bThemeElement<Hex1bColor> BackgroundColor =
+        new($"{nameof(MenuSeparatorTheme)}.{nameof(BackgroundColor)}", () => Hex1bColor.White);
 
     /// <summary>
     /// The character used for the separator line.

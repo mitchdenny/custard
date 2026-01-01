@@ -1339,5 +1339,74 @@ public class MenuBarIntegrationTests
         Assert.False(snapshot.ContainsText("Save"), "File menu should be closed");
     }
     
+    [Fact]
+    public async Task SubmenuTrigger_LeftArrow_OpensPreviousMenu()
+    {
+        // Arrange - When focused on a submenu trigger (like "Recent" in File menu),
+        // Left arrow should navigate to the previous menu in the menu bar (Help with wrap)
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        var lastAction = "";
+        
+        using var app = new Hex1bApp(
+            ctx => Task.FromResult(CreateTestMenuBar(ctx, a => lastAction = a, includeSubmenus: true)),
+            new Hex1bAppOptions { WorkloadAdapter = workload }
+        );
+
+        // Act - Open File menu, navigate to "Recent" (submenu trigger), then Left
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("File"), TimeSpan.FromSeconds(2), "menu bar to render")
+            .Enter()  // Open File menu
+            .WaitUntil(s => s.ContainsText("Recent"), TimeSpan.FromSeconds(2), "File menu to open")
+            .Down().Down()  // Navigate to Recent (New -> Open -> Recent)
+            .Wait(TimeSpan.FromMilliseconds(50))
+            .Left()   // Should navigate to Help menu (previous with wrap)
+            .WaitUntil(s => s.ContainsText("About"), TimeSpan.FromSeconds(2), "Help menu to open after Left from submenu trigger")
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+        await runTask;
+
+        // Assert - Help menu should be open (not File menu)
+        var snapshot = terminal.CreateSnapshot();
+        Assert.True(snapshot.ContainsText("About"), "Help menu should be visible");
+        Assert.False(snapshot.ContainsText("Save"), "File menu should be closed");
+    }
+    
+    [Fact]
+    public async Task SubmenuTrigger_RightArrow_OpensSubmenu()
+    {
+        // Arrange - When focused on a submenu trigger, Right arrow should open the submenu
+        // (This tests that the new Left behavior doesn't break Right)
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        var lastAction = "";
+        
+        using var app = new Hex1bApp(
+            ctx => Task.FromResult(CreateTestMenuBar(ctx, a => lastAction = a, includeSubmenus: true)),
+            new Hex1bAppOptions { WorkloadAdapter = workload }
+        );
+
+        // Act - Open File menu, navigate to "Recent", then Right to open submenu
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("File"), TimeSpan.FromSeconds(2), "menu bar to render")
+            .Enter()  // Open File menu
+            .WaitUntil(s => s.ContainsText("Recent"), TimeSpan.FromSeconds(2), "File menu to open")
+            .Down().Down()  // Navigate to Recent
+            .Right()  // Open Recent submenu
+            .WaitUntil(s => s.ContainsText("Doc1.txt"), TimeSpan.FromSeconds(2), "Recent submenu to open")
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+        await runTask;
+
+        // Assert - Recent submenu should be open
+        var snapshot = terminal.CreateSnapshot();
+        Assert.True(snapshot.ContainsText("Doc1.txt"), "Recent submenu should be visible");
+        Assert.True(snapshot.ContainsText("Doc2.txt"), "Recent submenu should be visible");
+    }
+    
     #endregion
 }

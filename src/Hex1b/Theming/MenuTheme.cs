@@ -9,19 +9,19 @@ public static class MenuTheme
     /// The background color of the menu popup.
     /// </summary>
     public static readonly Hex1bThemeElement<Hex1bColor> BackgroundColor =
-        new($"{nameof(MenuTheme)}.{nameof(BackgroundColor)}", () => Hex1bColor.FromRgb(50, 50, 50));
+        new($"{nameof(MenuTheme)}.{nameof(BackgroundColor)}", () => Hex1bColor.White);
 
     /// <summary>
     /// The foreground color of the menu popup.
     /// </summary>
     public static readonly Hex1bThemeElement<Hex1bColor> ForegroundColor =
-        new($"{nameof(MenuTheme)}.{nameof(ForegroundColor)}", () => Hex1bColor.Default);
+        new($"{nameof(MenuTheme)}.{nameof(ForegroundColor)}", () => Hex1bColor.Black);
 
     /// <summary>
     /// The border color of the menu popup.
     /// </summary>
     public static readonly Hex1bThemeElement<Hex1bColor> BorderColor =
-        new($"{nameof(MenuTheme)}.{nameof(BorderColor)}", () => Hex1bColor.Gray);
+        new($"{nameof(MenuTheme)}.{nameof(BorderColor)}", () => Hex1bColor.Black);
 
     /// <summary>
     /// Top-left corner character.

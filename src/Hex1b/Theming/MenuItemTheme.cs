@@ -9,25 +9,25 @@ public static class MenuItemTheme
     /// The foreground color of menu items.
     /// </summary>
     public static readonly Hex1bThemeElement<Hex1bColor> ForegroundColor =
-        new($"{nameof(MenuItemTheme)}.{nameof(ForegroundColor)}", () => Hex1bColor.Default);
+        new($"{nameof(MenuItemTheme)}.{nameof(ForegroundColor)}", () => Hex1bColor.Black);
 
     /// <summary>
     /// The background color of menu items.
     /// </summary>
     public static readonly Hex1bThemeElement<Hex1bColor> BackgroundColor =
-        new($"{nameof(MenuItemTheme)}.{nameof(BackgroundColor)}", () => Hex1bColor.Default);
+        new($"{nameof(MenuItemTheme)}.{nameof(BackgroundColor)}", () => Hex1bColor.White);
 
     /// <summary>
     /// The foreground color of focused menu items.
     /// </summary>
     public static readonly Hex1bThemeElement<Hex1bColor> FocusedForegroundColor =
-        new($"{nameof(MenuItemTheme)}.{nameof(FocusedForegroundColor)}", () => Hex1bColor.Black);
+        new($"{nameof(MenuItemTheme)}.{nameof(FocusedForegroundColor)}", () => Hex1bColor.White);
 
     /// <summary>
     /// The background color of focused menu items.
     /// </summary>
     public static readonly Hex1bThemeElement<Hex1bColor> FocusedBackgroundColor =
-        new($"{nameof(MenuItemTheme)}.{nameof(FocusedBackgroundColor)}", () => Hex1bColor.White);
+        new($"{nameof(MenuItemTheme)}.{nameof(FocusedBackgroundColor)}", () => Hex1bColor.Black);
 
     /// <summary>
     /// The foreground color of disabled menu items.
@@ -39,7 +39,7 @@ public static class MenuItemTheme
     /// The foreground color of accelerator characters.
     /// </summary>
     public static readonly Hex1bThemeElement<Hex1bColor> AcceleratorForegroundColor =
-        new($"{nameof(MenuItemTheme)}.{nameof(AcceleratorForegroundColor)}", () => Hex1bColor.Yellow);
+        new($"{nameof(MenuItemTheme)}.{nameof(AcceleratorForegroundColor)}", () => Hex1bColor.Black);
 
     /// <summary>
     /// The background color of accelerator characters.

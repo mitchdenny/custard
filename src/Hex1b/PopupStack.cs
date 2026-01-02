@@ -354,11 +354,29 @@ public sealed class PopupStack
     }
 
     /// <summary>
-    /// Clears all popups from the stack.
+    /// Clears all popups from the stack, invoking OnDismiss callbacks for each.
+    /// Focus is restored to the first (bottommost) popup's FocusRestoreNode if set.
     /// </summary>
     public void Clear()
     {
+        if (_entries.Count == 0) return;
+        
+        // Get the focus restore node from the first (bottommost) entry
+        // This is the node that was focused before any menus were opened
+        var focusRestoreNode = _entries[0].FocusRestoreNode;
+        
+        // Invoke OnDismiss for each entry to clean up owner state
+        foreach (var entry in _entries)
+        {
+            entry.OnDismiss?.Invoke();
+        }
         _entries.Clear();
+        
+        // Restore focus to the original node
+        if (focusRestoreNode != null)
+        {
+            focusRestoreNode.IsFocused = true;
+        }
     }
 
     /// <summary>

@@ -207,7 +207,13 @@ public sealed class MenuNode : Hex1bNode, ILayoutProvider
         
         ctx.Popups.PushAnchored(targetMenu, AnchorPosition.Below, 
             () => new MenuPopupWidget(targetMenu), 
-            focusRestoreNode: targetMenu);
+            focusRestoreNode: targetMenu,
+            onDismiss: () =>
+            {
+                targetMenu.IsOpen = false;
+                targetMenu.IsSelected = false;
+                targetMenu.MarkDirty();
+            });
         
         return Task.CompletedTask;
     }

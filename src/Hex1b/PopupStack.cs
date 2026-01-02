@@ -21,7 +21,7 @@ namespace Hex1b;
 /// </remarks>
 public sealed class PopupEntry
 {
-    internal PopupEntry(PopupStack stack, Func<Hex1bWidget> contentBuilder, Hex1bNode? anchorNode = null, AnchorPosition position = AnchorPosition.Below, Func<Hex1bTheme, Hex1bTheme>? themeMutator = null, Hex1bNode? focusRestoreNode = null)
+    internal PopupEntry(PopupStack stack, Func<Hex1bWidget> contentBuilder, Hex1bNode? anchorNode = null, AnchorPosition position = AnchorPosition.Below, Func<Hex1bTheme, Hex1bTheme>? themeMutator = null, Hex1bNode? focusRestoreNode = null, Action? onDismiss = null)
     {
         Stack = stack;
         ContentBuilder = contentBuilder;
@@ -29,6 +29,7 @@ public sealed class PopupEntry
         Position = position;
         ThemeMutator = themeMutator;
         FocusRestoreNode = focusRestoreNode;
+        OnDismiss = onDismiss;
     }
 
     internal PopupStack Stack { get; }
@@ -41,6 +42,12 @@ public sealed class PopupEntry
     /// When set, popup content is wrapped in a ThemePanelWidget with this mutator.
     /// </summary>
     internal Func<Hex1bTheme, Hex1bTheme>? ThemeMutator { get; }
+    
+    /// <summary>
+    /// Callback invoked when this popup is dismissed (popped from the stack).
+    /// Used to clean up owner state (e.g., clear IsOpen/IsSelected on MenuNodes).
+    /// </summary>
+    internal Action? OnDismiss { get; }
     
     /// <summary>
     /// The node that should receive focus when this popup is dismissed.
@@ -162,12 +169,13 @@ public sealed class PopupStack
     /// <param name="position">Where to position the popup relative to the anchor.</param>
     /// <param name="contentBuilder">A function that builds the widget content for the popup.</param>
     /// <param name="focusRestoreNode">Optional node to restore focus to when this popup is dismissed.</param>
+    /// <param name="onDismiss">Optional callback invoked when this popup is dismissed to clean up owner state.</param>
     /// <returns>The popup entry for optional fluent configuration (e.g., <c>.AsBarrier()</c>).</returns>
-    public PopupEntry PushAnchored(Hex1bNode anchorNode, AnchorPosition position, Func<Hex1bWidget> contentBuilder, Hex1bNode? focusRestoreNode = null)
+    public PopupEntry PushAnchored(Hex1bNode anchorNode, AnchorPosition position, Func<Hex1bWidget> contentBuilder, Hex1bNode? focusRestoreNode = null, Action? onDismiss = null)
     {
         // Capture theme context from ancestor ThemePanelNodes
         var themeMutator = CaptureThemeMutator(anchorNode);
-        var entry = new PopupEntry(this, contentBuilder, anchorNode, position, themeMutator, focusRestoreNode);
+        var entry = new PopupEntry(this, contentBuilder, anchorNode, position, themeMutator, focusRestoreNode, onDismiss);
         _entries.Add(entry);
         return entry;
     }
@@ -216,10 +224,11 @@ public sealed class PopupStack
     /// <param name="position">Where to position the popup relative to the anchor.</param>
     /// <param name="content">The widget content for the popup.</param>
     /// <param name="focusRestoreNode">Optional node to restore focus to when this popup is dismissed.</param>
+    /// <param name="onDismiss">Optional callback invoked when this popup is dismissed to clean up owner state.</param>
     /// <returns>The popup entry for optional fluent configuration (e.g., <c>.AsBarrier()</c>).</returns>
-    public PopupEntry PushAnchored(Hex1bNode anchorNode, AnchorPosition position, Hex1bWidget content, Hex1bNode? focusRestoreNode = null)
+    public PopupEntry PushAnchored(Hex1bNode anchorNode, AnchorPosition position, Hex1bWidget content, Hex1bNode? focusRestoreNode = null, Action? onDismiss = null)
     {
-        return PushAnchored(anchorNode, position, () => content, focusRestoreNode);
+        return PushAnchored(anchorNode, position, () => content, focusRestoreNode, onDismiss);
     }
 
     /// <summary>
@@ -244,8 +253,13 @@ public sealed class PopupStack
             return false;
         }
         
-        focusRestoreNode = _entries[^1].FocusRestoreNode;
+        var entry = _entries[^1];
+        focusRestoreNode = entry.FocusRestoreNode;
         _entries.RemoveAt(_entries.Count - 1);
+        
+        // Invoke dismiss callback to clean up owner state (e.g., clear IsOpen on MenuNode)
+        entry.OnDismiss?.Invoke();
+        
         return true;
     }
     
@@ -299,11 +313,23 @@ public sealed class PopupStack
             return Pop();
         }
         
+        // Track the focus restore node from the first entry we pop
+        // This is typically the menu trigger that should receive focus after dismissal
+        Hex1bNode? focusRestoreNode = null;
+        
         // Pop until we hit a barrier, content bounds, or empty the stack
         bool popped = false;
         while (_entries.Count > 0 && !_entries[^1].IsBarrier)
         {
+            var entry = _entries[^1];
             _entries.RemoveAt(_entries.Count - 1);
+            
+            // Capture the focus restore node from the first popped entry
+            focusRestoreNode ??= entry.FocusRestoreNode;
+            
+            // Invoke dismiss callback to clean up owner state (e.g., clear IsOpen on MenuNode)
+            entry.OnDismiss?.Invoke();
+            
             popped = true;
             
             // Check if remaining top entry's content contains the click position
@@ -318,15 +344,39 @@ public sealed class PopupStack
             }
         }
         
+        // Restore focus to the designated node if we popped anything
+        if (popped && focusRestoreNode != null)
+        {
+            focusRestoreNode.IsFocused = true;
+        }
+        
         return popped;
     }
 
     /// <summary>
-    /// Clears all popups from the stack.
+    /// Clears all popups from the stack, invoking OnDismiss callbacks for each.
+    /// Focus is restored to the first (bottommost) popup's FocusRestoreNode if set.
     /// </summary>
     public void Clear()
     {
+        if (_entries.Count == 0) return;
+        
+        // Get the focus restore node from the first (bottommost) entry
+        // This is the node that was focused before any menus were opened
+        var focusRestoreNode = _entries[0].FocusRestoreNode;
+        
+        // Invoke OnDismiss for each entry to clean up owner state
+        foreach (var entry in _entries)
+        {
+            entry.OnDismiss?.Invoke();
+        }
         _entries.Clear();
+        
+        // Restore focus to the original node
+        if (focusRestoreNode != null)
+        {
+            focusRestoreNode.IsFocused = true;
+        }
     }
 
     /// <summary>

@@ -1,0 +1,61 @@
+namespace Hex1b.Theming;
+
+/// <summary>
+/// Theme elements for the menu bar.
+/// </summary>
+public static class MenuBarTheme
+{
+    /// <summary>
+    /// The background color of the menu bar.
+    /// </summary>
+    public static readonly Hex1bThemeElement<Hex1bColor> BackgroundColor =
+        new($"{nameof(MenuBarTheme)}.{nameof(BackgroundColor)}", () => Hex1bColor.White);
+
+    /// <summary>
+    /// The foreground color of menu triggers in the bar.
+    /// </summary>
+    public static readonly Hex1bThemeElement<Hex1bColor> ForegroundColor =
+        new($"{nameof(MenuBarTheme)}.{nameof(ForegroundColor)}", () => Hex1bColor.Black);
+
+    /// <summary>
+    /// The background color of focused menu triggers.
+    /// </summary>
+    public static readonly Hex1bThemeElement<Hex1bColor> FocusedBackgroundColor =
+        new($"{nameof(MenuBarTheme)}.{nameof(FocusedBackgroundColor)}", () => Hex1bColor.Black);
+
+    /// <summary>
+    /// The foreground color of focused menu triggers.
+    /// </summary>
+    public static readonly Hex1bThemeElement<Hex1bColor> FocusedForegroundColor =
+        new($"{nameof(MenuBarTheme)}.{nameof(FocusedForegroundColor)}", () => Hex1bColor.White);
+
+    /// <summary>
+    /// The foreground color of hovered menu triggers.
+    /// </summary>
+    public static readonly Hex1bThemeElement<Hex1bColor> HoveredForegroundColor =
+        new($"{nameof(MenuBarTheme)}.{nameof(HoveredForegroundColor)}", () => Hex1bColor.Black);
+
+    /// <summary>
+    /// The background color of hovered menu triggers.
+    /// </summary>
+    public static readonly Hex1bThemeElement<Hex1bColor> HoveredBackgroundColor =
+        new($"{nameof(MenuBarTheme)}.{nameof(HoveredBackgroundColor)}", () => Hex1bColor.FromRgb(180, 180, 180));
+
+    /// <summary>
+    /// The foreground color of accelerator characters in menu triggers.
+    /// </summary>
+    public static readonly Hex1bThemeElement<Hex1bColor> AcceleratorForegroundColor =
+        new($"{nameof(MenuBarTheme)}.{nameof(AcceleratorForegroundColor)}", () => Hex1bColor.Black);
+
+    /// <summary>
+    /// The background color of accelerator characters in menu triggers.
+    /// </summary>
+    public static readonly Hex1bThemeElement<Hex1bColor> AcceleratorBackgroundColor =
+        new($"{nameof(MenuBarTheme)}.{nameof(AcceleratorBackgroundColor)}", () => Hex1bColor.Default);
+
+    /// <summary>
+    /// Whether accelerator characters should be underlined.
+    /// </summary>
+    public static readonly Hex1bThemeElement<bool> AcceleratorUnderline =
+        new($"{nameof(MenuBarTheme)}.{nameof(AcceleratorUnderline)}", () => true);
+}

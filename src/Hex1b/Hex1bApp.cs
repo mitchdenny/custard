@@ -196,6 +196,29 @@ public class Hex1bApp : IDisposable, IAsyncDisposable
     }
 
     /// <summary>
+    /// Gets the currently focused node, or null if no node has focus.
+    /// Useful for testing and debugging focus state.
+    /// </summary>
+    public Hex1bNode? FocusedNode => _focusRing.FocusedNode;
+
+    /// <summary>
+    /// Gets all focusable nodes in the current focus ring.
+    /// Useful for testing and debugging focus navigation.
+    /// </summary>
+    public IReadOnlyList<Hex1bNode> Focusables => _focusRing.Focusables;
+
+    /// <summary>
+    /// Gets the last focus change debug log from the focus ring.
+    /// Useful for testing focus navigation.
+    /// </summary>
+    public string? LastFocusChange => _focusRing.LastFocusChange;
+
+    /// <summary>
+    /// Gets the last path debug info from input routing.
+    /// </summary>
+    public string? LastPathDebug => Input.InputRouter.LastPathDebug;
+
+    /// <summary>
     /// Copies the specified text to the system clipboard using the OSC 52 escape sequence.
     /// </summary>
     /// <param name="text">The text to copy to the clipboard.</param>

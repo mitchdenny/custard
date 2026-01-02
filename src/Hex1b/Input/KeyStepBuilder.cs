@@ -10,10 +10,22 @@ public sealed class KeyStepBuilder
     private readonly List<KeyStep> _completedSteps = [];
     private Hex1bModifiers _currentModifiers = Hex1bModifiers.None;
     private Hex1bKey? _currentKey;
+    private bool _isGlobal;
 
     internal KeyStepBuilder(InputBindingsBuilder parent)
     {
         _parent = parent;
+    }
+
+    /// <summary>
+    /// Marks this binding as global (evaluated regardless of focus).
+    /// Global bindings are checked before focus-based routing.
+    /// Useful for menu bar accelerators that should work from anywhere.
+    /// </summary>
+    public KeyStepBuilder Global()
+    {
+        _isGlobal = true;
+        return this;
     }
 
     /// <summary>
@@ -45,6 +57,15 @@ public sealed class KeyStepBuilder
     }
 
     /// <summary>
+    /// Adds Alt modifier to the current step.
+    /// </summary>
+    public KeyStepBuilder Alt()
+    {
+        _currentModifiers |= Hex1bModifiers.Alt;
+        return this;
+    }
+
+    /// <summary>
     /// Sets the key for the current step.
     /// </summary>
     public KeyStepBuilder Key(Hex1bKey key)
@@ -68,7 +89,7 @@ public sealed class KeyStepBuilder
     public void Action(Action handler, string? description = null)
     {
         CommitCurrentStep();
-        _parent.AddBinding(new InputBinding([.. _completedSteps], handler, description));
+        _parent.AddBinding(new InputBinding([.. _completedSteps], handler, description, _isGlobal));
     }
 
     /// <summary>
@@ -78,7 +99,7 @@ public sealed class KeyStepBuilder
     public void Action(Action<InputBindingActionContext> handler, string? description = null)
     {
         CommitCurrentStep();
-        _parent.AddBinding(new InputBinding([.. _completedSteps], handler, description));
+        _parent.AddBinding(new InputBinding([.. _completedSteps], handler, description, _isGlobal));
     }
 
     /// <summary>
@@ -87,7 +108,7 @@ public sealed class KeyStepBuilder
     public void Action(Func<InputBindingActionContext, Task> handler, string? description = null)
     {
         CommitCurrentStep();
-        _parent.AddBinding(new InputBinding([.. _completedSteps], handler, description));
+        _parent.AddBinding(new InputBinding([.. _completedSteps], handler, description, _isGlobal));
     }
 
     private void CommitCurrentStep()

@@ -412,11 +412,19 @@ public sealed class MenuNode : Hex1bNode, ILayoutProvider
     {
         var text = $" {Label} ";
         
-        // Show focused styling when: focused (keyboard nav), selected/open, or hovered
-        if (IsFocused || IsSelected || IsOpen || IsHovered)
+        // Show focused styling when: focused (keyboard nav), selected, or open
+        if (IsFocused || IsSelected || IsOpen)
         {
             var fg = theme.Get(MenuBarTheme.FocusedForegroundColor);
             var bg = theme.Get(MenuBarTheme.FocusedBackgroundColor);
+            var output = $"{fg.ToForegroundAnsi()}{bg.ToBackgroundAnsi()}{text}{resetToGlobal}";
+            WriteOutput(context, output);
+        }
+        else if (IsHovered)
+        {
+            // Hovered: subtle gray highlight
+            var fg = theme.Get(MenuBarTheme.HoveredForegroundColor);
+            var bg = theme.Get(MenuBarTheme.HoveredBackgroundColor);
             var output = $"{fg.ToForegroundAnsi()}{bg.ToBackgroundAnsi()}{text}{resetToGlobal}";
             WriteOutput(context, output);
         }
@@ -455,8 +463,8 @@ public sealed class MenuNode : Hex1bNode, ILayoutProvider
         }
         else if (IsHovered)
         {
-            var fg = theme.Get(MenuItemTheme.FocusedForegroundColor);
-            var bg = theme.Get(MenuItemTheme.FocusedBackgroundColor);
+            var fg = theme.Get(MenuItemTheme.HoveredForegroundColor);
+            var bg = theme.Get(MenuItemTheme.HoveredBackgroundColor);
             var output = $"{fg.ToForegroundAnsi()}{bg.ToBackgroundAnsi()}{paddedLabel}{resetToGlobal}";
             WriteOutput(context, output);
         }

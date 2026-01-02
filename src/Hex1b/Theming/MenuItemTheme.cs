@@ -30,6 +30,18 @@ public static class MenuItemTheme
         new($"{nameof(MenuItemTheme)}.{nameof(FocusedBackgroundColor)}", () => Hex1bColor.Black);
 
     /// <summary>
+    /// The foreground color of hovered menu items.
+    /// </summary>
+    public static readonly Hex1bThemeElement<Hex1bColor> HoveredForegroundColor =
+        new($"{nameof(MenuItemTheme)}.{nameof(HoveredForegroundColor)}", () => Hex1bColor.Black);
+
+    /// <summary>
+    /// The background color of hovered menu items.
+    /// </summary>
+    public static readonly Hex1bThemeElement<Hex1bColor> HoveredBackgroundColor =
+        new($"{nameof(MenuItemTheme)}.{nameof(HoveredBackgroundColor)}", () => Hex1bColor.FromRgb(180, 180, 180));
+
+    /// <summary>
     /// The foreground color of disabled menu items.
     /// </summary>
     public static readonly Hex1bThemeElement<Hex1bColor> DisabledForegroundColor =

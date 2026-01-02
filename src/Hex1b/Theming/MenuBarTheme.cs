@@ -30,6 +30,18 @@ public static class MenuBarTheme
         new($"{nameof(MenuBarTheme)}.{nameof(FocusedForegroundColor)}", () => Hex1bColor.White);
 
     /// <summary>
+    /// The foreground color of hovered menu triggers.
+    /// </summary>
+    public static readonly Hex1bThemeElement<Hex1bColor> HoveredForegroundColor =
+        new($"{nameof(MenuBarTheme)}.{nameof(HoveredForegroundColor)}", () => Hex1bColor.Black);
+
+    /// <summary>
+    /// The background color of hovered menu triggers.
+    /// </summary>
+    public static readonly Hex1bThemeElement<Hex1bColor> HoveredBackgroundColor =
+        new($"{nameof(MenuBarTheme)}.{nameof(HoveredBackgroundColor)}", () => Hex1bColor.FromRgb(180, 180, 180));
+
+    /// <summary>
     /// The foreground color of accelerator characters in menu triggers.
     /// </summary>
     public static readonly Hex1bThemeElement<Hex1bColor> AcceleratorForegroundColor =

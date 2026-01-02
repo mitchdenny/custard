@@ -342,9 +342,9 @@ public sealed class MenuItemNode : Hex1bNode
         }
         else if (IsHovered)
         {
-            // Hovered: subtle highlight
-            var fg = theme.Get(MenuItemTheme.FocusedForegroundColor);
-            var bg = theme.Get(MenuItemTheme.FocusedBackgroundColor);
+            // Hovered: subtle gray highlight
+            var fg = theme.Get(MenuItemTheme.HoveredForegroundColor);
+            var bg = theme.Get(MenuItemTheme.HoveredBackgroundColor);
             var output = $"{fg.ToForegroundAnsi()}{bg.ToBackgroundAnsi()}{paddedLabel}{resetToGlobal}";
             WriteOutput(context, output);
         }

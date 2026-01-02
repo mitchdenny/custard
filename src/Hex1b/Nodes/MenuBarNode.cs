@@ -94,25 +94,42 @@ public sealed class MenuBarNode : Hex1bNode, ILayoutProvider
             var (_, accel, _) = MenuAccelerators[i];
             if (accel == accelerator && i < MenuNodes.Count)
             {
+                var menuNode = MenuNodes[i];
+                
+                // If this menu is already open, do nothing
+                if (menuNode.IsOpen)
+                {
+                    break;
+                }
+                
+                // Close any currently open menu first
+                for (int j = 0; j < MenuNodes.Count; j++)
+                {
+                    if (MenuNodes[j].IsOpen)
+                    {
+                        ctx.Popups.Pop();
+                        MenuNodes[j].IsOpen = false;
+                        MenuNodes[j].IsSelected = false;
+                        MenuNodes[j].MarkDirty();
+                        break;
+                    }
+                }
+                
                 // Focus and open the menu
                 SetFocus(i);
-                var menuNode = MenuNodes[i];
-                if (!menuNode.IsOpen)
-                {
-                    menuNode.IsOpen = true;
-                    menuNode.IsSelected = true;
-                    menuNode.MarkDirty();
-                    
-                    ctx.Popups.PushAnchored(menuNode, AnchorPosition.Below, 
-                        () => new MenuPopupWidget(menuNode), 
-                        focusRestoreNode: menuNode,
-                        onDismiss: () =>
-                        {
-                            menuNode.IsOpen = false;
-                            menuNode.IsSelected = false;
-                            menuNode.MarkDirty();
-                        });
-                }
+                menuNode.IsOpen = true;
+                menuNode.IsSelected = true;
+                menuNode.MarkDirty();
+                
+                ctx.Popups.PushAnchored(menuNode, AnchorPosition.Below, 
+                    () => new MenuPopupWidget(menuNode), 
+                    focusRestoreNode: menuNode,
+                    onDismiss: () =>
+                    {
+                        menuNode.IsOpen = false;
+                        menuNode.IsSelected = false;
+                        menuNode.MarkDirty();
+                    });
                 break;
             }
         }

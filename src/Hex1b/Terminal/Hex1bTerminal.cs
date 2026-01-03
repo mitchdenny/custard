@@ -94,6 +94,13 @@ public sealed class Hex1bTerminal : IDisposable
     // The ONLCR translation (LF→CRLF) happens in the PTY/TTY kernel driver, not the terminal.
     // Full-screen apps like vim/mapscii disable ONLCR and send explicit \r\n.
     private bool _newlineMode = false;
+    
+    // Origin Mode (DECOM, DEC mode 6): when true, cursor positions are relative to scroll region.
+    // When false (default), cursor positions are absolute (relative to full screen).
+    private bool _originMode = false;
+    
+    // Last printed character for CSI b (REP - repeat) command
+    private TerminalCell _lastPrintedCell = TerminalCell.Empty;
 
 
 
@@ -985,8 +992,18 @@ public sealed class Hex1bTerminal : IDisposable
                 
             case CursorPositionToken cursorToken:
                 _pendingWrap = false; // Explicit cursor movement clears pending wrap
-                _cursorY = Math.Clamp(cursorToken.Row - 1, 0, _height - 1);
-                _cursorX = Math.Clamp(cursorToken.Column - 1, 0, _width - 1);
+                if (_originMode)
+                {
+                    // Origin mode: positions are relative to scroll region
+                    _cursorY = Math.Clamp(_scrollTop + cursorToken.Row - 1, _scrollTop, _scrollBottom);
+                    _cursorX = Math.Clamp(cursorToken.Column - 1, 0, _width - 1);
+                }
+                else
+                {
+                    // Normal mode: positions are absolute
+                    _cursorY = Math.Clamp(cursorToken.Row - 1, 0, _height - 1);
+                    _cursorX = Math.Clamp(cursorToken.Column - 1, 0, _width - 1);
+                }
                 break;
                 
             case ClearScreenToken clearToken:
@@ -1004,6 +1021,15 @@ public sealed class Hex1bTerminal : IDisposable
                         DoEnterAlternateScreen();
                     else
                         DoExitAlternateScreen();
+                }
+                else if (privateModeToken.Mode == 6)
+                {
+                    // DECOM - Origin Mode
+                    _originMode = privateModeToken.Enable;
+                    // Setting origin mode also moves cursor to home position (within scroll region if enabled)
+                    _pendingWrap = false;
+                    _cursorX = 0;
+                    _cursorY = _originMode ? _scrollTop : 0;
                 }
                 break;
                 
@@ -1077,6 +1103,22 @@ public sealed class Hex1bTerminal : IDisposable
                 DeleteLines(deleteLinesToken.Count);
                 break;
                 
+            case DeleteCharacterToken deleteCharToken:
+                DeleteCharacters(deleteCharToken.Count);
+                break;
+                
+            case InsertCharacterToken insertCharToken:
+                InsertCharacters(insertCharToken.Count);
+                break;
+                
+            case EraseCharacterToken eraseCharToken:
+                EraseCharacters(eraseCharToken.Count);
+                break;
+                
+            case RepeatCharacterToken repeatToken:
+                RepeatLastCharacter(repeatToken.Count, impacts);
+                break;
+                
             case IndexToken:
                 // Move cursor down one line, scroll if at bottom of scroll region
                 if (_cursorY >= _scrollBottom)
@@ -1133,9 +1175,13 @@ public sealed class Hex1bTerminal : IDisposable
                 
                 _currentHyperlink?.AddRef();
                 
-                SetCell(_cursorY, _cursorX, new TerminalCell(
+                var cell = new TerminalCell(
                     grapheme, _currentForeground, _currentBackground, _currentAttributes,
-                    sequence, writtenAt, TrackedSixel: null, _currentHyperlink), impacts);
+                    sequence, writtenAt, TrackedSixel: null, _currentHyperlink);
+                SetCell(_cursorY, _cursorX, cell, impacts);
+                
+                // Save last printed cell for CSI b (REP) command
+                _lastPrintedCell = cell;
                 
                 for (int w = 1; w < graphemeWidth && _cursorX + w < _width; w++)
                 {
@@ -1426,8 +1472,14 @@ public sealed class Hex1bTerminal : IDisposable
                 case >= 30 and <= 37:
                     _currentForeground = StandardColorFromCode(code - 30);
                     break;
+                case 39: // Default foreground color
+                    _currentForeground = null;
+                    break;
                 case >= 40 and <= 47:
                     _currentBackground = StandardColorFromCode(code - 40);
+                    break;
+                case 49: // Default background color
+                    _currentBackground = null;
                     break;
                 case >= 90 and <= 97:
                     _currentForeground = BrightColorFromCode(code - 90);
@@ -1665,6 +1717,116 @@ public sealed class Hex1bTerminal : IDisposable
             for (int x = 0; x < _width; x++)
             {
                 _screenBuffer[bottom, x] = TerminalCell.Empty;
+            }
+        }
+    }
+    
+    private void DeleteCharacters(int count)
+    {
+        // Delete n characters at cursor, shifting remaining characters left
+        // Blank characters are inserted at the right edge
+        count = Math.Min(count, _width - _cursorX);
+        
+        for (int x = _cursorX; x < _width - count; x++)
+        {
+            _screenBuffer[_cursorY, x] = _screenBuffer[_cursorY, x + count];
+        }
+        
+        // Fill the right edge with blanks
+        for (int x = _width - count; x < _width; x++)
+        {
+            _screenBuffer[_cursorY, x] = TerminalCell.Empty;
+        }
+    }
+    
+    private void InsertCharacters(int count)
+    {
+        // Insert n blank characters at cursor, shifting existing characters right
+        // Characters pushed off the right edge are lost
+        count = Math.Min(count, _width - _cursorX);
+        
+        // Shift characters right
+        for (int x = _width - 1; x >= _cursorX + count; x--)
+        {
+            _screenBuffer[_cursorY, x] = _screenBuffer[_cursorY, x - count];
+        }
+        
+        // Insert blanks at cursor position
+        for (int x = _cursorX; x < _cursorX + count && x < _width; x++)
+        {
+            _screenBuffer[_cursorY, x] = TerminalCell.Empty;
+        }
+    }
+    
+    private void EraseCharacters(int count)
+    {
+        // Erase n characters from cursor without moving cursor or shifting
+        count = Math.Min(count, _width - _cursorX);
+        
+        for (int x = _cursorX; x < _cursorX + count; x++)
+        {
+            _screenBuffer[_cursorY, x] = TerminalCell.Empty;
+        }
+    }
+    
+    private void RepeatLastCharacter(int count, List<CellImpact>? impacts)
+    {
+        // Repeat the last printed graphic character n times
+        if (string.IsNullOrEmpty(_lastPrintedCell.Character))
+            return;
+            
+        var graphemeWidth = DisplayWidth.GetGraphemeWidth(_lastPrintedCell.Character);
+        
+        for (int i = 0; i < count; i++)
+        {
+            // Handle deferred wrap
+            if (_pendingWrap)
+            {
+                _pendingWrap = false;
+                _cursorX = 0;
+                _cursorY++;
+            }
+            
+            // Scroll if needed
+            if (_cursorY >= _height)
+            {
+                ScrollUp();
+                _cursorY = _height - 1;
+            }
+            
+            if (_cursorX < _width && _cursorY < _height)
+            {
+                var sequence = ++_writeSequence;
+                var writtenAt = _timeProvider.GetUtcNow();
+                
+                // Create a new cell with the same visual properties but new timing
+                var cell = new TerminalCell(
+                    _lastPrintedCell.Character, 
+                    _lastPrintedCell.Foreground, 
+                    _lastPrintedCell.Background, 
+                    _lastPrintedCell.Attributes,
+                    sequence, 
+                    writtenAt, 
+                    TrackedSixel: null, 
+                    TrackedHyperlink: null);
+                SetCell(_cursorY, _cursorX, cell, impacts);
+                
+                // Handle wide characters
+                for (int w = 1; w < graphemeWidth && _cursorX + w < _width; w++)
+                {
+                    SetCell(_cursorY, _cursorX + w, new TerminalCell(
+                        "", _lastPrintedCell.Foreground, _lastPrintedCell.Background, _lastPrintedCell.Attributes,
+                        sequence, writtenAt, TrackedSixel: null, TrackedHyperlink: null), impacts);
+                }
+                
+                _cursorX += graphemeWidth;
+                
+                // Handle pending wrap at right margin
+                if (_cursorX >= _width)
+                {
+                    _cursorX = _width - 1;
+                    _pendingWrap = true;
+                }
             }
         }
     }

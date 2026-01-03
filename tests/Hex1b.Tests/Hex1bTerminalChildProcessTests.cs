@@ -585,8 +585,113 @@ public class Hex1bTerminalChildProcessTests
                 Assert.Fail("Timed out waiting for mapscii to load. Check captured snapshot.");
             }
             
+            // Wait for the display to stabilize - mapscii may still be rendering after "center:" appears
+            await Task.Delay(1000, TestContext.Current.CancellationToken);
+            
+            // Validate that the map is fully rendered by checking corner cells for braille characters
+            // Braille characters are in Unicode range U+2800-U+28FF
+            // The map should fill the entire screen except the status bar (last row)
+            var buffer = terminal.GetScreenBuffer();
+            var height = 40; // Terminal height
+            var width = 120; // Terminal width
+            var statusBarRow = height - 1; // Last row is status bar
+            var mapLastRow = statusBarRow - 1; // Second to last row is the last row of the map
+            
+            // Helper to check if a character is a braille pattern
+            static bool IsBraille(string ch) => 
+                !string.IsNullOrEmpty(ch) && ch.Length > 0 && ch[0] >= '\u2800' && ch[0] <= '\u28FF';
+            
+            // Check corner positions
+            var topLeft = buffer[0, 0].Character;
+            var topRight = buffer[0, width - 1].Character;
+            var bottomLeft = buffer[mapLastRow, 0].Character;
+            var bottomRight = buffer[mapLastRow, width - 1].Character;
+            
+            // Log corner values for diagnostics
+            var cornerDiagnostics = new StringBuilder();
+            cornerDiagnostics.AppendLine($"Corner diagnostics at {DateTime.UtcNow}:");
+            cornerDiagnostics.AppendLine($"  Top-left [0,0]: '{topLeft}' (U+{(topLeft.Length > 0 ? ((int)topLeft[0]).ToString("X4") : "EMPTY")}) IsBraille={IsBraille(topLeft)}");
+            cornerDiagnostics.AppendLine($"  Top-right [0,{width-1}]: '{topRight}' (U+{(topRight.Length > 0 ? ((int)topRight[0]).ToString("X4") : "EMPTY")}) IsBraille={IsBraille(topRight)}");
+            cornerDiagnostics.AppendLine($"  Bottom-left [{mapLastRow},0]: '{bottomLeft}' (U+{(bottomLeft.Length > 0 ? ((int)bottomLeft[0]).ToString("X4") : "EMPTY")}) IsBraille={IsBraille(bottomLeft)}");
+            cornerDiagnostics.AppendLine($"  Bottom-right [{mapLastRow},{width-1}]: '{bottomRight}' (U+{(bottomRight.Length > 0 ? ((int)bottomRight[0]).ToString("X4") : "EMPTY")}) IsBraille={IsBraille(bottomRight)}");
+            
+            // Also log the first few cells of the top row for additional context
+            cornerDiagnostics.AppendLine("  First 10 cells of row 0:");
+            for (int x = 0; x < 10 && x < width; x++)
+            {
+                var ch = buffer[0, x].Character;
+                cornerDiagnostics.AppendLine($"    [0,{x}]: '{ch}' (U+{(ch.Length > 0 ? ((int)ch[0]).ToString("X4") : "EMPTY")})");
+            }
+            
+            // Log the last 10 cells of the top row
+            cornerDiagnostics.AppendLine($"  Last 10 cells of row 0:");
+            for (int x = Math.Max(0, width - 10); x < width; x++)
+            {
+                var ch = buffer[0, x].Character;
+                cornerDiagnostics.AppendLine($"    [0,{x}]: '{ch}' (U+{(ch.Length > 0 ? ((int)ch[0]).ToString("X4") : "EMPTY")})");
+            }
+            
+            // Find where the blank area starts on row 0
+            int blankStart = -1;
+            for (int x = 0; x < width; x++)
+            {
+                if (!IsBraille(buffer[0, x].Character))
+                {
+                    blankStart = x;
+                    break;
+                }
+            }
+            cornerDiagnostics.AppendLine($"  Blank area on row 0 starts at column: {blankStart}");
+            
+            // Look at sequence numbers around the transition point
+            if (blankStart > 0)
+            {
+                cornerDiagnostics.AppendLine($"  Sequence numbers around blank start (col {blankStart}):");
+                for (int x = Math.Max(0, blankStart - 3); x < Math.Min(width, blankStart + 5); x++)
+                {
+                    var cell = buffer[0, x];
+                    cornerDiagnostics.AppendLine($"    [0,{x}]: '{cell.Character}' Seq={cell.Sequence} Written={cell.WrittenAt:HH:mm:ss.fff}");
+                }
+                
+                // Compare to sequence numbers in row 1 at same positions
+                cornerDiagnostics.AppendLine($"  For comparison, row 1 at same positions:");
+                for (int x = Math.Max(0, blankStart - 3); x < Math.Min(width, blankStart + 5); x++)
+                {
+                    var cell = buffer[1, x];
+                    cornerDiagnostics.AppendLine($"    [1,{x}]: '{cell.Character}' Seq={cell.Sequence}");
+                }
+            }
+            
+            // Check if this is consistent across rows - find first non-braille on rows 1-5
+            for (int row = 1; row <= 5 && row < height - 1; row++)
+            {
+                int rowBlankStart = -1;
+                for (int x = 0; x < width; x++)
+                {
+                    if (!IsBraille(buffer[row, x].Character))
+                    {
+                        rowBlankStart = x;
+                        break;
+                    }
+                }
+                cornerDiagnostics.AppendLine($"  Row {row} first non-braille at column: {rowBlankStart}");
+            }
+            
+            TestContext.Current.TestOutputHelper?.WriteLine(cornerDiagnostics.ToString());
+            
+            // Check if all corners have braille characters
+            var allCornersHaveBraille = IsBraille(topLeft) && IsBraille(topRight) && 
+                                        IsBraille(bottomLeft) && IsBraille(bottomRight);
+            
             // Capture the map display
             TestCaptureHelper.Capture(terminal, "mapscii-map");
+            
+            if (!allCornersHaveBraille)
+            {
+                // Capture additional diagnostics
+                await TestCaptureHelper.CaptureCastAsync(recorder, "mapscii-incomplete-render", TestContext.Current.CancellationToken);
+                Assert.Fail($"Map render incomplete - corners missing braille characters.\n{cornerDiagnostics}");
+            }
             
             // Step 4: Send 'q' to quit mapscii
             await process.WriteInputAsync(Encoding.UTF8.GetBytes("q"));

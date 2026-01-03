@@ -49,3 +49,31 @@ public sealed record ReverseIndexToken : AnsiToken
     public static readonly ReverseIndexToken Instance = new();
     private ReverseIndexToken() { }
 }
+
+/// <summary>
+/// Represents a CSI Delete Character (DCH) command: ESC [ n P
+/// Deletes n characters at cursor, shifting remaining characters left.
+/// </summary>
+/// <param name="Count">Number of characters to delete. Default is 1.</param>
+public sealed record DeleteCharacterToken(int Count = 1) : AnsiToken;
+
+/// <summary>
+/// Represents a CSI Insert Character (ICH) command: ESC [ n @
+/// Inserts n blank characters at cursor, shifting existing characters right.
+/// </summary>
+/// <param name="Count">Number of characters to insert. Default is 1.</param>
+public sealed record InsertCharacterToken(int Count = 1) : AnsiToken;
+
+/// <summary>
+/// Represents a CSI Erase Character (ECH) command: ESC [ n X
+/// Erases n characters from cursor without moving cursor or shifting.
+/// </summary>
+/// <param name="Count">Number of characters to erase. Default is 1.</param>
+public sealed record EraseCharacterToken(int Count = 1) : AnsiToken;
+
+/// <summary>
+/// Represents a CSI Repeat (REP) command: ESC [ n b
+/// Repeats the previous graphic character n times.
+/// </summary>
+/// <param name="Count">Number of times to repeat. Default is 1.</param>
+public sealed record RepeatCharacterToken(int Count = 1) : AnsiToken;

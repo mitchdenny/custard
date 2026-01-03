@@ -291,6 +291,26 @@ public static class AnsiTokenizer
                 // Delete Lines (DL) - delete n lines at cursor
                 tokens.Add(new DeleteLinesToken(ParseMoveCount(parameters)));
                 break;
+                
+            case 'P':
+                // Delete Character (DCH) - delete n characters at cursor
+                tokens.Add(new DeleteCharacterToken(ParseMoveCount(parameters)));
+                break;
+                
+            case '@':
+                // Insert Character (ICH) - insert n blank characters at cursor
+                tokens.Add(new InsertCharacterToken(ParseMoveCount(parameters)));
+                break;
+                
+            case 'X':
+                // Erase Character (ECH) - erase n characters at cursor
+                tokens.Add(new EraseCharacterToken(ParseMoveCount(parameters)));
+                break;
+                
+            case 'b':
+                // Repeat Character (REP) - repeat last graphic character n times
+                tokens.Add(new RepeatCharacterToken(ParseMoveCount(parameters)));
+                break;
 
             default:
                 // Unrecognized CSI sequence

@@ -70,6 +70,20 @@ public static class AnsiTokenizer
                 tokens.Add(RestoreCursorToken.Dec);
                 i += 2;
             }
+            // Check for Index (ESC D) - move cursor down, scroll if at bottom
+            else if (text[i] == '\x1b' && i + 1 < text.Length && text[i + 1] == 'D')
+            {
+                FlushTextToken(text, ref textStart, i, tokens);
+                tokens.Add(IndexToken.Instance);
+                i += 2;
+            }
+            // Check for Reverse Index (ESC M) - move cursor up, scroll if at top
+            else if (text[i] == '\x1b' && i + 1 < text.Length && text[i + 1] == 'M')
+            {
+                FlushTextToken(text, ref textStart, i, tokens);
+                tokens.Add(ReverseIndexToken.Instance);
+                i += 2;
+            }
             // Check for control characters
             else if (text[i] == '\n')
             {
@@ -223,6 +237,61 @@ public static class AnsiTokenizer
                 tokens.Add(RestoreCursorToken.Ansi);
                 break;
 
+            case 'A':
+                // Cursor Up (CUU)
+                tokens.Add(new CursorMoveToken(CursorMoveDirection.Up, ParseMoveCount(parameters)));
+                break;
+                
+            case 'B':
+                // Cursor Down (CUD)
+                tokens.Add(new CursorMoveToken(CursorMoveDirection.Down, ParseMoveCount(parameters)));
+                break;
+                
+            case 'C':
+                // Cursor Forward (CUF)
+                tokens.Add(new CursorMoveToken(CursorMoveDirection.Forward, ParseMoveCount(parameters)));
+                break;
+                
+            case 'D':
+                // Cursor Back (CUB)
+                tokens.Add(new CursorMoveToken(CursorMoveDirection.Back, ParseMoveCount(parameters)));
+                break;
+                
+            case 'E':
+                // Cursor Next Line (CNL)
+                tokens.Add(new CursorMoveToken(CursorMoveDirection.NextLine, ParseMoveCount(parameters)));
+                break;
+                
+            case 'F':
+                // Cursor Previous Line (CPL)
+                tokens.Add(new CursorMoveToken(CursorMoveDirection.PreviousLine, ParseMoveCount(parameters)));
+                break;
+                
+            case 'G':
+                // Cursor Horizontal Absolute (CHA)
+                tokens.Add(new CursorColumnToken(ParseMoveCount(parameters)));
+                break;
+                
+            case 'S':
+                // Scroll Up (SU) - scroll content up n lines
+                tokens.Add(new ScrollUpToken(ParseMoveCount(parameters)));
+                break;
+                
+            case 'T':
+                // Scroll Down (SD) - scroll content down n lines
+                tokens.Add(new ScrollDownToken(ParseMoveCount(parameters)));
+                break;
+                
+            case 'L':
+                // Insert Lines (IL) - insert n blank lines at cursor
+                tokens.Add(new InsertLinesToken(ParseMoveCount(parameters)));
+                break;
+                
+            case 'M':
+                // Delete Lines (DL) - delete n lines at cursor
+                tokens.Add(new DeleteLinesToken(ParseMoveCount(parameters)));
+                break;
+
             default:
                 // Unrecognized CSI sequence
                 tokens.Add(new UnrecognizedSequenceToken(text[start..(end + 1)]));
@@ -230,6 +299,13 @@ public static class AnsiTokenizer
         }
 
         return end + 1;
+    }
+    
+    private static int ParseMoveCount(string parameters)
+    {
+        if (string.IsNullOrEmpty(parameters))
+            return 1;
+        return int.TryParse(parameters, out var count) && count > 0 ? count : 1;
     }
 
     private static void ParseCursorPosition(string parameters, List<AnsiToken> tokens)

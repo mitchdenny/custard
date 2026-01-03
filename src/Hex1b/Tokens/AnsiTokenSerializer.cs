@@ -36,6 +36,8 @@ public static class AnsiTokenSerializer
             SgrToken sgr => SerializeSgr(sgr),
             CursorPositionToken pos => SerializeCursorPosition(pos),
             CursorShapeToken shape => SerializeCursorShape(shape),
+            CursorMoveToken move => SerializeCursorMove(move),
+            CursorColumnToken col => SerializeCursorColumn(col),
             ClearScreenToken clear => SerializeClearScreen(clear),
             ClearLineToken clear => SerializeClearLine(clear),
             ScrollRegionToken scroll => SerializeScrollRegion(scroll),
@@ -83,6 +85,30 @@ public static class AnsiTokenSerializer
     {
         // ESC [ n SP q (DECSCUSR)
         return $"\x1b[{token.Shape} q";
+    }
+
+    private static string SerializeCursorMove(CursorMoveToken token)
+    {
+        // ESC [ n X where X is A/B/C/D/E/F
+        var command = token.Direction switch
+        {
+            CursorMoveDirection.Up => 'A',
+            CursorMoveDirection.Down => 'B',
+            CursorMoveDirection.Forward => 'C',
+            CursorMoveDirection.Back => 'D',
+            CursorMoveDirection.NextLine => 'E',
+            CursorMoveDirection.PreviousLine => 'F',
+            _ => 'A'
+        };
+        
+        // Optimize: omit count if 1
+        return token.Count == 1 ? $"\x1b[{command}" : $"\x1b[{token.Count}{command}";
+    }
+
+    private static string SerializeCursorColumn(CursorColumnToken token)
+    {
+        // ESC [ n G (CHA)
+        return token.Column == 1 ? "\x1b[G" : $"\x1b[{token.Column}G";
     }
 
     private static string SerializeClearScreen(ClearScreenToken token)

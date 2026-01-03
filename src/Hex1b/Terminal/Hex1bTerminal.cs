@@ -78,6 +78,22 @@ public sealed class Hex1bTerminal : IDisposable
     private long _writeSequence; // Monotonically increasing write order counter
     private int _savedCursorX; // Saved cursor X position for DECSC/DECRC
     private int _savedCursorY; // Saved cursor Y position for DECSC/DECRC
+    private readonly Decoder _utf8Decoder = Encoding.UTF8.GetDecoder(); // Handles incomplete UTF-8 sequences across reads
+    private string _incompleteSequenceBuffer = ""; // Buffers incomplete ANSI escape sequences across reads
+    
+    // Scroll region (DECSTBM) - 0-based indices
+    private int _scrollTop; // Top margin (0 = first row)
+    private int _scrollBottom; // Bottom margin (height-1 = last row), initialized in constructor
+    
+    // Deferred wrap (standard terminal behavior): when writing to the last column,
+    // wrap is deferred until the next printable character. CR/LF clear the pending wrap.
+    private bool _pendingWrap;
+    
+    // Line Feed/New Line Mode (LNM, DEC mode 20): when true, LF also performs CR.
+    // Real terminal emulators (xterm, etc.) have this OFF by default.
+    // The ONLCR translation (LF→CRLF) happens in the PTY/TTY kernel driver, not the terminal.
+    // Full-screen apps like vim/mapscii disable ONLCR and send explicit \r\n.
+    private bool _newlineMode = false;
 
 
 
@@ -142,6 +158,7 @@ public sealed class Hex1bTerminal : IDisposable
         _ = _workload.ResizeAsync(_width, _height);
         
         _screenBuffer = new TerminalCell[_height, _width];
+        _scrollBottom = _height - 1; // Default scroll region is full screen
         
         ClearBuffer();
 
@@ -329,9 +346,26 @@ public sealed class Hex1bTerminal : IDisposable
                     continue;
                 }
 
+                // Decode UTF-8 using the stateful decoder which handles incomplete sequences
+                // across read boundaries (e.g., braille characters split across reads)
+                var charCount = _utf8Decoder.GetCharCount(data.Span, flush: false);
+                var chars = new char[charCount];
+                _utf8Decoder.GetChars(data.Span, chars, flush: false);
+                var decodedText = new string(chars);
+                
+                // Prepend any buffered incomplete escape sequence from previous read
+                var text = _incompleteSequenceBuffer + decodedText;
+                _incompleteSequenceBuffer = "";
+                
+                // Check if text ends with an incomplete escape sequence and buffer it
+                var (completeText, incomplete) = ExtractIncompleteEscapeSequence(text);
+                _incompleteSequenceBuffer = incomplete;
+                
+                if (string.IsNullOrEmpty(completeText))
+                    continue; // All content is incomplete, wait for more data
+                
                 // Tokenize once, use for all processing
-                var text = Encoding.UTF8.GetString(data.Span);
-                var tokens = AnsiTokenizer.Tokenize(text);
+                var tokens = AnsiTokenizer.Tokenize(completeText);
                 
                 // Notify workload filters with tokens
                 await NotifyWorkloadFiltersOutputAsync(tokens);
@@ -950,6 +984,7 @@ public sealed class Hex1bTerminal : IDisposable
                 break;
                 
             case CursorPositionToken cursorToken:
+                _pendingWrap = false; // Explicit cursor movement clears pending wrap
                 _cursorY = Math.Clamp(cursorToken.Row - 1, 0, _height - 1);
                 _cursorX = Math.Clamp(cursorToken.Column - 1, 0, _width - 1);
                 break;
@@ -981,8 +1016,23 @@ public sealed class Hex1bTerminal : IDisposable
                 break;
                 
             case ScrollRegionToken scrollRegionToken:
-                // Store scroll region for future scroll operations
-                // Not yet implemented in ProcessOutput either
+                // Store scroll region for future scroll operations (DECSTBM)
+                // Top and Bottom are 1-based; we store as 0-based
+                if (scrollRegionToken.Bottom == 0)
+                {
+                    // Reset to full screen
+                    _scrollTop = 0;
+                    _scrollBottom = _height - 1;
+                }
+                else
+                {
+                    _scrollTop = Math.Clamp(scrollRegionToken.Top - 1, 0, _height - 1);
+                    _scrollBottom = Math.Clamp(scrollRegionToken.Bottom - 1, _scrollTop, _height - 1);
+                }
+                // DECSTBM also moves cursor to home position (1,1)
+                _pendingWrap = false; // Cursor movement clears pending wrap
+                _cursorX = 0;
+                _cursorY = 0;
                 break;
                 
             case SaveCursorToken:
@@ -991,12 +1041,56 @@ public sealed class Hex1bTerminal : IDisposable
                 break;
                 
             case RestoreCursorToken:
+                _pendingWrap = false; // Cursor restore clears pending wrap
                 _cursorX = _savedCursorX;
                 _cursorY = _savedCursorY;
                 break;
                 
             case CursorShapeToken:
                 // Cursor shape is presentation-only, no buffer state to update
+                break;
+                
+            case CursorMoveToken moveToken:
+                ApplyCursorMove(moveToken);
+                break;
+                
+            case CursorColumnToken columnToken:
+                _pendingWrap = false; // Explicit column movement clears pending wrap
+                _cursorX = Math.Clamp(columnToken.Column - 1, 0, _width - 1);
+                break;
+                
+            case ScrollUpToken scrollUpToken:
+                for (int i = 0; i < scrollUpToken.Count; i++)
+                    ScrollUp();
+                break;
+                
+            case ScrollDownToken scrollDownToken:
+                for (int i = 0; i < scrollDownToken.Count; i++)
+                    ScrollDown();
+                break;
+                
+            case InsertLinesToken insertLinesToken:
+                InsertLines(insertLinesToken.Count);
+                break;
+                
+            case DeleteLinesToken deleteLinesToken:
+                DeleteLines(deleteLinesToken.Count);
+                break;
+                
+            case IndexToken:
+                // Move cursor down one line, scroll if at bottom of scroll region
+                if (_cursorY >= _scrollBottom)
+                    ScrollUp();
+                else
+                    _cursorY++;
+                break;
+                
+            case ReverseIndexToken:
+                // Move cursor up one line, scroll if at top of scroll region
+                if (_cursorY <= _scrollTop)
+                    ScrollDown();
+                else
+                    _cursorY--;
                 break;
                 
             case UnrecognizedSequenceToken:
@@ -1014,6 +1108,16 @@ public sealed class Hex1bTerminal : IDisposable
         {
             var grapheme = GetGraphemeAt(text, i);
             var graphemeWidth = DisplayWidth.GetGraphemeWidth(grapheme);
+            
+            // Deferred wrap: If a wrap was pending from a previous character, perform it now
+            // This is standard VT100/xterm behavior - wrap only happens when the NEXT
+            // printable character is written, not when cursor reaches the margin.
+            if (_pendingWrap)
+            {
+                _pendingWrap = false;
+                _cursorX = 0;
+                _cursorY++;
+            }
             
             // Scroll if cursor is past the bottom of the screen BEFORE writing
             if (_cursorY >= _height)
@@ -1042,10 +1146,14 @@ public sealed class Hex1bTerminal : IDisposable
                 }
                 
                 _cursorX += graphemeWidth;
+                
+                // When cursor reaches or exceeds the right margin, set pending wrap
+                // instead of immediately wrapping. The wrap will happen when the next
+                // printable character is written (or never, if CR/LF comes first).
                 if (_cursorX >= _width)
                 {
-                    _cursorX = 0;
-                    _cursorY++;
+                    _cursorX = _width - 1; // Cursor stays at last column
+                    _pendingWrap = true;
                 }
             }
             i += grapheme.Length;
@@ -1057,22 +1165,73 @@ public sealed class Hex1bTerminal : IDisposable
         switch (token.Character)
         {
             case '\n':
-                _cursorY++;
-                _cursorX = 0;
-                if (_cursorY >= _height)
+                // LF clears pending wrap - the wrap is "consumed" by the line feed
+                _pendingWrap = false;
+                
+                // LNM (DEC mode 20): when enabled, LF also performs CR.
+                // This is typically OFF in terminal emulators - the ONLCR translation
+                // happens in the PTY/TTY kernel driver for cooked mode apps.
+                if (_newlineMode)
+                {
+                    _cursorX = 0;
+                }
+                
+                // LF moves cursor down. If at bottom of scroll region, scroll up.
+                if (_cursorY >= _scrollBottom)
                 {
                     ScrollUp();
-                    _cursorY = _height - 1;
+                    // Cursor stays at _scrollBottom
+                }
+                else if (_cursorY < _height - 1)
+                {
+                    _cursorY++;
                 }
                 break;
                 
             case '\r':
+                // CR clears pending wrap - moving to column 0 cancels any pending wrap
+                _pendingWrap = false;
                 _cursorX = 0;
                 break;
                 
             case '\t':
                 // Move to next tab stop (every 8 columns)
                 _cursorX = Math.Min((_cursorX / 8 + 1) * 8, _width - 1);
+                break;
+        }
+    }
+
+    private void ApplyCursorMove(CursorMoveToken token)
+    {
+        // Any explicit cursor movement clears pending wrap
+        _pendingWrap = false;
+        
+        switch (token.Direction)
+        {
+            case CursorMoveDirection.Up:
+                _cursorY = Math.Max(0, _cursorY - token.Count);
+                break;
+                
+            case CursorMoveDirection.Down:
+                _cursorY = Math.Min(_height - 1, _cursorY + token.Count);
+                break;
+                
+            case CursorMoveDirection.Forward:
+                _cursorX = Math.Min(_width - 1, _cursorX + token.Count);
+                break;
+                
+            case CursorMoveDirection.Back:
+                _cursorX = Math.Max(0, _cursorX - token.Count);
+                break;
+                
+            case CursorMoveDirection.NextLine:
+                _cursorY = Math.Min(_height - 1, _cursorY + token.Count);
+                _cursorX = 0;
+                break;
+                
+            case CursorMoveDirection.PreviousLine:
+                _cursorY = Math.Max(0, _cursorY - token.Count);
+                _cursorX = 0;
                 break;
         }
     }
@@ -1398,14 +1557,15 @@ public sealed class Hex1bTerminal : IDisposable
 
     private void ScrollUp()
     {
-        // First, release Sixel data from the top row (being scrolled off)
+        // Scroll up within the scroll region
+        // First, release Sixel data from the top row of the region (being scrolled off)
         for (int x = 0; x < _width; x++)
         {
-            _screenBuffer[0, x].TrackedSixel?.Release();
+            _screenBuffer[_scrollTop, x].TrackedSixel?.Release();
         }
         
-        // Shift all rows up (tracked object refs move with them, no AddRef/Release needed)
-        for (int y = 0; y < _height - 1; y++)
+        // Shift rows up within the scroll region
+        for (int y = _scrollTop; y < _scrollBottom; y++)
         {
             for (int x = 0; x < _width; x++)
             {
@@ -1413,10 +1573,99 @@ public sealed class Hex1bTerminal : IDisposable
             }
         }
         
-        // Clear the bottom row (no tracked objects to release - they moved up)
+        // Clear the bottom row of the scroll region
         for (int x = 0; x < _width; x++)
         {
-            _screenBuffer[_height - 1, x] = TerminalCell.Empty;
+            _screenBuffer[_scrollBottom, x] = TerminalCell.Empty;
+        }
+    }
+    
+    private void ScrollDown()
+    {
+        // Scroll down within the scroll region
+        // First, release Sixel data from the bottom row of the region (being scrolled off)
+        for (int x = 0; x < _width; x++)
+        {
+            _screenBuffer[_scrollBottom, x].TrackedSixel?.Release();
+        }
+        
+        // Shift rows down within the scroll region
+        for (int y = _scrollBottom; y > _scrollTop; y--)
+        {
+            for (int x = 0; x < _width; x++)
+            {
+                _screenBuffer[y, x] = _screenBuffer[y - 1, x];
+            }
+        }
+        
+        // Clear the top row of the scroll region
+        for (int x = 0; x < _width; x++)
+        {
+            _screenBuffer[_scrollTop, x] = TerminalCell.Empty;
+        }
+    }
+    
+    private void InsertLines(int count)
+    {
+        // Insert blank lines at cursor position within scroll region
+        // Lines pushed off the bottom of the scroll region are lost
+        var bottom = _scrollBottom;
+        count = Math.Min(count, bottom - _cursorY + 1);
+        
+        for (int i = 0; i < count; i++)
+        {
+            // Release Sixel data from the bottom row of scroll region (being pushed off)
+            for (int x = 0; x < _width; x++)
+            {
+                _screenBuffer[bottom, x].TrackedSixel?.Release();
+            }
+            
+            // Shift lines down from cursor position to bottom of scroll region
+            for (int y = bottom; y > _cursorY; y--)
+            {
+                for (int x = 0; x < _width; x++)
+                {
+                    _screenBuffer[y, x] = _screenBuffer[y - 1, x];
+                }
+            }
+            
+            // Clear the line at cursor position
+            for (int x = 0; x < _width; x++)
+            {
+                _screenBuffer[_cursorY, x] = TerminalCell.Empty;
+            }
+        }
+    }
+    
+    private void DeleteLines(int count)
+    {
+        // Delete lines at cursor position within scroll region
+        // Blank lines are inserted at the bottom of the scroll region
+        var bottom = _scrollBottom;
+        count = Math.Min(count, bottom - _cursorY + 1);
+        
+        for (int i = 0; i < count; i++)
+        {
+            // Release Sixel data from the line being deleted
+            for (int x = 0; x < _width; x++)
+            {
+                _screenBuffer[_cursorY, x].TrackedSixel?.Release();
+            }
+            
+            // Shift lines up from cursor position to bottom of scroll region
+            for (int y = _cursorY; y < bottom; y++)
+            {
+                for (int x = 0; x < _width; x++)
+                {
+                    _screenBuffer[y, x] = _screenBuffer[y + 1, x];
+                }
+            }
+            
+            // Clear the bottom line of the scroll region
+            for (int x = 0; x < _width; x++)
+            {
+                _screenBuffer[bottom, x] = TerminalCell.Empty;
+            }
         }
     }
 
@@ -2157,6 +2406,85 @@ public sealed class Hex1bTerminal : IDisposable
         {
             ct.ThrowIfCancellationRequested();
             await filter.OnResizeAsync(width, height, elapsed, ct);
+        }
+    }
+    
+    /// <summary>
+    /// Extracts any incomplete escape sequence from the end of the text.
+    /// Returns (completeText, incompleteSequence) where incompleteSequence
+    /// should be prepended to the next chunk of data.
+    /// </summary>
+    private static (string completeText, string incompleteSequence) ExtractIncompleteEscapeSequence(string text)
+    {
+        if (string.IsNullOrEmpty(text))
+            return (text, "");
+        
+        // Find the last ESC character
+        int lastEsc = text.LastIndexOf('\x1b');
+        if (lastEsc < 0)
+            return (text, ""); // No escape sequences
+        
+        // Check if the sequence starting at lastEsc is complete
+        var potentialSequence = text[lastEsc..];
+        
+        if (IsCompleteEscapeSequence(potentialSequence))
+            return (text, ""); // The sequence is complete
+        
+        // The sequence is incomplete - split it off
+        return (text[..lastEsc], potentialSequence);
+    }
+    
+    /// <summary>
+    /// Determines if an escape sequence is complete.
+    /// </summary>
+    private static bool IsCompleteEscapeSequence(string seq)
+    {
+        if (seq.Length < 2)
+            return false; // Just ESC, need more
+        
+        var second = seq[1];
+        
+        switch (second)
+        {
+            case '[': // CSI sequence
+                // Need a letter to terminate (but not 'O' which could be SS3)
+                for (int i = 2; i < seq.Length; i++)
+                {
+                    var c = seq[i];
+                    // CSI sequences end with a letter (@ through ~, i.e., 0x40-0x7E)
+                    if (c >= '@' && c <= '~')
+                        return true;
+                }
+                return false; // No terminator found
+                
+            case ']': // OSC sequence
+                // Terminated by ST (ESC \) or BEL (\x07)
+                if (seq.Contains('\x07'))
+                    return true;
+                if (seq.Contains("\x1b\\"))
+                    return true;
+                return false;
+                
+            case 'P': // DCS sequence
+            case '_': // APC sequence
+                // Terminated by ST (ESC \)
+                return seq.Contains("\x1b\\");
+                
+            case '7': // DECSC
+            case '8': // DECRC
+            case 'c': // RIS
+            case 'D': // IND
+            case 'E': // NEL
+            case 'H': // HTS
+            case 'M': // RI
+            case 'N': // SS2
+            case 'O': // SS3
+            case 'Z': // DECID
+                return true; // Two-character sequences are complete
+                
+            default:
+                // Unknown sequence type - assume complete
+                return true;
         }
     }
 }

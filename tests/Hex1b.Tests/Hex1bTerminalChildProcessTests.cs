@@ -1,0 +1,1230 @@
+using System.Text;
+using Hex1b.Input;
+using Hex1b.Terminal;
+using Hex1b.Terminal.Automation;
+
+namespace Hex1b.Tests;
+
+/// <summary>
+/// Tests for <see cref="Hex1bTerminalChildProcess"/>.
+/// These tests require a Unix-like environment (Linux or macOS).
+/// </summary>
+public class Hex1bTerminalChildProcessTests
+{
+    private static bool IsUnix => OperatingSystem.IsLinux() || OperatingSystem.IsMacOS();
+    
+    /// <summary>
+    /// Verifies that when we launch bash with "tty" command, it reports
+    /// a valid TTY device path (e.g., /dev/pts/X), proving a PTY is attached.
+    /// </summary>
+    [Fact]
+    [Trait("Category", "Unix")]
+    public async Task BashWithTty_ReportsPtyDevice()
+    {
+        if (!IsUnix) return; // Unix-only test
+        
+        // Launch bash with interactive flag (-i) to ensure it thinks it's a terminal
+        // The command runs "tty" which outputs the TTY device path
+        await using var process = new Hex1bTerminalChildProcess(
+            "/bin/bash",
+            ["-ic", "tty; exit"]
+        );
+        
+        await process.StartAsync();
+        
+        // Collect output
+        var output = new StringBuilder();
+        var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        
+        try
+        {
+            while (!cts.Token.IsCancellationRequested && !process.HasExited)
+            {
+                var data = await process.ReadOutputAsync(cts.Token);
+                if (data.IsEmpty)
+                {
+                    await Task.Delay(50, cts.Token);
+                    continue;
+                }
+                
+                var text = Encoding.UTF8.GetString(data.Span);
+                output.Append(text);
+                
+                // Check if we got a TTY path
+                if (output.ToString().Contains("/dev/"))
+                    break;
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // Timeout
+        }
+        
+        var result = output.ToString();
+        
+        // The tty command should output something like /dev/pts/0 or /dev/ttyp0
+        Assert.Contains("/dev/", result);
+        Assert.True(
+            result.Contains("/dev/pts/") || result.Contains("/dev/tty"),
+            $"Expected PTY device path, got: {result}"
+        );
+    }
+    
+    /// <summary>
+    /// Verifies that we can launch bash and it stays running at a prompt.
+    /// </summary>
+    [Fact]
+    [Trait("Category", "Unix")]
+    public async Task BashInteractive_StaysAtPrompt()
+    {
+        if (!IsUnix) return; // Unix-only test
+        
+        // Launch: bash -ic "tty;bash"
+        // This prints the TTY and then drops to an interactive bash prompt
+        await using var process = new Hex1bTerminalChildProcess(
+            "/bin/bash",
+            ["-ic", "tty;bash"]
+        );
+        
+        await process.StartAsync();
+        
+        Assert.True(process.HasStarted);
+        Assert.True(process.ProcessId > 0, $"Expected positive PID, got {process.ProcessId}");
+        
+        // Read initial output (should include the tty path)
+        var output = new StringBuilder();
+        var cts = new CancellationTokenSource(TimeSpan.FromSeconds(3));
+        
+        try
+        {
+            while (!cts.Token.IsCancellationRequested)
+            {
+                var data = await process.ReadOutputAsync(cts.Token);
+                if (data.IsEmpty)
+                {
+                    await Task.Delay(50, cts.Token);
+                    continue;
+                }
+                
+                var text = Encoding.UTF8.GetString(data.Span);
+                output.Append(text);
+                
+                // Once we see the /dev/pts path, we've got our confirmation
+                if (output.ToString().Contains("/dev/"))
+                    break;
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // Timeout is acceptable
+        }
+        
+        var result = output.ToString();
+        
+        // Verify PTY is attached
+        Assert.Contains("/dev/", result);
+        
+        // Process should still be running (bash is waiting for input)
+        Assert.False(process.HasExited, "Process should still be running");
+        
+        // Send exit command
+        await process.WriteInputAsync(Encoding.UTF8.GetBytes("exit\n"));
+        await process.WriteInputAsync(Encoding.UTF8.GetBytes("exit\n")); // Exit nested bash too
+        
+        // Wait for exit with timeout
+        var exitCts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+        var exitCode = await process.WaitForExitAsync(exitCts.Token);
+        
+        Assert.True(process.HasExited);
+        Assert.Equal(0, exitCode);
+    }
+    
+    /// <summary>
+    /// Verifies that echo command works through the PTY.
+    /// </summary>
+    [Fact]
+    [Trait("Category", "Unix")]
+    public async Task Echo_WritesToOutput()
+    {
+        if (!IsUnix) return; // Unix-only test
+        
+        await using var process = new Hex1bTerminalChildProcess(
+            "/bin/bash",
+            ["-c", "echo 'Hello from PTY!'"]
+        );
+        
+        await process.StartAsync();
+        
+        var output = new StringBuilder();
+        var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        
+        try
+        {
+            while (!cts.Token.IsCancellationRequested)
+            {
+                var data = await process.ReadOutputAsync(cts.Token);
+                if (data.IsEmpty)
+                {
+                    // Check if process exited
+                    if (process.HasExited)
+                        break;
+                    await Task.Delay(50, cts.Token);
+                    continue;
+                }
+                
+                output.Append(Encoding.UTF8.GetString(data.Span));
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // Timeout
+        }
+        
+        // Wait for exit
+        var exitCode = await process.WaitForExitAsync();
+        
+        Assert.Equal(0, exitCode);
+        Assert.Contains("Hello from PTY!", output.ToString());
+    }
+    
+    /// <summary>
+    /// Verifies that input can be written to the process and is echoed back.
+    /// </summary>
+    [Fact]
+    [Trait("Category", "Unix")]
+    public async Task WriteInput_IsEchoedBack()
+    {
+        if (!IsUnix) return; // Unix-only test
+        
+        // Launch cat which will echo input back
+        await using var process = new Hex1bTerminalChildProcess(
+            "/bin/cat",
+            []
+        );
+        
+        await process.StartAsync();
+        
+        // Write some input
+        var input = "test input\n";
+        await process.WriteInputAsync(Encoding.UTF8.GetBytes(input));
+        
+        // Read output
+        var output = new StringBuilder();
+        var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+        
+        try
+        {
+            while (!cts.Token.IsCancellationRequested)
+            {
+                var data = await process.ReadOutputAsync(cts.Token);
+                if (data.IsEmpty)
+                {
+                    await Task.Delay(50, cts.Token);
+                    continue;
+                }
+                
+                output.Append(Encoding.UTF8.GetString(data.Span));
+                
+                // Cat should echo back our input
+                if (output.ToString().Contains("test input"))
+                    break;
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // Timeout
+        }
+        
+        Assert.Contains("test input", output.ToString());
+        
+        // Send EOF (Ctrl+D)
+        await process.WriteInputAsync(new byte[] { 0x04 });
+        
+        var exitCode = await process.WaitForExitAsync(CancellationToken.None);
+        Assert.Equal(0, exitCode);
+    }
+    
+    /// <summary>
+    /// Verifies that terminal resize works via SIGWINCH.
+    /// </summary>
+    [Fact]
+    [Trait("Category", "Unix")]
+    public async Task Resize_UpdatesTerminalSize()
+    {
+        if (!IsUnix) return; // Unix-only test
+        
+        // Launch bash with a command that prints terminal size
+        await using var process = new Hex1bTerminalChildProcess(
+            "/bin/bash",
+            ["-ic", "stty size; read -t 2; stty size; exit"],
+            workingDirectory: null,
+            environment: null,
+            inheritEnvironment: true,
+            initialWidth: 80,
+            initialHeight: 24
+        );
+        
+        await process.StartAsync();
+        
+        // Read initial size output
+        var output = new StringBuilder();
+        var cts = new CancellationTokenSource(TimeSpan.FromSeconds(1));
+        
+        try
+        {
+            while (!cts.Token.IsCancellationRequested)
+            {
+                var data = await process.ReadOutputAsync(cts.Token);
+                if (!data.IsEmpty)
+                    output.Append(Encoding.UTF8.GetString(data.Span));
+                else
+                    await Task.Delay(50, cts.Token);
+                    
+                if (output.ToString().Contains("24 80"))
+                    break;
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // Timeout
+        }
+        
+        // Should show initial size (rows cols format from stty)
+        Assert.Contains("24 80", output.ToString());
+        
+        // Resize
+        await process.ResizeAsync(120, 40);
+        
+        // Send enter to continue (releases the read)
+        await process.WriteInputAsync(Encoding.UTF8.GetBytes("\n"));
+        
+        // Read new size output
+        var output2 = new StringBuilder();
+        var cts2 = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+        
+        try
+        {
+            while (!cts2.Token.IsCancellationRequested && !process.HasExited)
+            {
+                var data = await process.ReadOutputAsync(cts2.Token);
+                if (!data.IsEmpty)
+                    output2.Append(Encoding.UTF8.GetString(data.Span));
+                else
+                    await Task.Delay(50, cts2.Token);
+                    
+                if (output2.ToString().Contains("40 120"))
+                    break;
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // Timeout
+        }
+        
+        // Should show new size
+        Assert.Contains("40 120", output2.ToString());
+    }
+    
+    /// <summary>
+    /// Verifies that the process integrates with Hex1bTerminal as a workload adapter.
+    /// </summary>
+    [Fact]
+    [Trait("Category", "Unix")]
+    public async Task Integration_WithHex1bTerminal()
+    {
+        if (!IsUnix) return; // Unix-only test
+        
+        // Launch bash that prints something recognizable
+        await using var process = new Hex1bTerminalChildProcess(
+            "/bin/bash",
+            ["-c", "echo 'PTY_TEST_MARKER'; exit 0"]
+        );
+        
+        await process.StartAsync();
+        
+        // Create a capturing presentation adapter
+        var presentation = new CapturingTestPresentationAdapter();
+        
+        // Create a Hex1bTerminal with both workload and presentation
+        // This will auto-start the pump
+        using var terminal = new Hex1bTerminal(
+            presentation: presentation,
+            workload: process,
+            width: 80,
+            height: 24
+        );
+        
+        // Wait for output to appear in the captured output
+        var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        
+        while (!cts.Token.IsCancellationRequested)
+        {
+            if (presentation.CapturedOutput.Contains("PTY_TEST_MARKER"))
+                break;
+            
+            if (process.HasExited)
+            {
+                // Give it a little more time to pump remaining data
+                await Task.Delay(200, cts.Token);
+                break;
+            }
+                
+            await Task.Delay(50, cts.Token);
+        }
+        
+        // Verify the output appeared in the presentation
+        Assert.Contains("PTY_TEST_MARKER", presentation.CapturedOutput);
+    }
+    
+    /// <summary>
+    /// Simple presentation adapter that captures output for testing.
+    /// </summary>
+    private class CapturingTestPresentationAdapter : IHex1bTerminalPresentationAdapter
+    {
+        private readonly StringBuilder _output = new();
+        private readonly object _lock = new();
+        private readonly int _width;
+        private readonly int _height;
+        
+        public CapturingTestPresentationAdapter(int width = 80, int height = 24)
+        {
+            _width = width;
+            _height = height;
+        }
+        
+        public string CapturedOutput
+        {
+            get { lock (_lock) return _output.ToString(); }
+        }
+        
+        public int Width => _width;
+        public int Height => _height;
+        public TerminalCapabilities Capabilities => new() { SupportsMouse = false };
+        
+        public event Action<int, int>? Resized;
+        public event Action? Disconnected;
+        
+        public ValueTask WriteOutputAsync(ReadOnlyMemory<byte> data, CancellationToken ct = default)
+        {
+            lock (_lock) _output.Append(Encoding.UTF8.GetString(data.Span));
+            return ValueTask.CompletedTask;
+        }
+        
+        public ValueTask<ReadOnlyMemory<byte>> ReadInputAsync(CancellationToken ct = default)
+            => new(Task.Delay(Timeout.Infinite, ct).ContinueWith(_ => ReadOnlyMemory<byte>.Empty));
+        
+        public ValueTask FlushAsync(CancellationToken ct = default) => ValueTask.CompletedTask;
+        public ValueTask EnterTuiModeAsync(CancellationToken ct = default) => ValueTask.CompletedTask;
+        public ValueTask ExitTuiModeAsync(CancellationToken ct = default) => ValueTask.CompletedTask;
+        public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+    }
+    
+    /// <summary>
+    /// Verifies that killing the process works.
+    /// </summary>
+    [Fact]
+    [Trait("Category", "Unix")]
+    public async Task Kill_TerminatesProcess()
+    {
+        if (!IsUnix) return; // Unix-only test
+        
+        // Launch a long-running process
+        await using var process = new Hex1bTerminalChildProcess(
+            "/bin/bash",
+            ["-c", "sleep 60"]
+        );
+        
+        await process.StartAsync();
+        
+        Assert.True(process.HasStarted);
+        Assert.False(process.HasExited);
+        
+        // Give it a moment to start
+        await Task.Delay(200);
+        
+        // Kill it
+        process.Kill();
+        
+        // Wait for exit
+        var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+        var exitCode = await process.WaitForExitAsync(cts.Token);
+        
+        Assert.True(process.HasExited);
+        // SIGTERM (15) results in exit code 128 + 15 = 143
+        Assert.True(exitCode != 0, $"Expected non-zero exit code from killed process, got {exitCode}");
+    }
+    
+    /// <summary>
+    /// Verifies proper cleanup when disposing without waiting for exit.
+    /// </summary>
+    [Fact]
+    [Trait("Category", "Unix")]
+    public async Task Dispose_CleansUpRunningProcess()
+    {
+        if (!IsUnix) return; // Unix-only test
+        
+        int pid;
+        
+        {
+            var process = new Hex1bTerminalChildProcess(
+                "/bin/bash",
+                ["-c", "sleep 60"]
+            );
+            
+            await process.StartAsync();
+            pid = process.ProcessId;
+            
+            Assert.True(pid > 0);
+            
+            // Dispose without waiting
+            await process.DisposeAsync();
+        }
+        
+        // Give the OS a moment to clean up
+        await Task.Delay(200);
+        
+        // Verify process is gone (kill with signal 0 checks if process exists)
+        // This will throw or return error if process doesn't exist
+        var exists = ProcessExists(pid);
+        Assert.False(exists, $"Process {pid} should have been terminated");
+    }
+    
+    private static bool ProcessExists(int pid)
+    {
+        try
+        {
+            // Sending signal 0 just checks if process exists
+            var process = System.Diagnostics.Process.GetProcessById(pid);
+            return !process.HasExited;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+    
+    /// <summary>
+    /// Stress test that launches mapscii via npx and captures the output.
+    /// This test exercises the full PTY -> Hex1bTerminal pipeline with a real interactive
+    /// application that uses advanced terminal features (Unicode, 256 color, cursor positioning).
+    /// This test is primarily for visual validation and is not intended to be kept long-term.
+    /// </summary>
+    [Fact]
+    [Trait("Category", "Unix")]
+    [Trait("Category", "StressTest")]
+    public async Task StressTest_MapsciiViaInteractiveBash()
+    {
+        if (!IsUnix) return; // Unix-only test
+        
+        // Setup temp file for asciinema recording
+        var castFile = Path.Combine(Path.GetTempPath(), $"mapscii_{Guid.NewGuid()}.cast");
+        
+        try
+        {
+            // Launch interactive bash without user profile for predictable prompt
+            await using var process = new Hex1bTerminalChildProcess(
+                "/bin/bash",
+                ["--norc", "--noprofile"],
+                inheritEnvironment: true,
+                initialWidth: 120,
+                initialHeight: 40
+            );
+            
+            await process.StartAsync();
+            
+            // Create terminal options with Asciinema recorder
+            var options = new Hex1bTerminalOptions
+            {
+                Width = 120,
+                Height = 40,
+                WorkloadAdapter = process,
+                PresentationAdapter = new CapturingTestPresentationAdapter(120, 40)
+            };
+            var recorder = options.AddAsciinemaRecorder(castFile, new AsciinemaRecorderOptions
+            {
+                Title = "Mapscii Stress Test",
+                CaptureInput = true
+            });
+            
+            // Create Hex1bTerminal - the presence of PresentationAdapter auto-starts the pump
+            using var terminal = new Hex1bTerminal(options);
+            
+            // Step 1: Wait for bash prompt (look for $ or # or PS1 indicator)
+            var promptFound = await WaitForConditionAsync(
+                () => terminal.CreateSnapshot().ContainsText("$") || 
+                      terminal.CreateSnapshot().ContainsText("#") ||
+                      terminal.CreateSnapshot().ContainsText(">"),
+                TimeSpan.FromSeconds(10),
+                TestContext.Current.CancellationToken
+            );
+            
+            if (!promptFound)
+            {
+                // Capture what we have so far for debugging
+                TestCaptureHelper.Capture(terminal, "prompt-timeout");
+                await TestCaptureHelper.CaptureCastAsync(recorder, "mapscii-prompt-timeout", TestContext.Current.CancellationToken);
+                Assert.Fail("Timed out waiting for bash prompt. Check captured snapshot.");
+            }
+            
+            // Step 2: Send the mapscii command
+            var mapsciiCommand = Encoding.UTF8.GetBytes("npx mapscii\n");
+            await process.WriteInputAsync(mapsciiCommand);
+            
+            // Step 3: Wait for mapscii to load (detect "center:" in output which appears in the status bar)
+            var mapLoaded = await WaitForConditionAsync(
+                () => terminal.CreateSnapshot().ContainsText("center:"),
+                TimeSpan.FromSeconds(60), // mapscii/npm can take a while to start
+                TestContext.Current.CancellationToken
+            );
+            
+            if (!mapLoaded)
+            {
+                // Capture for debugging
+                TestCaptureHelper.Capture(terminal, "mapscii-timeout");
+                await TestCaptureHelper.CaptureCastAsync(recorder, "mapscii-load-timeout", TestContext.Current.CancellationToken);
+                Assert.Fail("Timed out waiting for mapscii to load. Check captured snapshot.");
+            }
+            
+            // Capture the map display
+            TestCaptureHelper.Capture(terminal, "mapscii-map");
+            
+            // Step 4: Send 'q' to quit mapscii
+            await process.WriteInputAsync(Encoding.UTF8.GetBytes("q"));
+            
+            // Wait a moment for mapscii to exit
+            await Task.Delay(500, TestContext.Current.CancellationToken);
+            
+            // Step 5: Wait for bash prompt to return
+            var promptReturned = await WaitForConditionAsync(
+                () => !terminal.CreateSnapshot().ContainsText("center:") &&
+                      (terminal.CreateSnapshot().ContainsText("$") || 
+                       terminal.CreateSnapshot().ContainsText("#")),
+                TimeSpan.FromSeconds(5),
+                TestContext.Current.CancellationToken
+            );
+            
+            // Capture final state
+            TestCaptureHelper.Capture(terminal, "mapscii-after-quit");
+            
+            // Send exit to bash
+            await process.WriteInputAsync(Encoding.UTF8.GetBytes("exit\n"));
+            
+            // Wait for process to exit
+            var exitCts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+            try
+            {
+                await process.WaitForExitAsync(exitCts.Token);
+            }
+            catch (OperationCanceledException)
+            {
+                process.Kill();
+            }
+            
+            // Flush and capture the Asciinema recording
+            await TestCaptureHelper.CaptureCastAsync(recorder, "mapscii", TestContext.Current.CancellationToken);
+            
+            // Assert that we at least saw the map
+            Assert.True(mapLoaded, "Mapscii should have loaded and displayed the map");
+        }
+        finally
+        {
+            // Cleanup temp file
+            try { File.Delete(castFile); } catch { }
+        }
+    }
+    
+    /// <summary>
+    /// Stress test that launches btop and captures the output.
+    /// This test exercises the full PTY -> Hex1bTerminal pipeline with a real interactive
+    /// application that uses advanced terminal features (Unicode box drawing, 24-bit color, 
+    /// braille graphs, cursor positioning).
+    /// This test is primarily for visual validation and is not intended to be kept long-term.
+    /// </summary>
+    [Fact]
+    [Trait("Category", "Unix")]
+    [Trait("Category", "StressTest")]
+    public async Task StressTest_BtopViaInteractiveBash()
+    {
+        if (!IsUnix) return; // Unix-only test
+        
+        // Setup temp file for asciinema recording
+        var castFile = Path.Combine(Path.GetTempPath(), $"btop_{Guid.NewGuid()}.cast");
+        
+        try
+        {
+            // Launch interactive bash without user profile for predictable prompt
+            await using var process = new Hex1bTerminalChildProcess(
+                "/bin/bash",
+                ["--norc", "--noprofile"],
+                inheritEnvironment: true,
+                initialWidth: 120,
+                initialHeight: 40
+            );
+            
+            await process.StartAsync();
+            
+            // Create terminal options with Asciinema recorder
+            var options = new Hex1bTerminalOptions
+            {
+                Width = 120,
+                Height = 40,
+                WorkloadAdapter = process,
+                PresentationAdapter = new CapturingTestPresentationAdapter(120, 40)
+            };
+            var recorder = options.AddAsciinemaRecorder(castFile, new AsciinemaRecorderOptions
+            {
+                Title = "Btop Stress Test",
+                CaptureInput = true
+            });
+            
+            // Create Hex1bTerminal - the presence of PresentationAdapter auto-starts the pump
+            using var terminal = new Hex1bTerminal(options);
+            
+            // Step 1: Wait for bash prompt (look for $ or # or PS1 indicator)
+            var promptFound = await WaitForConditionAsync(
+                () => terminal.CreateSnapshot().ContainsText("$") || 
+                      terminal.CreateSnapshot().ContainsText("#") ||
+                      terminal.CreateSnapshot().ContainsText(">"),
+                TimeSpan.FromSeconds(10),
+                TestContext.Current.CancellationToken
+            );
+            
+            if (!promptFound)
+            {
+                // Capture what we have so far for debugging
+                TestCaptureHelper.Capture(terminal, "btop-prompt-timeout");
+                await TestCaptureHelper.CaptureCastAsync(recorder, "btop-prompt-timeout", TestContext.Current.CancellationToken);
+                Assert.Fail("Timed out waiting for bash prompt. Check captured snapshot.");
+            }
+            
+            // Step 2: Send the btop command
+            var btopCommand = Encoding.UTF8.GetBytes("btop\n");
+            await process.WriteInputAsync(btopCommand);
+            
+            // Step 3: Wait for btop to load (detect "CPU" which appears in the header)
+            var btopLoaded = await WaitForConditionAsync(
+                () => terminal.CreateSnapshot().ContainsText("CPU") ||
+                      terminal.CreateSnapshot().ContainsText("cpu"),
+                TimeSpan.FromSeconds(15),
+                TestContext.Current.CancellationToken
+            );
+            
+            if (!btopLoaded)
+            {
+                // Capture for debugging
+                TestCaptureHelper.Capture(terminal, "btop-timeout");
+                await TestCaptureHelper.CaptureCastAsync(recorder, "btop-load-timeout", TestContext.Current.CancellationToken);
+                Assert.Fail("Timed out waiting for btop to load. Check captured snapshot.");
+            }
+            
+            // Wait a bit for the display to stabilize and show data
+            await Task.Delay(2000, TestContext.Current.CancellationToken);
+            
+            // Capture the btop display
+            TestCaptureHelper.Capture(terminal, "btop-display");
+            
+            // Step 4: Send 'q' to quit btop
+            await process.WriteInputAsync(Encoding.UTF8.GetBytes("q"));
+            
+            // Wait a moment for btop to exit
+            await Task.Delay(500, TestContext.Current.CancellationToken);
+            
+            // Step 5: Wait for bash prompt to return
+            var promptReturned = await WaitForConditionAsync(
+                () => !terminal.CreateSnapshot().ContainsText("CPU") &&
+                      (terminal.CreateSnapshot().ContainsText("$") || 
+                       terminal.CreateSnapshot().ContainsText("#")),
+                TimeSpan.FromSeconds(5),
+                TestContext.Current.CancellationToken
+            );
+            
+            // Capture final state
+            TestCaptureHelper.Capture(terminal, "btop-after-quit");
+            
+            // Send exit to bash
+            await process.WriteInputAsync(Encoding.UTF8.GetBytes("exit\n"));
+            
+            // Wait for process to exit
+            var exitCts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+            try
+            {
+                await process.WaitForExitAsync(exitCts.Token);
+            }
+            catch (OperationCanceledException)
+            {
+                process.Kill();
+            }
+            
+            // Flush and capture the Asciinema recording
+            await TestCaptureHelper.CaptureCastAsync(recorder, "btop", TestContext.Current.CancellationToken);
+            
+            // Assert that we at least saw btop
+            Assert.True(btopLoaded, "Btop should have loaded and displayed the interface");
+        }
+        finally
+        {
+            // Cleanup temp file
+            try { File.Delete(castFile); } catch { }
+        }
+    }
+    
+    /// <summary>
+    /// Stress test that launches the sl (steam locomotive) program and captures the animation.
+    /// This test is different from mapscii/btop because sl runs an animation and then terminates
+    /// on its own without requiring user input to quit.
+    /// Exercises cursor movement, Unicode art, and proper process termination handling.
+    /// This test is primarily for visual validation and is not intended to be kept long-term.
+    /// </summary>
+    [Fact]
+    [Trait("Category", "Unix")]
+    [Trait("Category", "StressTest")]
+    public async Task StressTest_SlSteamLocomotive()
+    {
+        if (!IsUnix) return; // Unix-only test
+        
+        // Setup temp file for asciinema recording
+        var castFile = Path.Combine(Path.GetTempPath(), $"sl_{Guid.NewGuid()}.cast");
+        
+        try
+        {
+            // Launch sl directly (not through bash) - it will run and terminate on its own
+            // sl is typically in /usr/games on Debian/Ubuntu systems
+            var slPath = File.Exists("/usr/games/sl") ? "/usr/games/sl" : "/usr/bin/sl";
+            
+            if (!File.Exists(slPath))
+            {
+                // Skip if sl is not installed
+                return;
+            }
+            
+            await using var process = new Hex1bTerminalChildProcess(
+                slPath,
+                [], // No arguments - just run the default locomotive
+                inheritEnvironment: true,
+                initialWidth: 120,
+                initialHeight: 40
+            );
+            
+            await process.StartAsync();
+            
+            // Create terminal options with Asciinema recorder
+            var options = new Hex1bTerminalOptions
+            {
+                Width = 120,
+                Height = 40,
+                WorkloadAdapter = process,
+                PresentationAdapter = new CapturingTestPresentationAdapter(120, 40)
+            };
+            var recorder = options.AddAsciinemaRecorder(castFile, new AsciinemaRecorderOptions
+            {
+                Title = "SL Steam Locomotive Stress Test",
+                CaptureInput = false // sl doesn't take input
+            });
+            
+            // Create Hex1bTerminal - the presence of PresentationAdapter auto-starts the pump
+            using var terminal = new Hex1bTerminal(options);
+            
+            // sl draws ASCII art of a steam locomotive - look for common characters
+            // The locomotive uses characters like ( ) _ | and various others
+            var locomotiveDetected = false;
+            var snapshotsCaptured = 0;
+            
+            // Wait for sl to run and capture snapshots during the animation
+            var startTime = DateTime.UtcNow;
+            var maxWait = TimeSpan.FromSeconds(30);
+            
+            while (!process.HasExited && DateTime.UtcNow - startTime < maxWait)
+            {
+                await Task.Delay(200, TestContext.Current.CancellationToken);
+                
+                var snapshot = terminal.CreateSnapshot();
+                
+                // Check for locomotive characters (the train uses lots of underscores, pipes, and parentheses)
+                if (snapshot.ContainsText("____") || snapshot.ContainsText("(@)") || 
+                    snapshot.ContainsText("|") || snapshot.ContainsText("==="))
+                {
+                    locomotiveDetected = true;
+                    
+                    // Capture a few frames of the animation
+                    if (snapshotsCaptured < 5)
+                    {
+                        TestCaptureHelper.Capture(terminal, $"sl-frame-{snapshotsCaptured}");
+                        snapshotsCaptured++;
+                    }
+                }
+            }
+            
+            // Wait for the process to exit naturally
+            var exitCts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+            int exitCode;
+            try
+            {
+                exitCode = await process.WaitForExitAsync(exitCts.Token);
+            }
+            catch (OperationCanceledException)
+            {
+                // If it's still running, kill it
+                process.Kill();
+                exitCode = -1;
+            }
+            
+            // Capture final state
+            TestCaptureHelper.Capture(terminal, "sl-final");
+            
+            // Flush and capture the Asciinema recording
+            await TestCaptureHelper.CaptureCastAsync(recorder, "sl", TestContext.Current.CancellationToken);
+            
+            // Assert that sl ran successfully
+            Assert.True(locomotiveDetected, "Should have detected locomotive ASCII art");
+            Assert.True(process.HasExited, "sl should have terminated on its own");
+            Assert.Equal(0, exitCode);
+        }
+        finally
+        {
+            // Cleanup temp file
+            try { File.Delete(castFile); } catch { }
+        }
+    }
+    
+    /// <summary>
+    /// Stress test that clones the adamsky/globe repo, builds it with Docker, and runs the globe.
+    /// This test exercises a complex multi-step terminal workflow including:
+    /// - Git clone
+    /// - Docker build
+    /// - Running an interactive containerized application
+    /// - Mouse drag gestures for globe rotation
+    /// This test is primarily for visual validation and is not intended to be kept long-term.
+    /// Requires Docker to be installed and running.
+    /// </summary>
+    [Fact]
+    [Trait("Category", "Unix")]
+    [Trait("Category", "StressTest")]
+    [Trait("Category", "Docker")]
+    public async Task StressTest_GlobeWithDockerAndMouse()
+    {
+        if (!IsUnix) return; // Unix-only test
+        
+        // Check if docker is available
+        var dockerCheck = await RunCommandAsync("which", ["docker"]);
+        if (string.IsNullOrEmpty(dockerCheck) || !File.Exists(dockerCheck.Trim()))
+        {
+            // Skip if docker is not installed
+            return;
+        }
+        
+        // Create temp directory for the clone
+        var tempDir = Path.Combine(Path.GetTempPath(), $"globe_test_{Guid.NewGuid()}");
+        var castFile = Path.Combine(Path.GetTempPath(), $"globe_{Guid.NewGuid()}.cast");
+        
+        try
+        {
+            Directory.CreateDirectory(tempDir);
+            
+            // Launch interactive bash without user profile for predictable prompt
+            await using var process = new Hex1bTerminalChildProcess(
+                "/bin/bash",
+                ["--norc", "--noprofile"],
+                workingDirectory: tempDir,
+                inheritEnvironment: true,
+                initialWidth: 120,
+                initialHeight: 40
+            );
+            
+            await process.StartAsync();
+            
+            // Create terminal options with Asciinema recorder
+            var options = new Hex1bTerminalOptions
+            {
+                Width = 120,
+                Height = 40,
+                WorkloadAdapter = process,
+                PresentationAdapter = new CapturingTestPresentationAdapter(120, 40)
+            };
+            var recorder = options.AddAsciinemaRecorder(castFile, new AsciinemaRecorderOptions
+            {
+                Title = "Globe Docker Stress Test with Mouse Interaction",
+                CaptureInput = true
+            });
+            
+            // Create Hex1bTerminal
+            using var terminal = new Hex1bTerminal(options);
+            
+            // Step 1: Wait for bash prompt
+            var promptFound = await WaitForConditionAsync(
+                () => terminal.CreateSnapshot().ContainsText("$") || 
+                      terminal.CreateSnapshot().ContainsText("#"),
+                TimeSpan.FromSeconds(10),
+                TestContext.Current.CancellationToken
+            );
+            
+            if (!promptFound)
+            {
+                TestCaptureHelper.Capture(terminal, "globe-prompt-timeout");
+                await TestCaptureHelper.CaptureCastAsync(recorder, "globe-prompt-timeout", TestContext.Current.CancellationToken);
+                Assert.Fail("Timed out waiting for bash prompt.");
+            }
+            
+            // Step 2: Clone the globe repo
+            await process.WriteInputAsync(Encoding.UTF8.GetBytes($"git clone https://github.com/adamsky/globe {tempDir}/globe\n"));
+            
+            var cloneComplete = await WaitForConditionAsync(
+                () => terminal.CreateSnapshot().ContainsText("Cloning into") ||
+                      terminal.CreateSnapshot().ContainsText("done") ||
+                      terminal.CreateSnapshot().ContainsText("fatal:") ||
+                      terminal.CreateSnapshot().ContainsText("$"),
+                TimeSpan.FromSeconds(60),
+                TestContext.Current.CancellationToken
+            );
+            
+            // Wait for prompt to return after clone
+            await Task.Delay(2000, TestContext.Current.CancellationToken);
+            
+            TestCaptureHelper.Capture(terminal, "globe-after-clone");
+            
+            // Check if clone succeeded
+            if (!Directory.Exists(Path.Combine(tempDir, "globe")))
+            {
+                await TestCaptureHelper.CaptureCastAsync(recorder, "globe-clone-failed", TestContext.Current.CancellationToken);
+                Assert.Fail("Git clone failed. Check captured snapshot.");
+            }
+            
+            // Step 3: cd into the globe directory
+            await process.WriteInputAsync(Encoding.UTF8.GetBytes($"cd {tempDir}/globe\n"));
+            await Task.Delay(500, TestContext.Current.CancellationToken);
+            
+            // Step 4: Build the Docker image
+            await process.WriteInputAsync(Encoding.UTF8.GetBytes("docker build -t globe .\n"));
+            
+            var buildComplete = await WaitForConditionAsync(
+                () => terminal.CreateSnapshot().ContainsText("Successfully built") ||
+                      terminal.CreateSnapshot().ContainsText("Successfully tagged") ||
+                      terminal.CreateSnapshot().ContainsText("naming to docker.io") ||
+                      terminal.CreateSnapshot().ContainsText("ERROR") ||
+                      terminal.CreateSnapshot().ContainsText("error:"),
+                TimeSpan.FromSeconds(300), // Docker builds can take a while
+                TestContext.Current.CancellationToken
+            );
+            
+            // Wait for prompt to return
+            await WaitForConditionAsync(
+                () => terminal.CreateSnapshot().ContainsText("$") || 
+                      terminal.CreateSnapshot().ContainsText("#"),
+                TimeSpan.FromSeconds(30),
+                TestContext.Current.CancellationToken
+            );
+            
+            TestCaptureHelper.Capture(terminal, "globe-after-build");
+            
+            // Step 5: Run the globe container with interactive terminal and mouse support
+            // -i for interactive mode, -c 1 for single color (more compatible)
+            await process.WriteInputAsync(Encoding.UTF8.GetBytes("docker run -it --rm globe -i -c 1\n"));
+            
+            // Wait for globe to start (look for globe-specific output)
+            var globeStarted = await WaitForConditionAsync(
+                () => terminal.CreateSnapshot().ContainsText("●") ||
+                      terminal.CreateSnapshot().ContainsText("○") ||
+                      terminal.CreateSnapshot().ContainsText("*") ||
+                      terminal.CreateSnapshot().ContainsText(".") &&
+                      !terminal.CreateSnapshot().ContainsText("docker"),
+                TimeSpan.FromSeconds(30),
+                TestContext.Current.CancellationToken
+            );
+            
+            // Give the globe a moment to render
+            await Task.Delay(2000, TestContext.Current.CancellationToken);
+            
+            TestCaptureHelper.Capture(terminal, "globe-initial");
+            
+            // Step 6: Send mouse drag gestures to rotate the globe
+            // Enable mouse tracking in the terminal first
+            await process.WriteInputAsync(Encoding.UTF8.GetBytes("\x1b[?1000h\x1b[?1002h\x1b[?1003h\x1b[?1006h"));
+            await Task.Delay(200, TestContext.Current.CancellationToken);
+            
+            // Perform several drag gestures across the globe (center of screen)
+            var centerX = 60;
+            var centerY = 20;
+            
+            for (int drag = 0; drag < 5; drag++)
+            {
+                // Mouse down at start position
+                var startX = centerX - 10 + (drag * 5);
+                var startY = centerY;
+                await SendMouseEventAsync(process, MouseButton.Left, MouseAction.Down, startX, startY);
+                await Task.Delay(50, TestContext.Current.CancellationToken);
+                
+                // Drag across the globe
+                for (int step = 0; step < 10; step++)
+                {
+                    var currentX = startX + (step * 3);
+                    await SendMouseEventAsync(process, MouseButton.Left, MouseAction.Drag, currentX, startY);
+                    await Task.Delay(30, TestContext.Current.CancellationToken);
+                }
+                
+                // Mouse up
+                await SendMouseEventAsync(process, MouseButton.Left, MouseAction.Up, startX + 30, startY);
+                await Task.Delay(200, TestContext.Current.CancellationToken);
+                
+                // Capture a frame of the animation
+                TestCaptureHelper.Capture(terminal, $"globe-drag-{drag}");
+            }
+            
+            // Step 7: Let the globe run for a while
+            await Task.Delay(3000, TestContext.Current.CancellationToken);
+            
+            TestCaptureHelper.Capture(terminal, "globe-after-interaction");
+            
+            // Step 8: Send 'q' to quit the globe
+            await process.WriteInputAsync(Encoding.UTF8.GetBytes("q"));
+            
+            // Wait for the container to exit
+            await Task.Delay(1000, TestContext.Current.CancellationToken);
+            
+            // Wait for bash prompt to return
+            await WaitForConditionAsync(
+                () => terminal.CreateSnapshot().ContainsText("$") || 
+                      terminal.CreateSnapshot().ContainsText("#"),
+                TimeSpan.FromSeconds(5),
+                TestContext.Current.CancellationToken
+            );
+            
+            TestCaptureHelper.Capture(terminal, "globe-after-quit");
+            
+            // Exit bash
+            await process.WriteInputAsync(Encoding.UTF8.GetBytes("exit\n"));
+            
+            // Wait for process to exit
+            var exitCts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+            try
+            {
+                await process.WaitForExitAsync(exitCts.Token);
+            }
+            catch (OperationCanceledException)
+            {
+                process.Kill();
+            }
+            
+            // Flush and capture the Asciinema recording
+            await TestCaptureHelper.CaptureCastAsync(recorder, "globe", TestContext.Current.CancellationToken);
+            
+            // Assert success - we got through the whole workflow
+            Assert.True(globeStarted || buildComplete, "Globe workflow should have progressed");
+        }
+        finally
+        {
+            // Cleanup temp directory
+            try 
+            { 
+                if (Directory.Exists(tempDir))
+                    Directory.Delete(tempDir, recursive: true); 
+            } 
+            catch { }
+            
+            // Cleanup temp file
+            try { File.Delete(castFile); } catch { }
+            
+            // Cleanup the docker image (don't fail if this fails)
+            try 
+            {
+                await RunCommandAsync("docker", ["rmi", "-f", "globe"]);
+            }
+            catch { }
+        }
+    }
+    
+    /// <summary>
+    /// Sends a mouse event to the PTY process using SGR extended mouse format.
+    /// </summary>
+    private static async Task SendMouseEventAsync(
+        Hex1bTerminalChildProcess process,
+        MouseButton button,
+        MouseAction action,
+        int x,
+        int y,
+        Hex1bModifiers modifiers = Hex1bModifiers.None)
+    {
+        // Build the SGR mouse sequence: ESC [ < Cb ; Cx ; Cy M/m
+        // Cb = button code, Cx = 1-based column, Cy = 1-based row
+        // M = press/motion, m = release
+        
+        int buttonCode = button switch
+        {
+            MouseButton.Left => 0,
+            MouseButton.Middle => 1,
+            MouseButton.Right => 2,
+            _ => 0
+        };
+        
+        // Add motion flag for drag events
+        if (action == MouseAction.Drag || action == MouseAction.Move)
+            buttonCode |= 32;
+        
+        // Add modifier flags
+        if (modifiers.HasFlag(Hex1bModifiers.Shift)) buttonCode |= 4;
+        if (modifiers.HasFlag(Hex1bModifiers.Alt)) buttonCode |= 8;
+        if (modifiers.HasFlag(Hex1bModifiers.Control)) buttonCode |= 16;
+        
+        // Terminator: M for down/drag, m for up
+        var terminator = action == MouseAction.Up ? 'm' : 'M';
+        
+        // 1-based coordinates
+        var sequence = $"\x1b[<{buttonCode};{x + 1};{y + 1}{terminator}";
+        await process.WriteInputAsync(Encoding.UTF8.GetBytes(sequence));
+    }
+    
+    /// <summary>
+    /// Helper to run a command and capture its output.
+    /// </summary>
+    private static async Task<string> RunCommandAsync(string command, string[] args)
+    {
+        try
+        {
+            var psi = new System.Diagnostics.ProcessStartInfo(command, args)
+            {
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true
+            };
+            
+            using var proc = System.Diagnostics.Process.Start(psi);
+            if (proc == null) return "";
+            
+            var output = await proc.StandardOutput.ReadToEndAsync();
+            await proc.WaitForExitAsync();
+            return output;
+        }
+        catch
+        {
+            return "";
+        }
+    }
+    
+    /// <summary>
+    /// Helper to wait for a condition with timeout.
+    /// </summary>
+    private static async Task<bool> WaitForConditionAsync(
+        Func<bool> condition,
+        TimeSpan timeout,
+        CancellationToken ct = default)
+    {
+        using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        cts.CancelAfter(timeout);
+        
+        try
+        {
+            while (!cts.Token.IsCancellationRequested)
+            {
+                if (condition())
+                    return true;
+                    
+                await Task.Delay(100, cts.Token);
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // Timeout or cancelled
+        }
+        
+        return condition(); // One final check
+    }
+}

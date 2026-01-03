@@ -1588,17 +1588,16 @@ public class MenuBarIntegrationTests
         // even when focus is on a TextBox (not on the menu bar)
         using var workload = new Hex1bAppWorkloadAdapter();
         using var terminal = new Hex1bTerminal(workload, 80, 24);
-        var lastAction = "";
         
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(ctx.VStack(main => [
                 ctx.MenuBar(m => [
                     m.Menu("&File", m => [
-                        m.MenuItem("&New").OnActivated(e => lastAction = "File > New"),
-                        m.MenuItem("&Open").OnActivated(e => lastAction = "File > Open")
+                        m.MenuItem("&New"),
+                        m.MenuItem("&Open")
                     ]),
                     m.Menu("&Edit", m => [
-                        m.MenuItem("&Undo").OnActivated(e => lastAction = "Edit > Undo")
+                        m.MenuItem("&Undo")
                     ])
                 ]),
                 // A TextBox that can receive focus
@@ -1632,21 +1631,20 @@ public class MenuBarIntegrationTests
         // Arrange - Alt+E should open Edit menu even when a Button is focused
         using var workload = new Hex1bAppWorkloadAdapter();
         using var terminal = new Hex1bTerminal(workload, 80, 24);
-        var lastAction = "";
         
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(ctx.VStack(main => [
                 ctx.MenuBar(m => [
                     m.Menu("&File", m => [
-                        m.MenuItem("&New").OnActivated(e => lastAction = "File > New")
+                        m.MenuItem("&New")
                     ]),
                     m.Menu("&Edit", m => [
-                        m.MenuItem("&Undo").OnActivated(e => lastAction = "Edit > Undo"),
-                        m.MenuItem("&Redo").OnActivated(e => lastAction = "Edit > Redo")
+                        m.MenuItem("&Undo"),
+                        m.MenuItem("&Redo")
                     ])
                 ]),
                 // A Button that can receive focus
-                ctx.Button("Click Me").OnClick(e => lastAction = "Button clicked")
+                ctx.Button("Click Me")
             ])),
             new Hex1bAppOptions { WorkloadAdapter = workload }
         );

@@ -401,8 +401,10 @@ public class Hex1bTerminalChildProcessTests
         public int Height => _height;
         public TerminalCapabilities Capabilities => new() { SupportsMouse = false };
         
+#pragma warning disable CS0067 // Events required by interface but not used in test implementation
         public event Action<int, int>? Resized;
         public event Action? Disconnected;
+#pragma warning restore CS0067
         
         public ValueTask WriteOutputAsync(ReadOnlyMemory<byte> data, CancellationToken ct = default)
         {

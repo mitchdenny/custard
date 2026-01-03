@@ -1,12 +1,11 @@
-using System.Diagnostics;
 using System.Runtime.InteropServices;
-using System.Text;
 
 namespace Hex1b.Terminal;
 
 /// <summary>
-/// Unix (Linux/macOS) PTY implementation using POSIX APIs.
-/// Uses Process with fd redirection approach.
+/// Unix (Linux/macOS) PTY implementation using native library.
+/// Uses proper setsid/TIOCSCTTY for controlling terminal setup,
+/// which is required for programs like tmux and screen to work correctly.
 /// </summary>
 internal sealed partial class UnixPtyHandle : IPtyHandle
 {
@@ -14,12 +13,127 @@ internal sealed partial class UnixPtyHandle : IPtyHandle
     private int _childPid = -1;
     private bool _disposed;
     private readonly byte[] _readBuffer = new byte[4096];
-    private Process? _helperProcess;
-    private string? _tempScriptPath;
+    private string _slaveName = string.Empty;
+    private bool _useNativeSpawn = true;
     
     public int ProcessId => _childPid;
     
     public async Task StartAsync(
+        string fileName,
+        string[] arguments,
+        string? workingDirectory,
+        Dictionary<string, string> environment,
+        int width,
+        int height,
+        CancellationToken ct)
+    {
+        // Check if native library is available
+        _useNativeSpawn = IsNativeLibraryAvailable();
+        
+        if (_useNativeSpawn)
+        {
+            await StartWithNativeSpawnAsync(fileName, arguments, workingDirectory, environment, width, height, ct);
+        }
+        else
+        {
+            await StartWithFallbackAsync(fileName, arguments, workingDirectory, environment, width, height, ct);
+        }
+    }
+    
+    /// <summary>
+    /// Uses native library for proper PTY spawning with setsid/TIOCSCTTY.
+    /// This is required for tmux, screen, and other programs that need a proper controlling terminal.
+    /// </summary>
+    private async Task StartWithNativeSpawnAsync(
+        string fileName,
+        string[] arguments,
+        string? workingDirectory,
+        Dictionary<string, string> environment,
+        int width,
+        int height,
+        CancellationToken ct)
+    {
+        // Allocate buffer for slave name
+        var slaveNameBuffer = new byte[256];
+        
+        // Open PTY using native library (handles posix_openpt, grantpt, unlockpt, ptsname)
+        var result = pty_open(out _masterFd, slaveNameBuffer, slaveNameBuffer.Length, width, height);
+        if (result < 0)
+        {
+            throw new InvalidOperationException($"pty_open failed with error: {Marshal.GetLastWin32Error()}");
+        }
+        
+        // Extract slave name from buffer
+        int nullIndex = Array.IndexOf(slaveNameBuffer, (byte)0);
+        _slaveName = System.Text.Encoding.UTF8.GetString(slaveNameBuffer, 0, nullIndex >= 0 ? nullIndex : slaveNameBuffer.Length);
+        
+        // Make master non-blocking for async reads
+        SetNonBlocking(_masterFd);
+        
+        // Resolve executable path
+        string resolvedPath = ResolveExecutablePath(fileName);
+        
+        // Build argv array: [program, arg1, arg2, ..., NULL]
+        var argv = new string[arguments.Length + 2];
+        argv[0] = resolvedPath;
+        for (int i = 0; i < arguments.Length; i++)
+        {
+            argv[i + 1] = arguments[i];
+        }
+        // Last element is implicitly null for P/Invoke
+        
+        // Build envp array if environment was customized
+        string[]? envp = null;
+        if (environment.Count > 0)
+        {
+            // Get current environment and merge with custom
+            var envDict = new Dictionary<string, string>();
+            foreach (var entry in System.Environment.GetEnvironmentVariables())
+            {
+                if (entry is System.Collections.DictionaryEntry de)
+                {
+                    envDict[de.Key?.ToString() ?? ""] = de.Value?.ToString() ?? "";
+                }
+            }
+            foreach (var (key, value) in environment)
+            {
+                envDict[key] = value;
+            }
+            
+            envp = new string[envDict.Count + 1];
+            int i = 0;
+            foreach (var (key, value) in envDict)
+            {
+                envp[i++] = $"{key}={value}";
+            }
+            // Last element is implicitly null
+        }
+        
+        // Spawn the child process with proper PTY setup
+        result = pty_spawn(
+            resolvedPath,
+            argv,
+            envp,
+            _slaveName,
+            workingDirectory ?? System.Environment.CurrentDirectory,
+            out _childPid);
+        
+        if (result < 0)
+        {
+            Close(_masterFd);
+            _masterFd = -1;
+            throw new InvalidOperationException($"pty_spawn failed with error: {Marshal.GetLastWin32Error()}");
+        }
+        
+        // Small delay to let child process initialize
+        await Task.Delay(50, ct);
+    }
+    
+    /// <summary>
+    /// Fallback to managed PTY setup when native library is not available.
+    /// Note: This won't work correctly with tmux/screen.
+    /// </summary>
+    private async Task StartWithFallbackAsync(
         string fileName,
         string[] arguments,
         string? workingDirectory,
@@ -56,7 +170,7 @@ internal sealed partial class UnixPtyHandle : IPtyHandle
             Close(_masterFd);
             throw new InvalidOperationException($"ptsname failed with error: {Marshal.GetLastWin32Error()}");
         }
-        var slaveName = Marshal.PtrToStringAnsi(slaveNamePtr)!;
+        _slaveName = Marshal.PtrToStringAnsi(slaveNamePtr)!;
         
         // Set terminal size
         Resize(width, height);
@@ -69,19 +183,19 @@ internal sealed partial class UnixPtyHandle : IPtyHandle
         allArgs.AddRange(arguments);
         
         // Create a temporary script file to launch the process with PTY attached
-        // This avoids complex shell quoting issues
-        _tempScriptPath = Path.Combine(Path.GetTempPath(), $"hex1b_pty_{Environment.ProcessId}_{Guid.NewGuid():N}.sh");
+        var tempScriptPath = Path.Combine(Path.GetTempPath(), $"hex1b_pty_{System.Environment.ProcessId}_{Guid.NewGuid():N}.sh");
         
         // Build argument array variable assignments for proper escaping
-        var argAssignments = new StringBuilder();
+        var argAssignments = new System.Text.StringBuilder();
         for (int i = 0; i < allArgs.Count; i++)
         {
             argAssignments.AppendLine($"args[{i}]={EscapeShellArg(allArgs[i])}");
         }
         
+        // Note: This fallback doesn't use setsid/TIOCSCTTY, so tmux won't work properly
         var scriptContent = $@"#!/bin/bash
 # Redirect stdio to the slave PTY
-exec < ""{slaveName}"" > ""{slaveName}"" 2>&1
+exec < ""{_slaveName}"" > ""{_slaveName}"" 2>&1
 
 # Build args array
 declare -a args
@@ -90,21 +204,21 @@ declare -a args
 # Execute the command
 exec ""${{args[@]}}""
 ";
-        await File.WriteAllTextAsync(_tempScriptPath, scriptContent, ct);
+        await File.WriteAllTextAsync(tempScriptPath, scriptContent, ct);
         
         // Make the script executable
-        Chmod(_tempScriptPath, 0x1ED); // 0755
+        Chmod(tempScriptPath, 0x1ED); // 0755
 
-        var startInfo = new ProcessStartInfo
+        var startInfo = new System.Diagnostics.ProcessStartInfo
         {
             FileName = "/bin/bash",
-            Arguments = _tempScriptPath,
+            Arguments = tempScriptPath,
             UseShellExecute = false,
             RedirectStandardInput = false,
             RedirectStandardOutput = false,
             RedirectStandardError = false,
             CreateNoWindow = true,
-            WorkingDirectory = workingDirectory ?? Environment.CurrentDirectory
+            WorkingDirectory = workingDirectory ?? System.Environment.CurrentDirectory
         };
         
         // Set environment variables
@@ -113,14 +227,21 @@ exec ""${{args[@]}}""
             startInfo.Environment[key] = value;
         }
         
-        _helperProcess = Process.Start(startInfo);
-        if (_helperProcess == null)
+        var process = System.Diagnostics.Process.Start(startInfo);
+        if (process == null)
         {
             Close(_masterFd);
-            throw new InvalidOperationException("Failed to start helper process");
+            throw new InvalidOperationException("Failed to start process");
         }
         
-        _childPid = _helperProcess.Id;
+        _childPid = process.Id;
+        
+        // Clean up temp script after a delay
+        _ = Task.Run(async () =>
+        {
+            await Task.Delay(1000);
+            try { File.Delete(tempScriptPath); } catch { }
+        }, CancellationToken.None);
         
         // Small delay to let the child set up
         await Task.Delay(50, ct);
@@ -130,6 +251,44 @@ exec ""${{args[@]}}""
     {
         // Escape single quotes by replacing ' with '\''
         return "'" + arg.Replace("'", "'\\''") + "'";
+    }
+    
+    private static string ResolveExecutablePath(string fileName)
+    {
+        // If it's an absolute or relative path, return as-is
+        if (fileName.Contains('/'))
+        {
+            return Path.GetFullPath(fileName);
+        }
+        
+        // Search PATH
+        var pathEnv = System.Environment.GetEnvironmentVariable("PATH") ?? "";
+        foreach (var dir in pathEnv.Split(':'))
+        {
+            var fullPath = Path.Combine(dir, fileName);
+            if (File.Exists(fullPath))
+            {
+                return fullPath;
+            }
+        }
+        
+        // Not found in PATH, return as-is and let execve fail with proper error
+        return fileName;
+    }
+    
+    private static bool IsNativeLibraryAvailable()
+    {
+        try
+        {
+            // Try to call a simple function to verify library is loaded
+            var buffer = new byte[256];
+            // Just check if the function exists - don't actually call it
+            return NativeLibrary.TryLoad("ptyspawn", typeof(UnixPtyHandle).Assembly, null, out _);
+        }
+        catch
+        {
+            return false;
+        }
     }
     
     public async ValueTask<ReadOnlyMemory<byte>> ReadAsync(CancellationToken ct)
@@ -172,7 +331,7 @@ exec ""${{args[@]}}""
             }
             
             // Timeout - check if child is still alive
-            if (_helperProcess?.HasExited == true)
+            if (_childPid > 0 && !IsChildRunning(_childPid))
             {
                 // Child exited - try to read any remaining buffered data
                 var remainingBytes = Read(_masterFd, _readBuffer, _readBuffer.Length);
@@ -226,42 +385,57 @@ exec ""${{args[@]}}""
     
     public void Kill(int signal)
     {
-        if (_helperProcess is { HasExited: false })
+        if (_childPid > 0 && IsChildRunning(_childPid))
         {
-            // For SIGTERM/SIGKILL, use .NET's Kill method
-            if (signal == SIGTERM || signal == SIGKILL)
-            {
-                try
-                {
-                    _helperProcess.Kill(entireProcessTree: true);
-                }
-                catch
-                {
-                    // Ignore - process may have already exited
-                }
-            }
-            else if (_childPid > 0)
-            {
-                // For other signals, use kill()
-                _ = KillProcess(_childPid, signal);
-            }
+            // Use kill() syscall to send signal to child process
+            _ = KillProcess(_childPid, signal);
         }
+    }
+    
+    private static bool IsChildRunning(int pid)
+    {
+        // kill(pid, 0) checks if process exists without sending a signal
+        return KillProcess(pid, 0) == 0;
     }
     
     public async Task<int> WaitForExitAsync(CancellationToken ct)
     {
-        if (_helperProcess == null)
+        if (_childPid <= 0)
             return -1;
         
-        try
+        // Poll for child exit
+        while (!ct.IsCancellationRequested)
         {
-            await _helperProcess.WaitForExitAsync(ct);
-            return _helperProcess.ExitCode;
+            if (_useNativeSpawn)
+            {
+                // Use native pty_wait with timeout
+                int status;
+                int result = pty_wait(_childPid, 100, out status);
+                if (result == 0)
+                {
+                    // Child exited
+                    return status;
+                }
+                else if (result < 0)
+                {
+                    // Error
+                    return -1;
+                }
+                // result == 1 means timeout, continue polling
+            }
+            else
+            {
+                // Fallback: poll with kill(0)
+                if (!IsChildRunning(_childPid))
+                {
+                    // Child exited - we don't have exit code in this case
+                    return 0;
+                }
+                await Task.Delay(100, ct);
+            }
         }
-        catch (OperationCanceledException)
-        {
-            return -1;
-        }
+        
+        return -1;
     }
     
     public ValueTask DisposeAsync()
@@ -277,31 +451,48 @@ exec ""${{args[@]}}""
             _masterFd = -1;
         }
         
-        // Kill child if still running
-        if (_helperProcess is { HasExited: false })
+        // Kill child if still running and wait for it to die
+        if (_childPid > 0 && IsChildRunning(_childPid))
         {
-            try
+            // Send SIGKILL (can't be ignored)
+            _ = KillProcess(_childPid, SIGKILL);
+            
+            // Wait briefly for process to terminate (up to 100ms)
+            for (int i = 0; i < 10 && IsChildRunning(_childPid); i++)
             {
-                _helperProcess.Kill(entireProcessTree: true);
+                Thread.Sleep(10);
             }
-            catch
+            
+            // Reap the zombie process if using native spawn
+            if (_useNativeSpawn)
             {
-                // Ignore - process may have already exited
+                _ = pty_wait(_childPid, 100, out _);
             }
-        }
-        
-        _helperProcess?.Dispose();
-        
-        // Clean up temp script file
-        if (_tempScriptPath != null)
-        {
-            try { File.Delete(_tempScriptPath); } catch { }
         }
         
         return ValueTask.CompletedTask;
     }
     
     // === P/Invoke declarations ===
+    
+    // Native ptyspawn library functions
+    [LibraryImport("ptyspawn", EntryPoint = "pty_open", SetLastError = true)]
+    private static partial int pty_open(out int masterFd, byte[] slaveName, int slaveNameLen, int width, int height);
+    
+    [LibraryImport("ptyspawn", EntryPoint = "pty_spawn", SetLastError = true, StringMarshalling = StringMarshalling.Utf8)]
+    private static partial int pty_spawn(
+        string path,
+        [MarshalAs(UnmanagedType.LPArray, ArraySubType = UnmanagedType.LPUTF8Str)] string[] argv,
+        [MarshalAs(UnmanagedType.LPArray, ArraySubType = UnmanagedType.LPUTF8Str)] string[]? envp,
+        string slaveName,
+        string workingDir,
+        out int pid);
+    
+    [LibraryImport("ptyspawn", EntryPoint = "pty_wait", SetLastError = true)]
+    private static partial int pty_wait(int pid, int timeoutMs, out int status);
+    
+    [LibraryImport("ptyspawn", EntryPoint = "pty_resize", SetLastError = true)]
+    private static partial int pty_resize(int masterFd, int width, int height);
     
     private const int SIGTERM = 15;
     private const int SIGKILL = 9;

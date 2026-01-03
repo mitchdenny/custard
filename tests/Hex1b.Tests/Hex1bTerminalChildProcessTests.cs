@@ -1241,6 +1241,321 @@ public class Hex1bTerminalChildProcessTests
     }
     
     /// <summary>
+    /// Stress test that launches bash, starts tmux, splits the pane vertically,
+    /// runs globe on one side and mapscii on the other.
+    /// This exercises:
+    /// - Tmux multiplexer integration
+    /// - Multiple concurrent TUI applications
+    /// - Vertical pane splitting
+    /// - Complex terminal rendering with multiple viewports
+    /// This test is primarily for visual validation and is not intended to be kept long-term.
+    /// Requires: tmux, telnet (for mapscii), docker (for globe), and git.
+    /// </summary>
+    [Fact]
+    [Trait("Category", "Unix")]
+    [Trait("Category", "StressTest")]
+    [Trait("Category", "Docker")]
+    public async Task StressTest_TmuxSplitGlobeAndMapscii()
+    {
+        if (!IsUnix) return; // Unix-only test
+        
+        // Check required tools
+        var tmuxPath = await RunCommandAsync("which", ["tmux"]);
+        if (string.IsNullOrWhiteSpace(tmuxPath) || !File.Exists(tmuxPath.Trim()))
+        {
+            // Skip if tmux is not installed
+            return;
+        }
+        
+        var telnetPath = await RunCommandAsync("which", ["telnet"]);
+        if (string.IsNullOrWhiteSpace(telnetPath) || !File.Exists(telnetPath.Trim()))
+        {
+            // Skip if telnet is not installed (needed for mapscii)
+            return;
+        }
+        
+        var dockerPath = await RunCommandAsync("which", ["docker"]);
+        if (string.IsNullOrWhiteSpace(dockerPath) || !File.Exists(dockerPath.Trim()))
+        {
+            // Skip if docker is not installed (needed for globe)
+            return;
+        }
+        
+        // Create temp directory for the globe clone
+        var tempDir = Path.Combine(Path.GetTempPath(), $"tmux_split_test_{Guid.NewGuid()}");
+        var castFile = Path.Combine(Path.GetTempPath(), $"tmux_split_{Guid.NewGuid()}.cast");
+        
+        try
+        {
+            Directory.CreateDirectory(tempDir);
+            
+            // Launch interactive bash - tmux will be started inside
+            await using var process = new Hex1bTerminalChildProcess(
+                "/bin/bash",
+                ["--norc", "--noprofile"],
+                workingDirectory: tempDir,
+                inheritEnvironment: true,
+                initialWidth: 160, // Wide enough for split panes
+                initialHeight: 50
+            );
+            
+            await process.StartAsync();
+            
+            // Create terminal options with Asciinema recorder
+            var options = new Hex1bTerminalOptions
+            {
+                Width = 160,
+                Height = 50,
+                WorkloadAdapter = process,
+                PresentationAdapter = new CapturingTestPresentationAdapter(160, 50)
+            };
+            var recorder = options.AddAsciinemaRecorder(castFile, new AsciinemaRecorderOptions
+            {
+                Title = "Tmux Split: Globe + Mapscii Stress Test",
+                CaptureInput = true
+            });
+            
+            // Create Hex1bTerminal
+            using var terminal = new Hex1bTerminal(options);
+            
+            // Step 1: Wait for initial bash prompt
+            var promptFound = await WaitForConditionAsync(
+                () => terminal.CreateSnapshot().ContainsText("$") || 
+                      terminal.CreateSnapshot().ContainsText("#"),
+                TimeSpan.FromSeconds(10),
+                TestContext.Current.CancellationToken
+            );
+            
+            if (!promptFound)
+            {
+                TestCaptureHelper.Capture(terminal, "tmux-split-prompt-timeout");
+                await TestCaptureHelper.CaptureCastAsync(recorder, "tmux-split-prompt-timeout", TestContext.Current.CancellationToken);
+                Assert.Fail("Timed out waiting for initial bash prompt.");
+            }
+            
+            TestCaptureHelper.Capture(terminal, "tmux-split-01-initial-prompt");
+            
+            // Step 2: Clone globe repo first (so it's ready when we need it)
+            await process.WriteInputAsync(Encoding.UTF8.GetBytes($"git clone --depth 1 https://github.com/adamsky/globe {tempDir}/globe 2>&1\n"));
+            
+            var cloneComplete = await WaitForConditionAsync(
+                () => Directory.Exists(Path.Combine(tempDir, "globe")) ||
+                      terminal.CreateSnapshot().ContainsText("fatal:"),
+                TimeSpan.FromSeconds(60),
+                TestContext.Current.CancellationToken
+            );
+            
+            // Wait for prompt to return
+            await WaitForConditionAsync(
+                () => terminal.CreateSnapshot().ContainsText("$") || 
+                      terminal.CreateSnapshot().ContainsText("#"),
+                TimeSpan.FromSeconds(10),
+                TestContext.Current.CancellationToken
+            );
+            
+            TestCaptureHelper.Capture(terminal, "tmux-split-02-after-clone");
+            
+            if (!Directory.Exists(Path.Combine(tempDir, "globe")))
+            {
+                await TestCaptureHelper.CaptureCastAsync(recorder, "tmux-split-clone-failed", TestContext.Current.CancellationToken);
+                Assert.Fail("Failed to clone globe repository.");
+            }
+            
+            // Step 3: Build the globe docker image
+            await process.WriteInputAsync(Encoding.UTF8.GetBytes($"cd {tempDir}/globe && docker build -t globe . 2>&1\n"));
+            
+            var buildComplete = await WaitForConditionAsync(
+                () => terminal.CreateSnapshot().ContainsText("Successfully") ||
+                      terminal.CreateSnapshot().ContainsText("naming to docker.io") ||
+                      terminal.CreateSnapshot().ContainsText("ERROR") ||
+                      terminal.CreateSnapshot().ContainsText("error:"),
+                TimeSpan.FromSeconds(300),
+                TestContext.Current.CancellationToken
+            );
+            
+            // Wait for prompt
+            await WaitForConditionAsync(
+                () => terminal.CreateSnapshot().ContainsText("$") || 
+                      terminal.CreateSnapshot().ContainsText("#"),
+                TimeSpan.FromSeconds(30),
+                TestContext.Current.CancellationToken
+            );
+            
+            TestCaptureHelper.Capture(terminal, "tmux-split-03-after-docker-build");
+            
+            // Step 4: Start tmux with a new session and attach in one command
+            // Using -A flag to attach-or-create to avoid issues with detached sessions
+            await process.WriteInputAsync(Encoding.UTF8.GetBytes("tmux new-session -s split_test 2>&1\n"));
+            
+            // Wait for tmux to fully initialize
+            await Task.Delay(3000, TestContext.Current.CancellationToken);
+            
+            // Capture tmux state
+            TestCaptureHelper.Capture(terminal, "tmux-split-04-tmux-started");
+            
+            // Debug: Check what's in the buffer after tmux starts
+            var tmuxSnapshot = terminal.CreateSnapshot();
+            var fullText = tmuxSnapshot.GetScreenText();
+            TestContext.Current.TestOutputHelper?.WriteLine($"After tmux start, screen content (first 500 chars): {fullText[..Math.Min(500, fullText.Length)]}");
+            
+            // Check if tmux is running (should see status bar or fresh prompt)
+            var hasTmuxStatusBar = tmuxSnapshot.ContainsText("[split_test]") ||
+                                    tmuxSnapshot.ContainsText("[0]") || 
+                                    tmuxSnapshot.ContainsText("tmux");
+            var hasOldContent = tmuxSnapshot.ContainsText("docker build") ||
+                                tmuxSnapshot.ContainsText("git clone");
+            
+            TestContext.Current.TestOutputHelper?.WriteLine($"Has tmux status: {hasTmuxStatusBar}, Has old content: {hasOldContent}");
+            
+            // Step 5: Split pane vertically (creates left and right panes)
+            // Ctrl+b % is the default key binding for vertical split
+            await process.WriteInputAsync(new byte[] { 0x02 }); // Ctrl+B (tmux prefix)
+            await Task.Delay(100, TestContext.Current.CancellationToken);
+            await process.WriteInputAsync(Encoding.UTF8.GetBytes("%")); // Vertical split
+            
+            await Task.Delay(1000, TestContext.Current.CancellationToken);
+            TestCaptureHelper.Capture(terminal, "tmux-split-05-after-split");
+            
+            // Step 6: In the right pane (current), start mapscii
+            await process.WriteInputAsync(Encoding.UTF8.GetBytes("telnet mapscii.me\n"));
+            
+            // Wait for mapscii to start loading
+            var mapsciiStarting = await WaitForConditionAsync(
+                () => terminal.CreateSnapshot().ContainsText("Trying") ||
+                      terminal.CreateSnapshot().ContainsText("Connected") ||
+                      terminal.CreateSnapshot().ContainsText("center:"),
+                TimeSpan.FromSeconds(30),
+                TestContext.Current.CancellationToken
+            );
+            
+            // Wait for the map to load (look for zoom level indicator)
+            var mapsciiLoaded = await WaitForConditionAsync(
+                () => terminal.CreateSnapshot().ContainsText("center:"),
+                TimeSpan.FromSeconds(30),
+                TestContext.Current.CancellationToken
+            );
+            
+            await Task.Delay(2000, TestContext.Current.CancellationToken);
+            TestCaptureHelper.Capture(terminal, "tmux-split-06-mapscii-loaded");
+            
+            // Step 7: Switch to left pane (Ctrl+b Left Arrow)
+            await process.WriteInputAsync(new byte[] { 0x02 }); // Ctrl+B (tmux prefix)
+            await Task.Delay(100, TestContext.Current.CancellationToken);
+            await process.WriteInputAsync(Encoding.UTF8.GetBytes("\x1b[D")); // Left arrow
+            
+            await Task.Delay(500, TestContext.Current.CancellationToken);
+            TestCaptureHelper.Capture(terminal, "tmux-split-07-switched-to-left");
+            
+            // Step 8: Run globe in the left pane
+            await process.WriteInputAsync(Encoding.UTF8.GetBytes("docker run -it --rm globe -i -c 1\n"));
+            
+            // Wait for globe to start (look for dots or circles)
+            var globeStarted = await WaitForConditionAsync(
+                () => terminal.CreateSnapshot().ContainsText("●") ||
+                      terminal.CreateSnapshot().ContainsText("○") ||
+                      terminal.CreateSnapshot().ContainsText("*"),
+                TimeSpan.FromSeconds(30),
+                TestContext.Current.CancellationToken
+            );
+            
+            // Give everything time to render
+            await Task.Delay(3000, TestContext.Current.CancellationToken);
+            TestCaptureHelper.Capture(terminal, "tmux-split-08-both-running");
+            
+            // Step 9: Take multiple snapshots of the split view
+            for (int i = 0; i < 3; i++)
+            {
+                await Task.Delay(2000, TestContext.Current.CancellationToken);
+                TestCaptureHelper.Capture(terminal, $"tmux-split-09-frame-{i}");
+            }
+            
+            // Step 10: Verify we have content from both applications
+            var finalSnapshot = terminal.CreateSnapshot();
+            var hasMapContent = finalSnapshot.ContainsText("center:") || 
+                                finalSnapshot.ContainsText("zoom:");
+            var hasGlobeContent = finalSnapshot.ContainsText("●") || 
+                                  finalSnapshot.ContainsText("○") ||
+                                  finalSnapshot.ContainsText("*") ||
+                                  finalSnapshot.ContainsText(".");
+            
+            TestCaptureHelper.Capture(terminal, "tmux-split-10-final");
+            
+            // Step 11: Cleanup - quit globe first (Ctrl+C)
+            await process.WriteInputAsync(new byte[] { 0x03 }); // Ctrl+C
+            await Task.Delay(1000, TestContext.Current.CancellationToken);
+            
+            // Switch to right pane to quit mapscii
+            await process.WriteInputAsync(new byte[] { 0x02 }); // Ctrl+B
+            await Task.Delay(100, TestContext.Current.CancellationToken);
+            await process.WriteInputAsync(Encoding.UTF8.GetBytes("\x1b[C")); // Right arrow
+            await Task.Delay(500, TestContext.Current.CancellationToken);
+            
+            // Quit mapscii
+            await process.WriteInputAsync(Encoding.UTF8.GetBytes("q"));
+            await Task.Delay(1000, TestContext.Current.CancellationToken);
+            
+            TestCaptureHelper.Capture(terminal, "tmux-split-11-after-quit-apps");
+            
+            // Step 12: Kill tmux session
+            await process.WriteInputAsync(new byte[] { 0x02 }); // Ctrl+B
+            await Task.Delay(100, TestContext.Current.CancellationToken);
+            await process.WriteInputAsync(Encoding.UTF8.GetBytes(":")); // Command mode
+            await Task.Delay(100, TestContext.Current.CancellationToken);
+            await process.WriteInputAsync(Encoding.UTF8.GetBytes("kill-session\n"));
+            
+            await Task.Delay(1000, TestContext.Current.CancellationToken);
+            
+            // Exit bash
+            await process.WriteInputAsync(Encoding.UTF8.GetBytes("exit\n"));
+            
+            // Wait for process to exit
+            var exitCts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+            try
+            {
+                await process.WaitForExitAsync(exitCts.Token);
+            }
+            catch (OperationCanceledException)
+            {
+                process.Kill();
+            }
+            
+            // Flush and capture the Asciinema recording
+            await TestCaptureHelper.CaptureCastAsync(recorder, "tmux-split", TestContext.Current.CancellationToken);
+            
+            // Assert that we saw content from both apps
+            Assert.True(mapsciiLoaded || hasMapContent, "Mapscii should have loaded in the right pane");
+            Assert.True(globeStarted || hasGlobeContent, "Globe should have started in the left pane");
+        }
+        finally
+        {
+            // Cleanup temp directory
+            try 
+            { 
+                if (Directory.Exists(tempDir))
+                    Directory.Delete(tempDir, recursive: true); 
+            } 
+            catch { }
+            
+            // Cleanup temp file
+            try { File.Delete(castFile); } catch { }
+            
+            // Cleanup docker image
+            try 
+            {
+                await RunCommandAsync("docker", ["rmi", "-f", "globe"]);
+            }
+            catch { }
+            
+            // Kill any orphaned tmux sessions
+            try
+            {
+                await RunCommandAsync("tmux", ["kill-session", "-t", "split_test"]);
+            }
+            catch { }
+        }
+    }
+    
+    /// <summary>
     /// Sends a mouse event to the PTY process using SGR extended mouse format.
     /// </summary>
     private static async Task SendMouseEventAsync(

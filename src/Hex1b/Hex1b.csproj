@@ -48,4 +48,24 @@
     <None Include="README.md" Pack="true" PackagePath="/" />
   </ItemGroup>
 
+  <!-- Native PTY spawn library for Unix platforms -->
+  <ItemGroup Condition="Exists('Terminal\runtimes')">
+    <None Include="Terminal\runtimes\**\*" Pack="true" PackagePath="runtimes" />
+  </ItemGroup>
+  
+  <!-- Copy native libraries to output for local development -->
+  <ItemGroup Condition="'$(RuntimeIdentifier)' == 'linux-x64' or ('$(RuntimeIdentifier)' == '' and $([MSBuild]::IsOSPlatform('Linux')) and '$([System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture)' == 'X64')">
+    <None Include="Terminal\runtimes\linux-x64\native\libptyspawn.so" 
+          Condition="Exists('Terminal\runtimes\linux-x64\native\libptyspawn.so')"
+          CopyToOutputDirectory="PreserveNewest" 
+          Link="libptyspawn.so" />
+  </ItemGroup>
+  
+  <ItemGroup Condition="'$(RuntimeIdentifier)' == 'osx-x64' or '$(RuntimeIdentifier)' == 'osx-arm64' or ('$(RuntimeIdentifier)' == '' and $([MSBuild]::IsOSPlatform('OSX')))">
+    <None Include="Terminal\runtimes\osx-x64\native\libptyspawn.dylib" 
+          Condition="Exists('Terminal\runtimes\osx-x64\native\libptyspawn.dylib')"
+          CopyToOutputDirectory="PreserveNewest" 
+          Link="libptyspawn.dylib" />
+  </ItemGroup>
+
 </Project>

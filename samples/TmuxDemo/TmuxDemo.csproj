@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Hex1b\Hex1b.csproj" />
+  </ItemGroup>
+
+  <!-- Copy native PTY library for Linux -->
+  <ItemGroup Condition="$([MSBuild]::IsOSPlatform('Linux'))">
+    <None Include="..\..\src\Hex1b\Terminal\runtimes\linux-x64\native\libptyspawn.so" 
+          Condition="Exists('..\..\src\Hex1b\Terminal\runtimes\linux-x64\native\libptyspawn.so')"
+          CopyToOutputDirectory="PreserveNewest" 
+          Link="libptyspawn.so" />
+  </ItemGroup>
+
+</Project>

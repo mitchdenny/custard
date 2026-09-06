@@ -4,6 +4,8 @@ using Hex1b;
 using Hex1b.Input;
 using Hex1b.Layout;
 using Hex1b.Nodes;
+using Hex1b.Sixel;
+using Hex1b.Surfaces;
 using Hex1b.Widgets;
 
 namespace Hex1b.Tests;
@@ -40,13 +42,15 @@ public class SixelNodeTests
         });
 
     [TestMethod]
-    public async Task Measure_WithRequestedDimensions_ReturnsRequestedSize()
+    public void Measure_WithRequestedDimensions_ReturnsRequestedSize()
     {
         var node = new SixelNode
         {
             RequestedWidth = 50,
             RequestedHeight = 25
         };
+        node.SetPixels(new SixelPixelBuffer(80, 40));
+        node.SetTerminalCapabilities(CreateSixelEnabledWorkload().Capabilities);
 
         var size = node.Measure(Constraints.Unbounded);
 
@@ -55,30 +59,40 @@ public class SixelNodeTests
     }
 
     [TestMethod]
-    public async Task Measure_WithoutRequestedDimensions_ReturnsDefaultSize()
+    public void Measure_WithoutRequestedDimensions_UsesSixelCellMetrics()
     {
         var node = new SixelNode();
+        node.SetPixels(new SixelPixelBuffer(81, 41));
+        node.SetTerminalCapabilities(new TerminalCapabilities
+        {
+            SixelSupport = SixelPresentationSupport.Native,
+            SixelCellMetrics = new SixelCellMetrics(
+                10,
+                20,
+                SixelCellMetricsSource.Direct,
+                SixelCellMetricsReliability.Authoritative)
+        });
 
         var size = node.Measure(Constraints.Unbounded);
 
-        // Default size is 40x20
-        Assert.AreEqual(40, size.Width);
-        Assert.AreEqual(20, size.Height);
+        Assert.AreEqual(9, size.Width);
+        Assert.AreEqual(3, size.Height);
     }
 
     [TestMethod]
-    public async Task Measure_WithFallback_ReturnsFallbackSize()
+    public void Measure_WithUnknownSupport_ReturnsFallbackSize()
     {
         var fallbackNode = new TextBlockNode { Text = "Fallback text" };
         var node = new SixelNode
         {
             Fallback = fallbackNode
         };
+        node.SetPixels(new SixelPixelBuffer(400, 400));
 
         var size = node.Measure(Constraints.Unbounded);
 
-        // Should return the larger of sixel or fallback size
-        Assert.IsTrue(size.Width > 0);
+        Assert.AreEqual("Fallback text".Length, size.Width);
+        Assert.AreEqual(1, size.Height);
     }
 
     [TestMethod]
@@ -163,9 +177,53 @@ public class SixelNodeTests
         
         var focusables = node.GetFocusableNodes().ToList();
         
-        // Fallback focusables are always returned since we don't know at this point
-        // whether sixel will be rendered or not
         Assert.Contains(buttonNode, focusables);
+    }
+
+    [TestMethod]
+    public void GetFocusableNodes_WithNativeSupport_ExcludesFallbackFocusables()
+    {
+        var buttonNode = new ButtonNode { Label = "Test" };
+        var node = new SixelNode { Fallback = buttonNode };
+        node.SetTerminalCapabilities(new TerminalCapabilities
+        {
+            SixelSupport = SixelPresentationSupport.Native
+        });
+
+        Assert.IsEmpty(node.GetFocusableNodes());
+    }
+
+    [TestMethod]
+    public void IsSixelSupported_TypedSupportTakesPrecedenceOverLegacyFlag()
+    {
+        Assert.IsFalse(SixelNode.IsSixelSupported(new TerminalCapabilities
+        {
+            SupportsSixel = true,
+            SixelSupport = SixelPresentationSupport.None
+        }));
+        Assert.IsTrue(SixelNode.IsSixelSupported(new TerminalCapabilities
+        {
+            SupportsSixel = false,
+            SixelSupport = SixelPresentationSupport.Headless
+        }));
+        Assert.IsTrue(SixelNode.IsSixelSupported(new TerminalCapabilities
+        {
+            SupportsSixel = true,
+            SixelSupport = SixelPresentationSupport.Unknown
+        }));
+    }
+
+    [TestMethod]
+    public void SixelWidget_PreEncodedData_ValidatesAndFramesOnce()
+    {
+        var body = "#0;2;100;0;0#0~~~~~~";
+        var fromBody = new SixelWidget(body, new TextBlockWidget("fallback"));
+        var framed = new SixelWidget($"\x1bPq{body}\x1b\\", new TextBlockWidget("fallback"));
+
+        Assert.AreEqual($"\x1bPq{body}\x1b\\", fromBody.ImageData);
+        Assert.AreEqual(fromBody.ImageData, framed.ImageData);
+        Assert.Throws<ArgumentException>(() =>
+            new SixelWidget("\x1bPqmissing-terminator", new TextBlockWidget("fallback")));
     }
 
     [TestMethod]

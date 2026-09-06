@@ -1,5 +1,6 @@
 using Hex1b;
 using Hex1b.Automation;
+using Hex1b.Sixel;
 using Hex1b.Surfaces;
 using Hex1b.Theming;
 using Hex1b.Tokens;
@@ -1637,11 +1638,19 @@ public class SixelVisibilityTests
                 buffer[x, y] = Rgba32.FromRgb((byte)(x % 256), (byte)(y % 256), 128);
         
         var payload = SixelEncoder.Encode(buffer);
+        var parseResult = SixelParser.ParsePayload(payload);
         
         // Use the store to create a tracked object
-        return _store.GetOrCreateSixel(payload, 
+        return _store.GetOrCreateSixel(
+            payload,
             (pixelWidth + 9) / 10,   // Approximate cell width
-            (pixelHeight + 19) / 20); // Approximate cell height
+            (pixelHeight + 19) / 20, // Approximate cell height
+            parseResult,
+            cellMetrics: new SixelCellMetrics(
+                10,
+                20,
+                SixelCellMetricsSource.Direct,
+                SixelCellMetricsReliability.Authoritative));
     }
 
     #endregion

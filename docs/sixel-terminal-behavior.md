@@ -6,6 +6,7 @@
 > **Snapshots, exports, recording, and replay**: [#456](https://github.com/mitchdenny/hex1b/issues/456)
 > **Capability discovery and protocol cell metrics**: [#455](https://github.com/mitchdenny/hex1b/issues/455)
 > **Differential conformance corpus**: [#457](https://github.com/mitchdenny/hex1b/issues/457)
+> **Widget and Surface integration**: [#480](https://github.com/mitchdenny/hex1b/issues/480)
 > **Baseline**: DEC VT340
 
 ## Purpose
@@ -23,6 +24,12 @@ contract. The finite differential corpus in
 `tests/Hex1b.Tests/TestData/Sixel/Conformance/terminal-reference-matrix.json`
 records the primary reference matrix, normalized expected outcomes, provenance,
 and the dedicated regression suites covering the rest of the terminal contract.
+
+The application-facing `SixelWidget` contract is documented separately in
+[`src/content/guide/widgets/sixel.md`](../src/content/guide/widgets/sixel.md).
+Direct render contexts emit normalized native Sixel, while Surface-backed
+contexts retain structured Sixel content for deterministic diffing, clipping,
+overlap, caching, movement, replacement, removal, and resize behavior.
 
 ## Governing decisions
 

@@ -28,7 +28,7 @@ public sealed class SixelData
     private bool _decodeAttempted;
 
     /// <summary>
-    /// Gets the retained DCS content between the introducer and string terminator.
+    /// Gets the complete framed DCS sequence used for rendering.
     /// </summary>
     public string Payload { get; }
 
@@ -252,6 +252,23 @@ public sealed class SixelData
         width = image.Width;
         height = image.Height;
         return width > 0 && height > 0;
+    }
+
+    internal SixelExtent GetRenderedPixelExtent()
+    {
+        if (ParseResult.LogicalCanvasExtent is { Width: > 0, Height: > 0 } logical)
+        {
+            return logical;
+        }
+
+        if (TryGetRasterDimensions(out var width, out var height))
+        {
+            return new SixelExtent(width, height);
+        }
+
+        return new SixelExtent(
+            (int)Math.Ceiling(WidthInCells * CellMetrics.SafeWidth),
+            (int)Math.Ceiling(HeightInCells * CellMetrics.SafeHeight));
     }
 
     /// <summary>

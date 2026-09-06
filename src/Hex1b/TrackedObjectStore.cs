@@ -19,8 +19,15 @@ namespace Hex1b;
 /// </remarks>
 internal sealed class TrackedObjectStore
 {
-    // Content-addressable storage for Sixel data, keyed by content hash
-    private readonly Dictionary<byte[], TrackedObject<SixelData>> _sixelByHash = new(ByteArrayComparer.Instance);
+    private readonly record struct SixelStoreKey(
+        string ContentHash,
+        int WidthInCells,
+        int HeightInCells,
+        SixelCellMetrics CellMetrics);
+
+    // A Sixel image's retained raster content is content-addressed, but its
+    // placement span and captured protocol metrics are also immutable state.
+    private readonly Dictionary<SixelStoreKey, TrackedObject<SixelData>> _sixelByKey = [];
     
     // Content-addressable storage for hyperlink data, keyed by content hash
     private readonly Dictionary<byte[], TrackedObject<HyperlinkData>> _hyperlinkByHash = new(ByteArrayComparer.Instance);
@@ -39,7 +46,7 @@ internal sealed class TrackedObjectStore
         {
             lock (_lock)
             {
-                return _sixelByHash.Count;
+                return _sixelByKey.Count;
             }
         }
     }
@@ -97,10 +104,16 @@ internal sealed class TrackedObjectStore
         SixelCellMetrics? cellMetrics = null)
     {
         var hash = SixelData.ComputeHash(payload, rasterPreparation?.Identity);
+        var capturedMetrics = cellMetrics ?? SixelCellMetrics.Unknown;
+        var key = new SixelStoreKey(
+            Convert.ToHexString(hash),
+            widthInCells,
+            heightInCells,
+            capturedMetrics);
 
         lock (_lock)
         {
-            if (_sixelByHash.TryGetValue(hash, out var existing))
+            if (_sixelByKey.TryGetValue(key, out var existing))
             {
                 // Found existing - add a reference and return it
                 existing.AddRef();
@@ -117,14 +130,14 @@ internal sealed class TrackedObjectStore
                 parseResult.DeclaredExtent.Height,
                 parseResult,
                 rasterPreparation: rasterPreparation,
-                cellMetrics: cellMetrics);
+                cellMetrics: capturedMetrics);
             
             // Create new tracked wrapper with removal callback
             var tracked = new TrackedObject<SixelData>(
                 sixelData,
-                onZeroRefs: obj => RemoveSixel(obj.Data));
+                onZeroRefs: obj => RemoveSixel(key, obj));
 
-            _sixelByHash[hash] = tracked;
+            _sixelByKey[key] = tracked;
             return tracked;
         }
     }
@@ -202,17 +215,21 @@ internal sealed class TrackedObjectStore
     {
         lock (_lock)
         {
-            _sixelByHash.Clear();
+            _sixelByKey.Clear();
             _hyperlinkByHash.Clear();
             _kgpByHash.Clear();
         }
     }
 
-    private void RemoveSixel(SixelData sixel)
+    private void RemoveSixel(SixelStoreKey key, TrackedObject<SixelData> tracked)
     {
         lock (_lock)
         {
-            _sixelByHash.Remove(sixel.ContentHash);
+            if (_sixelByKey.TryGetValue(key, out var current) &&
+                ReferenceEquals(current, tracked))
+            {
+                _sixelByKey.Remove(key);
+            }
         }
     }
 

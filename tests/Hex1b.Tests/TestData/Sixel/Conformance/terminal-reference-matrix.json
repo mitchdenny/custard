@@ -409,16 +409,5 @@
       ]
     }
   ],
-  "ignoredTests": [
-    {
-      "test": "Hex1b.Tests.SixelScalingIntegrationTests.SmpteColorBars_RendersCorrectlyAtScale",
-      "scope": "widget-emitter",
-      "reason": "Exercises SixelWidget and Surface emission, which is explicitly outside terminal-side issue #457."
-    },
-    {
-      "test": "Hex1b.Tests.SixelScalingIntegrationTests.Checkerboard_RendersCorrectlyAtScale",
-      "scope": "widget-emitter",
-      "reason": "Exercises SixelWidget and Surface emission, which is explicitly outside terminal-side issue #457."
-    }
-  ]
+  "ignoredTests": []
 }

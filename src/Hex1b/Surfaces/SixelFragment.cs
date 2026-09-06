@@ -30,11 +30,17 @@ public sealed class SixelFragment
     /// <summary>
     /// Gets whether this fragment represents the complete original sixel (no clipping).
     /// </summary>
-    public bool IsComplete => 
-        PixelRegion.X == 0 && 
-        PixelRegion.Y == 0 &&
-        PixelRegion.Width == OriginalSixel.PixelWidth &&
-        PixelRegion.Height == OriginalSixel.PixelHeight;
+    public bool IsComplete
+    {
+        get
+        {
+            var extent = OriginalSixel.GetRenderedPixelExtent();
+            return PixelRegion.X == 0
+                && PixelRegion.Y == 0
+                && PixelRegion.Width == extent.Width
+                && PixelRegion.Height == extent.Height;
+        }
+    }
 
     private string? _encodedPayload;
     private SixelPixelBuffer? _croppedPixels;
@@ -158,7 +164,15 @@ public sealed class SixelVisibility
     /// <summary>
     /// Gets whether this sixel is fully occluded (not visible at all).
     /// </summary>
-    public bool IsFullyOccluded => VisibleRegions.Count == 0;
+    public bool IsFullyOccluded
+    {
+        get
+        {
+            var contentBounds = GetVisibleContentBounds();
+            return contentBounds.IsEmpty ||
+                !VisibleRegions.Any(region => !region.Intersect(contentBounds).IsEmpty);
+        }
+    }
 
     /// <summary>
     /// Gets whether this sixel is fragmented (partially occluded, multiple visible regions).
@@ -177,11 +191,9 @@ public sealed class SixelVisibility
         // Initially fully visible
         var data = sixel.Data;
         
-        // Use pixel dimensions if available, otherwise estimate from cell dimensions
-        var pixelWidth = data.PixelWidth > 0 ? data.PixelWidth : data.WidthInCells * 10;
-        var pixelHeight = data.PixelHeight > 0 ? data.PixelHeight : data.HeightInCells * 20;
+        var extent = data.GetRenderedPixelExtent();
         
-        VisibleRegions = [new PixelRect(0, 0, pixelWidth, pixelHeight)];
+        VisibleRegions = [new PixelRect(0, 0, extent.Width, extent.Height)];
         IsFullyVisible = true;
     }
 
@@ -237,24 +249,55 @@ public sealed class SixelVisibility
         if (IsFullyOccluded)
             return [];
 
-        var fragments = new List<SixelFragment>();
         var data = Sixel.Data;
+        var extent = data.GetRenderedPixelExtent();
+        if (IsFullyVisible)
+        {
+            return
+            [
+                new SixelFragment(
+                    data,
+                    AnchorPosition.X,
+                    AnchorPosition.Y,
+                    new PixelRect(0, 0, extent.Width, extent.Height))
+            ];
+        }
+
+        var fragments = new List<SixelFragment>();
+        var contentBounds = GetVisibleContentBounds();
 
         foreach (var region in VisibleRegions)
         {
+            var visibleRegion = region.Intersect(contentBounds);
+            if (visibleRegion.IsEmpty)
+                continue;
+
             // Calculate cell position for this fragment using actual cell width
             // The pixel region is in the original sixel's coordinate space
-            var cellOffsetX = metrics.GetCellOffsetForPixel(region.X);
-            var cellOffsetY = region.Y / metrics.PixelHeight;
+            var cellOffsetX = metrics.GetCellOffsetForPixel(visibleRegion.X);
+            var cellOffsetY = visibleRegion.Y / metrics.PixelHeight;
             
             fragments.Add(new SixelFragment(
                 data,
                 AnchorPosition.X + cellOffsetX,
                 AnchorPosition.Y + cellOffsetY,
-                region));
+                visibleRegion));
         }
 
         return fragments;
+    }
+
+    private PixelRect GetVisibleContentBounds()
+    {
+        var data = Sixel.Data;
+        if (data.BackgroundMode == Hex1b.Sixel.SixelBackgroundMode.Transparent)
+        {
+            var painted = data.ParseResult.PaintedBounds;
+            return new PixelRect(painted.X, painted.Y, painted.Width, painted.Height);
+        }
+
+        var extent = data.GetRenderedPixelExtent();
+        return new PixelRect(0, 0, extent.Width, extent.Height);
     }
 
     private static Rect IntersectRects(Rect a, Rect b)

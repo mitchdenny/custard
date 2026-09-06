@@ -1,5 +1,6 @@
 using Hex1b.Layout;
 using Hex1b.Nodes;
+using Hex1b.Sixel;
 using Hex1b.Theming;
 
 namespace Hex1b.Surfaces;
@@ -275,6 +276,91 @@ public class SurfaceRenderContext : Hex1bRenderContext
             return;
 
         WriteToSurface(_cursorX, _cursorY, text, updateCursor: true);
+    }
+
+    /// <inheritdoc />
+    public override void WriteSixel(SixelPixelBuffer pixels, int cellWidth, int cellHeight)
+    {
+        ArgumentNullException.ThrowIfNull(pixels);
+        WriteSixelCore(SixelEncoder.Encode(pixels), cellWidth, cellHeight);
+    }
+
+    /// <inheritdoc />
+    public override void WriteSixel(string imageData, int cellWidth, int cellHeight)
+        => WriteSixelCore(
+            SixelPayload.NormalizeAndValidate(imageData, nameof(imageData)),
+            cellWidth,
+            cellHeight);
+
+    private void WriteSixelCore(string payload, int cellWidth, int cellHeight)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(cellWidth);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(cellHeight);
+
+        var writeX = _cursorX - _offsetX;
+        var writeY = _cursorY - _offsetY;
+        if (writeX < 0 || writeY < 0 || writeX >= _surface.Width || writeY >= _surface.Height)
+        {
+            return;
+        }
+
+        var visibleWidth = Math.Min(cellWidth, _surface.Width - writeX);
+        var visibleHeight = Math.Min(cellHeight, _surface.Height - writeY);
+        if (visibleWidth <= 0 || visibleHeight <= 0)
+        {
+            return;
+        }
+
+        var parseResult = SixelParser.ParsePayload(payload);
+        var metrics = Capabilities.SixelCellMetrics ?? SixelCellMetrics.FromCapabilities(Capabilities);
+        var tracked = _trackedObjects.GetOrCreateSixel(
+            payload,
+            visibleWidth,
+            visibleHeight,
+            parseResult,
+            cellMetrics: metrics);
+
+        for (var y = 0; y < visibleHeight; y++)
+        {
+            for (var x = 0; x < visibleWidth; x++)
+            {
+                var targetX = writeX + x;
+                var targetY = writeY + y;
+                var oldSixel = _surface[targetX, targetY].Sixel;
+
+                if (x == 0 && y == 0)
+                {
+                    if (ReferenceEquals(oldSixel, tracked))
+                    {
+                        tracked.Release();
+                    }
+                    else
+                    {
+                        oldSixel?.Release();
+                    }
+
+                    _surface[targetX, targetY] = new SurfaceCell(
+                        " ",
+                        _currentForeground,
+                        _currentBackground,
+                        _currentAttributes,
+                        Sixel: tracked,
+                        UnderlineStyle: _currentUnderlineStyle,
+                        UnderlineColor: _currentUnderlineColor);
+                }
+                else
+                {
+                    oldSixel?.Release();
+                    _surface[targetX, targetY] = new SurfaceCell(
+                        " ",
+                        _currentForeground,
+                        _currentBackground,
+                        _currentAttributes,
+                        UnderlineStyle: _currentUnderlineStyle,
+                        UnderlineColor: _currentUnderlineColor);
+                }
+            }
+        }
     }
     
     /// <summary>
@@ -942,10 +1028,16 @@ public class SurfaceRenderContext : Hex1bRenderContext
             else
             {
                 var pool = SurfacePool;
-                // The retained buffer no longer fits — surrender it to the pool
-                // (or let GC collect it) before allocating a new one.
-                if (pool != null && child.RenderBuffer is { } retired)
-                    pool.Return(retired);
+                // The retained buffer no longer fits. Return it to the pool, or
+                // explicitly release tracked references before letting GC collect it.
+                if (existingBuffer is { } retired)
+                {
+                    if (pool != null)
+                        pool.Return(retired);
+                    else
+                        retired.ClearAndReleaseTrackedObjects();
+                }
+                child.CachedSurface = null;
                 child.RenderBuffer = null;
                 childSurface = pool != null
                     ? pool.Rent(clampedWidth, clampedHeight, CellMetrics)
@@ -1074,12 +1166,14 @@ public class SurfaceRenderContext : Hex1bRenderContext
                 if (displayWidth == 2)
                 {
                     // Write main cell
+                    var existingSixel = _surface[writeX, writeY].Sixel;
                     _surface[writeX, writeY] = new SurfaceCell(
                         grapheme,
                         _currentForeground,
                         _currentBackground,
                         _currentAttributes,
                         displayWidth,
+                        Sixel: existingSixel,
                         Hyperlink: _currentHyperlink,
                         UnderlineStyle: _currentUnderlineStyle,
                         UnderlineColor: _currentUnderlineColor);
@@ -1087,19 +1181,25 @@ public class SurfaceRenderContext : Hex1bRenderContext
                     // Write continuation cell if space allows
                     if (writeX + 1 < _surface.Width)
                     {
-                        _surface[writeX + 1, writeY] = SurfaceCell.CreateContinuation(_currentBackground);
+                        var continuation = SurfaceCell.CreateContinuation(_currentBackground) with
+                        {
+                            Sixel = _surface[writeX + 1, writeY].Sixel
+                        };
+                        _surface[writeX + 1, writeY] = continuation;
                     }
 
                     writeX += 2;
                 }
                 else if (displayWidth == 1)
                 {
+                    var existingSixel = _surface[writeX, writeY].Sixel;
                     _surface[writeX, writeY] = new SurfaceCell(
                         grapheme,
                         _currentForeground,
                         _currentBackground,
                         _currentAttributes,
                         displayWidth,
+                        Sixel: existingSixel,
                         Hyperlink: _currentHyperlink,
                         UnderlineStyle: _currentUnderlineStyle,
                         UnderlineColor: _currentUnderlineColor);

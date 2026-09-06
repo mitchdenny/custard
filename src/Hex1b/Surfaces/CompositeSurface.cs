@@ -403,7 +403,7 @@ public sealed class CompositeSurface : ISurfaceSource
         {
             if (!sixelVis.IsFullyOccluded)
             {
-                fragments.AddRange(sixelVis.GenerateFragments(sixelVis.Sixel.Data.CellMetrics));
+                fragments.AddRange(sixelVis.GenerateFragments());
             }
         }
 
@@ -477,7 +477,7 @@ public sealed class CompositeSurface : ISurfaceSource
             var sixelOcclusions = CollectSixelRegions(layer, layerRect, sixelRect);
             foreach (var occ in sixelOcclusions)
             {
-                sixelVis.ApplyOcclusion(occ, sixelData.CellMetrics);
+                sixelVis.ApplyOcclusion(occ);
             }
 
             // Then scan the overlapping region for opaque text/background cells
@@ -503,7 +503,7 @@ public sealed class CompositeSurface : ISurfaceSource
                     {
                         // Apply single-cell occlusion
                         var occlusionRect = new Layout.Rect(x, y, 1, 1);
-                        sixelVis.ApplyOcclusion(occlusionRect, sixelData.CellMetrics);
+                        sixelVis.ApplyOcclusion(occlusionRect);
                     }
                 }
             }
@@ -523,26 +523,22 @@ public sealed class CompositeSurface : ISurfaceSource
             if (sixelRect.X < 0)
             {
                 sixelVis.ApplyOcclusion(
-                    new Layout.Rect(sixelRect.X, sixelRect.Y, -sixelRect.X, sixelRect.Height),
-                    sixelData.CellMetrics);
+                    new Layout.Rect(sixelRect.X, sixelRect.Y, -sixelRect.X, sixelRect.Height));
             }
             if (sixelRect.Y < 0)
             {
                 sixelVis.ApplyOcclusion(
-                    new Layout.Rect(sixelRect.X, sixelRect.Y, sixelRect.Width, -sixelRect.Y),
-                    sixelData.CellMetrics);
+                    new Layout.Rect(sixelRect.X, sixelRect.Y, sixelRect.Width, -sixelRect.Y));
             }
             if (sixelRect.Right > Width)
             {
                 sixelVis.ApplyOcclusion(
-                    new Layout.Rect(Width, sixelRect.Y, sixelRect.Right - Width, sixelRect.Height),
-                    sixelData.CellMetrics);
+                    new Layout.Rect(Width, sixelRect.Y, sixelRect.Right - Width, sixelRect.Height));
             }
             if (sixelRect.Bottom > Height)
             {
                 sixelVis.ApplyOcclusion(
-                    new Layout.Rect(sixelRect.X, Height, sixelRect.Width, sixelRect.Bottom - Height),
-                    sixelData.CellMetrics);
+                    new Layout.Rect(sixelRect.X, Height, sixelRect.Width, sixelRect.Bottom - Height));
             }
         }
     }

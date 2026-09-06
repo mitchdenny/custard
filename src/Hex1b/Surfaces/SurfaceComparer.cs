@@ -397,7 +397,6 @@ public static class SurfaceComparer
             foreach (var (sx, sy, sw, sh, cell) in sixelRegions)
             {
                 var visibility = new SixelVisibility(cell.Sixel!, sx, sy, 0);
-                var metrics = cell.Sixel!.Data.CellMetrics;
 
                 for (var y = sy; y < sy + sh && y < currentSurface.Height; y++)
                 {
@@ -406,14 +405,14 @@ public static class SurfaceComparer
                         var checkCell = currentSurface[x, y];
                         if (IsSixelOccluder(checkCell))
                         {
-                            visibility.ApplyOcclusion(new Rect(x, y, 1, 1), metrics);
+                            visibility.ApplyOcclusion(new Rect(x, y, 1, 1));
                         }
                     }
                 }
 
                 if (!visibility.IsFullyOccluded)
                 {
-                    foreach (var fragment in visibility.GenerateFragments(metrics))
+                    foreach (var fragment in visibility.GenerateFragments())
                     {
                         fragmentsToEmit.Add(fragment);
                     }

@@ -123,12 +123,26 @@ public sealed class SixelFragment
     }
 
     /// <summary>
-    /// Gets the cell span for this fragment using the specified metrics.
+    /// Gets the cell span for this fragment using the protocol cell metrics
+    /// captured by the original Sixel image.
     /// </summary>
-    public (int Width, int Height) GetCellSpan(CellMetrics metrics)
+    /// <returns>The width and height in protocol cells.</returns>
+    public (int Width, int Height) GetCellSpan()
     {
-        return metrics.PixelToCellSpan(PixelRegion.Width, PixelRegion.Height);
+        var metrics = OriginalSixel.CellMetrics;
+        return (metrics.ColumnsFor(PixelRegion.Width), metrics.RowsFor(PixelRegion.Height));
     }
+
+    /// <summary>
+    /// Gets the cell span for this fragment using the protocol cell metrics
+    /// captured by the original Sixel image.
+    /// </summary>
+    /// <param name="metrics">
+    /// Ignored. Sixel placement metrics are captured by <see cref="SixelData"/>.
+    /// </param>
+    /// <returns>The width and height in protocol cells.</returns>
+    [Obsolete("Cell metrics are captured by SixelData. Use GetCellSpan().")]
+    public (int Width, int Height) GetCellSpan(CellMetrics metrics) => GetCellSpan();
 }
 
 /// <summary>
@@ -199,22 +213,14 @@ public sealed class SixelVisibility
     }
 
     /// <summary>
-    /// Applies an occlusion rectangle (in cell coordinates) to this sixel.
+    /// Applies an occlusion rectangle in cell coordinates to this Sixel image,
+    /// using the protocol cell metrics captured when the image was created.
     /// </summary>
     /// <param name="occlusionCellRect">The occluding rectangle in cell coordinates.</param>
-    /// <param name="metrics">Cell metrics for coordinate conversion.</param>
-    public void ApplyOcclusion(Rect occlusionCellRect, CellMetrics metrics)
-        => ApplyOcclusion(
-            occlusionCellRect,
-            new SixelCellMetrics(
-                metrics.ActualPixelWidth,
-                metrics.PixelHeight,
-                SixelCellMetricsSource.Derived,
-                SixelCellMetricsReliability.Derived));
-
-    internal void ApplyOcclusion(Rect occlusionCellRect, SixelCellMetrics metrics)
+    public void ApplyOcclusion(Rect occlusionCellRect)
     {
         var data = Sixel.Data;
+        var metrics = data.CellMetrics;
         
         // Convert sixel bounds to cell rect
         var sixelCellRect = new Rect(
@@ -252,24 +258,29 @@ public sealed class SixelVisibility
     }
 
     /// <summary>
-    /// Generates fragments for the visible regions of this sixel.
+    /// Applies an occlusion rectangle in cell coordinates to this Sixel image,
+    /// using the protocol cell metrics captured when the image was created.
     /// </summary>
-    /// <param name="metrics">Cell metrics for position calculation.</param>
-    /// <returns>List of fragments to render.</returns>
-    public IReadOnlyList<SixelFragment> GenerateFragments(CellMetrics metrics)
-        => GenerateFragments(
-            new SixelCellMetrics(
-                metrics.ActualPixelWidth,
-                metrics.PixelHeight,
-                SixelCellMetricsSource.Derived,
-                SixelCellMetricsReliability.Derived));
+    /// <param name="occlusionCellRect">The occluding rectangle in cell coordinates.</param>
+    /// <param name="metrics">
+    /// Ignored. Sixel placement metrics are captured by <see cref="SixelData"/>.
+    /// </param>
+    [Obsolete("Cell metrics are captured by SixelData. Use ApplyOcclusion(Rect).")]
+    public void ApplyOcclusion(Rect occlusionCellRect, CellMetrics metrics)
+        => ApplyOcclusion(occlusionCellRect);
 
-    internal IReadOnlyList<SixelFragment> GenerateFragments(SixelCellMetrics metrics)
+    /// <summary>
+    /// Generates fragments for the visible regions of this Sixel image using
+    /// the protocol cell metrics captured when the image was created.
+    /// </summary>
+    /// <returns>List of fragments to render.</returns>
+    public IReadOnlyList<SixelFragment> GenerateFragments()
     {
         if (IsFullyOccluded)
             return [];
 
         var data = Sixel.Data;
+        var metrics = data.CellMetrics;
         var extent = data.GetRenderedPixelExtent();
         if (IsFullyVisible)
         {
@@ -306,6 +317,18 @@ public sealed class SixelVisibility
 
         return fragments;
     }
+
+    /// <summary>
+    /// Generates fragments for the visible regions of this Sixel image using
+    /// the protocol cell metrics captured when the image was created.
+    /// </summary>
+    /// <param name="metrics">
+    /// Ignored. Sixel placement metrics are captured by <see cref="SixelData"/>.
+    /// </param>
+    /// <returns>List of fragments to render.</returns>
+    [Obsolete("Cell metrics are captured by SixelData. Use GenerateFragments().")]
+    public IReadOnlyList<SixelFragment> GenerateFragments(CellMetrics metrics)
+        => GenerateFragments();
 
     private PixelRect GetVisibleContentBounds()
     {

@@ -806,11 +806,9 @@ public class SixelVisibilityTests
     {
         var sixelRef = CreateTestSixel(100, 60);
         var visibility = new SixelVisibility(sixelRef, 0, 0, 0);
-        var metrics = new CellMetrics(10, 20);
-        
         // Occlude center 2x1 cells (cells 4-5, row 1)
         var occlusion = new Hex1b.Layout.Rect(4, 1, 2, 1);
-        visibility.ApplyOcclusion(occlusion, metrics);
+        visibility.ApplyOcclusion(occlusion);
         
         Assert.IsFalse(visibility.IsFullyVisible);
         Assert.IsFalse(visibility.IsFullyOccluded);
@@ -823,11 +821,9 @@ public class SixelVisibilityTests
     {
         var sixelRef = CreateTestSixel(100, 60);
         var visibility = new SixelVisibility(sixelRef, 0, 0, 0);
-        var metrics = new CellMetrics(10, 20);
-        
         // Occlude entire sixel (10x3 cells)
         var occlusion = new Hex1b.Layout.Rect(0, 0, 10, 3);
-        visibility.ApplyOcclusion(occlusion, metrics);
+        visibility.ApplyOcclusion(occlusion);
         
         Assert.IsTrue(visibility.IsFullyOccluded);
         Assert.IsEmpty(visibility.VisibleRegions);
@@ -838,11 +834,9 @@ public class SixelVisibilityTests
     {
         var sixelRef = CreateTestSixel(100, 60);
         var visibility = new SixelVisibility(sixelRef, 0, 0, 0);
-        var metrics = new CellMetrics(10, 20);
-        
         // Occlude area outside sixel
         var occlusion = new Hex1b.Layout.Rect(20, 20, 5, 5);
-        visibility.ApplyOcclusion(occlusion, metrics);
+        visibility.ApplyOcclusion(occlusion);
         
         Assert.IsTrue(visibility.IsFullyVisible);
         TestSeq.Single(visibility.VisibleRegions);
@@ -853,9 +847,7 @@ public class SixelVisibilityTests
     {
         var sixelRef = CreateTestSixel(100, 60);
         var visibility = new SixelVisibility(sixelRef, 5, 3, 0);
-        var metrics = new CellMetrics(10, 20);
-        
-        var fragments = visibility.GenerateFragments(metrics);
+        var fragments = visibility.GenerateFragments();
         
         TestSeq.Single(fragments);
         Assert.AreEqual((5, 3), fragments[0].CellPosition);
@@ -867,13 +859,11 @@ public class SixelVisibilityTests
     {
         var sixelRef = CreateTestSixel(100, 60);
         var visibility = new SixelVisibility(sixelRef, 0, 0, 0);
-        var metrics = new CellMetrics(10, 20);
-        
         // Occlude center
         var occlusion = new Hex1b.Layout.Rect(4, 1, 2, 1);
-        visibility.ApplyOcclusion(occlusion, metrics);
+        visibility.ApplyOcclusion(occlusion);
         
-        var fragments = visibility.GenerateFragments(metrics);
+        var fragments = visibility.GenerateFragments();
         
         Assert.IsTrue(fragments.Count >= 2);
         TestSeq.All(fragments, f => Assert.IsFalse(f.IsComplete));
@@ -1013,16 +1003,32 @@ public class SixelVisibilityTests
     }
 
     [TestMethod]
-    public void SixelFragment_GetCellSpan_CalculatesCorrectly()
+    public void SixelFragment_GetCellSpan_UsesCapturedProtocolMetrics()
     {
-        var sixelRef = CreateTestSixel(100, 60);
-        var fragment = new SixelFragment(sixelRef.Data, 0, 0, new PixelRect(0, 0, 55, 35));
-        var metrics = new CellMetrics(10, 20);
+        var sixelRef = CreateTestSixel(20, 20);
+        var fragment = new SixelFragment(sixelRef.Data, 0, 0, new PixelRect(0, 0, 20, 20));
         
-        var (width, height) = fragment.GetCellSpan(metrics);
-        
-        Assert.AreEqual(6, width);  // ceil(55/10)
-        Assert.AreEqual(2, height); // ceil(35/20)
+        var span = fragment.GetCellSpan();
+
+        Assert.AreEqual((2, 1), span);
+    }
+
+    [TestMethod]
+    public void PublicFragmentationApis_MismatchedLegacyMetrics_UseCapturedProtocolMetrics()
+    {
+        var sixelRef = CreateTestSixel(20, 20);
+        var visibility = new SixelVisibility(sixelRef, 0, 0, 0);
+        var mismatchedTextMetrics = new CellMetrics(8, 16);
+
+#pragma warning disable CS0618 // Verifies source-compatible overloads ignore legacy text metrics.
+        visibility.ApplyOcclusion(new Hex1b.Layout.Rect(0, 0, 1, 1), mismatchedTextMetrics);
+        var fragment = TestSeq.Single(visibility.GenerateFragments(mismatchedTextMetrics));
+        var span = fragment.GetCellSpan(mismatchedTextMetrics);
+#pragma warning restore CS0618
+
+        Assert.AreEqual(new PixelRect(10, 0, 10, 20), fragment.PixelRegion);
+        Assert.AreEqual((1, 0), fragment.CellPosition);
+        Assert.AreEqual((1, 1), span);
     }
 
     #endregion

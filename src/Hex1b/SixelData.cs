@@ -184,23 +184,34 @@ public sealed class SixelData
     public SixelCellMetrics CellMetrics { get; }
 
     /// <summary>
-    /// Gets the cell span for this sixel using the specified cell metrics.
+    /// Gets the cell span for this Sixel image using the protocol cell metrics
+    /// captured when the image was created.
     /// </summary>
-    /// <param name="metrics">The cell metrics to use for conversion.</param>
     /// <returns>The width and height in cells.</returns>
-    public (int Width, int Height) GetCellSpan(CellMetrics metrics)
+    public (int Width, int Height) GetCellSpan()
     {
         if (ParseResult.LogicalCanvasExtent is { Width: > 0, Height: > 0 } logical)
         {
-            return metrics.PixelToCellSpan(logical.Width, logical.Height);
+            return (CellMetrics.ColumnsFor(logical.Width), CellMetrics.RowsFor(logical.Height));
         }
         if (PixelWidth > 0 && PixelHeight > 0)
         {
-            return metrics.PixelToCellSpan(PixelWidth, PixelHeight);
+            return (CellMetrics.ColumnsFor(PixelWidth), CellMetrics.RowsFor(PixelHeight));
         }
         // Fall back to stored cell dimensions
         return (WidthInCells, HeightInCells);
     }
+
+    /// <summary>
+    /// Gets the cell span for this Sixel image using the protocol cell metrics
+    /// captured when the image was created.
+    /// </summary>
+    /// <param name="metrics">
+    /// Ignored. Sixel placement metrics are captured when the image is created.
+    /// </param>
+    /// <returns>The width and height in cells.</returns>
+    [Obsolete("Cell metrics are captured by SixelData. Use GetCellSpan().")]
+    public (int Width, int Height) GetCellSpan(CellMetrics metrics) => GetCellSpan();
 
     /// <summary>
     /// Materializes the sixel payload as a dense pixel buffer.

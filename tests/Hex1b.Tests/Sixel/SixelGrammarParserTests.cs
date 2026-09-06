@@ -226,14 +226,27 @@ public class SixelGrammarParserTests
     public void TrackedSixel_CellSpanUsesLogicalCanvasBeyondDeclaredHint()
     {
         var store = new TrackedObjectStore();
+        const string payload = "\x1bP7q\"1;1;1;1~~-~~\x1b\\";
         var tracked = store.GetOrCreateSixel(
-            "\x1bP7q\"1;1;1;1~~-~~\x1b\\",
+            payload,
             widthInCells: 1,
-            heightInCells: 1);
+            heightInCells: 1,
+            parseResult: SixelParser.ParsePayload(payload),
+            cellMetrics: new SixelCellMetrics(
+                1,
+                1,
+                SixelCellMetricsSource.Direct,
+                SixelCellMetricsReliability.Authoritative));
 
         Assert.AreEqual(
             (2, 12),
-            tracked.Data.GetCellSpan(new Hex1b.Surfaces.CellMetrics(1, 1)));
+            tracked.Data.GetCellSpan());
+
+#pragma warning disable CS0618 // Verifies source-compatible overloads ignore legacy text metrics.
+        Assert.AreEqual(
+            (2, 12),
+            tracked.Data.GetCellSpan(new Hex1b.Surfaces.CellMetrics(8, 16)));
+#pragma warning restore CS0618
 
         tracked.Release();
     }

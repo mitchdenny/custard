@@ -412,20 +412,18 @@ public class SixelSurfaceComparerTests
         var context = CreateSixelContext(surface, 9.4, 19.4);
         context.WriteSixel(CreateSolidPixels(20, 40, Rgba32.FromRgb(200, 80, 40)), 2, 2);
         var tracked = surface[0, 0].Sixel!;
-        var metrics = tracked.Data.CellMetrics;
-
         var horizontal = new SixelVisibility(tracked, 0, 0, 0);
-        horizontal.ApplyOcclusion(new Rect(0, 0, 1, 2), metrics);
-        var horizontalFragment = TestSeq.Single(horizontal.GenerateFragments(metrics));
+        horizontal.ApplyOcclusion(new Rect(0, 0, 1, 2));
+        var horizontalFragment = TestSeq.Single(horizontal.GenerateFragments());
 
         var vertical = new SixelVisibility(tracked, 0, 0, 0);
-        vertical.ApplyOcclusion(new Rect(0, 0, 2, 1), metrics);
-        var verticalFragment = TestSeq.Single(vertical.GenerateFragments(metrics));
+        vertical.ApplyOcclusion(new Rect(0, 0, 2, 1));
+        var verticalFragment = TestSeq.Single(vertical.GenerateFragments());
 
         Assert.AreEqual((1, 0), horizontalFragment.CellPosition);
         Assert.AreEqual((0, 1), verticalFragment.CellPosition);
-        Assert.AreEqual(1, metrics.ColumnsFor(horizontalFragment.PixelRegion.Width));
-        Assert.AreEqual(1, metrics.RowsFor(verticalFragment.PixelRegion.Height));
+        Assert.AreEqual(1, tracked.Data.CellMetrics.ColumnsFor(horizontalFragment.PixelRegion.Width));
+        Assert.AreEqual(1, tracked.Data.CellMetrics.RowsFor(verticalFragment.PixelRegion.Height));
     }
 
     [TestMethod]

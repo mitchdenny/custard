@@ -50,6 +50,30 @@ public class SixelFramingTests
     }
 
     [TestMethod]
+    public async Task NativePassthrough_ModelRejectionAndGeometryOnlyRaster_ForwardBytesExactly()
+    {
+        await using var terminal = SixelTestTerminal.Create();
+        var rejected = Encoding.ASCII.GetBytes("\x1bP?1q@\x1b\\");
+        var geometryOnly = Encoding.ASCII.GetBytes(
+            "\x1bP0;1q\"1;1;999999999;999999999#1@\x1b\\");
+        var bytes = rejected.Concat(geometryOnly).ToArray();
+
+        await terminal.FeedAsync(
+            bytes,
+            Enumerable.Repeat(1, bytes.Length).ToArray(),
+            TestContext.Current.CancellationToken);
+        await terminal.WaitForAsync(
+            snapshot => snapshot.SixelPlacements.Any(placement => placement.IsGeometryOnly),
+            "geometry-only Sixel placement",
+            TestContext.Current.CancellationToken);
+
+        TestSeq.AreEqual(bytes, terminal.PresentationBytes);
+        using var snapshot = terminal.Terminal.CreateSnapshot();
+        var placement = TestSeq.Single(snapshot.SixelPlacements);
+        Assert.IsTrue(placement.IsGeometryOnly);
+    }
+
+    [TestMethod]
     public async Task C1Framing_CompatibilityInput_ProducesSameModelAsStandardFraming()
     {
         await using var standard = SixelTestTerminal.Create();

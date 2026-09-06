@@ -16,6 +16,28 @@ public class Hmp1SixelStateReplayTests
     private static readonly TimeSpan TestTimeout = TimeSpan.FromSeconds(5);
 
     [TestMethod]
+    public void SixelReplayInfrastructure_RemainsInternal()
+    {
+        Type[] implementationTypes =
+        [
+            typeof(Hmp1Protocol),
+            typeof(Hmp1FrameType),
+            typeof(Hmp1SixelStateReplay),
+            typeof(Hmp1SixelRecording),
+            typeof(Hmp1SixelRecordingSnapshot),
+            typeof(Hmp1SixelRecordedImage),
+            typeof(Hmp1SixelRecordedPlacement),
+            typeof(Hmp1SixelRecordingException),
+            typeof(Hmp1SixelRecordingFailureReason),
+        ];
+
+        foreach (var type in implementationTypes)
+        {
+            Assert.IsFalse(type.IsVisible, $"{type.FullName} must remain internal HMP1 plumbing.");
+        }
+    }
+
+    [TestMethod]
     public async Task StateSync_WithActiveSixelPlacement_ReplaysImageToLateJoiningPeer()
     {
         await using var server = new Hmp1PresentationAdapter(20, 10);

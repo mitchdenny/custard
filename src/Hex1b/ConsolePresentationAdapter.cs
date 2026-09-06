@@ -163,7 +163,6 @@ public sealed class ConsolePresentationAdapter :
     /// </summary>
     private static bool IsAdvertisableSupport(SixelPresentationSupport support) => support is
         SixelPresentationSupport.Native or
-        SixelPresentationSupport.Translated or
         SixelPresentationSupport.Headless;
 
     /// <summary>

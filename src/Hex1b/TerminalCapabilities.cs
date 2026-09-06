@@ -21,9 +21,8 @@ public record TerminalCapabilities
     /// participate in the richer discovery model from
     /// <see href="https://github.com/mitchdenny/hex1b/issues/455">#455</see> should set
     /// this consistently with <see cref="SixelSupport"/> (true whenever
-    /// <see cref="SixelSupport"/> is <see cref="Sixel.SixelPresentationSupport.Native"/>,
-    /// <see cref="Sixel.SixelPresentationSupport.Translated"/>, or
-    /// <see cref="Sixel.SixelPresentationSupport.Headless"/> — never for
+    /// <see cref="SixelSupport"/> is <see cref="Sixel.SixelPresentationSupport.Native"/>
+    /// or <see cref="Sixel.SixelPresentationSupport.Headless"/> — never for
     /// <see cref="Sixel.SixelPresentationSupport.Unknown"/> or
     /// <see cref="Sixel.SixelPresentationSupport.None"/>), but the two properties are
     /// independently settable so existing callers that only set this flag keep working
@@ -33,8 +32,8 @@ public record TerminalCapabilities
 
     /// <summary>
     /// Describes how the effective presentation can render Sixel graphics: unknown,
-    /// confirmed unsupported, natively, via translation to another image protocol, or
-    /// authoritatively in a headless model with no real display.
+    /// confirmed unsupported, natively, or authoritatively in a headless model with
+    /// no real display.
     /// </summary>
     /// <remarks>
     /// Defaults to <see cref="Sixel.SixelPresentationSupport.Unknown"/> (discovery has

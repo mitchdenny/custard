@@ -3529,7 +3529,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
     /// only presentation whose
     /// <see cref="IHex1bTerminalPresentationAdapter.AnswersProtocolQueriesDirectly"/>
     /// is <see langword="true"/>, so it is the only presentation this method stays
-    /// silent for — every other presentation (headless, WebSocket, future translated
+    /// silent for — every other presentation (including headless and WebSocket
     /// adapters) gets a synthesized reply here so a single, deterministic answerer
     /// always exists and duplicate responses from both Hex1b and a real terminal are
     /// impossible.
@@ -3546,7 +3546,6 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         // nonetheless agree here on the workload-facing answer.
         var sixelSupported = Capabilities.SixelSupport is
             SixelPresentationSupport.Native or
-            SixelPresentationSupport.Translated or
             SixelPresentationSupport.Headless
             || Capabilities.SupportsSixel;
         var response = sixelSupported ? "\x1b[?62;4c" : "\x1b[?62c";

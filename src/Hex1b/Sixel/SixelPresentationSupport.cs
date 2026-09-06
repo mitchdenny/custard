@@ -8,9 +8,10 @@ namespace Hex1b.Sixel;
 /// This is deliberately separate from Hex1b's own parser/model support for the Sixel
 /// protocol (which is unconditional — Hex1b always understands and models Sixel DCS
 /// sequences regardless of what sits downstream). <see cref="SixelPresentationSupport"/>
-/// instead answers "can the bytes Hex1b would emit actually be turned into pixels for a
-/// human to see, one way or another?" That is a property of the effective presentation
-/// path, discovered by <see href="https://github.com/mitchdenny/hex1b/issues/455">#455</see>.
+/// instead answers whether the effective presentation renders Sixel natively or
+/// maintains an authoritative headless model. That is a property of the effective
+/// presentation path, discovered by
+/// <see href="https://github.com/mitchdenny/hex1b/issues/455">#455</see>.
 /// </para>
 /// <para>
 /// <see cref="Unknown"/> and <see cref="None"/> are deliberately distinct values, not a
@@ -56,19 +57,6 @@ public enum SixelPresentationSupport
     /// Sixel DCS bytes reach it unmodified (raw passthrough).
     /// </summary>
     Native,
-
-    /// <summary>
-    /// Sixel graphics are rendered by translating Hex1b's raster output into a
-    /// different image protocol (for example Kitty Graphics Protocol or the iTerm2
-    /// inline image protocol) before reaching the presentation.
-    /// </summary>
-    /// <remarks>
-    /// Implementing the translation itself is explicitly out of scope for #455 (see
-    /// <see href="https://github.com/mitchdenny/hex1b/issues/458">#458</see>); this
-    /// value exists so the capability model has a place to record it once that work
-    /// lands.
-    /// </remarks>
-    Translated,
 
     /// <summary>
     /// There is no real display; Hex1bTerminal's own authoritative screen/graphics

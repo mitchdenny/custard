@@ -10,8 +10,8 @@ using Hex1b.Sixel;
 /// declaration pre-empting the probe, fragmented/interleaved wire replies with
 /// preserved keyboard input, precedence/disagreement between sources, fractional
 /// derivation from window/grid geometry, resize invalidation, existing-placement
-/// immutability across a later metrics change, and query-ownership/support
-/// advertisement across native and headless presentations.
+/// immutability across a later metrics change, and query ownership across the
+/// Native, Headless, Unknown, and None presentation-support states.
 /// </summary>
 /// <remarks>
 /// Every scenario here uses <see cref="FakeConsoleDriver"/> (an internal
@@ -41,7 +41,7 @@ internal static class CapabilityDiscoveryScenarios
             ("Implausible dimensions are rejected with diagnostics", await ImplausibleDimensionRejectionAsync()),
             ("Resize invalidates only derived metrics, not support", await ResizeInvalidatesDerivedMetricsOnlyAsync()),
             ("A later metrics change never rewrites an existing placement", await PlacementImmutabilityAcrossMetricsChangeAsync()),
-            ("Query ownership and support advertisement", await QueryOwnershipAndAdvertisementAsync()),
+            ("Query ownership and four-state support advertisement", await QueryOwnershipAndAdvertisementAsync()),
         ];
     }
 

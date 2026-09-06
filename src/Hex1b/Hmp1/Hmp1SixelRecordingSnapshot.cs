@@ -30,13 +30,43 @@ internal sealed class Hmp1SixelRecordingSnapshot(
     /// verified against the same authoritative parser/raster invariants used by
     /// live terminal processing.
     /// </summary>
-    public string BuildReplayEscapeSequence()
+    /// <param name="cancellationToken">Stops validation or construction before completion.</param>
+    /// <exception cref="Hmp1SixelRecordingException">
+    /// The expanded replay would exceed the internal aggregate replay limit.
+    /// </exception>
+    /// <exception cref="OperationCanceledException">
+    /// <paramref name="cancellationToken"/> was cancelled.
+    /// </exception>
+    public string BuildReplayEscapeSequence(CancellationToken cancellationToken = default)
     {
-        var sb = new StringBuilder();
-        foreach (var placement in Placements.OrderBy(p => p.Sequence))
+        var orderedPlacements = Placements.OrderBy(p => p.Sequence).ToArray();
+        long totalBytes = 0;
+        foreach (var placement in orderedPlacements)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             var image = Images[placement.ImageIndex];
-            sb.Append(FormattableString.Invariant($"\x1b[{placement.Row + 1};{placement.Column + 1}H"));
+            var cursor = FormattableString.Invariant(
+                $"\x1b[{placement.Row + 1};{placement.Column + 1}H");
+            var payloadBytes = Encoding.UTF8.GetByteCount(image.Payload);
+            if (image.IsGeometryOnly && !Hmp1SixelStateReplay.HasDcsFraming(image.Payload))
+                payloadBytes = checked(payloadBytes + 4);
+
+            totalBytes = checked(totalBytes + Encoding.UTF8.GetByteCount(cursor) + payloadBytes);
+            if (totalBytes > Hmp1SixelLimits.MaximumTotalPayloadBytes)
+            {
+                throw new Hmp1SixelRecordingException(
+                    Hmp1SixelRecordingFailureReason.ResourceLimitExceeded,
+                    $"Expanded replay payload exceeds the limit of {Hmp1SixelLimits.MaximumTotalPayloadBytes} bytes.");
+            }
+        }
+
+        var sb = new StringBuilder((int)totalBytes);
+        foreach (var placement in orderedPlacements)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var image = Images[placement.ImageIndex];
+            sb.Append(FormattableString.Invariant(
+                $"\x1b[{placement.Row + 1};{placement.Column + 1}H"));
             sb.Append(image.IsGeometryOnly
                 ? Hmp1SixelStateReplay.FramePayload(image.Payload)
                 : image.Payload);

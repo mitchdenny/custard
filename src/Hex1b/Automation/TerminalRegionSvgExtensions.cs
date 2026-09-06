@@ -725,8 +725,8 @@ public static class TerminalRegionSvgExtensions
         out int width,
         out int height)
     {
-        var pixels = placement.Image.GetPixels();
-        if (pixels is null || !placement.HasPaintedExtent)
+        if (!placement.HasPaintedExtent ||
+            !placement.Image.TryGetRasterDimensions(out var rasterWidth, out var rasterHeight))
         {
             width = 0;
             height = 0;
@@ -736,23 +736,23 @@ public static class TerminalRegionSvgExtensions
         var left = Math.Clamp(
             (int)Math.Floor(placement.PaintedColumnOffset * placement.Image.CellMetrics.SafeWidth),
             0,
-            pixels.Width);
+            rasterWidth);
         var right = Math.Clamp(
             (int)Math.Ceiling(
                 (placement.PaintedColumnOffset + placement.PaintedColumnCount) *
                 placement.Image.CellMetrics.SafeWidth),
             0,
-            pixels.Width);
+            rasterWidth);
         var top = Math.Clamp(
             (int)Math.Floor(placement.PaintedRowOffset * placement.Image.CellMetrics.SafeHeight),
             0,
-            pixels.Height);
+            rasterHeight);
         var bottom = Math.Clamp(
             (int)Math.Ceiling(
                 (placement.PaintedRowOffset + placement.PaintedRowCount) *
                 placement.Image.CellMetrics.SafeHeight),
             0,
-            pixels.Height);
+            rasterHeight);
 
         width = Math.Max(0, right - left);
         height = Math.Max(0, bottom - top);

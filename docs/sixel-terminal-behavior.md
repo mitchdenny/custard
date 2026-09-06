@@ -85,7 +85,7 @@ rasterizer, placement-lifetime, and fuzz tests.
 | DCS header parameters | 16 | Reject the introducer with a typed diagnostic |
 | Numeric parameter/repeat value | 999,999,999 | Saturate geometry safely and report `NumericLimitExceeded`/`GeometrySaturated` |
 | Retained raster commands | 65,536 | Stop command retention, continue geometry, and report `CommandRetentionLimitExceeded` |
-| Palette mutations | 4,096 | Stop retaining mutations and report `MetadataLimitExceeded` |
+| Palette mutations | 4,096 | Stop retaining ordered mutation history and report `MetadataLimitExceeded`; separately retain the final definition for each valid register so terminal-scoped palette state remains authoritative |
 | Parser diagnostics | 64 | Bound diagnostic cardinality; diagnostics never retain raw hostile payloads |
 | Raster pixels | 16 Mi pixels | Return geometry-only with `RasterPixelLimitExceeded` |
 | Raster operations | 64 Mi pixel writes | Return geometry-only with `RasterOperationLimitExceeded` |
@@ -635,7 +635,10 @@ read paths over that authoritative state.
     `MaxRecordingLength` = 72 MiB, and aggregate
     `MaxDamagedCellCount` = 2^20). Exact raster re-encoding is constrained by
     the remaining per-image and aggregate payload budget before allocating
-    its output. Retention-limited images are rejected before
+    its output. Expanding a deduplicated recording back into cursor-position
+    plus Sixel sequences performs a checked, cancellable preflight and rejects
+    output above the same 64 MiB aggregate limit before allocating the replay
+    string. Retention-limited images are rejected before
     serialization because their complete payload is unavailable; deserialization
     rejects an oversized input before copying it and rejects trailing bytes.
     Recorded

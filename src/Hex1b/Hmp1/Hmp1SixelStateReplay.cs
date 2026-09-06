@@ -264,8 +264,11 @@ internal static class Hmp1SixelStateReplay
         return sequence;
     }
 
+    internal static bool HasDcsFraming(string payload) =>
+        payload.StartsWith("\x1bP", StringComparison.Ordinal) || payload.StartsWith('\u0090');
+
     internal static string FramePayload(string payload) =>
-        payload.StartsWith("\x1bP", StringComparison.Ordinal) || payload.StartsWith('\u0090')
+        HasDcsFraming(payload)
             ? payload
             : "\x1bP" + payload + "\x1b\\";
 

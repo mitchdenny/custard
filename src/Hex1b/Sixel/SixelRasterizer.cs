@@ -453,7 +453,7 @@ internal static class SixelRasterizer
     {
         if (!parse.CommandsComplete)
         {
-            foreach (var mutation in parse.PaletteMutations)
+            foreach (var mutation in parse.FinalPaletteDefinitions)
             {
                 ApplyPersistentPaletteDefinition(mutation, registers);
             }

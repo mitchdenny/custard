@@ -228,6 +228,32 @@ public sealed class SixelData
         }
     }
 
+    internal bool HasMaterializedPixels
+    {
+        get
+        {
+            lock (_decodeLock)
+            {
+                return _decodedPixels is not null;
+            }
+        }
+    }
+
+    internal bool TryGetRasterDimensions(out int width, out int height)
+    {
+        var image = Raster.Image;
+        if (image is null)
+        {
+            width = 0;
+            height = 0;
+            return false;
+        }
+
+        width = image.Width;
+        height = image.Height;
+        return width > 0 && height > 0;
+    }
+
     /// <summary>
     /// Computes a content hash for a Sixel payload.
     /// </summary>

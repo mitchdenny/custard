@@ -407,6 +407,7 @@ public class SixelGrammarParserTests
         result.LogicalCanvasExtent,
         result.SelectedColorRegister,
         string.Join(",", result.PaletteMutations),
+        string.Join(",", result.FinalPaletteDefinitions),
         string.Join(",", result.Commands),
         result.CommandsComplete,
         result.Outcome,

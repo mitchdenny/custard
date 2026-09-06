@@ -467,6 +467,41 @@ public class Hmp1SixelRecordingTests
         Assert.AreEqual(Hmp1SixelRecordingFailureReason.ResourceLimitExceeded, ex.Reason);
     }
 
+    [TestMethod]
+    public async Task BuildReplayEscapeSequence_WhenDeduplicationExpandsBeyondLimit_ThrowsResourceLimitExceeded()
+    {
+        var policy = SixelCompatibilityPolicy.Default with
+        {
+            MaximumRasterPixels = 1,
+        };
+        await using var producer = SixelTestTerminal.Create(policy: policy);
+        var selections = string.Concat(Enumerable.Repeat("#1", 10_000));
+        var payload = $"0;1q\"1;1;2;1{selections}@";
+        var bytes = Encoding.ASCII.GetBytes($"\x1bP{payload}\x1b\\");
+        await producer.FeedAsync(
+            bytes,
+            cancellationToken: TestContext.Current.CancellationToken);
+        await producer.WaitForAsync(
+            _ => producer.Terminal.SixelPlacementCount == 1,
+            "geometry-only recording placement",
+            TestContext.Current.CancellationToken);
+        using var snapshot = producer.Terminal.CreateSnapshot();
+        var placement = TestSeq.Single(snapshot.SixelPlacements);
+        Assert.IsTrue(placement.IsGeometryOnly);
+
+        var placements = Enumerable.Repeat(
+            placement,
+            Hmp1SixelRecording.MaxPlacementCount).ToArray();
+        var recording = Hmp1SixelRecording.Serialize(placements);
+        Assert.IsLessThan(1024 * 1024, recording.Length);
+        var decoded = Hmp1SixelRecording.Deserialize(recording);
+
+        var ex = Assert.ThrowsExactly<Hmp1SixelRecordingException>(
+            () => decoded.BuildReplayEscapeSequence());
+
+        Assert.AreEqual(Hmp1SixelRecordingFailureReason.ResourceLimitExceeded, ex.Reason);
+    }
+
     private static void AssertPixelsEqual(SixelData expected, SixelData actual)
     {
         var expectedPixels = expected.GetPixels();

@@ -206,6 +206,7 @@ internal sealed record SixelParseResult(
     SixelExtent UnscaledLogicalCanvasExtent,
     int SelectedColorRegister,
     IReadOnlyList<SixelPaletteCommand> PaletteMutations,
+    IReadOnlyList<SixelPaletteCommand> FinalPaletteDefinitions,
     IReadOnlyList<SixelCommand> Commands,
     bool CommandsComplete,
     SixelParseOutcome Outcome,
@@ -244,6 +245,7 @@ internal sealed record SixelParseResult(
             SixelExtent.Empty,
             0,
             Array.Empty<SixelPaletteCommand>(),
+            Array.Empty<SixelPaletteCommand>(),
             Array.Empty<SixelCommand>(),
             false,
             outcome,
@@ -276,6 +278,7 @@ internal sealed class SixelParser
 
     private readonly List<SixelCommand> _commands = [];
     private readonly List<SixelPaletteCommand> _paletteMutations = [];
+    private readonly Dictionary<int, SixelPaletteCommand> _finalPaletteDefinitions = [];
     private readonly List<SixelDiagnostic> _diagnostics = [];
     private readonly int?[] _parameters = new int?[5];
     private readonly bool[] _parameterOverflowReported = new bool[5];
@@ -571,6 +574,10 @@ internal sealed class SixelParser
             unscaledLogical,
             _selectedColorRegister,
             _paletteMutations.ToArray(),
+            _finalPaletteDefinitions
+                .OrderBy(pair => pair.Key)
+                .Select(pair => pair.Value)
+                .ToArray(),
             _commands.ToArray(),
             _commandsComplete,
             outcome,
@@ -769,6 +776,10 @@ internal sealed class SixelParser
         }
 
         _selectedColorRegister = register;
+        if (palette.IsDefinition && register >= 0 && register < _policy.ColorRegisterCount)
+        {
+            _finalPaletteDefinitions[register] = palette;
+        }
         if (_paletteMutations.Count < _policy.MaximumPaletteMutations)
         {
             _paletteMutations.Add(palette);

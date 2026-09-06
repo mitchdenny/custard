@@ -210,6 +210,36 @@ public class SixelSvgExportTests
     }
 
     [TestMethod]
+    public async Task SvgExport_WhenBudgetRejectsLargeRaster_DoesNotMaterializeDensePixels()
+    {
+        await using var terminal = SixelTestTerminal.Create();
+        var bytes = Encoding.ASCII.GetBytes(
+            "\x1bP0;1q\"1;1;4096;4096#1;2;100;0;0@\x1b\\");
+
+        await terminal.FeedAsync(
+            bytes,
+            cancellationToken: TestContext.Current.CancellationToken);
+        await terminal.WaitForAsync(
+            snapshot => snapshot.ContainsSixelData(),
+            "large sparse Sixel placement",
+            TestContext.Current.CancellationToken);
+
+        using var snapshot = terminal.Terminal.CreateSnapshot();
+        var image = TestSeq.Single(snapshot.SixelPlacements).Image;
+        Assert.IsFalse(image.HasMaterializedPixels);
+
+        var svg = snapshot.ToSvg(new TerminalSvgOptions
+        {
+            CellWidth = snapshot.CellPixelWidth,
+            CellHeight = snapshot.CellPixelHeight,
+            MaximumEmbeddedSixelBytes = 0,
+        });
+
+        Assert.Contains("sixel-export-limited", svg);
+        Assert.IsFalse(image.HasMaterializedPixels);
+    }
+
+    [TestMethod]
     public void SvgExportBudget_AtEncodedPayloadBoundary_IsDeterministic()
     {
         long consumed = 0;

@@ -240,6 +240,25 @@ public class Hex1bTerminalQueryOwnershipTests
     }
 
     [TestMethod]
+    [DataRow((int)SixelPresentationSupport.Unknown)]
+    [DataRow((int)SixelPresentationSupport.None)]
+    public async Task Da1Query_LegacySupportsSixelFlag_PreservesCompatibilityAdvertisement(
+        int supportValue)
+    {
+        var presentation = new FakePresentationAdapter(
+            SixelCapabilities(
+                (SixelPresentationSupport)supportValue,
+                supportsSixel: true));
+        var (terminal, workload) = CreateTerminal(presentation);
+        await using var t = terminal;
+
+        workload.EnqueueOutput(Da1Query);
+        await workload.WaitForWrittenLengthAsync(1, TestContext.Current.CancellationToken);
+
+        Assert.AreEqual("\x1b[?62;4c", Encoding.UTF8.GetString(workload.WrittenBytes));
+    }
+
+    [TestMethod]
     public async Task Da1Query_NativeUpstreamPresentation_ReceivesNoSynthesizedReply()
     {
         var presentation = new NativeFakePresentationAdapter(

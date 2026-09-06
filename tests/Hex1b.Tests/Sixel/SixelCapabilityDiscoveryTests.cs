@@ -43,6 +43,31 @@ public class SixelCapabilityDiscoveryTests
     // Direct declaration pre-empts probing -----------------------------------
 
     [TestMethod]
+    public void SixelPresentationSupport_ExposesOnlyCurrentContractStates()
+    {
+        TestSeq.AreEqual(
+            ["Unknown", "None", "Native", "Headless"],
+            Enum.GetNames<SixelPresentationSupport>());
+    }
+
+    [TestMethod]
+    [DataRow((int)SixelPresentationSupport.Unknown, false)]
+    [DataRow((int)SixelPresentationSupport.None, false)]
+    [DataRow((int)SixelPresentationSupport.Native, true)]
+    [DataRow((int)SixelPresentationSupport.Headless, true)]
+    public async Task WithSixelSupport_TypedState_SetsCompatibilityFlag(
+        int supportValue,
+        bool expectedSupportsSixel)
+    {
+        using var driver = new FakeConsoleDriver();
+        await using var adapter = new ConsolePresentationAdapter(driver, kgpProbeTimeout: ProbeTimeout);
+
+        adapter.WithSixelSupport((SixelPresentationSupport)supportValue);
+
+        Assert.AreEqual(expectedSupportsSixel, adapter.Capabilities.SupportsSixel);
+    }
+
+    [TestMethod]
     public async Task WithSixelSupport_DeclaredDirectly_SkipsProbingEntirely()
     {
         using var driver = new FakeConsoleDriver(); // No replies queued at all.

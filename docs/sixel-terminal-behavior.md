@@ -237,12 +237,12 @@ CUP before writing anything that follows.
 
 | Operation | Selected Hex1b behavior | Unresolved details |
 |---|---|---|
-| Sixel over Sixel | Both placements are retained independently; presentation composites in placement sequence order. Painted pixels from a later placement cover earlier pixels; unpainted/transparent pixels leave earlier placements visible. | Protocol translation into native downstream graphics remains #458; broader cross-terminal visual comparison remains #457. |
+| Sixel over Sixel | Both placements are retained independently; presentation composites in placement sequence order. Painted pixels from a later placement cover earlier pixels; unpainted/transparent pixels leave earlier placements visible. | Broader cross-terminal visual comparison remains #457; #458 explicitly rejects automatic translation into another graphics protocol. |
 | Text over Sixel | Any text-cell write destructively damages the Sixel pixels projected into the overwritten cell. A space, styled background write, combining-cluster update, wide-character leading cell, or wide-character continuation cleanup is still a text write for graphics damage. Destroyed Sixel pixels do not reappear if the text is later erased. | Damage is modeled at bounded cell granularity rather than sub-cell glyph-shape granularity. |
 | ED/EL/ECH/DECERA/DECSERA | Erase graphics in the same clipped cell region that text erasure affects. Selective erase preserves graphics only where the underlying terminal cell is protected. Full ED/RIS remove active placements; partial erases damage only intersecting placement cells. | Implemented; scrolling/reflow projection across the scrollback boundary is implemented by [#452](https://github.com/mitchdenny/hex1b/issues/452) (see below). |
 | Insert/delete characters, columns, and lines | Character/column/line edits damage every overwritten destination or blank-fill cell in their clipped edit region, while Sixel placements themselves do not shift with ordinary text edits unless the existing scroll integration explicitly moves/drops them. | History/reflow projection is implemented by [#452](https://github.com/mitchdenny/hex1b/issues/452). |
 | Scroll-region operations | Move, clip, split into history, or erase placements using the same region semantics as text rows, including partial vertical/horizontal margins under DECSTBM/DECLRMM | Full-fidelity scrolling/reflow projection across the scrollback boundary is implemented by [#452](https://github.com/mitchdenny/hex1b/issues/452); see "Independent Sixel scrolling, history, and reflow (#452)" below |
-| RIS | Clear main and alternate placements, reset Sixel modes, reset the palette, clear saved screen state, and leave previously captured snapshots valid. | Implemented for lifecycle; native downstream redraw protocol remains #458. |
+| RIS | Clear main and alternate placements, reset Sixel modes, reset the palette, clear saved screen state, and leave previously captured snapshots valid. | Implemented for lifecycle; native presentations own their terminal's response to the original bytes, while managed consumers observe impacts and snapshots. |
 | DECSTR | Reset modes, including DECSDM and mode 8452; preserve palette, placements, cursor position, and snapshots. | Broader terminal comparison remains #457, but Hex1b's compatibility choice is centralized and deterministic. |
 
 Foot has the clearest reviewed prior art for compositing independent placements.
@@ -331,9 +331,10 @@ placeholders that name them):
   the visible/history boundary, and reflow-driven re-anchoring — is
   implemented by [#452](https://github.com/mitchdenny/hex1b/issues/452); see
   "Independent Sixel scrolling, history, and reflow (#452)" below.
-- Native presentation protocol translation (removing/replacing damaged
-  downstream rasters in terminals that are not using Hex1b's managed
-  presentation model) — [#458](https://github.com/mitchdenny/hex1b/issues/458).
+- Automatic translation into another graphics protocol is not part of
+  `Hex1bTerminal`; [#458](https://github.com/mitchdenny/hex1b/issues/458)
+  finalizes native forwarding, managed impacts/snapshots, and internal HMP1
+  replay as the supported boundaries instead.
 - `SixelWidget`/`Surface`-produced Sixel and widget sizing changes are
   untouched by this stage.
 
@@ -592,9 +593,9 @@ read paths over that authoritative state.
   a parallel Sixel path without touching KGP's.
 - **Explicitly out of scope for this stage** (see the exclusions in
   [#456](https://github.com/mitchdenny/hex1b/issues/456)): capability probing
-  ([#455](https://github.com/mitchdenny/hex1b/issues/455)), native
-  presentation protocol translation
-  ([#458](https://github.com/mitchdenny/hex1b/issues/458)), and any
+  ([#455](https://github.com/mitchdenny/hex1b/issues/455)), presentation
+  boundary cleanup ([#458](https://github.com/mitchdenny/hex1b/issues/458)),
+  and any
   `SixelWidget`/`Surface`-side preview generation.
 
 ## Capability discovery and protocol cell metrics (#455)
@@ -602,11 +603,11 @@ read paths over that authoritative state.
 [#455](https://github.com/mitchdenny/hex1b/issues/455) answers a question no
 earlier stage needed to ask: given an effective upstream presentation, can it
 actually turn Sixel bytes into pixels a human can see, and if so, what protocol
-cell size should occupancy math use? This stage adds no raster decoding, no
-Sixel-to-KGP/iTerm2 translation ([#458](https://github.com/mitchdenny/hex1b/issues/458)),
-and no `SixelWidget`/`Surface`-side fallback logic — it only discovers and
-reports, safely and without ever consuming, reordering, or duplicating a byte
-of user input or a terminal's own query response.
+cell size should occupancy math use? This stage adds no raster decoding or
+`SixelWidget`/`Surface`-side fallback logic and does not translate Sixel into
+KGP, iTerm2, or any other graphics protocol. It only discovers and reports,
+safely and without ever consuming, reordering, or duplicating a byte of user
+input or a terminal's own query response.
 
 ### Support vs. parser capability
 
@@ -621,19 +622,18 @@ can the *effective presentation* render those bytes at all?
 | `Unknown` | Discovery has not yet run, timed out, or could not be completed. Nothing is known either way. This is the enum's default value (numeric `0`), so an unconfigured `TerminalCapabilities.SixelSupport` reads as "unknown" rather than as a false claim of "confirmed unsupported." |
 | `None` | Discovery ran and positively determined the effective presentation cannot render Sixel (for example, DA1 replied without declaring parameter 4, or an adapter explicitly declared no support). Distinct from `Unknown` — see "Unknown vs. unsupported" below. |
 | `Native` | A real, Sixel-understanding terminal sits behind the presentation and receives Hex1b's Sixel DCS bytes unmodified (raw passthrough). |
-| `Translated` | Sixel is rendered by converting Hex1b's raster into a different image protocol (KGP, iTerm2) before it reaches the presentation. The enum value exists so the capability model has a home for this once [#458](https://github.com/mitchdenny/hex1b/issues/458) implements the conversion; no translation logic exists yet. |
 | `Headless` | There is no real display; `Hex1bTerminal`'s own graphics-state model (from [#451](https://github.com/mitchdenny/hex1b/issues/451)/[#452](https://github.com/mitchdenny/hex1b/issues/452)/[#456](https://github.com/mitchdenny/hex1b/issues/456)) is the sole, authoritative source of truth. |
 
 `TerminalCapabilities.SixelSupport` carries this value; the older
 `TerminalCapabilities.SupportsSixel` boolean remains for back-compatibility and
 must be kept consistent with it (`true` only when `SixelSupport` is `Native`,
-`Translated`, or `Headless` — never for `Unknown` or `None`) by any adapter
+or `Headless` — never for `Unknown` or `None`) by any adapter
 that participates in discovery. Workload-facing feature reporting (the DA1
 reply below) advertises Sixel to a hosted workload only when the effective
-path is `Native`, `Translated`, or an authoritative `Headless` model — parser
+path is `Native` or an authoritative `Headless` model — parser
 capability alone is never sufficient, and both `Unknown` and `None` always mean
 "do not advertise." Advertisement logic is written as an allowlist
-(`is Native or Translated or Headless`) rather than a `!= None` denylist,
+(`is Native or Headless`) rather than a `!= None` denylist,
 precisely so that adding `Unknown` to the enum could not silently start being
 treated as advertisable.
 
@@ -802,7 +802,6 @@ terminal. Exactly one side must answer each query — never zero, never two:
 | `ConsolePresentationAdapter` (native raw upstream) | The real terminal, directly | Raw bytes flow through to it unmodified; a synthetic Hex1b reply would arrive as an unwanted duplicate in the workload's input. |
 | `HeadlessPresentationAdapter` | `Hex1bTerminal`, synthesized from its own authoritative model | There is no real terminal to answer at all. |
 | `WebSocketPresentationAdapter` (managed browser presentation) | `Hex1bTerminal`, synthesized | The browser side is not an independent terminal emulator that autonomously answers VT queries; Hex1b owns the reply. |
-| A future translated (`Translated`) raster-graphics presentation | `Hex1bTerminal`, synthesized | Same reasoning as WebSocket: the real answering party is Hex1b's own graphics model, translated for display, not an independent terminal emulator. |
 
 This is implemented by a single presentation-adapter property,
 `IHex1bTerminalPresentationAdapter.AnswersProtocolQueriesDirectly` (default
@@ -818,8 +817,8 @@ presentation, `Hex1bTerminal` is the single, deterministic answerer:
 
 - **DA1** (`CSI c`/`CSI 0 c`, recognized without a private-mode prefix per
   `AnsiTokenizer`) replies `\x1b[?62;4c` (VT220-class identity plus Sixel,
-  parameter 4) when `Capabilities.SixelSupport` is `Native`, `Translated`, or
-  `Headless` (or `Capabilities.SupportsSixel` is set), or `\x1b[?62c`
+  parameter 4) when `Capabilities.SixelSupport` is `Native` or `Headless`
+  (or the back-compatible `Capabilities.SupportsSixel` flag is set), or `\x1b[?62c`
   otherwise — including for both `Unknown` and `None`, since neither is an
   affirmative "yes." This reply format is a Hex1b-owned synthetic identity,
   not verified byte-for-byte against a specific real terminal's own DA1
@@ -870,16 +869,51 @@ an explicit diagnostic reason, rather than attempting to read a stream that
 does not exist for that platform — Sixel support and metrics stay unknown on
 Windows unless declared directly via `WithSixelSupport`.
 
-### Explicitly out of scope for this stage
+## Presentation boundaries (#458)
 
-Per the exclusions in [#455](https://github.com/mitchdenny/hex1b/issues/455):
-no changes to raster decoding, no Sixel-to-KGP/iTerm2 translation (the
-`Translated` enum value is a placeholder for
-[#458](https://github.com/mitchdenny/hex1b/issues/458), which alone implements
-it), and no `SixelWidget`/`Surface`-side fallback logic. Broad conformance
-hardening beyond the safe, bounded probing described above is likewise
-deferred; this stage answers "what can the presentation do and how big is a
-cell," not "make every terminal work perfectly."
+`Hex1bTerminal` is a terminal emulator, not a cross-protocol graphics gateway.
+Sixel presentation uses the existing terminal contracts:
+
+- **Native presentations receive workload bytes immediately and byte-for-byte.**
+  When no presentation filter or impact-aware adapter is attached, every
+  workload read is written to the presentation before DCS framing, parsing,
+  rasterization, or snapshot work. Arbitrary chunking is preserved, and a
+  rejected, malformed, oversized, or geometry-only Sixel model outcome cannot
+  delay, rewrite, suppress, or replace the native bytes.
+- **Impact-aware managed presentations receive ordered token effects.**
+  `ICellImpactAwarePresentationAdapter` receives each batch as ordered
+  `AppliedToken` values. `AppliedToken.GraphicsImpacts` reports Sixel additions,
+  damage, removals, and other graphics invalidation independently from cell
+  impacts, so a managed consumer can update incrementally without a second
+  Sixel-specific event hierarchy.
+- **Snapshots provide full authoritative graphics state.**
+  `Hex1bTerminal.CreateSnapshot()` exposes `SixelPlacements` and the
+  content-addressed `SixelImages` table, including decoded pixels or an explicit
+  geometry-only outcome, placement geometry, crop, ordering, and damage state.
+  Consumers that need complete state use snapshots rather than reconstructing it
+  from incremental impacts alone.
+- **HMP1 replay is private same-protocol restoration.**
+  A newly connected HMP1 peer receives StateSync followed by internally generated
+  cursor-position and Sixel DCS output that recreates the current viewport and
+  repairs damaged cells. This is Sixel-to-Sixel state restoration through the
+  ordinary terminal parser, not a browser-native delta protocol. Replay
+  serialization, frame ordering, limits, wire/version types, and mechanics remain
+  internal to `src/Hex1b/Hmp1/`.
+
+Automatic Sixel-to-KGP or Sixel-to-iTerm2 conversion is explicitly not part of
+Hex1bTerminal. The public API therefore has no translated support state,
+Sixel-specific presentation sink/event hierarchy, routing state machine,
+unsupported-presentation placeholder policy, or Sixel sanitization/interception
+policy.
+
+### Explicitly out of scope for capability discovery
+
+Per the exclusions in [#455](https://github.com/mitchdenny/hex1b/issues/455),
+capability discovery makes no changes to raster decoding or
+`SixelWidget`/`Surface`-side fallback logic. Broad conformance hardening beyond
+the safe, bounded probing described above is likewise deferred; that stage
+answers "what can the presentation do and how big is a cell," not "make every
+terminal work perfectly."
 
 ## Screens, scrollback, resize, and reflow
 

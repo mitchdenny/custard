@@ -265,10 +265,19 @@ public class SixelTerminalSemanticsTests
             "graphics impacts",
             TestContext.Current.CancellationToken);
 
-        Assert.IsTrue(terminal.AppliedTokens.Any(
-            applied => applied.GraphicsImpacts.Any(impact => impact.Kind == TerminalGraphicsImpactKind.SixelAdded)));
-        Assert.IsTrue(terminal.AppliedTokens.Any(
-            applied => applied.GraphicsImpacts.Any(impact => impact.Kind == TerminalGraphicsImpactKind.SixelDamaged)));
+        var impactKinds = terminal.AppliedTokens
+            .SelectMany(applied => applied.GraphicsImpacts)
+            .Select(impact => impact.Kind)
+            .ToArray();
+        TestSeq.AreEqual(
+            [TerminalGraphicsImpactKind.SixelAdded, TerminalGraphicsImpactKind.SixelDamaged],
+            impactKinds);
+
+        using var snapshot = terminal.Terminal.CreateSnapshot();
+        var placement = TestSeq.Single(snapshot.SixelPlacements);
+        var image = TestSeq.Single(snapshot.SixelImages.Values);
+        Assert.AreSame(image, placement.Image);
+        Assert.IsTrue(placement.IsCellDamaged(0, 1));
     }
 
     [TestMethod]

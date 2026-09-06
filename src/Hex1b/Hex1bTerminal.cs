@@ -6318,6 +6318,14 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         var processingStarted = Stopwatch.GetTimestamp();
         try
         {
+        var sixelPolicy = _sixelColorRegisters.Policy;
+        if (sixelPolicy.RejectZeroExtentGraphics &&
+            (parseResult.LogicalCanvasExtent.Width <= 0 ||
+             parseResult.LogicalCanvasExtent.Height <= 0))
+        {
+            return;
+        }
+
         // Capture immutable raster inputs while applying only palette metadata to
         // the terminal-scoped state. Pixel painting remains lazy, so the terminal
         // buffer lock never covers raster work.
@@ -6326,7 +6334,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
             new SixelRasterEnvironment(
                 CaptureSixelBackground(),
                 _sixelColorRegisters,
-                _sixelColorRegisters.Policy));
+                sixelPolicy));
 
         // The parser's canvas extent is already aspect-scaled, so it is the rendered
         // pixel extent the placement occupies on screen.

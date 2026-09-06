@@ -34,6 +34,26 @@ internal static class SixelDefaultPalette
         (80, 80, 80),
     ];
 
+    private static readonly Rgba32[] WezTerm20240203Colors =
+    [
+        new(0x00, 0x00, 0x00, 0xFF),
+        new(0x33, 0x33, 0xCC, 0xFF),
+        new(0xCC, 0x23, 0x23, 0xFF),
+        new(0x33, 0xCC, 0x33, 0xFF),
+        new(0xCC, 0x33, 0xCC, 0xFF),
+        new(0x33, 0xCC, 0xCC, 0xFF),
+        new(0xCC, 0xCC, 0xCC, 0xFF),
+        new(0x77, 0x77, 0x77, 0xFF),
+        new(0x44, 0x44, 0x44, 0xFF),
+        new(0x56, 0x56, 0x99, 0xFF),
+        new(0x99, 0x44, 0x44, 0xFF),
+        new(0x56, 0x99, 0x56, 0xFF),
+        new(0x99, 0x56, 0x99, 0xFF),
+        new(0x56, 0x99, 0x99, 0xFF),
+        new(0x99, 0x99, 0x56, 0xFF),
+        new(0xCC, 0xCC, 0xCC, 0xFF),
+    ];
+
     private static readonly byte[] CubeLevels = [0, 95, 135, 175, 215, 255];
 
     /// <summary>
@@ -44,22 +64,33 @@ internal static class SixelDefaultPalette
     /// <summary>
     /// Writes the default palette into <paramref name="destination"/>.
     /// </summary>
-    public static void Fill(Span<Rgba32> destination)
+    public static void Fill(
+        Span<Rgba32> destination,
+        SixelInitialPalette palette = SixelInitialPalette.DecVt340Extended)
     {
         for (var register = 0; register < destination.Length; register++)
         {
-            destination[register] = Get(register);
+            destination[register] = Get(register, palette);
         }
     }
 
     /// <summary>
     /// Gets the default color for a register index.
     /// </summary>
-    public static Rgba32 Get(int register)
+    public static Rgba32 Get(
+        int register,
+        SixelInitialPalette palette = SixelInitialPalette.DecVt340Extended)
     {
         if (register < 0)
         {
             return new Rgba32(0, 0, 0, 255);
+        }
+
+        if (palette == SixelInitialPalette.WezTerm20240203)
+        {
+            return register < WezTerm20240203Colors.Length
+                ? WezTerm20240203Colors[register]
+                : new Rgba32(255, 255, 255, 255);
         }
 
         if (register < Vt340RegisterCount)
@@ -103,7 +134,7 @@ internal sealed class SixelColorRegisters
     {
         Policy = policy ?? SixelCompatibilityPolicy.Default;
         _registers = new Rgba32[Policy.ColorRegisterCount];
-        SixelDefaultPalette.Fill(_registers);
+        SixelDefaultPalette.Fill(_registers, Policy.InitialPalette);
     }
 
     private SixelColorRegisters(SixelCompatibilityPolicy policy, Rgba32[] registers)
@@ -140,7 +171,7 @@ internal sealed class SixelColorRegisters
     /// <summary>
     /// Restores every register to its default value.
     /// </summary>
-    public void Reset() => SixelDefaultPalette.Fill(_registers);
+    public void Reset() => SixelDefaultPalette.Fill(_registers, Policy.InitialPalette);
 
     /// <summary>
     /// Creates an independent copy for private-per-graphic compatibility policies

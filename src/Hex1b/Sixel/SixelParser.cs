@@ -252,16 +252,19 @@ internal sealed record SixelParseResult(
             [new SixelDiagnostic(code, 0, introducer.FinalByte, message)]);
     }
 
-    internal static SixelHeader CreateHeader(IReadOnlyList<int?> parameters)
+    internal static SixelHeader CreateHeader(
+        IReadOnlyList<int?> parameters,
+        SixelCompatibilityPolicy? policy = null)
     {
         var p1 = GetParameter(parameters, 0);
         var p2 = GetParameter(parameters, 1);
         var p3 = GetParameter(parameters, 2);
+        var aspect = SixelParser.GetAspectRatio(p1);
         return new SixelHeader(
             p1,
             p2,
             p3,
-            SixelParser.GetAspectRatio(p1),
+            (policy ?? SixelCompatibilityPolicy.Default).ResolveAspectRatio(aspect),
             p2 == 1 ? SixelBackgroundMode.Transparent : SixelBackgroundMode.Opaque);
     }
 
@@ -317,8 +320,9 @@ internal sealed class SixelParser
     {
         _policy = policy ?? SixelCompatibilityPolicy.Default;
         _policy.Validate();
-        _header = SixelParseResult.CreateHeader(introducer.Parameters);
+        _header = SixelParseResult.CreateHeader(introducer.Parameters, _policy);
         _aspectRatio = _header.AspectRatio;
+        _selectedColorRegister = _policy.InitialColorRegister;
 
         if (introducer.Parameters.Count > 3)
         {
@@ -407,11 +411,7 @@ internal sealed class SixelParser
 
                 if (value is >= (byte)'?' and <= (byte)'~')
                 {
-                    var repeatCount = _parameters[0] ?? 1;
-                    if (repeatCount == 0)
-                    {
-                        repeatCount = 1;
-                    }
+                    var repeatCount = _policy.ResolveRepeatCount(_parameters[0] ?? 1);
                     ApplyData(value - (byte)'?', repeatCount, retainCommand);
                     ResetPendingCommand();
                     break;
@@ -596,6 +596,21 @@ internal sealed class SixelParser
     private void ApplyData(int mask, int repeatCount, bool retainCommand)
     {
         var startX = _graphicsX;
+        if (repeatCount <= 0)
+        {
+            if (retainCommand)
+            {
+                AddDataCommand(startX, mask, repeatCount);
+            }
+            else
+            {
+                _commandsComplete = false;
+            }
+
+            ObserveCursor();
+            return;
+        }
+
         var endX = SaturatingAdd(startX, repeatCount, null);
         if (retainCommand)
         {
@@ -725,7 +740,7 @@ internal sealed class SixelParser
         _rasterAttributes = new SixelRasterAttributes(pan, pad, ph, pv);
         if (pan > 0 && pad > 0)
         {
-            _aspectRatio = new SixelAspectRatio(pan, pad);
+            _aspectRatio = _policy.ResolveAspectRatio(new SixelAspectRatio(pan, pad));
         }
         else if (pan != 0 || pad != 0)
         {
@@ -775,7 +790,10 @@ internal sealed class SixelParser
             return;
         }
 
-        _selectedColorRegister = register;
+        if (_policy.SelectsColorRegister(palette))
+        {
+            _selectedColorRegister = register;
+        }
         if (palette.IsDefinition && register >= 0 && register < _policy.ColorRegisterCount)
         {
             _finalPaletteDefinitions[register] = palette;

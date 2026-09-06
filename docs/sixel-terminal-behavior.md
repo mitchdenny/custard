@@ -5,6 +5,7 @@
 > **Independent graphics state**: [#451](https://github.com/mitchdenny/hex1b/issues/451)
 > **Snapshots, exports, recording, and replay**: [#456](https://github.com/mitchdenny/hex1b/issues/456)
 > **Capability discovery and protocol cell metrics**: [#455](https://github.com/mitchdenny/hex1b/issues/455)
+> **Differential conformance corpus**: [#457](https://github.com/mitchdenny/hex1b/issues/457)
 > **Baseline**: DEC VT340
 
 ## Purpose
@@ -18,8 +19,10 @@ and must be represented by explicit compatibility policy when unavoidable.
 Hex1b must not branch on terminal names.
 
 The tests under `tests/Hex1b.Tests/Sixel/` establish the executable form of this
-contract before the parser, graphics state, or cell tracking is replaced.
-Ignored tests name the later issue that owns the missing behavior.
+contract. The finite differential corpus in
+`tests/Hex1b.Tests/TestData/Sixel/Conformance/terminal-reference-matrix.json`
+records the primary reference matrix, normalized expected outcomes, provenance,
+and the dedicated regression suites covering the rest of the terminal contract.
 
 ## Governing decisions
 
@@ -36,7 +39,7 @@ Ignored tests name the later issue that owns the missing behavior.
 
 ## Framing and dispatch
 
-| Behavior | DEC and reference terminals | Hex1b default | Status or unresolved work |
+| Behavior | DEC and reference terminals | Hex1b default | Status and evidence |
 |---|---|---|---|
 | 7-bit DCS/ST | DEC defines `ESC P` and `ESC \`; all reviewed terminals accept them | Required input and output form | Active split-boundary and exact-byte tests |
 | 8-bit C1 DCS/ST | DEC permits `0x90` and `0x9c`; modern parsers generally accept them | Accepted input; normalized only in parsed state, never in native passthrough | [#446](https://github.com/mitchdenny/hex1b/issues/446) |
@@ -126,7 +129,7 @@ The introducer is `DCS P1 ; P2 ; P3 q`.
 
 | Parameter | DEC VT340 | Selected Hex1b behavior | Modern differences |
 |---|---|---|---|
-| `P1` aspect macro | Omitted, 0, 1, 5, or 6 select 2:1; 2 selects 5:1; 3 or 4 select 3:1; 7, 8, or 9 select 1:1 | Use the DEC table; unsupported values use the 2:1 default | Windows Terminal uses 1:1 for unsupported values; xterm, WezTerm, and foot use 2:1 |
+| `P1` aspect macro | Omitted, 0, 1, 5, or 6 select 2:1; 2 selects 5:1; 3 or 4 select 3:1; 7, 8, or 9 select 1:1 | Use the DEC table; unsupported values use the 2:1 default | The pinned xterm 411 and WezTerm 20240203 render paths use square logical pixels and do not apply this aspect metadata |
 | `P2` background | 0 or 2 is opaque; 1 leaves unpainted pixels unchanged | Only 1 is transparent; all other values are opaque | The source of the opaque color differs; see Background |
 | `P3` horizontal grid size | Ignored by VT300 | Parse for syntax and diagnostics, but do not change geometry | xterm, WezTerm, and foot also ignore it for rendering |
 
@@ -155,7 +158,7 @@ of the terminal contract.
 
 ## Aspect and extents
 
-| Behavior | DEC and reference terminals | Hex1b default | Status or unresolved work |
+| Behavior | DEC and reference terminals | Hex1b default | Status and evidence |
 |---|---|---|---|
 | `Pan`/`Pad` override | DECGRA aspect overrides the `P1` macro | Last valid DECGRA aspect controls the sequence | Active incremental parser tests |
 | `Ph`/`Pv` orientation | `Ph` is width and `Pv` is height | Horizontal then vertical, without transposition | Active incremental parser and terminal tests |
@@ -167,23 +170,24 @@ of the terminal contract.
 | Fractional cell metrics | Modern terminals can report non-integral pixel metrics | Retain the best available metric and apply deterministic outward rounding for occupied cells | Harness records fractional width now |
 
 Windows Terminal reports an undocumented VT330 behavior in which DECGRA also
-performs a graphics carriage return. DEC does not document this. Differential
-testing in [#457](https://github.com/mitchdenny/hex1b/issues/457) must decide
-whether it belongs in an optional profile.
+performs a graphics carriage return. DEC does not document this, and the report
+was not independently reproducible in the #457 environment. The finite corpus
+therefore classifies it as unsupported reference behavior and does not add a
+profile value.
 
 ## Color and palette
 
-| Behavior | DEC and reference terminals | Hex1b default | Status or unresolved work |
+| Behavior | DEC and reference terminals | Hex1b default | Status and evidence |
 |---|---|---|---|
 | RGB | Three 0-100% components | Clamp valid components to the DEC domain and convert deterministically to 8-bit RGB with nearest rounding (`(percent * 255 + 50) / 100`) | Active rasterizer tests |
 | HLS | Hue 0 is blue, 120 is red, and 240 is green; lightness and saturation are percentages | Use the DEC hue wheel, not the CSS hue wheel; hue wraps modulo 360 and lightness/saturation clamp to 0-100 | Active rasterizer tests |
-| Default palette | DEC VT340 ships 16 hardware colors; modern terminals extend selection beyond them | Registers 0-15 are the VT340 defaults expressed in the DEC 0-100 domain; registers 16-255 extend them with the conventional 6x6x6 cube and grayscale ramp so selection without definition is defined for every register inside policy | Centralized in `SixelDefaultPalette`; exact values remain a [#457](https://github.com/mitchdenny/hex1b/issues/457) target |
+| Default palette | DEC VT340 ships 16 hardware colors; the pinned WezTerm source initializes a distinct 16-color map | The DEC/xterm profiles use the VT340 defaults plus the documented 256-color extension; the WezTerm profile uses its pinned initial map and white for otherwise undefined entries | Centralized in `SixelDefaultPalette` and selected by `SixelCompatibilityPolicy`; the corpus pins register 6 where the reference maps differ |
 | Register count | DEC VT340 exposes 16; modern terminals commonly expose 256 | 256 terminal-scoped registers; selection or definition outside the policy is rejected explicitly with a diagnostic and never silently wrapped | Centralized in `SixelCompatibilityPolicy` |
 | Register persistence | DEC has a shared palette; xterm, WezTerm, foot, Windows Terminal, and xterm.js persist by default | Share palette state between sequences on the same terminal; definitions apply in command order even when rasterization degrades to geometry only | Active rasterizer and terminal tests |
-| Private registers | xterm mode 1070 and some terminal options provide per-image palettes | Shared by default; any private mode must be an explicit compatibility option expressed through `SixelCompatibilityPolicy.PaletteScope` | Support and reset details unresolved |
-| RIS | WezTerm resets its shared color map; other reviewed behavior is incomplete | Reset the Sixel palette to terminal defaults; placement reset remains later-stage work | Palette reset active; placements in [#453](https://github.com/mitchdenny/hex1b/issues/453) |
+| Private registers | xterm mode 1070 and some terminal options provide per-image palettes | Shared by default; any private mode must be an explicit compatibility option expressed through `SixelCompatibilityPolicy.PaletteScope` | Outside the finite primary matrix; no unsupported reset claim is made |
+| RIS | WezTerm resets its shared color map; other reviewed behavior is incomplete | Reset the Sixel palette and remove active placements while preserving prior snapshots | Active palette and lifecycle tests |
 | Alternate screen | Reviewed terminals keep one shared color map across screen buffers | Preserve palette registers across alternate-screen transitions | Active terminal tests |
-| DECSTR | Reference behavior is not sufficiently established | Preserve palette unless differential testing demonstrates a stable DEC-compatible reset rule | Explicitly unresolved for #457 |
+| DECSTR | Reference behavior is not sufficiently established | Reset Sixel modes; preserve palette, placements, cursor, and snapshots | Deterministic Hex1b contract; external behavior remains implementation-defined |
 
 ### Background
 
@@ -202,9 +206,8 @@ xterm.js, and it keeps the opaque fill independent of a payload that redefines
 register 0 for its own drawing. DEC describes the "current background color"
 without resolving the distinction, so the alternative remains expressible
 through `SixelCompatibilityPolicy.BackgroundSource` rather than as a hidden
-branch, and stays a
-[#457](https://github.com/mitchdenny/hex1b/issues/457) differential-testing
-target.
+branch. The #457 corpus exercises both the DEC/Hex1b captured-background
+profile and the source-derived xterm/WezTerm register-zero profile.
 
 Because the captured background and the persistent palette both change how an
 identical payload rasterizes, tracked Sixel deduplication keys on the payload
@@ -227,8 +230,8 @@ documentation and implementation interpret set/reset in the opposite direction
 from the VT340 manual and hardware tests. Foot changed its polarity after
 testing real VT340 hardware. Hex1b selects the DEC interpretation, and the
 xterm-compatible inversion lives in `SixelCompatibilityPolicy.DecsdmPolarity`
-rather than in terminal detection. Which reference profile a terminal should
-select stays a [#457](https://github.com/mitchdenny/hex1b/issues/457) target.
+rather than in terminal detection. The #457 corpus pins xterm 411 and WezTerm
+20240203 to the inverted profile.
 
 ### Cursor, margins, and origin
 
@@ -240,8 +243,9 @@ occupied cell rows; mode 8452 may select the right-side outcome.
 
 In non-scrolling mode, placement starts at the graphics-page origin and restores
 the text cursor exactly. Windows Terminal explicitly uses the full page instead
-of text margins in this mode. Exact margin clipping across references remains a
-[#457](https://github.com/mitchdenny/hex1b/issues/457) test target.
+of text margins in this mode. Exact cross-reference margin state is not exposed
+authoritatively by the primary matrix; Hex1b's margin and clipping behavior is
+covered by the dedicated cursor-semantics suite.
 
 Three cursor concepts stay distinct. The *Sixel graphics cursor* lives inside the
 raster and never escapes the parser. The *anchor* is the text cursor position the
@@ -282,15 +286,15 @@ CUP before writing anything that follows.
 
 ## Ownership, overlap, and erasure
 
-| Operation | Selected Hex1b behavior | Unresolved details |
+| Operation | Selected Hex1b behavior | Notes |
 |---|---|---|
-| Sixel over Sixel | Both placements are retained independently; presentation composites in placement sequence order. Painted pixels from a later placement cover earlier pixels; unpainted/transparent pixels leave earlier placements visible. | Broader cross-terminal visual comparison remains #457; #458 explicitly rejects automatic translation into another graphics protocol. |
+| Sixel over Sixel | Both placements are retained independently; presentation composites in placement sequence order. Painted pixels from a later placement cover earlier pixels; unpainted/transparent pixels leave earlier placements visible. | Authoritative machine-readable state is unavailable from the primary references; Hex1b's deterministic model is covered by placement and terminal-semantics tests. #458 explicitly rejects automatic translation into another graphics protocol. |
 | Text over Sixel | Any text-cell write destructively damages the Sixel pixels projected into the overwritten cell. A space, styled background write, combining-cluster update, wide-character leading cell, or wide-character continuation cleanup is still a text write for graphics damage. Destroyed Sixel pixels do not reappear if the text is later erased. | Damage is modeled at bounded cell granularity rather than sub-cell glyph-shape granularity. |
 | ED/EL/ECH/DECERA/DECSERA | Erase graphics in the same clipped cell region that text erasure affects. Selective erase preserves graphics only where the underlying terminal cell is protected. Full ED/RIS remove active placements; partial erases damage only intersecting placement cells. | Implemented; scrolling/reflow projection across the scrollback boundary is implemented by [#452](https://github.com/mitchdenny/hex1b/issues/452) (see below). |
 | Insert/delete characters, columns, and lines | Character/column/line edits damage every overwritten destination or blank-fill cell in their clipped edit region, while Sixel placements themselves do not shift with ordinary text edits unless the existing scroll integration explicitly moves/drops them. | History/reflow projection is implemented by [#452](https://github.com/mitchdenny/hex1b/issues/452). |
 | Scroll-region operations | Move, clip, split into history, or erase placements using the same region semantics as text rows, including partial vertical/horizontal margins under DECSTBM/DECLRMM | Full-fidelity scrolling/reflow projection across the scrollback boundary is implemented by [#452](https://github.com/mitchdenny/hex1b/issues/452); see "Independent Sixel scrolling, history, and reflow (#452)" below |
 | RIS | Clear main and alternate placements, reset Sixel modes, reset the palette, clear saved screen state, and leave previously captured snapshots valid. | Implemented for lifecycle; native presentations own their terminal's response to the original bytes, while managed consumers observe impacts and snapshots. |
-| DECSTR | Reset modes, including DECSDM and mode 8452; preserve palette, placements, cursor position, and snapshots. | Broader terminal comparison remains #457, but Hex1b's compatibility choice is centralized and deterministic. |
+| DECSTR | Reset modes, including DECSDM and mode 8452; preserve palette, placements, cursor position, and snapshots. | External behavior is implementation-defined in the finite matrix; Hex1b's compatibility choice is centralized and deterministic. |
 
 Foot has the clearest reviewed prior art for compositing independent placements.
 Hex1b's existing KGP graphics state provides the closest internal model. Sixel
@@ -985,42 +989,172 @@ terminal work perfectly."
 
 ## Screens, scrollback, resize, and reflow
 
-| Area | Selected Hex1b contract | Status or unresolved work |
+| Area | Selected Hex1b contract | Status and evidence |
 |---|---|---|
 | Main/alternate screen | Each screen owns independent placements; leaving the alternate screen restores the unchanged main-screen graphics | Implemented by [#451](https://github.com/mitchdenny/hex1b/issues/451) |
 | Scrollback | Scrolling placements remain anchored to logical row lineage and can span visible and history rows; a placement is split across the visible/history boundary via a non-destructive crop of its *current* painted window | Implemented by [#452](https://github.com/mitchdenny/hex1b/issues/452); foot provides verified prior art |
 | History eviction | Remove only the placement portions no longer owned by retained row lineage | Implemented by [#452](https://github.com/mitchdenny/hex1b/issues/452), with KGP's partial-crop/transfer-to-successor-row fidelity |
 | Resize | Clip to the viewport without destroying source pixels; reveal them again when space returns | Implemented by [#451](https://github.com/mitchdenny/hex1b/issues/451)/[#452](https://github.com/mitchdenny/hex1b/issues/452): a placement is dropped only once it is wholly outside the new bounds; a partially-visible placement keeps its full underlying raster and geometry, so it reappears in full when space returns |
 | Reflow | Re-anchor through the same row-lineage plan as text and KGP placements; atomic per-anchor movement, with projection-only splitting when an anchor lands in a history/discarded window | Implemented by [#452](https://github.com/mitchdenny/hex1b/issues/452) |
-| Cell-metric change | Recompute occupied cells from stable pixel geometry using deterministic outward rounding; a protocol metric-query response never resizes the terminal or its placements on its own | Implemented by [#452](https://github.com/mitchdenny/hex1b/issues/452); reference-terminal behavior needs #457 testing |
+| Cell-metric change | Recompute occupied cells from stable pixel geometry using deterministic outward rounding; a protocol metric-query response never resizes the terminal or its placements on its own | Implemented by [#452](https://github.com/mitchdenny/hex1b/issues/452); no primary reference exposes equivalent authoritative placement state |
 
 No reviewed reference provided a complete answer for resize/reflow or
 main/alternate-screen ownership. These decisions intentionally align Sixel with
 Hex1b's protocol-neutral terminal model and existing KGP reflow machinery while
-remaining explicit differential-testing targets.
+remaining covered by deterministic terminal-model tests rather than screenshot
+comparison.
 
-## Explicitly unresolved decisions
+## Differential conformance corpus (#457)
 
-The following decisions must remain visible until
-[#457](https://github.com/mitchdenny/hex1b/issues/457) provides executable
-reference-terminal evidence:
+The differential corpus is intentionally finite. Its primary matrix is DEC
+VT340, xterm patch 411, and WezTerm
+`20240203-110809-5046fc22`. The checked-in manifest is
+`tests/Hex1b.Tests/TestData/Sixel/Conformance/terminal-reference-matrix.json`;
+the executable normalizer is
+`tests/Hex1b.Tests/Sixel/SixelReferenceConformanceTests.cs`.
 
-1. Which DECSDM polarity profile a given reference terminal should select. The
-   inversion knob exists; the per-terminal selection does not.
-2. Whether an optional palette-register-0 opaque background profile is needed
-   alongside the selected captured-background behavior.
-3. DECGRA's undocumented carriage-return behavior and aspect-scaled DECGNL.
-4. Exact Sixel-over-Sixel compositing and partial-cell text/erase damage.
-5. DECSTR effects on placements.
-6. Private-mode save/restore (`CSI ? Pm s` and `CSI ? Pm r`) for Sixel modes.
-7. Exact default palette values for registers 16-255 and private-register
-   behavior across modern terminals.
+| Behavior | Hex1b / DEC VT340 profile | xterm 411 profile | WezTerm 20240203 profile | Classification |
+|---|---|---|---|---|
+| Initial paint color | Register 0 | Register 3 (`#33CC33` in the VT340 palette) | Independent pure green (`#00FF00`) until the first explicit selection | DEC behavior is implementation-defined; xterm/WezTerm behavior is source-derived |
+| Initial register palette | VT340 values; register 6 is `#CCCC33` | VT340 values; register 6 is `#CCCC33` | Pinned WezTerm map; register 6 is `#CCCCCC` | Documented reference difference |
+| Pixel aspect | Apply the DEC `P1`/DECGRA ratio | Render square logical pixels | Render square logical pixels | Documented reference difference |
+| Opaque `P2=0/2` fill | Captured terminal background | Sixel register 0 | Sixel register 0 | Documented reference difference; DEC's “current background” wording is ambiguous |
+| Color definition | Define and select the register | Define and select the register | Define without changing the selected register | Documented reference difference |
+| `!0` repeat | Treat zero as the default single repeat | Treat zero as a single repeat | Perform zero writes and reject the resulting zero-area image | DEC zero-count wording is implementation-defined; xterm/WezTerm behavior is source-derived |
+| RGB 50% conversion | Nearest, producing 128 | Not asserted by this corpus | Truncate, producing 127 | Implementation-defined quantization and documented WezTerm difference |
+| `CSI ? 80 h` | Enable Sixel scrolling | Disable Sixel scrolling | Disable Sixel scrolling | Documented reference difference |
+| Palette lifetime | Shared terminal registers | Shared by default | Shared by default | Reference match |
+
+These differences are centralized in the internal
+`SixelCompatibilityPolicy`; parser, raster, placement, and terminal code do not
+branch on terminal names. The default remains the DEC VT340 profile.
+
+The corpus classifies every asserted difference as one of:
+
+- **Hex1b defect** — evidence contradicts the selected Hex1b contract and the
+  implementation must be fixed.
+- **Documented reference difference** — a pinned reference intentionally
+  differs and is represented by a profile.
+- **Implementation-defined/ambiguous** — the DEC material does not define the
+  exact modern representation, such as 8-bit RGB midpoint quantization.
+- **Unsupported reference behavior** — the available evidence is insufficient
+  for an executable assertion; the corpus records no invented result.
+
+The corpus review exposed and fixed default-path raster-preparation identity
+defects: palette-dependent colors were treated as an unordered set, and
+register 0 was omitted when it supplied the opaque background. The identity now
+records the resolved unpainted color and the ordered effective paint colors.
+Profile-specific fixes also model xterm/WezTerm initial paint color, select the
+pinned WezTerm initial register map for both terminal construction and RIS,
+and prevent WezTerm's zero-area repeat result from becoming a placement.
+
+### Scope decisions
+
+The previous open questions now have finite dispositions:
+
+1. DECSDM polarity, opaque background source, aspect handling, color-definition
+   selection, zero repeat, and RGB quantization are explicit profile values.
+2. DECGRA carriage return is unsupported reference behavior in this matrix:
+   the Windows Terminal report was not reproducible in this environment and no
+   result is fabricated.
+3. Sixel-over-Sixel ordering, partial-cell damage, DECSTR placement behavior,
+   private-mode save/restore, alternate-screen ownership, history, resize, and
+   reflow remain Hex1b terminal-model contracts backed by dedicated executable
+   tests. The selected primary references do not expose authoritative,
+   machine-readable state for those operations.
+4. Registers 16-255 and private-register modes remain outside the executable
+   equality matrix. The WezTerm profile uses the pinned source's white fallback
+   for undefined entries; the DEC/xterm profiles retain the documented Hex1b
+   extension. No cross-terminal equality claim is made for those registers.
+
+This closes the terminal-side matrix rather than creating a permanently
+expanding list of emulator targets. A new reference belongs here only when its
+version, provenance, capture process, and normalized authoritative outcome can
+all be checked in.
+
+### Fixture provenance and reproduction
+
+The corpus contains minimal independently authored Sixel payloads. It does not
+copy terminal source code or use `SixelEncoder`. Reference facts are derived
+from:
+
+- DEC VT300 Series Programmer Reference Manual Volume 2,
+  `EK-VT3XX-GP-001`, Chapter 14.
+- xterm patch 411 source revision
+  `9489b2056ee51fa9dd6a7087483b9b8f85d6a0c4`;
+  `graphics_sixel.c` SHA-256
+  `3f6234e71ded3d816d6b2e7792b3a4860ecaf8c3c104d2284f0a44f31c726c96`
+  and `graphics.c` SHA-256
+  `447846c4a6120d24962f97b653538794df888a88b25b4c74a1c5ac5a5d0019c0`.
+- WezTerm build `20240203-110809-5046fc22`, source revision
+  `5046fc225992db6ba2ef8812743fadfdfe4b184a`;
+  terminal Sixel renderer SHA-256
+  `4a8007dd75244005874791b26cd7d0e4c62872bef4df4e978b9f921bf53ee9f9`
+  termwiz Sixel parser SHA-256
+  `ee4d38f6bafd98d3810074ba3d2f2675d62deac923da6a4b2559a4035add3de0`,
+  and terminal-state palette source SHA-256
+  `5bbdf36cae5d86c29fa4decda94fde6d370e2295c6451245c6218fec665082d9`.
+
+To reproduce the source provenance, check out those exact revisions and hash
+the files rather than inspecting a moving default branch:
+
+```bash
+git clone https://github.com/ThomasDickey/xterm-snapshots.git /tmp/xterm-sixel
+git -C /tmp/xterm-sixel checkout 9489b2056ee51fa9dd6a7087483b9b8f85d6a0c4
+shasum -a 256 /tmp/xterm-sixel/graphics_sixel.c
+shasum -a 256 /tmp/xterm-sixel/graphics.c
+
+git clone https://github.com/wezterm/wezterm.git /tmp/wezterm-sixel
+git -C /tmp/wezterm-sixel checkout 5046fc225992db6ba2ef8812743fadfdfe4b184a
+shasum -a 256 /tmp/wezterm-sixel/term/src/terminalstate/sixel.rs
+shasum -a 256 /tmp/wezterm-sixel/termwiz/src/escape/parser/sixel.rs
+shasum -a 256 /tmp/wezterm-sixel/term/src/terminalstate/mod.rs
+wezterm --version
+```
+
+The executable normalizer wraps each ASCII fixture in either 7-bit
+`ESC P ... ESC \` or 8-bit C1 `DCS`/`ST`, feeds the exact bytes through
+`Hex1bTerminal`, and compares decoded RGBA pixels, logical/rendered extents,
+cell placement, cursor state, parser/raster outcomes and diagnostics, and
+native presentation bytes. The framing case is repeated at every byte boundary
+and with one-byte chunks. The manifest also maps the complete terminal-side
+contract to the existing damage, ordering, lifecycle, history, resize, reflow,
+snapshot, recording, internal HMP1 replay, hardening, and fuzz suites.
+
+```bash
+dotnet test tests/Hex1b.Tests/Hex1b.Tests.csproj -v q \
+  --filter "FullyQualifiedName~SixelReferenceConformanceTests"
+```
+
+For a supplemental visual check in a Sixel-capable terminal, print one payload
+without changing it:
+
+```bash
+printf '\033P'; cat tests/Hex1b.Tests/TestData/Sixel/reference-default-aspect.sixel; printf '\033\\'
+```
+
+Screenshots are not authoritative corpus data. xterm was not installed in the
+capture environment. The installed WezTerm build can display fixtures but does
+not expose a CLI for extracting its decoded raster, placement, cursor, damage,
+or diagnostics as machine-readable state. Consequently xterm and WezTerm
+assertions are explicitly source-derived from the pinned revisions above.
+Windows Terminal, foot, mintty, and other implementations are excluded from
+the primary matrix because no equally reproducible local capture or
+independently sourced checked-in fixture was available.
 
 ## Evidence and running the contract
 
 The test fixtures are small ASCII payloads embedded from
 `tests/Hex1b.Tests/TestData/Sixel/`. Expected data is independently authored and
-does not use `SixelEncoder`. `tests/Hex1b.Tests/Sixel/SixelPlacementLifetimeTests.cs`
+does not use `SixelEncoder`.
+`tests/Hex1b.Tests/Sixel/SixelReferenceConformanceTests.cs` loads the checked-in
+reference matrix and verifies the profile-specific pixels, logical/rendered
+geometry, placement, cursor state, and exact native bytes. It also verifies
+that the manifest covers the complete terminal-side contract and that every
+ignored Sixel test is explicitly accounted for. The only ignored Sixel tests
+exercise `SixelWidget`/Surface emission and remain outside terminal-side #457;
+there are no unexplained terminal-side ignores.
+`tests/Hex1b.Tests/Sixel/SixelPlacementLifetimeTests.cs`
 is the dedicated regression suite for #451's independent placement/image
 storage and lifetime accounting (multi-cell spans, dedup, overlap, geometry-only
 retention, origin-cell overwrite, snapshot-held survival past active-screen
@@ -1101,6 +1235,9 @@ performance budgets are reviewed against same-machine Release baselines.
 
 The terminal-first demo sends independently authored raw Sixel bytes through
 `Hex1bTerminal`. It does not use `SixelWidget` or `SixelEncoder`.
+Invisible malformed, limit-degraded, and geometry-only cases live in the
+headless executable suites and corpus rather than consuming a visual demo
+screen.
 `samples/SixelTerminalDemo/RawGraphicsStateScenes.cs` includes scenes
 demonstrating #451's independent placement ownership: two placements sharing
 identical raster content, overlapping placements that both survive,
@@ -1186,7 +1323,6 @@ cells, so a screen can be checked against what is actually on the terminal.
 
 ```bash
 dotnet run --project samples/SixelTerminalDemo
-dotnet run --project samples/SixelTerminalDemo -- --screen 17
 dotnet run --project samples/SixelTerminalDemo -- --scene "Declared extent"
 dotnet run --project samples/SixelTerminalDemo -- --scene "Scrolling"
 dotnet run --project samples/SixelTerminalDemo -- --headless
@@ -1200,10 +1336,11 @@ checked without a Sixel-capable terminal.
 
 - [DEC VT3xx Graphics Programming, Chapter 14](https://vt100.net/docs/vt3xx-gp/chapter14.html)
 - [xterm Control Sequences: Sixel Graphics](https://invisible-island.net/xterm/ctlseqs/ctlseqs.html#h3-Sixel-Graphics)
-- [xterm `graphics_sixel.c`](https://github.com/ThomasDickey/xterm-snapshots/blob/master/graphics_sixel.c)
+- [xterm 411 `graphics_sixel.c`](https://github.com/ThomasDickey/xterm-snapshots/blob/9489b2056ee51fa9dd6a7087483b9b8f85d6a0c4/graphics_sixel.c)
 - [Windows Terminal `SixelParser`](https://github.com/microsoft/terminal/tree/main/src/terminal/adapter)
-- [WezTerm Sixel parser](https://github.com/wezterm/wezterm/blob/main/wezterm-escape-parser/src/parser/sixel.rs)
-- [WezTerm Sixel terminal state](https://github.com/wezterm/wezterm/blob/main/term/src/terminalstate/sixel.rs)
+- [WezTerm pinned Sixel parser](https://github.com/wezterm/wezterm/blob/5046fc225992db6ba2ef8812743fadfdfe4b184a/termwiz/src/escape/parser/sixel.rs)
+- [WezTerm pinned Sixel terminal state](https://github.com/wezterm/wezterm/blob/5046fc225992db6ba2ef8812743fadfdfe4b184a/term/src/terminalstate/sixel.rs)
+- [WezTerm pinned default Sixel palette](https://github.com/wezterm/wezterm/blob/5046fc225992db6ba2ef8812743fadfdfe4b184a/term/src/terminalstate/mod.rs#L405-L430)
 - [foot `sixel.c`](https://codeberg.org/dnkl/foot/src/branch/master/sixel.c)
 - [mintty `sixel.c`](https://github.com/mintty/mintty/blob/master/src/sixel.c)
 - [xterm.js image add-on](https://github.com/xtermjs/xterm.js/tree/master/addons/addon-image/src)

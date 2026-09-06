@@ -396,6 +396,21 @@ public class SixelRasterizerTests
     }
 
     [TestMethod]
+    public void ColorRegisters_ProfileSpecificInitialPaletteMatchesPinnedReferences()
+    {
+        var dec = new SixelColorRegisters(SixelCompatibilityPolicy.DecVt340);
+        var xterm = new SixelColorRegisters(SixelCompatibilityPolicy.Xterm411);
+        var wezTerm = new SixelColorRegisters(SixelCompatibilityPolicy.WezTerm20240203);
+
+        Assert.AreEqual(new Rgba32(204, 33, 33, 255), dec.Get(2));
+        Assert.AreEqual(new Rgba32(204, 204, 51, 255), dec.Get(6));
+        Assert.AreEqual(dec.Get(2), xterm.Get(2));
+        Assert.AreEqual(dec.Get(6), xterm.Get(6));
+        Assert.AreEqual(new Rgba32(204, 35, 35, 255), wezTerm.Get(2));
+        Assert.AreEqual(new Rgba32(204, 204, 204, 255), wezTerm.Get(6));
+    }
+
+    [TestMethod]
     public void DefaultPalette_ExtendsBeyondTheVt340RegistersWithinPolicy()
     {
         var registers = new SixelColorRegisters();
@@ -508,6 +523,17 @@ public class SixelRasterizerTests
 
         Assert.AreEqual(SixelDefaultPalette.Get(1), RequireImage(afterReset)[0, 0]);
         Assert.AreNotEqual(new Rgba32(255, 0, 0, 255), RequireImage(afterReset)[0, 0]);
+    }
+
+    [TestMethod]
+    public void ColorRegisters_ResetRestoresTheProfileSpecificPalette()
+    {
+        var registers = new SixelColorRegisters(SixelCompatibilityPolicy.WezTerm20240203);
+        registers.Define(6, new Rgba32(255, 0, 0, 255));
+
+        registers.Reset();
+
+        Assert.AreEqual(new Rgba32(204, 204, 204, 255), registers.Get(6));
     }
 
     [TestMethod]
@@ -1018,6 +1044,94 @@ public class SixelRasterizerTests
 
         first.Release();
         second.Release();
+    }
+
+    [TestMethod]
+    public void TrackedSixel_OrderedPaletteUsesProduceDistinctIdentity()
+    {
+        var content = $"7;1q#1@{Red}@#1;2;0;0;100@";
+        var payload = $"\x1bP{content}\x1b\\";
+        var parse = SixelParser.ParsePayload(content);
+        var store = new TrackedObjectStore();
+        var blueRegisters = new SixelColorRegisters();
+        blueRegisters.Define(1, new Rgba32(0, 0, 255, 255));
+        var redRegisters = new SixelColorRegisters();
+        redRegisters.Define(1, new Rgba32(255, 0, 0, 255));
+
+        var blueFirst = store.GetOrCreateSixel(
+            payload,
+            3,
+            1,
+            parse,
+            SixelRasterizer.Prepare(
+                parse,
+                new SixelRasterEnvironment(
+                    new Rgba32(0, 0, 0, 255),
+                    blueRegisters,
+                    SixelCompatibilityPolicy.Default)));
+        var redFirst = store.GetOrCreateSixel(
+            payload,
+            3,
+            1,
+            parse,
+            SixelRasterizer.Prepare(
+                parse,
+                new SixelRasterEnvironment(
+                    new Rgba32(0, 0, 0, 255),
+                    redRegisters,
+                    SixelCompatibilityPolicy.Default)));
+
+        Assert.AreNotSame(blueFirst, redFirst);
+        Assert.AreEqual(new Rgba32(0, 0, 255, 255), blueFirst.Data.GetPixels()![0, 0]);
+        Assert.AreEqual(new Rgba32(255, 0, 0, 255), redFirst.Data.GetPixels()![0, 0]);
+
+        blueFirst.Release();
+        redFirst.Release();
+    }
+
+    [TestMethod]
+    public void TrackedSixel_PaletteZeroBackgroundProducesDistinctIdentity()
+    {
+        var policy = SixelCompatibilityPolicy.Xterm411;
+        var content = $"7;0q\"1;1;2;1{Red}#1@";
+        var payload = $"\x1bP{content}\x1b\\";
+        var parse = DcsByteStreamParser.ParseCompleteContent(
+            Encoding.ASCII.GetBytes(content),
+            policy).SixelResult;
+        var store = new TrackedObjectStore();
+        var blackRegisters = new SixelColorRegisters(policy);
+        var blueRegisters = new SixelColorRegisters(policy);
+        blueRegisters.Define(0, new Rgba32(0, 0, 255, 255));
+
+        var onBlack = store.GetOrCreateSixel(
+            payload,
+            2,
+            1,
+            parse,
+            SixelRasterizer.Prepare(
+                parse,
+                new SixelRasterEnvironment(
+                    new Rgba32(10, 20, 30, 255),
+                    blackRegisters,
+                    policy)));
+        var onBlue = store.GetOrCreateSixel(
+            payload,
+            2,
+            1,
+            parse,
+            SixelRasterizer.Prepare(
+                parse,
+                new SixelRasterEnvironment(
+                    new Rgba32(10, 20, 30, 255),
+                    blueRegisters,
+                    policy)));
+
+        Assert.AreNotSame(onBlack, onBlue);
+        Assert.AreEqual(new Rgba32(0, 0, 0, 255), onBlack.Data.GetPixels()![1, 0]);
+        Assert.AreEqual(new Rgba32(0, 0, 255, 255), onBlue.Data.GetPixels()![1, 0]);
+
+        onBlack.Release();
+        onBlue.Release();
     }
 
     [TestMethod]

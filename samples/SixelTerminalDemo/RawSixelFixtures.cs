@@ -91,10 +91,6 @@ internal static class RawSixelFixtures
             "Transparent geometry",
             "a magenta #FF00FF bar covering only the leftmost 80px (8 cells) of a 240px-wide\n  (24 cell) canvas. 240 transparent columns established the full width first,\n  so the image is 3x wider than the visible magenta",
             "7;1q!240?$#1;2;100;0;100#1!80~"),
-        new(
-            "Geometry only",
-            "nothing visible. The sequence declares an absurd 999999999x999999999px canvas,\n  which exceeds the raster policy, so geometry is recorded but no pixels are\n  allocated and nothing is painted. The screen should stay blank",
-            "7;1q\"1;1;999999999;999999999#1;2;100;0;0#1!240~"),
     ];
 
     private static string RepeatBands(string band, int count) =>

@@ -15,7 +15,10 @@ internal sealed class Hmp1SixelRecordedImage(
     SixelRasterStatus rasterStatus,
     string payload)
 {
-    /// <summary>The image's content hash, as captured from <see cref="SixelData.ContentHash"/>.</summary>
+    /// <summary>
+    /// The image's resource identity hash, as captured from
+    /// <see cref="SixelData.ContentHash"/>.
+    /// </summary>
     public byte[] ContentHash { get; } = contentHash;
 
     /// <summary>Whether this image carries no decoded pixels.</summary>

@@ -757,7 +757,12 @@ public sealed class Surface : ISurfaceSource
                     payload,
                     visibleRight - visibleLeft,
                     visibleBottom - visibleTop,
-                    SixelData.ComputeHash(payload),
+                    SixelData.ComputeHash(
+                        payload,
+                        rasterIdentity: null,
+                        visibleRight - visibleLeft,
+                        visibleBottom - visibleTop,
+                        sixelData.CellMetrics),
                     pixelRegion.Width,
                     pixelRegion.Height,
                     parseResult,

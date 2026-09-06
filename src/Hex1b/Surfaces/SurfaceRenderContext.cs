@@ -334,7 +334,12 @@ public class SurfaceRenderContext : Hex1bRenderContext
                 payload,
                 cellWidth,
                 cellHeight,
-                SixelData.ComputeHash(payload),
+                SixelData.ComputeHash(
+                    payload,
+                    rasterIdentity: null,
+                    cellWidth,
+                    cellHeight,
+                    metrics),
                 parseResult.DeclaredExtent.Width,
                 parseResult.DeclaredExtent.Height,
                 parseResult,

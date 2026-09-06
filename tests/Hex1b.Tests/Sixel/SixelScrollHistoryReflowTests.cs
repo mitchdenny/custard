@@ -547,13 +547,16 @@ public class SixelScrollHistoryReflowTests
             snapshot => snapshot.ContainsSixelData(),
             "placement created under the original cell metrics",
             TestContext.Current.CancellationToken);
-        Assert.AreEqual(2, TestSeq.Single(terminal.Terminal.SixelPlacements).HeightInCells);
+        var firstPlacement = TestSeq.Single(terminal.Terminal.SixelPlacements);
+        Assert.AreEqual(2, firstPlacement.HeightInCells);
+        Assert.AreEqual((1, 2), firstPlacement.Image.GetCellSpan());
 
-        terminal.Terminal.SetSixelCellMetrics(new SixelCellMetrics(
+        var changedMetrics = new SixelCellMetrics(
             1,
             3,
             SixelCellMetricsSource.Direct,
-            SixelCellMetricsReliability.Authoritative));
+            SixelCellMetricsReliability.Authoritative);
+        terminal.Terminal.SetSixelCellMetrics(changedMetrics);
 
         await terminal.FeedAsync(
             Encoding.ASCII.GetBytes("\x1b[4;1H").Concat(TwoRowBar.StandardBytes).ToArray(),
@@ -566,6 +569,31 @@ public class SixelScrollHistoryReflowTests
         var placements = terminal.Terminal.SixelPlacements;
         Assert.AreEqual(2, placements[0].HeightInCells, "the metric change does not retroactively affect an existing placement");
         Assert.AreEqual(4, placements[1].HeightInCells, "the same 12px payload now spans four 3px-tall cells");
+        Assert.AreNotSame(placements[0].Image, placements[1].Image);
+        Assert.IsFalse(placements[0].Image.ContentHash.SequenceEqual(placements[1].Image.ContentHash));
+        Assert.AreEqual(changedMetrics, placements[1].Image.CellMetrics);
+        Assert.AreEqual((1, 4), placements[1].Image.GetCellSpan());
+        Assert.AreEqual(2, terminal.Terminal.TrackedSixelCount);
+
+        using (var snapshot = terminal.Terminal.CreateSnapshot())
+        {
+            Assert.HasCount(2, snapshot.SixelImages);
+        }
+
+        await terminal.FeedAsync(
+            Encoding.ASCII.GetBytes("\x1b[4;1HX"),
+            cancellationToken: TestContext.Current.CancellationToken);
+        await terminal.WaitForAsync(
+            _ => terminal.Terminal.SixelPlacements[1].IsCellDamaged(3, 0),
+            "first cell of the second placement damaged",
+            TestContext.Current.CancellationToken);
+
+        var damagedPixels = placements[1].GetVisiblePixels();
+        Assert.IsNotNull(damagedPixels);
+        Assert.AreEqual(0, damagedPixels[0, 0].A);
+        Assert.AreEqual(0, damagedPixels[0, 2].A);
+        Assert.IsGreaterThan(0, damagedPixels[0, 3].A,
+            "damage must stop at the changed 3px protocol-cell boundary");
     }
 
     [TestMethod]

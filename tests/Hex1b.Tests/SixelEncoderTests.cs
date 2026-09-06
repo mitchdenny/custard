@@ -1031,6 +1031,71 @@ public class SixelVisibilityTests
         Assert.AreEqual((1, 1), span);
     }
 
+    [TestMethod]
+    public void TrackedStore_IdenticalPixelsWithDifferentProtocolMetrics_KeepDistinctFragmentGeometry()
+    {
+        var buffer = new SixelPixelBuffer(20, 18);
+        for (var y = 0; y < buffer.Height; y++)
+        {
+            for (var x = 0; x < buffer.Width; x++)
+                buffer[x, y] = Rgba32.FromRgb(255, 0, 0);
+        }
+        var payload = SixelEncoder.Encode(buffer);
+        var parseResult = SixelParser.ParsePayload(payload);
+        var tenByEighteen = new SixelCellMetrics(
+            10,
+            18,
+            SixelCellMetricsSource.Direct,
+            SixelCellMetricsReliability.Authoritative);
+        var eightByNine = new SixelCellMetrics(
+            8,
+            9,
+            SixelCellMetricsSource.Direct,
+            SixelCellMetricsReliability.Authoritative);
+
+        var first = _store.GetOrCreateSixel(
+            payload,
+            2,
+            1,
+            parseResult,
+            cellMetrics: tenByEighteen);
+        var second = _store.GetOrCreateSixel(
+            payload,
+            3,
+            2,
+            parseResult,
+            cellMetrics: eightByNine);
+        var repeatedSecond = _store.GetOrCreateSixel(
+            payload,
+            3,
+            2,
+            parseResult,
+            cellMetrics: eightByNine);
+        var differentSpan = _store.GetOrCreateSixel(
+            payload,
+            2,
+            2,
+            parseResult,
+            cellMetrics: eightByNine);
+
+        Assert.AreNotSame(first, second);
+        Assert.AreSame(second, repeatedSecond);
+        Assert.AreNotSame(second, differentSpan);
+        Assert.IsFalse(first.Data.ContentHash.SequenceEqual(second.Data.ContentHash));
+        Assert.IsFalse(second.Data.ContentHash.SequenceEqual(differentSpan.Data.ContentHash));
+        Assert.AreEqual((2, 1), first.Data.GetCellSpan());
+        Assert.AreEqual((3, 2), second.Data.GetCellSpan());
+        Assert.AreEqual(3, _store.SixelCount);
+
+        var visibility = new SixelVisibility(second, 0, 0, 0);
+        visibility.ApplyOcclusion(new Hex1b.Layout.Rect(0, 0, 1, 2));
+        var fragment = TestSeq.Single(visibility.GenerateFragments());
+
+        Assert.AreEqual(new PixelRect(8, 0, 12, 18), fragment.PixelRegion);
+        Assert.AreEqual((1, 0), fragment.CellPosition);
+        Assert.AreEqual((2, 2), fragment.GetCellSpan());
+    }
+
     #endregion
 
     #region T5: Computed Cell Sixel Access Tests

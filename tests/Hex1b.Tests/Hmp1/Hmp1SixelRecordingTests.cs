@@ -88,6 +88,45 @@ public class Hmp1SixelRecordingTests
     }
 
     [TestMethod]
+    public void RoundTrip_IdenticalPayloadAcrossProtocolMetrics_PreservesDistinctImageResources()
+    {
+        using var producer = CreateHeadlessTerminal();
+        var fixture = new SixelFixture(
+            "recording-metric-specific-images",
+            "The same raster captured against two different protocol cell grids.",
+            "q\"1;1;2;6#1;2;100;0;0#1!2~"u8.ToArray());
+        producer.SetSixelCellMetrics(new SixelCellMetrics(
+            1,
+            6,
+            SixelCellMetricsSource.Direct,
+            SixelCellMetricsReliability.Authoritative));
+        producer.ApplyTokens(AnsiTokenizer.Tokenize(
+            "\x1b[1;1H" + Encoding.ASCII.GetString(fixture.StandardBytes)));
+
+        producer.SetSixelCellMetrics(new SixelCellMetrics(
+            1,
+            3,
+            SixelCellMetricsSource.Direct,
+            SixelCellMetricsReliability.Authoritative));
+        producer.ApplyTokens(AnsiTokenizer.Tokenize(
+            "\x1b[4;1H" + Encoding.ASCII.GetString(fixture.StandardBytes)));
+
+        using var snapshot = producer.CreateSnapshot();
+        Assert.HasCount(2, snapshot.SixelImages);
+        Assert.HasCount(2, snapshot.SixelPlacements);
+        Assert.AreEqual((2, 1), snapshot.SixelPlacements[0].Image.GetCellSpan());
+        Assert.AreEqual((2, 2), snapshot.SixelPlacements[1].Image.GetCellSpan());
+
+        var recorded = Hmp1SixelRecording.Serialize(snapshot.SixelPlacements);
+        var decoded = Hmp1SixelRecording.Deserialize(recorded);
+
+        Assert.HasCount(2, decoded.Images);
+        Assert.HasCount(2, decoded.Placements);
+        Assert.AreNotEqual(decoded.Placements[0].ImageIndex, decoded.Placements[1].ImageIndex);
+        Assert.IsFalse(decoded.Images[0].ContentHash.SequenceEqual(decoded.Images[1].ContentHash));
+    }
+
+    [TestMethod]
     public void RoundTrip_WithDamagedCell_PreservesAnchorRelativeDamageOffsets()
     {
         using var producer = CreateHeadlessTerminal();

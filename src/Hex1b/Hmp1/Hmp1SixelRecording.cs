@@ -18,11 +18,11 @@ namespace Hex1b;
 /// Sixel parser.
 /// </para>
 /// <para>
-/// Images are content-addressed and deduplicated by <see cref="SixelData.ContentHash"/>:
-/// multiple placements sharing a raster reference the same image table entry, so
-/// pixel payloads are never repeated within a single recording (unlike the live
-/// wire replay, where the Sixel protocol has no "reuse an existing image at a new
-/// position" primitive).
+/// Images are identity-addressed and deduplicated by
+/// <see cref="SixelData.ContentHash"/>. Multiple placements share an image table
+/// entry only when their raster state, protocol metrics, and cell span are all
+/// compatible, so a recording never conflates placements whose pixels must be
+/// clipped or damaged on different protocol grids.
 /// </para>
 /// </remarks>
 internal static class Hmp1SixelRecording

@@ -3,8 +3,8 @@ using Hex1b.Sixel;
 namespace Hex1b;
 
 /// <summary>
-/// Content-hash-keyed store of anonymous Sixel raster resources for a single
-/// screen (main or alternate).
+/// Identity-keyed store of anonymous Sixel image resources for a single screen
+/// (main or alternate).
 /// </summary>
 /// <remarks>
 /// Unlike <see cref="TrackedObjectStore"/>'s manually reference-counted
@@ -44,8 +44,9 @@ internal sealed class SixelImageStore
     }
 
     /// <summary>
-    /// Gets the existing image for this exact content (payload + captured
-    /// background/palette identity), or creates and stores a new one.
+    /// Gets the existing image for this exact resource identity (payload,
+    /// captured raster state, protocol metrics, and cell span), or creates and
+    /// stores a new one.
     /// </summary>
     internal SixelData GetOrCreate(
         string payload,
@@ -58,7 +59,12 @@ internal sealed class SixelImageStore
         bool payloadComplete,
         out bool created)
     {
-        var hash = SixelData.ComputeHash(sourceContentHash, rasterPreparation.Identity);
+        var hash = SixelData.ComputeHash(
+            sourceContentHash,
+            rasterPreparation.Identity,
+            widthInCells,
+            heightInCells,
+            cellMetrics);
         if (_byHash.TryGetValue(hash, out var existing))
         {
             created = false;

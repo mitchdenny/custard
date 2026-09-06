@@ -2718,11 +2718,12 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
     /// active screen's graphics state.
     /// </summary>
     /// <remarks>
-    /// This deliberately counts distinct <em>images</em> (content-hash-deduplicated
-    /// raster resources), matching the historical dedup semantics of the
-    /// old <see cref="TrackedObjectStore"/>-backed counter it replaces. Use
+    /// This deliberately counts distinct <em>images</em> (identity-deduplicated
+    /// raster resources), matching the historical dedup semantics of the old
+    /// <see cref="TrackedObjectStore"/>-backed counter it replaces. Use
     /// <see cref="SixelPlacementCount"/> for the number of placements, which
-    /// may exceed the image count when placements share raster content.
+    /// may exceed the image count when placements share raster content,
+    /// protocol metrics, and cell span.
     /// </remarks>
     internal int TrackedSixelCount => _sixelGraphicsState.ActiveImages.Count;
 

@@ -248,25 +248,25 @@ public sealed class Hex1bTerminalSnapshot : IHex1bTerminalRegion, IDisposable
     /// Analogous to <see cref="KgpPlacements"/> but sized and shaped for the
     /// Sixel protocol: there is no image ID (Sixel has no protocol concept
     /// of one), so placements reference their <see cref="SixelPlacement.Image"/>
-    /// directly and <see cref="SixelImages"/> is keyed by content hash instead.
-    /// Each placement captures its own creation-time
-    /// <see cref="Sixel.SixelCellMetrics"/>, painted/declared extents, and
-    /// per-cell damage independently of any other placement, and remains
-    /// valid for the lifetime of this snapshot even after the live terminal
-    /// erases, prunes, or resets the placement that produced it.
+    /// directly and <see cref="SixelImages"/> is keyed by resource identity
+    /// hash instead.
+    /// Each placement references an image resource whose identity includes its
+    /// creation-time <see cref="Sixel.SixelCellMetrics"/> and declared cell
+    /// span. Painted extents and per-cell damage remain placement-specific, and
+    /// the complete placement remains valid for the lifetime of this snapshot
+    /// even after the live terminal erases, prunes, or resets its source.
     /// </remarks>
     public IReadOnlyList<SixelPlacement> SixelPlacements { get; }
 
     /// <summary>
     /// Sixel image data referenced by the visible snapshot placements, keyed
-    /// by content hash.
+    /// by immutable resource identity hash.
     /// </summary>
     /// <remarks>
     /// An image's decoded raster (or geometry-only outcome) is retained once
-    /// per referenced image, never once per covered cell: two placements —
-    /// in this snapshot or across independently captured snapshots — that
-    /// reference the same content hash share the same <see cref="SixelData"/>
-    /// instance and its underlying raster.
+    /// per compatible resource identity, never once per covered cell. Two
+    /// placements share a <see cref="SixelData"/> instance only when their
+    /// payload, raster state, protocol metrics, and cell span are all equal.
     /// </remarks>
     public IReadOnlyDictionary<byte[], SixelData> SixelImages { get; }
 

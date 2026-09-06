@@ -427,6 +427,101 @@ public class SixelSurfaceComparerTests
     }
 
     [TestMethod]
+    public void TrackedStore_SamePayloadUnderDifferentMetrics_PreservesEachFragmentGeometry()
+    {
+        var store = new TrackedObjectStore();
+        var pixels = CreateSolidPixels(18, 18, Rgba32.FromRgb(200, 80, 40));
+        var payload = SixelEncoder.Encode(pixels);
+        var parseResult = SixelParser.ParsePayload(payload);
+        var integerMetrics = new SixelCellMetrics(
+            10,
+            20,
+            SixelCellMetricsSource.Direct,
+            SixelCellMetricsReliability.Authoritative);
+        var fractionalMetrics = new SixelCellMetrics(
+            9.4,
+            19.4,
+            SixelCellMetricsSource.Direct,
+            SixelCellMetricsReliability.Authoritative);
+
+        var integer = store.GetOrCreateSixel(payload, 2, 1, parseResult, cellMetrics: integerMetrics);
+        var duplicate = store.GetOrCreateSixel(payload, 2, 1, parseResult, cellMetrics: integerMetrics);
+        var fractional = store.GetOrCreateSixel(payload, 2, 1, parseResult, cellMetrics: fractionalMetrics);
+
+        try
+        {
+            Assert.AreSame(integer, duplicate);
+            Assert.AreNotSame(integer, fractional);
+            Assert.AreEqual(2, store.SixelCount);
+            Assert.IsFalse(SixelData.HashEquals(integer.Data.ContentHash, fractional.Data.ContentHash));
+
+            var integerVisibility = new SixelVisibility(integer, 0, 0, 0);
+            integerVisibility.ApplyOcclusion(new Rect(0, 0, 1, 1));
+            var integerFragment = TestSeq.Single(integerVisibility.GenerateFragments());
+
+            var fractionalVisibility = new SixelVisibility(fractional, 0, 0, 0);
+            fractionalVisibility.ApplyOcclusion(new Rect(0, 0, 1, 1));
+            var fractionalFragment = TestSeq.Single(fractionalVisibility.GenerateFragments());
+
+            Assert.AreEqual((1, 0), integerFragment.CellPosition);
+            Assert.AreEqual((1, 0), fractionalFragment.CellPosition);
+            Assert.AreEqual(new PixelRect(10, 0, 8, 18), integerFragment.PixelRegion);
+            Assert.AreEqual(new PixelRect(9, 0, 9, 18), fractionalFragment.PixelRegion);
+        }
+        finally
+        {
+            integer.Release();
+            duplicate.Release();
+            fractional.Release();
+        }
+
+        Assert.AreEqual(0, store.SixelCount);
+    }
+
+    [TestMethod]
+    public void Compare_SamePayloadAndSpanWithDifferentMetrics_IsDifferent()
+    {
+        var store = new TrackedObjectStore();
+        var pixels = CreateSolidPixels(18, 18, Rgba32.FromRgb(80, 160, 240));
+        var payload = SixelEncoder.Encode(pixels);
+        var parseResult = SixelParser.ParsePayload(payload);
+        var previousSixel = store.GetOrCreateSixel(
+            payload,
+            2,
+            1,
+            parseResult,
+            cellMetrics: new SixelCellMetrics(
+                10,
+                20,
+                SixelCellMetricsSource.Direct,
+                SixelCellMetricsReliability.Authoritative));
+        var currentSixel = store.GetOrCreateSixel(
+            payload,
+            2,
+            1,
+            parseResult,
+            cellMetrics: new SixelCellMetrics(
+                9.4,
+                19.4,
+                SixelCellMetricsSource.Direct,
+                SixelCellMetricsReliability.Authoritative));
+        var previous = new Surface(4, 2, CellMetrics.Default);
+        var current = new Surface(4, 2, CellMetrics.Default);
+        previous[0, 0] = new SurfaceCell(" ", null, null, Sixel: previousSixel);
+        current[0, 0] = new SurfaceCell(" ", null, null, Sixel: currentSixel);
+
+        try
+        {
+            Assert.IsFalse(SurfaceComparer.Compare(previous, current).IsEmpty);
+        }
+        finally
+        {
+            previous.ClearAndReleaseTrackedObjects();
+            current.ClearAndReleaseTrackedObjects();
+        }
+    }
+
+    [TestMethod]
     public void SurfaceLayerContext_CreateSixel_CapturesProtocolMetrics()
     {
         var store = new TrackedObjectStore();

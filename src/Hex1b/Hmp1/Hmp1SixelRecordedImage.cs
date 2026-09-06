@@ -12,6 +12,7 @@ internal sealed class Hmp1SixelRecordedImage(
     int declaredPixelHeight,
     int widthInCells,
     int heightInCells,
+    SixelCellMetrics? cellMetrics,
     SixelRasterStatus rasterStatus,
     string payload)
 {
@@ -35,6 +36,12 @@ internal sealed class Hmp1SixelRecordedImage(
 
     /// <summary>The image height in cells.</summary>
     public int HeightInCells { get; } = heightInCells;
+
+    /// <summary>
+    /// The exact protocol metrics captured with this image, or
+    /// <see langword="null"/> for a version 1 recording that did not persist them.
+    /// </summary>
+    public SixelCellMetrics? CellMetrics { get; } = cellMetrics;
 
     /// <summary>The raster outcome captured at recording time.</summary>
     public SixelRasterStatus RasterStatus { get; } = rasterStatus;

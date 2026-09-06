@@ -94,7 +94,18 @@ public class SixelHardeningFuzzTests
                     {
                         var recording = Hmp1SixelRecording.Serialize(snapshot.SixelPlacements);
                         var decoded = Hmp1SixelRecording.Deserialize(recording);
-                        _ = decoded.BuildReplayEscapeSequence();
+                        using var viewer = new Hex1bTerminal(new Hex1bTerminalOptions
+                        {
+                            Width = terminal.Width,
+                            Height = terminal.Height,
+                            WorkloadAdapter = new NullWorkloadAdapter(),
+                            PresentationAdapter = new HeadlessPresentationAdapter(
+                                terminal.Width,
+                                terminal.Height,
+                                new TerminalCapabilities { SupportsSixel = true }),
+                            SixelPolicy = policy,
+                        });
+                        decoded.ReplayInto(viewer);
                     }
                     break;
             }

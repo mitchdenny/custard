@@ -661,11 +661,9 @@ static async Task<string> InspectRecordReplayWithDamageAsync(RawSnapshotExportRe
     using var snapshot = terminal.CreateSnapshot(scrollbackLines: terminal.ScrollbackCount);
     var recorded = Hmp1SixelRecording.Serialize(snapshot.SixelPlacements);
     var deserialized = Hmp1SixelRecording.Deserialize(recorded);
-    var replayScript = deserialized.BuildReplayEscapeSequence();
-
-    await using var viewer = CreateSnapshotExportReplayTerminalBuilder(
-        Encoding.ASCII.GetBytes(replayScript), scene.ScrollbackCapacity).Build();
-    await viewer.RunAsync();
+    using var viewer = CreateSnapshotExportReplayTerminalBuilder(
+        [], scene.ScrollbackCapacity).Build();
+    deserialized.ReplayInto(viewer);
 
     using var replayed = viewer.CreateSnapshot(scrollbackLines: viewer.ScrollbackCount);
 
@@ -689,10 +687,26 @@ static async Task<string> InspectRecordReplayWithDamageAsync(RawSnapshotExportRe
         {
             damageMatches = false;
         }
+        for (var row = 0; damageMatches && row < original.PaintedRowCount; row++)
+        {
+            for (var column = 0; column < original.PaintedColumnCount; column++)
+            {
+                var originalRow = original.PaintedTop + row;
+                var originalColumn = original.PaintedLeft + column;
+                var replayedRow = replayedPlacement.PaintedTop + row;
+                var replayedColumn = replayedPlacement.PaintedLeft + column;
+                if (original.IsCellDamaged(originalRow, originalColumn) !=
+                    replayedPlacement.IsCellDamaged(replayedRow, replayedColumn))
+                {
+                    damageMatches = false;
+                    break;
+                }
+            }
+        }
     }
 
     builder.Append($"; surviving pixels match after record/replay: {pixelsMatch}");
-    builder.Append($"; painted (post-damage) extent matches after record/replay: {damageMatches}");
+    builder.Append($"; painted crop and damage mask match after record/replay: {damageMatches}");
     return builder.ToString();
 }
 
@@ -714,11 +728,8 @@ static async Task<string> InspectMainAlternateIndependenceAsync(RawSnapshotExpor
         using var snapshot = terminal.CreateSnapshot();
         var recorded = Hmp1SixelRecording.Serialize(snapshot.SixelPlacements);
         var deserialized = Hmp1SixelRecording.Deserialize(recorded);
-        var replayScript = deserialized.BuildReplayEscapeSequence();
-
-        await using var viewer = CreateSnapshotExportReplayTerminalBuilder(
-            Encoding.ASCII.GetBytes(replayScript), 0).Build();
-        await viewer.RunAsync();
+        using var viewer = CreateSnapshotExportReplayTerminalBuilder([], 0).Build();
+        deserialized.ReplayInto(viewer);
         using var replayed = viewer.CreateSnapshot();
 
         var pixelsMatch = snapshot.SixelPlacements.Count == replayed.SixelPlacements.Count

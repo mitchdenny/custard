@@ -6244,6 +6244,12 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
             ?? Sixel.SixelCellMetrics.FromCapabilities(Capabilities);
 
     /// <summary>
+    /// Gets the explicit protocol-metric override, preserving whether metrics
+    /// currently come from capabilities rather than an override.
+    /// </summary>
+    internal Sixel.SixelCellMetrics? SixelCellMetricsOverride => _sixelCellMetricsOverride;
+
+    /// <summary>
     /// Overrides the protocol cell metrics used for new Sixel placements.
     /// </summary>
     /// <param name="metrics">The metrics to use, or <see langword="null"/> to derive them from capabilities.</param>

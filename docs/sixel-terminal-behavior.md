@@ -627,10 +627,14 @@ read paths over that authoritative state.
     missing references, invalid geometry, resource limits). It serializes
     an `IReadOnlyList<SixelPlacement>` — the same type the live snapshot and
     live wire replay use — into a `SXRC`-tagged, versioned
-    (`Hmp1SixelRecording.CurrentVersion = 1`) stream: an image table
+    (`Hmp1SixelRecording.CurrentVersion = 2`) stream: an image table
     deduplicated by `SixelData.ContentHash`. Placements share an entry only
     when payload, raster state, protocol metrics, and cell span all match, so
-    incompatible clipping/damage contexts are not conflated. The table is
+    incompatible clipping/damage contexts are not conflated. Version 2 stores
+    each image's exact raw metric width/height bits plus
+    `SixelCellMetricsSource` and `SixelCellMetricsReliability`; version 1
+    remains readable and retains its historical target-metric replay behavior
+    because it did not carry per-image metric context. The image table is
     followed by placements referencing it by index, each carrying its
     geometry, painted crop, sequence, creation time, and anchor-relative
     damaged-cell offsets. Rasterized images are re-encoded byte-exact via
@@ -649,10 +653,13 @@ read paths over that authoritative state.
     `MaxRecordingLength` = 72 MiB, and aggregate
     `MaxDamagedCellCount` = 2^20). Exact raster re-encoding is constrained by
     the remaining per-image and aggregate payload budget before allocating
-    its output. Expanding a deduplicated recording back into cursor-position
-    plus Sixel sequences performs a checked, cancellable preflight and rejects
-    output above the same 64 MiB aggregate limit before allocating the replay
-    string. Retention-limited images are rejected before
+    its output. `Hmp1SixelRecordingSnapshot.ReplayInto` performs a checked,
+    cancellable preflight and rejects expanded output above the same 64 MiB
+    aggregate limit before changing the target. It then applies each version
+    2 image's recorded metrics, feeds cursor-position plus Sixel DCS through
+    the ordinary terminal parser, restores the recorded painted crop and
+    damage mask, and finally restores the target's prior metric override.
+    Retention-limited images are rejected before
     serialization because their complete payload is unavailable; deserialization
     rejects an oversized input before copying it and rejects trailing bytes.
     Recorded
@@ -666,8 +673,9 @@ read paths over that authoritative state.
   deduplication, anchor-relative damage offsets, geometry-only payload
   preservation, main/alternate-screen isolation, and distinct
   history-vs-viewport unified row offsets across a scroll), replays a
-  recording's escape-sequence reconstruction into a fresh terminal and
-  compares resulting pixels, and exercises every `Hmp1SixelRecordingException`
+  a recording into a fresh terminal and compares resulting pixels, captured
+  metrics, spans, resource identity, painted crops, and damage boundaries,
+  and exercises every `Hmp1SixelRecordingException`
   failure mode named above. `tests/Hex1b.Tests/Hmp1/Hmp1SixelStateReplayTests.cs`
   covers the existing live wire replay path, including the damage-patch
   restoration. All pre-existing KGP snapshot/export/replay and terminal
@@ -1279,9 +1287,9 @@ beyond replaying the script: it also creates multiple snapshots to prove
 raster sharing and safe double-disposal, compares the four projection modes
 against each other, exports SVG/HTML to confirm the geometry-only diagnostic
 placeholder and byte-identical repeated export, and drives
-`Hmp1SixelRecording.Serialize`/`Deserialize`/`BuildReplayEscapeSequence` to
+`Hmp1SixelRecording.Serialize`/`Deserialize`/`ReplayInto` to
 record a snapshot, replay it into a brand-new terminal with no live upstream
-connection, and compare the resulting pixels and painted (damage) extent —
+connection, and compare the resulting pixels, painted crop, and damage mask —
 including across a main/alternate screen transition — plus feeds
 deliberately corrupted recordings (wrong magic marker, truncation, a bumped
 version number) through `Deserialize` to show each fails with its own

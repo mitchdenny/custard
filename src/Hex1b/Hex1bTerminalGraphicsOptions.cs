@@ -91,8 +91,10 @@ public sealed class Hex1bTerminalGraphicsOptions
     /// </summary>
     /// <remarks>
     /// The main and alternate screens each receive an independent budget. A value
-    /// of zero disables retained byte-backed image data. Per-image input and raster
-    /// limits remain independent safety bounds.
+    /// of zero disables retained byte-backed image data. Protocols that do not yet
+    /// account all retained state in bytes continue to use the other configured
+    /// cardinality and logical-pixel limits. Per-image input and raster limits remain
+    /// independent safety bounds.
     /// </remarks>
     public long MaximumRetainedBytesPerScreen { get; set; } = 320L * 1024 * 1024;
 
@@ -112,6 +114,9 @@ public sealed class Hex1bTerminalGraphicsOptions
     {
         ArgumentOutOfRangeException.ThrowIfNegative(MaximumRetainedInputBytesPerImage);
         ArgumentOutOfRangeException.ThrowIfLessThan(MaximumRasterPixelsPerImage, 1);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(
+            MaximumRasterPixelsPerImage,
+            int.MaxValue);
         ArgumentOutOfRangeException.ThrowIfLessThan(MaximumRasterOperationsPerImage, 1);
         ArgumentOutOfRangeException.ThrowIfLessThan(MaximumImagesPerScreen, 1);
         ArgumentOutOfRangeException.ThrowIfLessThan(MaximumPlacementsPerScreen, 1);

@@ -47,6 +47,9 @@ public class Hex1bTerminalGraphicsOptionsTests
             nameof(Hex1bTerminalGraphicsOptions.MaximumRasterPixelsPerImage),
             options => options.MaximumRasterPixelsPerImage = 0);
         AssertInvalid(
+            nameof(Hex1bTerminalGraphicsOptions.MaximumRasterPixelsPerImage),
+            options => options.MaximumRasterPixelsPerImage = (long)int.MaxValue + 1);
+        AssertInvalid(
             nameof(Hex1bTerminalGraphicsOptions.MaximumRasterOperationsPerImage),
             options => options.MaximumRasterOperationsPerImage = 0);
         AssertInvalid(

@@ -221,6 +221,76 @@ public class SixelPlacementLifetimeTests
     }
 
     [TestMethod]
+    public async Task PublicLimits_ApplyAcrossAlternateScreenRecreationAndReset()
+    {
+        var graphics = new Hex1bTerminalGraphicsOptions
+        {
+            MaximumPlacementsPerScreen = 1,
+            MaximumImagesPerScreen = 1,
+        };
+        await using var terminal = SixelTestTerminal.Create(graphics: graphics);
+        var red = Encoding.ASCII.GetBytes("\x1bPq#1;2;100;0;0#1@\x1b\\");
+        var green = Encoding.ASCII.GetBytes("\x1b[2;1H\x1bPq#2;2;0;100;0#2A\x1b\\");
+
+        await terminal.FeedAsync(
+            red.Concat(green).Concat("M"u8.ToArray()).ToArray(),
+            cancellationToken: TestContext.Current.CancellationToken);
+        await terminal.WaitForAsync(
+            snapshot => snapshot.ContainsText("M"),
+            "bounded main-screen graphics",
+            TestContext.Current.CancellationToken);
+        Assert.AreEqual(1, terminal.Terminal.SixelPlacementCount);
+
+        await terminal.FeedAsync(
+            Encoding.ASCII.GetBytes("\x1b[?1049h")
+                .Concat(red)
+                .Concat(green)
+                .Concat("A"u8.ToArray())
+                .ToArray(),
+            cancellationToken: TestContext.Current.CancellationToken);
+        await terminal.WaitForAsync(
+            snapshot => snapshot.InAlternateScreen && snapshot.ContainsText("A"),
+            "bounded alternate-screen graphics",
+            TestContext.Current.CancellationToken);
+        Assert.AreEqual(1, terminal.Terminal.SixelPlacementCount);
+
+        await terminal.FeedAsync(
+            Encoding.ASCII.GetBytes("\x1b[?1049h")
+                .Concat(red)
+                .Concat(green)
+                .Concat("R"u8.ToArray())
+                .ToArray(),
+            cancellationToken: TestContext.Current.CancellationToken);
+        await terminal.WaitForAsync(
+            snapshot => snapshot.InAlternateScreen && snapshot.ContainsText("R"),
+            "bounded recreated alternate-screen graphics",
+            TestContext.Current.CancellationToken);
+        Assert.AreEqual(1, terminal.Terminal.SixelPlacementCount);
+
+        await terminal.FeedAsync(
+            Encoding.ASCII.GetBytes("\x1b[?1049l"),
+            cancellationToken: TestContext.Current.CancellationToken);
+        await terminal.WaitForAsync(
+            snapshot => !snapshot.InAlternateScreen,
+            "return to bounded main-screen graphics",
+            TestContext.Current.CancellationToken);
+        Assert.AreEqual(1, terminal.Terminal.SixelPlacementCount);
+
+        await terminal.FeedPreTokenizedAsync(
+            Encoding.ASCII.GetBytes("\x1b" + "c"),
+            [RisToken.Instance],
+            TestContext.Current.CancellationToken);
+        await terminal.FeedAsync(
+            red.Concat(green).Concat("Z"u8.ToArray()).ToArray(),
+            cancellationToken: TestContext.Current.CancellationToken);
+        await terminal.WaitForAsync(
+            snapshot => !snapshot.InAlternateScreen && snapshot.ContainsText("Z"),
+            "bounded graphics after reset",
+            TestContext.Current.CancellationToken);
+        Assert.AreEqual(1, terminal.Terminal.SixelPlacementCount);
+    }
+
+    [TestMethod]
     public async Task OriginCellOverwrittenWithText_DamagesOnlyTheOverwrittenCell()
     {
         var wide = new SixelFixture(

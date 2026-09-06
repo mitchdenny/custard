@@ -163,15 +163,23 @@ public sealed class Hex1bTerminalOptions
         CreateSixelPolicy().Validate();
     }
 
-    internal Sixel.SixelCompatibilityPolicy CreateSixelPolicy() => SixelPolicy with
+    internal Sixel.SixelCompatibilityPolicy CreateSixelPolicy()
     {
-        MaximumRetainedDcsBytes = Graphics.MaximumRetainedInputBytesPerImage,
-        MaximumRasterPixels = Graphics.MaximumRasterPixelsPerImage,
-        MaximumRasterOperations = Graphics.MaximumRasterOperationsPerImage,
-        MaximumPlacementsPerScreen = Graphics.MaximumPlacementsPerScreen,
-        MaximumHistoryPlacements = Graphics.MaximumHistoryPlacements,
-        MaximumImagesPerScreen = Graphics.MaximumImagesPerScreen,
-        MaximumRetainedLogicalPixelsPerScreen =
-            Graphics.MaximumRetainedLogicalPixelsPerScreen,
-    };
+        var tileArea = checked(
+            (long)SixelPolicy.RasterTileSize * SixelPolicy.RasterTileSize);
+        var maximumRasterTiles = checked((int)(
+            (Graphics.MaximumRasterPixelsPerImage + tileArea - 1) / tileArea));
+        return SixelPolicy with
+        {
+            MaximumRetainedDcsBytes = Graphics.MaximumRetainedInputBytesPerImage,
+            MaximumRasterPixels = Graphics.MaximumRasterPixelsPerImage,
+            MaximumRasterOperations = Graphics.MaximumRasterOperationsPerImage,
+            MaximumRasterTiles = maximumRasterTiles,
+            MaximumPlacementsPerScreen = Graphics.MaximumPlacementsPerScreen,
+            MaximumHistoryPlacements = Graphics.MaximumHistoryPlacements,
+            MaximumImagesPerScreen = Graphics.MaximumImagesPerScreen,
+            MaximumRetainedLogicalPixelsPerScreen =
+                Graphics.MaximumRetainedLogicalPixelsPerScreen,
+        };
+    }
 }

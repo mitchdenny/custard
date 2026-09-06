@@ -95,6 +95,15 @@ public enum SixelDiagnosticCode
 
     /// <summary>The DCS sequence ended before a string terminator.</summary>
     UnterminatedSequence,
+
+    /// <summary>The DCS sequence was cancelled by CAN or SUB.</summary>
+    CancelledSequence,
+
+    /// <summary>
+    /// The retained DCS byte limit was reached. Geometry observation continued,
+    /// but the complete payload and raster command stream are unavailable.
+    /// </summary>
+    RetainedContentLimitExceeded,
 }
 
 internal enum SixelCommandKind
@@ -192,6 +201,9 @@ internal sealed record SixelParseResult(
     SixelExtent DataExtent,
     SixelBounds PaintedBounds,
     SixelExtent LogicalCanvasExtent,
+    SixelExtent UnscaledDataExtent,
+    SixelBounds UnscaledPaintedBounds,
+    SixelExtent UnscaledLogicalCanvasExtent,
     int SelectedColorRegister,
     IReadOnlyList<SixelPaletteCommand> PaletteMutations,
     IReadOnlyList<SixelCommand> Commands,
@@ -223,6 +235,9 @@ internal sealed record SixelParseResult(
             null,
             new SixelPoint(0, 0),
             new SixelPoint(0, 0),
+            SixelExtent.Empty,
+            SixelExtent.Empty,
+            SixelBounds.Empty,
             SixelExtent.Empty,
             SixelExtent.Empty,
             SixelBounds.Empty,
@@ -265,6 +280,7 @@ internal sealed class SixelParser
     private readonly int?[] _parameters = new int?[5];
     private readonly bool[] _parameterOverflowReported = new bool[5];
     private readonly SixelHeader _header;
+    private readonly SixelCompatibilityPolicy _policy;
     private SixelAspectRatio _aspectRatio;
     private SixelRasterAttributes? _rasterAttributes;
     private PendingCommand _pendingCommand;
@@ -276,11 +292,14 @@ internal sealed class SixelParser
     private int _maximumY;
     private int _dataWidth;
     private int _dataHeight;
+    private int _unscaledDataHeight;
     private int _selectedColorRegister;
     private int _paintedMinX = int.MaxValue;
     private int _paintedMinY = int.MaxValue;
     private int _paintedMaxX;
     private int _paintedMaxY;
+    private int _unscaledPaintedMinY = int.MaxValue;
+    private int _unscaledPaintedMaxY;
     private long _offset;
     private bool _malformed;
     private bool _limitDowngraded;
@@ -289,8 +308,12 @@ internal sealed class SixelParser
     private bool _metadataLimitReported;
     private bool _commandLimitReported;
 
-    public SixelParser(DcsIntroducer introducer)
+    public SixelParser(
+        DcsIntroducer introducer,
+        SixelCompatibilityPolicy? policy = null)
     {
+        _policy = policy ?? SixelCompatibilityPolicy.Default;
+        _policy.Validate();
         _header = SixelParseResult.CreateHeader(introducer.Parameters);
         _aspectRatio = _header.AspectRatio;
 
@@ -484,11 +507,22 @@ internal sealed class SixelParser
                 null,
                 "The DCS sequence ended before a string terminator.");
         }
+        else if (status == DcsSequenceStatus.Cancelled)
+        {
+            AddDiagnostic(
+                SixelDiagnosticCode.CancelledSequence,
+                null,
+                "The DCS sequence was cancelled by CAN or SUB.");
+        }
 
         if (retentionLimitExceeded)
         {
             _limitDowngraded = true;
             _commandsComplete = false;
+            AddDiagnostic(
+                SixelDiagnosticCode.RetainedContentLimitExceeded,
+                null,
+                "The retained DCS content limit was reached; geometry observation continued without retaining the complete raster command stream.");
         }
 
         var declared = _rasterAttributes is { } raster
@@ -504,6 +538,16 @@ internal sealed class SixelParser
         var logical = new SixelExtent(
             Math.Max(declared.Width, Math.Max(_dataWidth, _paintedMaxX)),
             Math.Max(declared.Height, Math.Max(_dataHeight, _paintedMaxY)));
+        var unscaledPainted = _unscaledPaintedMinY == int.MaxValue
+            ? SixelBounds.Empty
+            : new SixelBounds(
+                _paintedMinX,
+                _unscaledPaintedMinY,
+                _paintedMaxX - _paintedMinX,
+                _unscaledPaintedMaxY - _unscaledPaintedMinY);
+        var unscaledLogical = new SixelExtent(
+            Math.Max(declared.Width, Math.Max(_dataWidth, _paintedMaxX)),
+            Math.Max(declared.Height, Math.Max(_unscaledDataHeight, _unscaledPaintedMaxY)));
         var outcome = status switch
         {
             DcsSequenceStatus.Cancelled => SixelParseOutcome.Cancelled,
@@ -522,6 +566,9 @@ internal sealed class SixelParser
             new SixelExtent(_dataWidth, _dataHeight),
             painted,
             logical,
+            new SixelExtent(_dataWidth, _unscaledDataHeight),
+            unscaledPainted,
+            unscaledLogical,
             _selectedColorRegister,
             _paletteMutations.ToArray(),
             _commands.ToArray(),
@@ -557,6 +604,10 @@ internal sealed class SixelParser
         _dataHeight = Math.Max(
             _dataHeight,
             SaturatingAdd(_graphicsY, ScaleBandHeight(), null));
+        var unscaledBandTop = SaturatingMultiply(_band, 6, null);
+        _unscaledDataHeight = Math.Max(
+            _unscaledDataHeight,
+            SaturatingAdd(unscaledBandTop, 6, null));
 
         if (mask != 0 && endX > startX)
         {
@@ -578,6 +629,12 @@ internal sealed class SixelParser
             _paintedMinY = Math.Min(_paintedMinY, top);
             _paintedMaxX = Math.Max(_paintedMaxX, endX);
             _paintedMaxY = Math.Max(_paintedMaxY, bottom);
+            _unscaledPaintedMinY = Math.Min(
+                _unscaledPaintedMinY,
+                SaturatingAdd(unscaledBandTop, firstBit, null));
+            _unscaledPaintedMaxY = Math.Max(
+                _unscaledPaintedMaxY,
+                SaturatingAdd(unscaledBandTop, lastBit + 1, null));
         }
 
         ObserveCursor();
@@ -604,7 +661,7 @@ internal sealed class SixelParser
             }
         }
 
-        if (_commands.Count == MaximumRetainedCommandCount)
+        if (_commands.Count == _policy.MaximumRetainedCommands)
         {
             _commandsComplete = false;
             _limitDowngraded = true;
@@ -712,7 +769,7 @@ internal sealed class SixelParser
         }
 
         _selectedColorRegister = register;
-        if (_paletteMutations.Count < MaximumPaletteMutationCount)
+        if (_paletteMutations.Count < _policy.MaximumPaletteMutations)
         {
             _paletteMutations.Add(palette);
         }
@@ -735,7 +792,7 @@ internal sealed class SixelParser
             return;
         }
 
-        if (_commands.Count == MaximumRetainedCommandCount)
+        if (_commands.Count == _policy.MaximumRetainedCommands)
         {
             _commandsComplete = false;
             _limitDowngraded = true;
@@ -780,9 +837,9 @@ internal sealed class SixelParser
         var index = _parameterCount - 1;
         var digit = value - (byte)'0';
         var current = _parameters[index] ?? 0;
-        if (current > (MaximumNumericValue - digit) / 10)
+        if (current > (_policy.MaximumNumericValue - digit) / 10)
         {
-            _parameters[index] = MaximumNumericValue;
+            _parameters[index] = _policy.MaximumNumericValue;
             _limitDowngraded = true;
             if (!_parameterOverflowReported[index])
             {
@@ -857,6 +914,21 @@ internal sealed class SixelParser
         return int.MaxValue;
     }
 
+    private int SaturatingMultiply(int left, int right, byte? command)
+    {
+        if (right == 0 || left <= int.MaxValue / right)
+        {
+            return left * right;
+        }
+
+        _limitDowngraded = true;
+        AddDiagnostic(
+            SixelDiagnosticCode.GeometrySaturated,
+            command,
+            "Sixel geometry was saturated at the implementation coordinate limit.");
+        return int.MaxValue;
+    }
+
     private void ObserveCursor()
     {
         _maximumX = Math.Max(_maximumX, _graphicsX);
@@ -877,7 +949,7 @@ internal sealed class SixelParser
         byte? command,
         string message)
     {
-        if (_diagnostics.Count < MaximumDiagnosticCount)
+        if (_diagnostics.Count < _policy.MaximumDiagnostics)
         {
             _diagnostics.Add(new SixelDiagnostic(code, _offset, command, message));
             return;

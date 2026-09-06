@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using System.Diagnostics.Metrics;
 using System.Text;
 using Hex1b.Diagnostics;
+using Hex1b.Sixel;
 using Hex1b.Tokens;
 
 namespace Hex1b.Tests.Sixel;
@@ -375,19 +376,106 @@ public class SixelFramingTests
     }
 
     [TestMethod]
-    public async Task PreTokenizedOutput_OverRetentionLimit_DoesNotMutateSixelState()
+    public async Task PreTokenizedOutput_OverRetentionLimit_RetainsGeometryOnlyState()
     {
-        await using var terminal = SixelTestTerminal.Create();
-        var payload = $"q{new string('~', DcsByteStreamParser.DefaultRetentionLimit)}";
+        var policy = SixelCompatibilityPolicy.Default with
+        {
+            MaximumRetainedDcsBytes = 16,
+        };
+        await using var terminal = SixelTestTerminal.Create(policy: policy);
+        var payload = $"7q{new string('~', policy.MaximumRetainedDcsBytes + 8)}";
         var bytes = Encoding.ASCII.GetBytes($"\x1bP{payload}\x1b\\");
 
         await terminal.FeedPreTokenizedAsync(
             bytes,
             [new DcsToken(payload)],
             TestContext.Current.CancellationToken);
+        await terminal.WaitForAsync(
+            _ => terminal.Terminal.SixelPlacementCount == 1,
+            "retention-limited geometry-only placement",
+            TestContext.Current.CancellationToken);
 
-        Assert.IsEmpty(terminal.Observe().Placements);
+        var placement = TestSeq.Single(terminal.Terminal.SixelPlacements);
+        Assert.IsTrue(placement.IsGeometryOnly);
+        Assert.AreEqual(SixelParseOutcome.LimitDowngraded, placement.Image.Outcome);
+        Assert.IsTrue(placement.Image.Diagnostics.Any(
+            diagnostic => diagnostic.Code == SixelDiagnosticCode.RetainedContentLimitExceeded));
+        Assert.AreEqual(policy.MaximumRetainedDcsBytes, placement.Image.Payload.Length);
         TestSeq.AreEqual(bytes, terminal.PresentationBytes);
+    }
+
+    [TestMethod]
+    public async Task PreTokenizedOutput_UsesConfiguredCommandLimit()
+    {
+        var policy = SixelCompatibilityPolicy.Default with
+        {
+            MaximumRetainedCommands = 1,
+        };
+        await using var terminal = SixelTestTerminal.Create(policy: policy);
+        const string payload = "7q@A";
+        var bytes = Encoding.ASCII.GetBytes($"\x1bP{payload}\x1b\\");
+
+        await terminal.FeedPreTokenizedAsync(
+            bytes,
+            [new DcsToken(payload)],
+            TestContext.Current.CancellationToken);
+        await terminal.WaitForAsync(
+            _ => terminal.Terminal.SixelPlacementCount == 1,
+            "command-limited pre-tokenized placement",
+            TestContext.Current.CancellationToken);
+
+        var placement = TestSeq.Single(terminal.Terminal.SixelPlacements);
+        Assert.IsTrue(placement.IsGeometryOnly);
+        Assert.IsTrue(placement.Image.Diagnostics.Any(
+            diagnostic => diagnostic.Code == SixelDiagnosticCode.CommandRetentionLimitExceeded));
+        TestSeq.AreEqual(bytes, terminal.PresentationBytes);
+    }
+
+    [TestMethod]
+    public async Task RawOutput_OverRetentionLimit_ForwardsExactlyAndRetainsGeometryOnlyState()
+    {
+        var policy = SixelCompatibilityPolicy.Default with
+        {
+            MaximumRetainedDcsBytes = 16,
+        };
+        await using var terminal = SixelTestTerminal.Create(policy: policy);
+        var payload = $"7q{new string('~', policy.MaximumRetainedDcsBytes + 8)}";
+        var bytes = Encoding.ASCII.GetBytes($"\x1bP{payload}\x1b\\X");
+
+        await terminal.FeedAsync(bytes, cancellationToken: TestContext.Current.CancellationToken);
+        await terminal.WaitForAsync(
+            snapshot => snapshot.ContainsText("X") && terminal.Terminal.SixelPlacementCount == 1,
+            "retention-limited raw Sixel and following text",
+            TestContext.Current.CancellationToken);
+
+        var placement = TestSeq.Single(terminal.Terminal.SixelPlacements);
+        Assert.IsTrue(placement.IsGeometryOnly);
+        Assert.AreEqual(payload.Length - 2, placement.Image.Extents.Logical.Width);
+        TestSeq.AreEqual(bytes, terminal.PresentationBytes);
+    }
+
+    [TestMethod]
+    public async Task RetentionLimitedSequences_WithSharedPrefix_DoNotDeduplicate()
+    {
+        var policy = SixelCompatibilityPolicy.Default with
+        {
+            MaximumRetainedDcsBytes = 8,
+        };
+        await using var terminal = SixelTestTerminal.Create(policy: policy);
+        var first = "\x1bP7qAAAAAA~~~~~~~~\x1b\\";
+        var second = "\x1b[2;1H\x1bP7qAAAAAA}}}}}}}}\x1b\\Z";
+
+        await terminal.FeedAsync(
+            Encoding.ASCII.GetBytes(first + second),
+            cancellationToken: TestContext.Current.CancellationToken);
+        await terminal.WaitForAsync(
+            snapshot => snapshot.ContainsText("Z"),
+            "two retention-limited placements",
+            TestContext.Current.CancellationToken);
+
+        Assert.AreEqual(2, terminal.Terminal.SixelPlacementCount);
+        Assert.AreEqual(2, terminal.Terminal.TrackedSixelCount);
+        Assert.IsTrue(terminal.Terminal.SixelPlacements.All(placement => placement.IsGeometryOnly));
     }
 
     [TestMethod]
@@ -458,6 +546,70 @@ public class SixelFramingTests
             measurements
                 .Where(measurement => measurement.Name == "hex1b.terminal.dcs.retention_limit")
                 .Sum(measurement => measurement.Value));
+    }
+
+    [TestMethod]
+    public async Task SixelMetrics_ReportBoundedOutcomesLifecycleLimitsAndDurations()
+    {
+        using var metrics = new Hex1bMetrics();
+        var counters = new ConcurrentBag<(string Name, string? Action, string? Reason)>();
+        var durations = new ConcurrentBag<string>();
+        using var listener = new MeterListener();
+        listener.InstrumentPublished = (instrument, activeListener) =>
+        {
+            if (ReferenceEquals(instrument.Meter, metrics.Meter) &&
+                (instrument.Name.StartsWith("hex1b.terminal.sixel.", StringComparison.Ordinal) ||
+                 instrument.Name == "hex1b.terminal.raw_passthrough.duration"))
+            {
+                activeListener.EnableMeasurementEvents(instrument);
+            }
+        };
+        listener.SetMeasurementEventCallback<long>((instrument, _, tags, _) =>
+        {
+            string? action = null;
+            string? reason = null;
+            foreach (var tag in tags)
+            {
+                Assert.DoesNotContain("q#1", tag.Value?.ToString() ?? "");
+                if (tag.Key is "action" or "outcome")
+                    action = tag.Value?.ToString();
+                if (tag.Key is "reason" or "limit")
+                    reason = tag.Value?.ToString();
+            }
+            counters.Add((instrument.Name, action, reason));
+        });
+        listener.SetMeasurementEventCallback<double>((instrument, _, _, _) =>
+            durations.Add(instrument.Name));
+        listener.Start();
+
+        var policy = SixelCompatibilityPolicy.Default with
+        {
+            MaximumPlacementsPerScreen = 1,
+        };
+        await using var terminal = SixelTestTerminal.Create(metrics: metrics, policy: policy);
+        var image = "\x1bPq#1;2;100;0;0#1@\x1b\\";
+        await terminal.FeedAsync(
+            Encoding.ASCII.GetBytes(image + "\x1b[2;1H" + image + "X"),
+            cancellationToken: TestContext.Current.CancellationToken);
+        await terminal.WaitForAsync(
+            snapshot => snapshot.ContainsText("X"),
+            "Sixel lifecycle metrics",
+            TestContext.Current.CancellationToken);
+
+        Assert.IsTrue(counters.Any(item =>
+            item.Name == "hex1b.terminal.sixel.outcomes" && item.Action == "complete"));
+        Assert.IsTrue(counters.Any(item =>
+            item.Name == "hex1b.terminal.sixel.resources" && item.Action == "image_allocated"));
+        Assert.IsTrue(counters.Any(item =>
+            item.Name == "hex1b.terminal.sixel.resources" && item.Action == "image_deduplicated"));
+        Assert.IsTrue(counters.Any(item =>
+            item.Name == "hex1b.terminal.sixel.resources" &&
+            item.Action == "placement_evicted" &&
+            item.Reason == "placement_limit"));
+        Assert.IsTrue(counters.Any(item =>
+            item.Name == "hex1b.terminal.sixel.limit" && item.Reason == "placement_limit"));
+        CollectionAssert.Contains(durations.ToArray(), "hex1b.terminal.raw_passthrough.duration");
+        CollectionAssert.Contains(durations.ToArray(), "hex1b.terminal.sixel.processing.duration");
     }
 
     [TestMethod]

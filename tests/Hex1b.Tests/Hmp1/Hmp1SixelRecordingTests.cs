@@ -130,6 +130,40 @@ public class Hmp1SixelRecordingTests
         Assert.IsTrue(image.IsGeometryOnly);
         Assert.AreEqual(SixelRasterStatus.GeometryOnly, image.RasterStatus);
         Assert.AreEqual(placement.Image.Payload, image.Payload);
+
+        using var viewer = CreateHeadlessTerminal();
+        viewer.ApplyTokens(AnsiTokenizer.Tokenize(decoded.BuildReplayEscapeSequence()));
+        using var viewerSnapshot = viewer.CreateSnapshot();
+        var replayed = TestSeq.Single(viewerSnapshot.SixelPlacements);
+        Assert.IsTrue(replayed.IsGeometryOnly);
+        Assert.AreEqual(placement.Image.Extents.Logical, replayed.Image.Extents.Logical);
+    }
+
+    [TestMethod]
+    public async Task Serialize_RetentionLimitedPlacement_ThrowsResourceLimitExceeded()
+    {
+        var policy = SixelCompatibilityPolicy.Default with
+        {
+            MaximumRetainedDcsBytes = 16,
+            MaximumDiagnostics = 1,
+        };
+        await using var producer = SixelTestTerminal.Create(policy: policy);
+        var bytes = Encoding.ASCII.GetBytes(
+            $"\x1bP7q!9999999999~{new string('~', policy.MaximumRetainedDcsBytes + 8)}\x1b\\");
+        await producer.FeedAsync(bytes, cancellationToken: TestContext.Current.CancellationToken);
+        await producer.WaitForAsync(
+            _ => producer.Terminal.SixelPlacementCount == 1,
+            "retention-limited placement",
+            TestContext.Current.CancellationToken);
+        using var snapshot = producer.Terminal.CreateSnapshot();
+        var image = TestSeq.Single(snapshot.SixelPlacements).Image;
+        Assert.IsFalse(image.Diagnostics.Any(
+            diagnostic => diagnostic.Code == SixelDiagnosticCode.RetainedContentLimitExceeded));
+
+        var ex = Assert.ThrowsExactly<Hmp1SixelRecordingException>(
+            () => Hmp1SixelRecording.Serialize(snapshot.SixelPlacements));
+
+        Assert.AreEqual(Hmp1SixelRecordingFailureReason.ResourceLimitExceeded, ex.Reason);
     }
 
     [TestMethod]

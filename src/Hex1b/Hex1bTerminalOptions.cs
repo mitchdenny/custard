@@ -24,6 +24,9 @@ namespace Hex1b;
 /// </remarks>
 public sealed class Hex1bTerminalOptions
 {
+    internal Sixel.SixelCompatibilityPolicy SixelPolicy { get; set; } =
+        Sixel.SixelCompatibilityPolicy.Default;
+
     /// <summary>
     /// Terminal width in columns. Used when no presentation adapter is provided.
     /// Default is 80.
@@ -145,5 +148,6 @@ public sealed class Hex1bTerminalOptions
             throw new InvalidOperationException("Height must be greater than zero.");
         }
 
+        SixelPolicy.Validate();
     }
 }

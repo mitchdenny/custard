@@ -37,7 +37,9 @@ internal sealed class Hmp1SixelRecordingSnapshot(
         {
             var image = Images[placement.ImageIndex];
             sb.Append(FormattableString.Invariant($"\x1b[{placement.Row + 1};{placement.Column + 1}H"));
-            sb.Append(image.Payload);
+            sb.Append(image.IsGeometryOnly
+                ? Hmp1SixelStateReplay.FramePayload(image.Payload)
+                : image.Payload);
         }
 
         return sb.ToString();

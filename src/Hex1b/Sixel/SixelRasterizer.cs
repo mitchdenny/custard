@@ -214,7 +214,9 @@ internal static class SixelRasterizer
                 diagnostics);
         }
 
-        var measurement = Measure(parse, declared, aspect);
+        var measurement = parse.CommandsComplete
+            ? Measure(parse, declared, aspect)
+            : MeasureObservedGeometry(parse, declared, aspect);
 
         if (!parse.CommandsComplete)
         {
@@ -615,6 +617,31 @@ internal static class SixelRasterizer
                 painted,
                 aspect),
             operations,
+            overflowed);
+    }
+
+    private static Measurement MeasureObservedGeometry(
+        SixelParseResult parse,
+        SixelExtent declared,
+        SixelAspectRatio aspect)
+    {
+        var overflowed =
+            parse.UnscaledLogicalCanvasExtent.Width == int.MaxValue ||
+            parse.UnscaledLogicalCanvasExtent.Height == int.MaxValue;
+        var renderedHeight = ScaleHeight(
+            parse.UnscaledLogicalCanvasExtent.Height,
+            aspect,
+            ref overflowed);
+
+        return new Measurement(
+            new SixelRasterExtents(
+                parse.UnscaledLogicalCanvasExtent,
+                new SixelExtent(parse.UnscaledLogicalCanvasExtent.Width, renderedHeight),
+                declared,
+                parse.UnscaledDataExtent,
+                parse.UnscaledPaintedBounds,
+                aspect),
+            0,
             overflowed);
     }
 

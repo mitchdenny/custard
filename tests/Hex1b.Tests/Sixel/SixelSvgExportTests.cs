@@ -184,6 +184,51 @@ public class SixelSvgExportTests
     }
 
     [TestMethod]
+    public async Task SvgExport_WhenSixelPayloadLimitIsReached_RendersDiagnosticPlaceholder()
+    {
+        await using var terminal = SixelTestTerminal.Create();
+
+        await terminal.FeedAsync(
+            SingleBand.StandardBytes,
+            cancellationToken: TestContext.Current.CancellationToken);
+        await terminal.WaitForAsync(
+            snapshot => snapshot.ContainsSixelData(),
+            SingleBand.Name,
+            TestContext.Current.CancellationToken);
+
+        using var snapshot = terminal.Terminal.CreateSnapshot();
+        var svg = snapshot.ToSvg(new TerminalSvgOptions
+        {
+            CellWidth = snapshot.CellPixelWidth,
+            CellHeight = snapshot.CellPixelHeight,
+            MaximumEmbeddedSixelBytes = 0,
+        });
+
+        Assert.Contains("sixel-export-limited", svg);
+        Assert.Contains("data-sixel-outcome=\"ExportLimitExceeded\"", svg);
+        Assert.DoesNotContain("data:image/bmp;base64,", svg);
+    }
+
+    [TestMethod]
+    public void SvgExportBudget_AtEncodedPayloadBoundary_IsDeterministic()
+    {
+        long consumed = 0;
+        Assert.IsFalse(TerminalRegionSvgExtensions.TryReserveSixelExportBytes(
+            width: 1,
+            height: 1,
+            maximumBytes: 101,
+            ref consumed));
+        Assert.AreEqual(0L, consumed);
+
+        Assert.IsTrue(TerminalRegionSvgExtensions.TryReserveSixelExportBytes(
+            width: 1,
+            height: 1,
+            maximumBytes: 102,
+            ref consumed));
+        Assert.AreEqual(102L, consumed);
+    }
+
+    [TestMethod]
     public async Task SvgExport_RepeatedExportOfSameSnapshot_IsByteIdentical()
     {
         await using var terminal = SixelTestTerminal.Create(width: 20, height: 10);

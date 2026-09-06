@@ -48,7 +48,9 @@ namespace Hex1b;
 /// pixels, so their original payload is replayed verbatim — safe because a
 /// geometry-only outcome is a deterministic function of parser/raster policy
 /// limits applied to the payload's own declared extents, not of any
-/// persistent register state.
+/// persistent register state. Replay restores the DCS framing around retained
+/// content. A retention-limited image is skipped because its complete replay
+/// payload is unavailable.
 /// </para>
 /// <para>
 /// Only the viewport (not scrollback history) is replayed, matching the scope
@@ -58,7 +60,27 @@ namespace Hex1b;
 /// </remarks>
 internal static class Hmp1SixelStateReplay
 {
-    private const int TargetFrameSize = 1024 * 1024;
+    internal const int TargetFrameSize = Hmp1SixelLimits.TargetFrameBytes;
+    internal const int MaximumPlacementCount = Hmp1SixelLimits.MaximumPlacementCount;
+    internal const int MaximumDamagedCellCount = Hmp1SixelLimits.MaximumDamagedCellCount;
+    internal const int MaximumSequenceBytes = Hmp1SixelLimits.MaximumSequenceBytes;
+    internal const int MaximumReplayBytes = Hmp1SixelLimits.MaximumTotalPayloadBytes;
+
+    internal enum ReplayOutcome
+    {
+        Complete,
+        Empty,
+        ResourceLimitExceeded,
+    }
+
+    internal readonly record struct ReplayResult(
+        ReplayOutcome Outcome,
+        int ReplayedPlacements,
+        int SkippedPlacements,
+        int DamagePatches,
+        long PayloadBytes,
+        int FrameCount,
+        string? Limit);
 
     /// <summary>
     /// Writes the escape sequences needed to recreate the given viewport Sixel
@@ -69,48 +91,158 @@ internal static class Hmp1SixelStateReplay
     /// <param name="placements">The producer's current viewport Sixel placements, captured from the same snapshot as <paramref name="damagedCells"/>.</param>
     /// <param name="damagedCells">Absolute (row, column, cell) triples for every cell any of <paramref name="placements"/> reports as damaged, captured from the same snapshot.</param>
     /// <param name="ct">Cancellation token.</param>
-    internal static async Task WriteAsync(
+    internal static async Task<ReplayResult> WriteAsync(
         Stream stream,
         IReadOnlyList<SixelPlacement> placements,
         IReadOnlyList<(int Row, int Column, TerminalCell Cell)> damagedCells,
         CancellationToken ct)
     {
         if (placements.Count == 0)
-            return;
+            return new ReplayResult(ReplayOutcome.Empty, 0, 0, 0, 0, 0, null);
+        if (placements.Count > MaximumPlacementCount)
+        {
+            return new ReplayResult(
+                ReplayOutcome.ResourceLimitExceeded,
+                0,
+                0,
+                0,
+                0,
+                0,
+                "placement_count");
+        }
+        if (damagedCells.Count > MaximumDamagedCellCount)
+        {
+            return new ReplayResult(
+                ReplayOutcome.ResourceLimitExceeded,
+                0,
+                0,
+                0,
+                0,
+                0,
+                "damaged_cell_count");
+        }
 
-        var frame = new StringBuilder(TargetFrameSize);
+        var sequences = new List<byte[]>(placements.Count + damagedCells.Count);
+        long totalBytes = 0;
+        var skippedPlacements = 0;
 
         foreach (var placement in placements.OrderBy(p => p.Sequence))
         {
-            await AppendAsync(BuildPlacementSequence(placement)).ConfigureAwait(false);
+            ct.ThrowIfCancellationRequested();
+            if (HasIncompletePayload(placement.Image))
+            {
+                skippedPlacements++;
+                continue;
+            }
+
+            var remainingBytes = (int)Math.Min(
+                MaximumSequenceBytes,
+                MaximumReplayBytes - totalBytes);
+            if (!TryBuildPlacementSequence(
+                    placement,
+                    remainingBytes,
+                    ct,
+                    out var placementSequence))
+            {
+                return new ReplayResult(
+                    ReplayOutcome.ResourceLimitExceeded,
+                    0,
+                    skippedPlacements,
+                    0,
+                    totalBytes,
+                    0,
+                    "placement_payload");
+            }
+
+            if (!TryAddSequence(placementSequence, "placement_payload", out var limit))
+            {
+                return new ReplayResult(
+                    ReplayOutcome.ResourceLimitExceeded,
+                    0,
+                    skippedPlacements,
+                    0,
+                    totalBytes,
+                    0,
+                    limit);
+            }
         }
 
         foreach (var (row, column, cell) in damagedCells)
         {
-            await AppendAsync(BuildDamagePatchSequence(row, column, cell)).ConfigureAwait(false);
+            ct.ThrowIfCancellationRequested();
+            if (!TryAddSequence(BuildDamagePatchSequence(row, column, cell), "damage_payload", out var limit))
+            {
+                return new ReplayResult(
+                    ReplayOutcome.ResourceLimitExceeded,
+                    0,
+                    skippedPlacements,
+                    0,
+                    totalBytes,
+                    0,
+                    limit);
+            }
         }
 
+        var frameBuffer = new byte[TargetFrameSize];
+        var frameLength = 0;
+        var frameCount = 0;
+        foreach (var sequence in sequences)
+        {
+            var offset = 0;
+            while (offset < sequence.Length)
+            {
+                ct.ThrowIfCancellationRequested();
+                var copied = Math.Min(TargetFrameSize - frameLength, sequence.Length - offset);
+                sequence.AsSpan(offset, copied).CopyTo(frameBuffer.AsSpan(frameLength));
+                frameLength += copied;
+                offset += copied;
+                if (frameLength == TargetFrameSize)
+                    await FlushAsync().ConfigureAwait(false);
+            }
+        }
         await FlushAsync().ConfigureAwait(false);
 
-        async ValueTask AppendAsync(string sequence)
+        return new ReplayResult(
+            ReplayOutcome.Complete,
+            placements.Count - skippedPlacements,
+            skippedPlacements,
+            damagedCells.Count,
+            totalBytes,
+            frameCount,
+            null);
+
+        bool TryAddSequence(string sequence, string limitName, out string? limit)
         {
-            if (frame.Length > 0 && frame.Length + sequence.Length > TargetFrameSize)
-                await FlushAsync().ConfigureAwait(false);
-            frame.Append(sequence);
+            var payload = Encoding.UTF8.GetBytes(sequence);
+            if (payload.Length > MaximumSequenceBytes)
+            {
+                limit = limitName;
+                return false;
+            }
+            if (payload.Length > MaximumReplayBytes - totalBytes)
+            {
+                limit = "total_payload";
+                return false;
+            }
+
+            sequences.Add(payload);
+            totalBytes += payload.Length;
+            limit = null;
+            return true;
         }
 
         async ValueTask FlushAsync()
         {
-            if (frame.Length == 0)
+            if (frameLength == 0)
                 return;
 
-            var payload = Encoding.UTF8.GetBytes(frame.ToString());
-            frame.Clear();
             await Hmp1Protocol.WriteFrameAsync(
                 stream,
                 Hmp1FrameType.Output,
-                payload,
+                frameBuffer.AsMemory(0, frameLength),
                 ct).ConfigureAwait(false);
+            frameLength = 0;
+            frameCount++;
         }
     }
 
@@ -120,13 +252,24 @@ internal static class Hmp1SixelStateReplay
     /// </summary>
     internal static string BuildPlacementSequence(SixelPlacement placement)
     {
-        var payload = placement.IsGeometryOnly
-            ? placement.Image.Payload
-            : EncodeRasterizedPayload(placement.Image);
+        if (!TryBuildPlacementSequence(
+                placement,
+                int.MaxValue,
+                CancellationToken.None,
+                out var sequence))
+        {
+            throw new InvalidOperationException("The Sixel placement exceeded the replay encoding limit.");
+        }
 
-        return FormattableString.Invariant(
-            $"\x1b[{placement.Row + 1};{placement.Column + 1}H") + payload;
+        return sequence;
     }
+
+    internal static string FramePayload(string payload) =>
+        payload.StartsWith("\x1bP", StringComparison.Ordinal) || payload.StartsWith('\u0090')
+            ? payload
+            : "\x1bP" + payload + "\x1b\\";
+
+    internal static bool HasIncompletePayload(SixelData image) => !image.PayloadComplete;
 
     /// <summary>
     /// Builds the cursor-position + SGR + character sequence needed to restore a
@@ -179,14 +322,62 @@ internal static class Hmp1SixelStateReplay
     };
 
 
-    private static string EncodeRasterizedPayload(SixelData image)
+    private static bool TryBuildPlacementSequence(
+        SixelPlacement placement,
+        int maximumBytes,
+        CancellationToken cancellationToken,
+        out string sequence)
     {
-        var pixels = image.GetPixels();
+        var cursor = FormattableString.Invariant(
+            $"\x1b[{placement.Row + 1};{placement.Column + 1}H");
+        var cursorBytes = Encoding.UTF8.GetByteCount(cursor);
+        if (cursorBytes > maximumBytes ||
+            !TryGetReplayPayload(
+                placement.Image,
+                maximumBytes - cursorBytes,
+                cancellationToken,
+                out var payload))
+        {
+            sequence = "";
+            return false;
+        }
 
-        // A non-geometry-only image should always have decoded pixels. Fall back to
-        // the original payload defensively rather than dropping the placement.
-        return pixels is null
-            ? image.Payload
-            : SixelExactEncoder.Encode(pixels) ?? image.Payload;
+        sequence = cursor + payload;
+        return true;
+    }
+
+    private static bool TryGetReplayPayload(
+        SixelData image,
+        int maximumBytes,
+        CancellationToken cancellationToken,
+        out string payload)
+    {
+        if (image.RasterStatus == SixelRasterStatus.GeometryOnly)
+        {
+            payload = FramePayload(image.Payload);
+            return Encoding.UTF8.GetByteCount(payload) <= maximumBytes;
+        }
+
+        var pixels = image.GetPixels();
+        if (pixels is not null)
+        {
+            var encoded = SixelExactEncoder.EncodeBounded(
+                pixels,
+                maximumBytes,
+                cancellationToken);
+            if (encoded.Outcome == SixelExactEncoder.EncodingOutcome.Complete)
+            {
+                payload = encoded.Payload!;
+                return true;
+            }
+            if (encoded.Outcome == SixelExactEncoder.EncodingOutcome.ByteLimitExceeded)
+            {
+                payload = "";
+                return false;
+            }
+        }
+
+        payload = FramePayload(image.Payload);
+        return Encoding.UTF8.GetByteCount(payload) <= maximumBytes;
     }
 }

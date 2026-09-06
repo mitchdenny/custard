@@ -1,7 +1,9 @@
+using System.Diagnostics;
 using System.Security.Cryptography;
 using System.Text;
 using System.Threading.Channels;
 using Hex1b.Automation;
+using Hex1b.Diagnostics;
 
 namespace Hex1b;
 
@@ -40,6 +42,19 @@ public sealed class Hmp1PresentationAdapter : ITerminalLifecycleAwarePresentatio
     private int _height;
     private string? _primaryPeerId;
     private bool _disposed;
+    private Hmp1SixelStateReplay.ReplayResult? _lastSixelReplayResult;
+
+    internal Hex1bMetrics Metrics { get; set; } = Hex1bMetrics.Default;
+    internal Hmp1SixelStateReplay.ReplayResult? LastSixelReplayResult
+    {
+        get
+        {
+            lock (_sessionsLock)
+            {
+                return _lastSixelReplayResult;
+            }
+        }
+    }
 
     /// <summary>
     /// Creates a new muxer presentation adapter with the specified initial dimensions.
@@ -165,6 +180,7 @@ public sealed class Hmp1PresentationAdapter : ITerminalLifecycleAwarePresentatio
     public void TerminalCreated(Hex1bTerminal terminal)
     {
         _terminal = terminal;
+        Metrics = terminal.DiagnosticsMetrics;
     }
 
     /// <inheritdoc />
@@ -309,12 +325,30 @@ public sealed class Hmp1PresentationAdapter : ITerminalLifecycleAwarePresentatio
             // why a trailing damage patch is required.
             if (sixelPlacements.Count > 0)
             {
-                EnqueueControlFrameAsync(session, stream =>
-                    Hmp1SixelStateReplay.WriteAsync(
+                EnqueueControlFrameAsync(session, async stream =>
+                {
+                    var started = Stopwatch.GetTimestamp();
+                    var result = await Hmp1SixelStateReplay.WriteAsync(
                         stream,
                         sixelPlacements,
                         sixelDamagedCells,
-                        session.Cts.Token));
+                        session.Cts.Token).ConfigureAwait(false);
+                    lock (_sessionsLock)
+                    {
+                        _lastSixelReplayResult = result;
+                    }
+                    Metrics.Hmp1SixelReplayDuration.Record(
+                        Stopwatch.GetElapsedTime(started).TotalMilliseconds);
+                    Metrics.Hmp1SixelReplayOutcomes.Add(
+                        1,
+                        new KeyValuePair<string, object?>(
+                            "outcome",
+                            result.Outcome.ToString().ToLowerInvariant()),
+                        new KeyValuePair<string, object?>("limit", result.Limit),
+                        new KeyValuePair<string, object?>(
+                            "skipped",
+                            result.SkippedPlacements > 0 ? "true" : "false"));
+                });
             }
 
             _sessions.Add(session);

@@ -28,7 +28,7 @@ public sealed class SixelData
     private bool _decodeAttempted;
 
     /// <summary>
-    /// Gets the raw Sixel DCS sequence (ESC P ... ESC \).
+    /// Gets the retained DCS content between the introducer and string terminator.
     /// </summary>
     public string Payload { get; }
 
@@ -64,6 +64,7 @@ public sealed class SixelData
     public byte[] ContentHash { get; }
 
     internal SixelParseResult ParseResult { get; }
+    internal bool PayloadComplete { get; }
 
     /// <summary>
     /// Gets the authoritative parser outcome for this image's payload.
@@ -142,7 +143,8 @@ public sealed class SixelData
             contentHash,
             0,
             0,
-            SixelParser.ParsePayload(payload))
+            SixelParser.ParsePayload(payload),
+            payloadComplete: true)
     {
     }
 
@@ -156,7 +158,8 @@ public sealed class SixelData
         SixelParseResult? parseResult = null,
         SixelRasterResult? raster = null,
         SixelRasterPreparation? rasterPreparation = null,
-        SixelCellMetrics? cellMetrics = null)
+        SixelCellMetrics? cellMetrics = null,
+        bool payloadComplete = true)
     {
         Payload = payload;
         WidthInCells = widthInCells;
@@ -165,6 +168,7 @@ public sealed class SixelData
         PixelWidth = pixelWidth;
         PixelHeight = pixelHeight;
         ParseResult = parseResult ?? SixelParser.ParsePayload(payload);
+        PayloadComplete = payloadComplete;
         _raster = raster;
         _rasterPreparation = rasterPreparation;
         CellMetrics = cellMetrics ?? SixelCellMetrics.Unknown;
@@ -249,6 +253,19 @@ public sealed class SixelData
         var combined = new byte[payloadBytes.Length + rasterIdentity.Length];
         payloadBytes.CopyTo(combined, 0);
         rasterIdentity.CopyTo(combined, payloadBytes.Length);
+        return SHA256.HashData(combined);
+    }
+
+    internal static byte[] ComputeHash(ReadOnlySpan<byte> payloadHash, byte[]? rasterIdentity)
+    {
+        if (rasterIdentity is null)
+        {
+            return payloadHash.ToArray();
+        }
+
+        var combined = new byte[payloadHash.Length + rasterIdentity.Length];
+        payloadHash.CopyTo(combined);
+        rasterIdentity.CopyTo(combined, payloadHash.Length);
         return SHA256.HashData(combined);
     }
 

@@ -1,6 +1,7 @@
 #pragma warning disable HEX1B_SIXEL // Sixel API is experimental - internal usage is allowed
 
 using System.Globalization;
+using System.Diagnostics;
 using System.Text;
 using System.Threading.Channels;
 using Hex1b.Automation;
@@ -65,7 +66,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
     // Terminal-scoped Sixel color registers. Palette definitions persist between
     // Sixel sequences and across alternate-screen transitions; only RIS restores
     // the default palette.
-    private readonly Sixel.SixelColorRegisters _sixelColorRegisters = new();
+    private readonly Sixel.SixelColorRegisters _sixelColorRegisters;
 
     // DECSDM (private mode 80). Sixel scrolling is the default; see
     // docs/sixel-terminal-behavior.md for the polarity decision.
@@ -81,7 +82,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
     private Sixel.SixelCellMetrics? _sixelCellMetricsOverride;
     private readonly TimeProvider _timeProvider;
     private readonly KgpTerminalGraphicsState _kgpGraphicsState = new();
-    private readonly SixelGraphicsState _sixelGraphicsState = new();
+    private readonly SixelGraphicsState _sixelGraphicsState;
     private long _sixelPlacementSequence;
     private ITimer? _kgpAnimationTimer;
     private int _selectedHistoryCount;
@@ -320,9 +321,11 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
     public Hex1bTerminal(Hex1bTerminalOptions options)
     {
         ArgumentNullException.ThrowIfNull(options);
+        var workload = options.WorkloadAdapter ??
+            throw new ArgumentNullException(nameof(options), "WorkloadAdapter is required");
+        options.Validate();
         
         var presentation = options.PresentationAdapter ?? new HeadlessPresentationAdapter(options.Width, options.Height);
-        var workload = options.WorkloadAdapter ?? throw new ArgumentNullException(nameof(options), "WorkloadAdapter is required");
         
         _presentation = presentation;
         _workload = workload;
@@ -331,6 +334,11 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         _presentationFilters = options.PresentationFilters?.ToList() ?? [];
         _timeProvider = options.TimeProvider ?? TimeProvider.System;
         _sessionStart = _timeProvider.GetUtcNow();
+        _metrics = options.Metrics ?? Diagnostics.Hex1bMetrics.Default;
+        _sixelColorRegisters = new Sixel.SixelColorRegisters(options.SixelPolicy);
+        _sixelGraphicsState = new SixelGraphicsState(
+            options.SixelPolicy,
+            RecordSixelStateEvent);
         
         // Notify lifecycle-aware presentation adapters that the terminal is created
         if (presentation is ITerminalLifecycleAwarePresentationAdapter lifecycleAdapter)
@@ -370,8 +378,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
             _scrollbackCallback = options.ScrollbackCallback;
         }
         
-        _metrics = options.Metrics ?? Diagnostics.Hex1bMetrics.Default;
-        _dcsByteStreamParser = new DcsByteStreamParser();
+        _dcsByteStreamParser = new DcsByteStreamParser(options.SixelPolicy);
         _escapeTimeout = options.EscapeSequenceTimeout ?? TimeSpan.FromMilliseconds(50);
         ResetSixelModes();
 
@@ -1436,7 +1443,10 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                 {
                     // Native/raw presentations own the original workload bytes. Forward each
                     // read before framing, decoding, filters, raster work, or snapshots.
+                    var passthroughStarted = Stopwatch.GetTimestamp();
                     await _presentation.WriteOutputAsync(data, ct);
+                    _metrics.TerminalRawPassthroughDuration.Record(
+                        Stopwatch.GetElapsedTime(passthroughStarted).TotalMilliseconds);
                     _metrics.TerminalOutputBytes.Record(data.Length);
                 }
 
@@ -1545,8 +1555,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
 
             var frame = boundary.Frame;
             RecordDcsFrame(frame);
-            if (frame.Status is DcsSequenceStatus.Cancelled or DcsSequenceStatus.Unterminated ||
-                frame.RetentionLimitExceeded)
+            if (frame.Status is DcsSequenceStatus.Cancelled or DcsSequenceStatus.Unterminated)
             {
                 continue;
             }
@@ -1628,6 +1637,43 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         if (frame.RetentionLimitExceeded)
         {
             _metrics.TerminalDcsRetentionLimitEvents.Add(1);
+        }
+
+        if (frame.Introducer.IsSixel)
+        {
+            _metrics.TerminalSixelOutcomes.Add(
+                1,
+                new KeyValuePair<string, object?>(
+                    "outcome",
+                    frame.SixelResult.Outcome.ToString().ToLowerInvariant()));
+        }
+    }
+
+    private void RecordSixelStateEvent(SixelStateEvent stateEvent)
+    {
+        var action = stateEvent.Kind switch
+        {
+            SixelStateEventKind.ImageAllocated => "image_allocated",
+            SixelStateEventKind.ImageDeduplicated => "image_deduplicated",
+            SixelStateEventKind.ImageReleased => "image_released",
+            SixelStateEventKind.PlacementAdded => "placement_added",
+            SixelStateEventKind.PlacementDamaged => "placement_damaged",
+            SixelStateEventKind.PlacementEvicted => "placement_evicted",
+            _ => "unknown",
+        };
+        _metrics.TerminalSixelResources.Add(
+            stateEvent.Count,
+            new KeyValuePair<string, object?>("action", action),
+            new KeyValuePair<string, object?>("reason", stateEvent.Reason));
+
+        if (stateEvent.Reason is "history_limit" or
+            "placement_limit" or
+            "image_limit" or
+            "logical_pixel_limit")
+        {
+            _metrics.TerminalSixelLimitEvents.Add(
+                stateEvent.Count,
+                new KeyValuePair<string, object?>("limit", stateEvent.Reason));
         }
     }
 
@@ -2690,6 +2736,10 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
     /// Gets the number of live Sixel placements on the active screen.
     /// </summary>
     internal int SixelPlacementCount => _sixelGraphicsState.ActivePlacements.Count;
+
+    internal int SixelHistoryPlacementCount => _sixelGraphicsState.MainHistoryPlacementCount;
+
+    internal Diagnostics.Hex1bMetrics DiagnosticsMetrics => _metrics;
 
     /// <summary>
     /// Gets the live Sixel placements on the active screen, for test/inspection use.
@@ -6116,12 +6166,19 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
     {
         if (framedDcs is not null && framedDcs.TryGetValue(token, out var framed))
         {
-            if (!framed.RetentionLimitExceeded &&
-                framed.SixelResult.Outcome is
+            if (framed.SixelResult.Outcome is
                     SixelParseOutcome.Complete or
                     SixelParseOutcome.LimitDowngraded)
             {
-                ProcessSixelData(token.Payload, framed.SixelResult, impacts);
+                var retainedPayload = framed.RetentionLimitExceeded
+                    ? Encoding.Latin1.GetString(framed.RetainedContent.Span)
+                    : token.Payload;
+                ProcessSixelData(
+                    retainedPayload,
+                    framed.ContentHash,
+                    framed.SixelResult,
+                    payloadComplete: !framed.RetentionLimitExceeded,
+                    impacts);
             }
 
             return;
@@ -6134,15 +6191,22 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
             : SixelParser.EncodePayload(token.Payload);
         var frame = DcsByteStreamParser.ParseCompleteContent(
             payloadBytes,
-            _dcsByteStreamParser.RetentionLimit);
+            _sixelColorRegisters.Policy);
         RecordDcsFrame(frame);
 
-        if (!frame.RetentionLimitExceeded &&
-            frame.SixelResult.Outcome is
+        if (frame.SixelResult.Outcome is
                 SixelParseOutcome.Complete or
                 SixelParseOutcome.LimitDowngraded)
         {
-            ProcessSixelData(token.Payload, frame.SixelResult, impacts);
+            var retainedPayload = frame.RetentionLimitExceeded
+                ? Encoding.Latin1.GetString(frame.RetainedContent.Span)
+                : token.Payload;
+            ProcessSixelData(
+                retainedPayload,
+                frame.ContentHash,
+                frame.SixelResult,
+                payloadComplete: !frame.RetentionLimitExceeded,
+                impacts);
         }
     }
 
@@ -6246,9 +6310,14 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
     /// </remarks>
     private void ProcessSixelData(
         string sixelPayload,
+        byte[] sourceContentHash,
         SixelParseResult parseResult,
+        bool payloadComplete,
         List<CellImpact>? impacts)
     {
+        var processingStarted = Stopwatch.GetTimestamp();
+        try
+        {
         // Capture immutable raster inputs while applying only palette metadata to
         // the terminal-scoped state. Pixel painting remains lazy, so the terminal
         // buffer lock never covers raster work.
@@ -6300,8 +6369,9 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
             placement.OriginColumn + (long)widthInCells - 1,
             Math.Min(placement.ClipRight, _width - 1));
 
-        _sixelGraphicsState.CreatePlacement(
+        var creation = _sixelGraphicsState.CreatePlacement(
             sixelPayload,
+            sourceContentHash,
             parseResult,
             rasterPreparation,
             cellMetrics,
@@ -6314,9 +6384,10 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
             paintedColumnOffset: (int)(firstColumn - placement.OriginColumn),
             paintedColumnCount: (int)Math.Max(0, lastColumn - firstColumn + 1),
             sequence: ++_sixelPlacementSequence,
-            createdAt: writtenAt);
+            createdAt: writtenAt,
+            payloadComplete: payloadComplete);
 
-        if (lastRow >= firstRow && lastColumn >= firstColumn)
+        if (creation.Retained && lastRow >= firstRow && lastColumn >= firstColumn)
         {
             _currentGraphicsImpacts?.Add(new TerminalGraphicsImpact(
                 TerminalGraphicsImpactKind.SixelAdded,
@@ -6343,6 +6414,12 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         }
 
         ApplyPostSixelCursor(placement, widthInCells, heightInCells);
+        }
+        finally
+        {
+            _metrics.TerminalSixelProcessingDuration.Record(
+                Stopwatch.GetElapsedTime(processingStarted).TotalMilliseconds);
+        }
     }
 
     /// <summary>

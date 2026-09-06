@@ -3,6 +3,25 @@ using Hex1b.Sixel;
 
 namespace Hex1b;
 
+internal enum SixelStateEventKind
+{
+    ImageAllocated,
+    ImageDeduplicated,
+    ImageReleased,
+    PlacementAdded,
+    PlacementDamaged,
+    PlacementEvicted,
+}
+
+internal readonly record struct SixelStateEvent(
+    SixelStateEventKind Kind,
+    int Count = 1,
+    string? Reason = null);
+
+internal readonly record struct SixelPlacementCreationResult(
+    SixelPlacement Placement,
+    bool Retained);
+
 /// <summary>
 /// A single tracked placement participating in a Sixel reflow pass: its
 /// reflow anchor id, the placement geometry to re-derive from, and (when it
@@ -60,11 +79,22 @@ internal sealed class SixelReflowPlan
 /// </remarks>
 internal sealed class SixelGraphicsState
 {
+    private readonly SixelCompatibilityPolicy _policy;
+    private readonly Action<SixelStateEvent>? _observe;
     private readonly SixelScreenGraphicsState _main = new();
     private SixelScreenGraphicsState? _alternate;
     private bool _alternateActive;
 
     private SixelScreenGraphicsState Active => _alternateActive ? _alternate! : _main;
+
+    internal SixelGraphicsState(
+        SixelCompatibilityPolicy? policy = null,
+        Action<SixelStateEvent>? observe = null)
+    {
+        _policy = policy ?? SixelCompatibilityPolicy.Default;
+        _policy.Validate();
+        _observe = observe;
+    }
 
     internal bool InAlternateScreen => _alternateActive;
 
@@ -91,8 +121,9 @@ internal sealed class SixelGraphicsState
     /// existing one) in the active screen's image store, and adds a placement
     /// anchored at the given position that references it.
     /// </summary>
-    internal SixelPlacement CreatePlacement(
+    internal SixelPlacementCreationResult CreatePlacement(
         string payload,
+        byte[] sourceContentHash,
         SixelParseResult parseResult,
         SixelRasterPreparation rasterPreparation,
         SixelCellMetrics cellMetrics,
@@ -105,11 +136,23 @@ internal sealed class SixelGraphicsState
         int paintedColumnOffset,
         int paintedColumnCount,
         long sequence,
-        DateTimeOffset createdAt)
+        DateTimeOffset createdAt,
+        bool payloadComplete = true)
     {
         var active = Active;
         var image = active.Images.GetOrCreate(
-            payload, widthInCells, heightInCells, parseResult, rasterPreparation, cellMetrics);
+            payload,
+            sourceContentHash,
+            widthInCells,
+            heightInCells,
+            parseResult,
+            rasterPreparation,
+            cellMetrics,
+            payloadComplete,
+            out var imageCreated);
+        Observe(imageCreated
+            ? SixelStateEventKind.ImageAllocated
+            : SixelStateEventKind.ImageDeduplicated);
         var placement = new SixelPlacement(
             image,
             row,
@@ -123,7 +166,11 @@ internal sealed class SixelGraphicsState
             sequence,
             createdAt);
         active.Placements.Add(placement);
-        return placement;
+        Observe(SixelStateEventKind.PlacementAdded);
+        EnforceLimits(active);
+        return new SixelPlacementCreationResult(
+            placement,
+            active.Placements.Contains(placement));
     }
 
     /// <summary>
@@ -132,7 +179,8 @@ internal sealed class SixelGraphicsState
     /// </summary>
     internal void EnterAlternateScreen()
     {
-        _alternate?.Clear();
+        if (_alternate is not null)
+            ClearScreen(_alternate);
         _alternate = new SixelScreenGraphicsState();
         _alternateActive = true;
     }
@@ -143,7 +191,8 @@ internal sealed class SixelGraphicsState
         if (!_alternateActive)
             return;
 
-        _alternate?.Clear();
+        if (_alternate is not null)
+            ClearScreen(_alternate);
         _alternate = null;
         _alternateActive = false;
     }
@@ -151,8 +200,9 @@ internal sealed class SixelGraphicsState
     /// <summary>RIS (full terminal reset): clears both the main and alternate graphics state.</summary>
     internal void Reset()
     {
-        _main.Clear();
-        _alternate?.Clear();
+        ClearScreen(_main);
+        if (_alternate is not null)
+            ClearScreen(_alternate);
         _alternate = null;
         _alternateActive = false;
     }
@@ -166,10 +216,16 @@ internal sealed class SixelGraphicsState
     internal void ClearActiveScreen(bool clearHistory)
     {
         var active = Active;
+        var removedPlacements = active.Placements.Count;
         active.Placements.Clear();
         if (clearHistory)
+        {
+            removedPlacements += CountHistoryPlacements(active);
             active.HistoryPlacements.Clear();
-        active.ReconcileImages();
+        }
+        if (removedPlacements > 0)
+            Observe(SixelStateEventKind.PlacementEvicted, removedPlacements, "clear");
+        ReconcileImages(active);
     }
 
     /// <summary>
@@ -187,12 +243,16 @@ internal sealed class SixelGraphicsState
                 continue;
 
             changed = true;
+            Observe(SixelStateEventKind.PlacementDamaged);
             if (!placement.HasVisiblePaintedCells)
+            {
                 active.Placements.RemoveAt(i);
+                Observe(SixelStateEventKind.PlacementEvicted, reason: "fully_damaged");
+            }
         }
 
         if (changed)
-            active.ReconcileImages();
+            ReconcileImages(active);
         return changed;
     }
 
@@ -277,6 +337,8 @@ internal sealed class SixelGraphicsState
                     new SixelHistoryPlacement(departing, FirstRow: 0, RetainedRows: departing.PaintedRowCount));
             }
         }
+
+        EnforceLimits(_main);
     }
 
     /// <summary>
@@ -302,7 +364,7 @@ internal sealed class SixelGraphicsState
             return;
 
         var transfers = new List<(long RowId, SixelHistoryPlacement Placement)>();
-        var anyDropped = false;
+        var dropped = 0;
 
         foreach (var historyPlacement in placements)
         {
@@ -323,15 +385,18 @@ internal sealed class SixelGraphicsState
                 }
             }
 
-            anyDropped = true;
+            dropped++;
         }
 
         _main.HistoryPlacements.Remove(pruned.RowId);
         foreach (var (rowId, historyPlacement) in transfers)
             AddHistoryPlacement(_main, rowId, historyPlacement);
 
-        if (anyDropped || transfers.Count > 0)
-            _main.ReconcileImages();
+        if (dropped > 0)
+            Observe(SixelStateEventKind.PlacementEvicted, dropped, "history_pruned");
+        if (dropped > 0 || transfers.Count > 0)
+            ReconcileImages(_main);
+        EnforceLimits(_main);
     }
 
     /// <summary>
@@ -347,6 +412,7 @@ internal sealed class SixelGraphicsState
     {
         var active = Active;
         var changed = false;
+        var removed = 0;
         for (var i = active.Placements.Count - 1; i >= 0; i--)
         {
             var placement = active.Placements[i];
@@ -360,6 +426,7 @@ internal sealed class SixelGraphicsState
             {
                 active.Placements.RemoveAt(i);
                 changed = true;
+                removed++;
             }
             else if (!ReferenceEquals(clipped, placement))
             {
@@ -368,8 +435,10 @@ internal sealed class SixelGraphicsState
             }
         }
 
+        if (removed > 0)
+            Observe(SixelStateEventKind.PlacementEvicted, removed, "scroll");
         if (changed)
-            active.ReconcileImages();
+            ReconcileImages(active);
     }
 
     /// <summary>
@@ -384,8 +453,12 @@ internal sealed class SixelGraphicsState
     internal void ReleasePlacementsAnchoredAtRow(int row)
     {
         var active = Active;
-        if (active.Placements.RemoveAll(p => p.Row == row) > 0)
-            active.ReconcileImages();
+        var removed = active.Placements.RemoveAll(p => p.Row == row);
+        if (removed > 0)
+        {
+            Observe(SixelStateEventKind.PlacementEvicted, removed, "line_edit");
+            ReconcileImages(active);
+        }
     }
 
     /// <summary>
@@ -405,6 +478,7 @@ internal sealed class SixelGraphicsState
     {
         var active = Active;
         var changed = false;
+        var removed = 0;
         for (var i = active.Placements.Count - 1; i >= 0; i--)
         {
             var placement = active.Placements[i];
@@ -414,11 +488,14 @@ internal sealed class SixelGraphicsState
             {
                 active.Placements.RemoveAt(i);
                 changed = true;
+                removed++;
             }
         }
 
+        if (removed > 0)
+            Observe(SixelStateEventKind.PlacementEvicted, removed, "viewport");
         if (changed)
-            active.ReconcileImages();
+            ReconcileImages(active);
     }
 
     /// <summary>
@@ -461,10 +538,15 @@ internal sealed class SixelGraphicsState
         if (toRemove is null)
             return;
 
+        var removed = 0;
         foreach (var rowId in toRemove)
+        {
+            removed += _main.HistoryPlacements[rowId].Count;
             _main.HistoryPlacements.Remove(rowId);
+        }
 
-        _main.ReconcileImages();
+        Observe(SixelStateEventKind.PlacementEvicted, removed, "history_pruned");
+        ReconcileImages(_main);
     }
 
     /// <summary>
@@ -598,7 +680,12 @@ internal sealed class SixelGraphicsState
                 active.Placements.Add(activePlacement);
         }
 
-        active.ReconcileImages();
+        ReconcileImages(active);
+        EnforceLimits(active);
+        var removedCount = plan.Placements.Count -
+            (active.Placements.Count + CountHistoryPlacements(active));
+        if (removedCount > 0)
+            Observe(SixelStateEventKind.PlacementEvicted, removedCount, "reflow");
     }
 
     /// <summary>
@@ -682,6 +769,124 @@ internal sealed class SixelGraphicsState
 
         list.Add(historyPlacement);
     }
+
+    private void EnforceLimits(SixelScreenGraphicsState screen)
+    {
+        while (CountHistoryPlacements(screen) > _policy.MaximumHistoryPlacements)
+        {
+            if (!TryRemoveOldestHistoryPlacement(screen))
+                break;
+            Observe(SixelStateEventKind.PlacementEvicted, reason: "history_limit");
+        }
+
+        while (screen.Placements.Count > _policy.MaximumPlacementsPerScreen)
+        {
+            var oldest = screen.Placements
+                .Select((placement, index) => (placement, index))
+                .MinBy(item => item.placement.Sequence);
+            screen.Placements.RemoveAt(oldest.index);
+            Observe(SixelStateEventKind.PlacementEvicted, reason: "placement_limit");
+        }
+
+        ReconcileImages(screen);
+        while (screen.Images.Count > _policy.MaximumImagesPerScreen ||
+               screen.Images.GetBoundedLogicalPixelCount(_policy.MaximumRasterPixels) >
+                   _policy.MaximumRetainedLogicalPixelsPerScreen)
+        {
+            var reason = screen.Images.Count > _policy.MaximumImagesPerScreen
+                ? "image_limit"
+                : "logical_pixel_limit";
+            if (!TryRemoveOldestPlacement(screen))
+                break;
+            Observe(SixelStateEventKind.PlacementEvicted, reason: reason);
+            ReconcileImages(screen);
+        }
+    }
+
+    private static int CountHistoryPlacements(SixelScreenGraphicsState screen)
+    {
+        var count = 0;
+        foreach (var placements in screen.HistoryPlacements.Values)
+            count += placements.Count;
+        return count;
+    }
+
+    private static bool TryRemoveOldestHistoryPlacement(SixelScreenGraphicsState screen)
+    {
+        long? oldestSequence = null;
+        long oldestRowId = 0;
+        var oldestIndex = -1;
+        foreach (var (rowId, placements) in screen.HistoryPlacements)
+        {
+            for (var index = 0; index < placements.Count; index++)
+            {
+                var sequence = placements[index].Placement.Sequence;
+                if (oldestSequence is not null && sequence >= oldestSequence.Value)
+                    continue;
+                oldestSequence = sequence;
+                oldestRowId = rowId;
+                oldestIndex = index;
+            }
+        }
+
+        if (oldestIndex < 0)
+            return false;
+
+        var list = screen.HistoryPlacements[oldestRowId];
+        list.RemoveAt(oldestIndex);
+        if (list.Count == 0)
+            screen.HistoryPlacements.Remove(oldestRowId);
+        return true;
+    }
+
+    private static bool TryRemoveOldestPlacement(SixelScreenGraphicsState screen)
+    {
+        var live = screen.Placements
+            .Select((placement, index) => (placement.Sequence, IsHistory: false, RowId: 0L, Index: index))
+            .ToList();
+        foreach (var (rowId, placements) in screen.HistoryPlacements)
+        {
+            live.AddRange(placements.Select((placement, index) =>
+                (placement.Placement.Sequence, IsHistory: true, RowId: rowId, Index: index)));
+        }
+
+        if (live.Count == 0)
+            return false;
+
+        var oldest = live.MinBy(item => item.Sequence);
+        if (!oldest.IsHistory)
+        {
+            screen.Placements.RemoveAt(oldest.Index);
+            return true;
+        }
+
+        var list = screen.HistoryPlacements[oldest.RowId];
+        list.RemoveAt(oldest.Index);
+        if (list.Count == 0)
+            screen.HistoryPlacements.Remove(oldest.RowId);
+        return true;
+    }
+
+    private void ReconcileImages(SixelScreenGraphicsState screen)
+    {
+        var released = screen.ReconcileImages();
+        if (released > 0)
+            Observe(SixelStateEventKind.ImageReleased, released);
+    }
+
+    private void ClearScreen(SixelScreenGraphicsState screen)
+    {
+        var placements = screen.Placements.Count + CountHistoryPlacements(screen);
+        var images = screen.Images.Count;
+        screen.Clear();
+        if (placements > 0)
+            Observe(SixelStateEventKind.PlacementEvicted, placements, "clear");
+        if (images > 0)
+            Observe(SixelStateEventKind.ImageReleased, images, "clear");
+    }
+
+    private void Observe(SixelStateEventKind kind, int count = 1, string? reason = null) =>
+        _observe?.Invoke(new SixelStateEvent(kind, count, reason));
 
     /// <summary>
     /// A placement's painted rectangle (or, for a geometry-only placement, its

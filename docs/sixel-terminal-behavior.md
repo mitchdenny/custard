@@ -181,7 +181,7 @@ profile value.
 |---|---|---|---|
 | RGB | Three 0-100% components | Clamp valid components to the DEC domain and convert deterministically to 8-bit RGB with nearest rounding (`(percent * 255 + 50) / 100`) | Active rasterizer tests |
 | HLS | Hue 0 is blue, 120 is red, and 240 is green; lightness and saturation are percentages | Use the DEC hue wheel, not the CSS hue wheel; hue wraps modulo 360 and lightness/saturation clamp to 0-100 | Active rasterizer tests |
-| Default palette | DEC VT340 ships 16 hardware colors; modern terminals extend selection beyond them | Registers 0-15 are the VT340 defaults expressed in the DEC 0-100 domain; registers 16-255 extend them with the conventional 6x6x6 cube and grayscale ramp so selection without definition is defined for every register inside policy | Centralized in `SixelDefaultPalette`; the corpus makes no unsupported claim of exact modern equality for registers 16-255 |
+| Default palette | DEC VT340 ships 16 hardware colors; the pinned WezTerm source initializes a distinct 16-color map | The DEC/xterm profiles use the VT340 defaults plus the documented 256-color extension; the WezTerm profile uses its pinned initial map and white for otherwise undefined entries | Centralized in `SixelDefaultPalette` and selected by `SixelCompatibilityPolicy`; the corpus pins register 6 where the reference maps differ |
 | Register count | DEC VT340 exposes 16; modern terminals commonly expose 256 | 256 terminal-scoped registers; selection or definition outside the policy is rejected explicitly with a diagnostic and never silently wrapped | Centralized in `SixelCompatibilityPolicy` |
 | Register persistence | DEC has a shared palette; xterm, WezTerm, foot, Windows Terminal, and xterm.js persist by default | Share palette state between sequences on the same terminal; definitions apply in command order even when rasterization degrades to geometry only | Active rasterizer and terminal tests |
 | Private registers | xterm mode 1070 and some terminal options provide per-image palettes | Shared by default; any private mode must be an explicit compatibility option expressed through `SixelCompatibilityPolicy.PaletteScope` | Outside the finite primary matrix; no unsupported reset claim is made |
@@ -1016,6 +1016,7 @@ the executable normalizer is
 | Behavior | Hex1b / DEC VT340 profile | xterm 411 profile | WezTerm 20240203 profile | Classification |
 |---|---|---|---|---|
 | Initial paint color | Register 0 | Register 3 (`#33CC33` in the VT340 palette) | Independent pure green (`#00FF00`) until the first explicit selection | DEC behavior is implementation-defined; xterm/WezTerm behavior is source-derived |
+| Initial register palette | VT340 values; register 6 is `#CCCC33` | VT340 values; register 6 is `#CCCC33` | Pinned WezTerm map; register 6 is `#CCCCCC` | Documented reference difference |
 | Pixel aspect | Apply the DEC `P1`/DECGRA ratio | Render square logical pixels | Render square logical pixels | Documented reference difference |
 | Opaque `P2=0/2` fill | Captured terminal background | Sixel register 0 | Sixel register 0 | Documented reference difference; DEC's “current background” wording is ambiguous |
 | Color definition | Define and select the register | Define and select the register | Define without changing the selected register | Documented reference difference |
@@ -1039,13 +1040,13 @@ The corpus classifies every asserted difference as one of:
 - **Unsupported reference behavior** — the available evidence is insufficient
   for an executable assertion; the corpus records no invented result.
 
-The corpus review exposed and fixed one default-path defect: raster-preparation
-identity previously treated palette-dependent colors as an unordered set and
-could deduplicate two same-payload images whose effective color order differed.
-It also omitted register 0 when that register supplied the opaque background.
-The identity now records the resolved unpainted color and the ordered effective
-paint colors. Profile-specific fixes also model xterm/WezTerm initial paint
-color and prevent WezTerm's zero-area repeat result from becoming a placement.
+The corpus review exposed and fixed default-path raster-preparation identity
+defects: palette-dependent colors were treated as an unordered set, and
+register 0 was omitted when it supplied the opaque background. The identity now
+records the resolved unpainted color and the ordered effective paint colors.
+Profile-specific fixes also model xterm/WezTerm initial paint color, select the
+pinned WezTerm initial register map for both terminal construction and RIS,
+and prevent WezTerm's zero-area repeat result from becoming a placement.
 
 ### Scope decisions
 
@@ -1061,9 +1062,10 @@ The previous open questions now have finite dispositions:
    reflow remain Hex1b terminal-model contracts backed by dedicated executable
    tests. The selected primary references do not expose authoritative,
    machine-readable state for those operations.
-4. Registers 16-255 and private-register modes retain the documented Hex1b
-   policy. The corpus makes no claim of byte-for-byte default-palette equality
-   where independently reproducible reference data is unavailable.
+4. Registers 16-255 and private-register modes remain outside the executable
+   equality matrix. The WezTerm profile uses the pinned source's white fallback
+   for undefined entries; the DEC/xterm profiles retain the documented Hex1b
+   extension. No cross-terminal equality claim is made for those registers.
 
 This closes the terminal-side matrix rather than creating a permanently
 expanding list of emulator targets. A new reference belongs here only when its
@@ -1088,8 +1090,10 @@ from:
   `5046fc225992db6ba2ef8812743fadfdfe4b184a`;
   terminal Sixel renderer SHA-256
   `4a8007dd75244005874791b26cd7d0e4c62872bef4df4e978b9f921bf53ee9f9`
-  and termwiz Sixel parser SHA-256
-  `ee4d38f6bafd98d3810074ba3d2f2675d62deac923da6a4b2559a4035add3de0`.
+  termwiz Sixel parser SHA-256
+  `ee4d38f6bafd98d3810074ba3d2f2675d62deac923da6a4b2559a4035add3de0`,
+  and terminal-state palette source SHA-256
+  `5bbdf36cae5d86c29fa4decda94fde6d370e2295c6451245c6218fec665082d9`.
 
 To reproduce the source provenance, check out those exact revisions and hash
 the files rather than inspecting a moving default branch:
@@ -1104,6 +1108,7 @@ git clone https://github.com/wezterm/wezterm.git /tmp/wezterm-sixel
 git -C /tmp/wezterm-sixel checkout 5046fc225992db6ba2ef8812743fadfdfe4b184a
 shasum -a 256 /tmp/wezterm-sixel/term/src/terminalstate/sixel.rs
 shasum -a 256 /tmp/wezterm-sixel/termwiz/src/escape/parser/sixel.rs
+shasum -a 256 /tmp/wezterm-sixel/term/src/terminalstate/mod.rs
 wezterm --version
 ```
 
@@ -1335,6 +1340,7 @@ checked without a Sixel-capable terminal.
 - [Windows Terminal `SixelParser`](https://github.com/microsoft/terminal/tree/main/src/terminal/adapter)
 - [WezTerm pinned Sixel parser](https://github.com/wezterm/wezterm/blob/5046fc225992db6ba2ef8812743fadfdfe4b184a/termwiz/src/escape/parser/sixel.rs)
 - [WezTerm pinned Sixel terminal state](https://github.com/wezterm/wezterm/blob/5046fc225992db6ba2ef8812743fadfdfe4b184a/term/src/terminalstate/sixel.rs)
+- [WezTerm pinned default Sixel palette](https://github.com/wezterm/wezterm/blob/5046fc225992db6ba2ef8812743fadfdfe4b184a/term/src/terminalstate/mod.rs#L405-L430)
 - [foot `sixel.c`](https://codeberg.org/dnkl/foot/src/branch/master/sixel.c)
 - [mintty `sixel.c`](https://github.com/mintty/mintty/blob/master/src/sixel.c)
 - [xterm.js image add-on](https://github.com/xtermjs/xterm.js/tree/master/addons/addon-image/src)

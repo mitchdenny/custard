@@ -183,6 +183,44 @@ public class SixelTerminalSemanticsTests
     }
 
     [TestMethod]
+    public async Task Ris_WezTermProfile_RestoresPinnedInitialPalette()
+    {
+        var defineRegister = new SixelFixture(
+            "define-register",
+            "Defines WezTerm register 6 as red before reset.",
+            "7;1q#6;2;100;0;0#6~"u8.ToArray());
+        var selectAfterReset = new SixelFixture(
+            "select-after-reset",
+            "Selects untouched WezTerm register 6 after reset.",
+            "7;1q#6~"u8.ToArray());
+        await using var terminal = SixelTestTerminal.Create(
+            policy: SixelCompatibilityPolicy.WezTerm20240203);
+
+        await terminal.FeedAsync(
+            defineRegister.StandardBytes,
+            cancellationToken: TestContext.Current.CancellationToken);
+        await terminal.WaitForAsync(
+            snapshot => snapshot.ContainsSixelData(),
+            "graphic before RIS",
+            TestContext.Current.CancellationToken);
+
+        await terminal.FeedAsync(
+            Encoding.ASCII.GetBytes("\x1b" + "c"),
+            cancellationToken: TestContext.Current.CancellationToken);
+        await terminal.FeedAsync(
+            selectAfterReset.StandardBytes.Concat("X"u8.ToArray()).ToArray(),
+            cancellationToken: TestContext.Current.CancellationToken);
+        await terminal.WaitForAsync(
+            snapshot => snapshot.ContainsText("X"),
+            "WezTerm palette after RIS",
+            TestContext.Current.CancellationToken);
+
+        var afterReset = TestSeq.Single(terminal.Observe().Placements).PixelGrid;
+        Assert.Contains("#CCCCCCFF", afterReset);
+        Assert.DoesNotContain("#FF0000FF", afterReset);
+    }
+
+    [TestMethod]
     public async Task EraseCharacter_DestructivelyDamagesOnlyErasedCells()
     {
         var wide = new SixelFixture(

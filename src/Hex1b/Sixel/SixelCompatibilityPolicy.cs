@@ -98,6 +98,18 @@ internal enum SixelRgbQuantization
 }
 
 /// <summary>
+/// Identifies the initial Sixel color-register map used by a reference profile.
+/// </summary>
+internal enum SixelInitialPalette
+{
+    /// <summary>Use the DEC VT340 palette with Hex1b's documented 256-color extension.</summary>
+    DecVt340Extended,
+
+    /// <summary>Use the palette initialized by WezTerm 20240203.</summary>
+    WezTerm20240203,
+}
+
+/// <summary>
 /// Centralized, reviewable Sixel compatibility and resource policy.
 /// </summary>
 /// <remarks>
@@ -139,6 +151,7 @@ internal sealed record SixelCompatibilityPolicy
         ColorDefinitionBehavior = SixelColorDefinitionBehavior.DefineOnly,
         ZeroRepeatBehavior = SixelZeroRepeatBehavior.RepeatZeroTimes,
         RgbQuantization = SixelRgbQuantization.Truncate,
+        InitialPalette = SixelInitialPalette.WezTerm20240203,
         InitialDrawingColor = new Rgba32(0, 255, 0, 255),
         RejectZeroExtentGraphics = true,
     };
@@ -214,6 +227,13 @@ internal sealed record SixelCompatibilityPolicy
     /// </summary>
     public SixelRgbQuantization RgbQuantization { get; init; } =
         SixelRgbQuantization.Nearest;
+
+    /// <summary>
+    /// Gets the initial color-register map restored when the terminal is created
+    /// and when RIS resets its persistent Sixel palette.
+    /// </summary>
+    public SixelInitialPalette InitialPalette { get; init; } =
+        SixelInitialPalette.DecVt340Extended;
 
     /// <summary>
     /// Gets the register selected before the first DECGCI command.

@@ -396,6 +396,21 @@ public class SixelRasterizerTests
     }
 
     [TestMethod]
+    public void ColorRegisters_ProfileSpecificInitialPaletteMatchesPinnedReferences()
+    {
+        var dec = new SixelColorRegisters(SixelCompatibilityPolicy.DecVt340);
+        var xterm = new SixelColorRegisters(SixelCompatibilityPolicy.Xterm411);
+        var wezTerm = new SixelColorRegisters(SixelCompatibilityPolicy.WezTerm20240203);
+
+        Assert.AreEqual(new Rgba32(204, 33, 33, 255), dec.Get(2));
+        Assert.AreEqual(new Rgba32(204, 204, 51, 255), dec.Get(6));
+        Assert.AreEqual(dec.Get(2), xterm.Get(2));
+        Assert.AreEqual(dec.Get(6), xterm.Get(6));
+        Assert.AreEqual(new Rgba32(204, 35, 35, 255), wezTerm.Get(2));
+        Assert.AreEqual(new Rgba32(204, 204, 204, 255), wezTerm.Get(6));
+    }
+
+    [TestMethod]
     public void DefaultPalette_ExtendsBeyondTheVt340RegistersWithinPolicy()
     {
         var registers = new SixelColorRegisters();
@@ -508,6 +523,17 @@ public class SixelRasterizerTests
 
         Assert.AreEqual(SixelDefaultPalette.Get(1), RequireImage(afterReset)[0, 0]);
         Assert.AreNotEqual(new Rgba32(255, 0, 0, 255), RequireImage(afterReset)[0, 0]);
+    }
+
+    [TestMethod]
+    public void ColorRegisters_ResetRestoresTheProfileSpecificPalette()
+    {
+        var registers = new SixelColorRegisters(SixelCompatibilityPolicy.WezTerm20240203);
+        registers.Define(6, new Rgba32(255, 0, 0, 255));
+
+        registers.Reset();
+
+        Assert.AreEqual(new Rgba32(204, 204, 204, 255), registers.Get(6));
     }
 
     [TestMethod]

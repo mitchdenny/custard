@@ -98,6 +98,10 @@ public class SixelReferenceConformanceTests
                 allowedClassifications,
                 $"{profile.Reference} has an unknown classification.");
         }
+
+        var wezTermPaletteCase = Corpus.Cases.Single(item => item.Id == "unmodified-palette-register");
+        Assert.Contains("5046fc225992db6ba2ef8812743fadfdfe4b184a", wezTermPaletteCase.SourceEvidence);
+        Assert.Contains("term/src/terminalstate/mod.rs", wezTermPaletteCase.SourceEvidence);
     }
 
     [TestMethod]
@@ -316,6 +320,7 @@ public class SixelReferenceConformanceTests
         int CellPixelHeight,
         string? Prefix,
         string? Suffix,
+        string? SourceEvidence,
         IReadOnlyList<SixelReferenceProfile> Profiles);
 
     private sealed record SixelReferenceProfile(

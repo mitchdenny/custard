@@ -40,7 +40,7 @@ public class SixelScalingIntegrationTests
         { 12, 24, "large" }     // Large font
     };
 
-    [TestMethod, Ignore("Sixel is experimental and tracking in Surface mode differs from Legacy mode")]
+    [TestMethod, Ignore("Widget/emitter Surface integration is outside terminal-side issue #457.")]
     [DynamicData(nameof(CellDimensions))]
     public async Task SmpteColorBars_RendersCorrectlyAtScale(int cellWidth, int cellHeight, string scaleName)
     {
@@ -117,7 +117,7 @@ public class SixelScalingIntegrationTests
         TestCaptureHelper.AttachSvg($"sixel-smpte-{scaleName}-reference.svg", refSvg);
     }
 
-    [TestMethod, Ignore("Sixel is experimental and tracking in Surface mode differs from Legacy mode")]
+    [TestMethod, Ignore("Widget/emitter Surface integration is outside terminal-side issue #457.")]
     [DynamicData(nameof(CellDimensions))]
     public async Task Checkerboard_RendersCorrectlyAtScale(int cellWidth, int cellHeight, string scaleName)
     {

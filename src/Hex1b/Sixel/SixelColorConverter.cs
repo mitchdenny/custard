@@ -23,19 +23,27 @@ internal static class SixelColorConverter
     /// <summary>
     /// Converts a DEC 0-100 percentage to an 8-bit component with nearest rounding.
     /// </summary>
-    public static byte PercentToComponent(int percent)
+    public static byte PercentToComponent(
+        int percent,
+        SixelRgbQuantization quantization = SixelRgbQuantization.Nearest)
     {
         var clamped = Math.Clamp(percent, 0, 100);
-        return (byte)(((clamped * 255) + 50) / 100);
+        return quantization == SixelRgbQuantization.Truncate
+            ? (byte)((clamped * 255) / 100)
+            : (byte)(((clamped * 255) + 50) / 100);
     }
 
     /// <summary>
     /// Converts DEC RGB percentages to an opaque color.
     /// </summary>
-    public static Rgba32 FromRgbPercent(int red, int green, int blue) => new(
-        PercentToComponent(red),
-        PercentToComponent(green),
-        PercentToComponent(blue),
+    public static Rgba32 FromRgbPercent(
+        int red,
+        int green,
+        int blue,
+        SixelRgbQuantization quantization = SixelRgbQuantization.Nearest) => new(
+        PercentToComponent(red, quantization),
+        PercentToComponent(green, quantization),
+        PercentToComponent(blue, quantization),
         255);
 
     /// <summary>
@@ -72,9 +80,15 @@ internal static class SixelColorConverter
     /// <summary>
     /// Converts a parsed DEC color introducer definition to a color.
     /// </summary>
-    public static Rgba32 FromDefinition(SixelPaletteCommand command) => command.ColorSpace switch
+    public static Rgba32 FromDefinition(
+        SixelPaletteCommand command,
+        SixelCompatibilityPolicy? policy = null) => command.ColorSpace switch
     {
-        SixelColorSpace.Rgb => FromRgbPercent(command.X ?? 0, command.Y ?? 0, command.Z ?? 0),
+        SixelColorSpace.Rgb => FromRgbPercent(
+            command.X ?? 0,
+            command.Y ?? 0,
+            command.Z ?? 0,
+            (policy ?? SixelCompatibilityPolicy.Default).RgbQuantization),
         SixelColorSpace.Hls => FromHls(command.X ?? 0, command.Y ?? 0, command.Z ?? 0),
         _ => new Rgba32(0, 0, 0, 255),
     };

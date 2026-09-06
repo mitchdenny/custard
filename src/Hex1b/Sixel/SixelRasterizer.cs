@@ -266,8 +266,9 @@ internal static class SixelRasterizer
         }
 
         var image = new SixelRasterImage(logical.Width, logical.Height, unpainted, policy);
-        var identity = new RasterIdentityBuilder(environment.Background, parse.Header.BackgroundMode);
-        var selected = 0;
+        var identity = new RasterIdentityBuilder(unpainted, parse.Header.BackgroundMode);
+        var selected = policy.InitialColorRegister;
+        var selectedColor = policy.InitialDrawingColor;
         var tileLimitExceeded = false;
 
         foreach (var command in parse.Commands)
@@ -276,7 +277,13 @@ internal static class SixelRasterizer
             {
                 if (command.Palette is { } palette)
                 {
+                    var selects = environment.Policy.SelectsColorRegister(palette) &&
+                        environment.Registers.IsWithinPolicy(palette.Register);
                     selected = ApplyPaletteCommand(palette, environment, diagnostics, selected);
+                    if (selects)
+                    {
+                        selectedColor = null;
+                    }
                 }
 
                 continue;
@@ -297,7 +304,7 @@ internal static class SixelRasterizer
                 continue;
             }
 
-            var color = environment.Registers.Get(selected);
+            var color = selectedColor ?? environment.Registers.Get(selected);
             identity.Observe(selected, color);
 
             var startX = command.X;
@@ -365,7 +372,7 @@ internal static class SixelRasterizer
         List<SixelRasterDiagnostic> diagnostics)
     {
         var unpainted = ResolveUnpaintedPixel(backgroundMode, environment);
-        var identity = new RasterIdentityBuilder(environment.Background, backgroundMode);
+        var identity = new RasterIdentityBuilder(unpainted, backgroundMode);
         return new SixelRasterResult(
             SixelRasterStatus.GeometryOnly,
             extents,
@@ -441,10 +448,14 @@ internal static class SixelRasterizer
 
         if (palette.IsDefinition)
         {
-            environment.Registers.Define(palette.Register, SixelColorConverter.FromDefinition(palette));
+            environment.Registers.Define(
+                palette.Register,
+                SixelColorConverter.FromDefinition(palette, environment.Policy));
         }
 
-        return palette.Register;
+        return environment.Policy.SelectsColorRegister(palette)
+            ? palette.Register
+            : selected;
     }
 
     private static void ApplyPersistentPaletteMutations(
@@ -478,7 +489,7 @@ internal static class SixelRasterizer
         {
             registers.Define(
                 mutation.Register,
-                SixelColorConverter.FromDefinition(mutation));
+                SixelColorConverter.FromDefinition(mutation, registers.Policy));
         }
     }
 
@@ -487,8 +498,38 @@ internal static class SixelRasterizer
         SixelRasterEnvironment environment)
     {
         var registers = environment.Registers.Snapshot();
-        var used = new HashSet<(int Register, uint Color)>();
-        var selected = 0;
+        var selected = environment.Policy.InitialColorRegister;
+        var selectedColor = environment.Policy.InitialDrawingColor;
+        var unpainted = ResolveUnpaintedPixel(parse.Header.BackgroundMode, environment);
+        var buffer = new List<byte>(64)
+        {
+            unpainted.R,
+            unpainted.G,
+            unpainted.B,
+            unpainted.A,
+            (byte)parse.Header.BackgroundMode,
+        };
+        buffer.AddRange(BitConverter.GetBytes(environment.Policy.ColorRegisterCount));
+        buffer.AddRange(BitConverter.GetBytes(environment.Policy.MaximumRasterPixels));
+        buffer.AddRange(BitConverter.GetBytes(environment.Policy.MaximumRasterOperations));
+        buffer.AddRange(BitConverter.GetBytes(environment.Policy.MaximumRasterTiles));
+        buffer.AddRange(BitConverter.GetBytes(environment.Policy.RasterTileSize));
+        buffer.Add((byte)environment.Policy.BackgroundSource);
+        buffer.Add((byte)environment.Policy.PaletteScope);
+        buffer.Add((byte)environment.Policy.AspectBehavior);
+        buffer.Add((byte)environment.Policy.ColorDefinitionBehavior);
+        buffer.Add((byte)environment.Policy.ZeroRepeatBehavior);
+        buffer.Add((byte)environment.Policy.RgbQuantization);
+        buffer.AddRange(BitConverter.GetBytes(environment.Policy.InitialColorRegister));
+        buffer.Add(environment.Policy.InitialDrawingColor.HasValue ? (byte)1 : (byte)0);
+        if (environment.Policy.InitialDrawingColor is { } initialColor)
+        {
+            buffer.Add(initialColor.R);
+            buffer.Add(initialColor.G);
+            buffer.Add(initialColor.B);
+            buffer.Add(initialColor.A);
+        }
+        buffer.Add(environment.Policy.RejectZeroExtentGraphics ? (byte)1 : (byte)0);
 
         foreach (var command in parse.Commands)
         {
@@ -498,12 +539,16 @@ internal static class SixelRasterizer
                 {
                     if (registers.IsWithinPolicy(palette.Register))
                     {
-                        selected = palette.Register;
                         if (palette.IsDefinition)
                         {
                             registers.Define(
                                 palette.Register,
-                                SixelColorConverter.FromDefinition(palette));
+                                SixelColorConverter.FromDefinition(palette, environment.Policy));
+                        }
+                        if (environment.Policy.SelectsColorRegister(palette))
+                        {
+                            selected = palette.Register;
+                            selectedColor = null;
                         }
                     }
                 }
@@ -518,36 +563,19 @@ internal static class SixelRasterizer
                 continue;
             }
 
-            var color = registers.Get(selected);
-            used.Add((
-                selected,
-                ((uint)color.A << 24) |
-                ((uint)color.R << 16) |
-                ((uint)color.G << 8) |
-                color.B));
-        }
-
-        var buffer = new List<byte>(32 + (used.Count * 8))
-        {
-            environment.Background.R,
-            environment.Background.G,
-            environment.Background.B,
-            environment.Background.A,
-            (byte)parse.Header.BackgroundMode,
-        };
-        buffer.AddRange(BitConverter.GetBytes(environment.Policy.ColorRegisterCount));
-        buffer.AddRange(BitConverter.GetBytes(environment.Policy.MaximumRasterPixels));
-        buffer.AddRange(BitConverter.GetBytes(environment.Policy.MaximumRasterOperations));
-        buffer.AddRange(BitConverter.GetBytes(environment.Policy.MaximumRasterTiles));
-        buffer.AddRange(BitConverter.GetBytes(environment.Policy.RasterTileSize));
-        foreach (var (register, color) in used.OrderBy(item => item.Register).ThenBy(item => item.Color))
-        {
-            buffer.AddRange(BitConverter.GetBytes(register));
-            buffer.AddRange(BitConverter.GetBytes(color));
+            var color = selectedColor ?? registers.Get(selected);
+            buffer.AddRange(BitConverter.GetBytes(selected));
+            buffer.AddRange(BitConverter.GetBytes(PackColor(color)));
         }
 
         return SHA256.HashData([.. buffer])[..16];
     }
+
+    private static uint PackColor(Rgba32 color) =>
+        ((uint)color.A << 24) |
+        ((uint)color.R << 16) |
+        ((uint)color.G << 8) |
+        color.B;
 
     private static Measurement Measure(
         SixelParseResult parse,
@@ -681,27 +709,27 @@ internal static class SixelRasterizer
     /// persistent palette differ, so this identity participates in tracked-object
     /// deduplication instead of the payload hash alone.
     /// </remarks>
-    private sealed class RasterIdentityBuilder(Rgba32 background, SixelBackgroundMode mode)
+    private sealed class RasterIdentityBuilder(Rgba32 unpainted, SixelBackgroundMode mode)
     {
-        private readonly HashSet<(int Register, uint Color)> _used = [];
+        private readonly List<(int Register, uint Color)> _used = [];
 
         public void Observe(int register, Rgba32 color) =>
-            _used.Add((register, ((uint)color.A << 24) | ((uint)color.R << 16) | ((uint)color.G << 8) | color.B));
+            _used.Add((register, PackColor(color)));
 
         public byte[] Build(SixelRasterStatus status, SixelRasterExtents extents)
         {
             var buffer = new List<byte>(32 + (_used.Count * 8))
             {
-                background.R,
-                background.G,
-                background.B,
-                background.A,
+                unpainted.R,
+                unpainted.G,
+                unpainted.B,
+                unpainted.A,
                 (byte)mode,
                 (byte)status,
             };
             buffer.AddRange(BitConverter.GetBytes(extents.Logical.Width));
             buffer.AddRange(BitConverter.GetBytes(extents.Logical.Height));
-            foreach (var (register, color) in _used.OrderBy(item => item.Register).ThenBy(item => item.Color))
+            foreach (var (register, color) in _used)
             {
                 buffer.AddRange(BitConverter.GetBytes(register));
                 buffer.AddRange(BitConverter.GetBytes(color));

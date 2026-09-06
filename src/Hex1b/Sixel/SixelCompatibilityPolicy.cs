@@ -50,6 +50,54 @@ internal enum SixelDecsdmPolarity
 }
 
 /// <summary>
+/// Identifies how a reference implementation applies Sixel pixel-aspect metadata.
+/// </summary>
+internal enum SixelAspectBehavior
+{
+    /// <summary>Apply the DEC macro and DECGRA pixel aspect ratio.</summary>
+    Dec,
+
+    /// <summary>Render logical Sixel pixels as square pixels.</summary>
+    SquarePixels,
+}
+
+/// <summary>
+/// Identifies whether a color-register definition also selects that register.
+/// </summary>
+internal enum SixelColorDefinitionBehavior
+{
+    /// <summary>Defining a register also selects it, as specified by DEC.</summary>
+    DefineAndSelect,
+
+    /// <summary>Defining a register leaves the current selection unchanged.</summary>
+    DefineOnly,
+}
+
+/// <summary>
+/// Identifies how a zero DECGRI repeat count is interpreted.
+/// </summary>
+internal enum SixelZeroRepeatBehavior
+{
+    /// <summary>Treat zero as the DEC default of one repetition.</summary>
+    RepeatOnce,
+
+    /// <summary>Treat zero as no repetitions.</summary>
+    RepeatZeroTimes,
+}
+
+/// <summary>
+/// Identifies how 0-100 RGB components are converted to 8-bit values.
+/// </summary>
+internal enum SixelRgbQuantization
+{
+    /// <summary>Round to the nearest 8-bit component.</summary>
+    Nearest,
+
+    /// <summary>Truncate the scaled component toward zero.</summary>
+    Truncate,
+}
+
+/// <summary>
 /// Centralized, reviewable Sixel compatibility and resource policy.
 /// </summary>
 /// <remarks>
@@ -58,10 +106,42 @@ internal enum SixelDecsdmPolarity
 /// </remarks>
 internal sealed record SixelCompatibilityPolicy
 {
+    /// <summary>Gets the DEC VT340 baseline used by Hex1b.</summary>
+    public static SixelCompatibilityPolicy DecVt340 { get; } = new();
+
     /// <summary>
-    /// Gets the selected Hex1b policy described by <c>docs/sixel-terminal-behavior.md</c>.
+    /// Gets the selected Hex1b/DEC VT340 policy described by
+    /// <c>docs/sixel-terminal-behavior.md</c>.
     /// </summary>
-    public static SixelCompatibilityPolicy Default { get; } = new();
+    public static SixelCompatibilityPolicy Default { get; } = DecVt340;
+
+    /// <summary>
+    /// Gets the source-derived xterm patch 411 profile used by the differential
+    /// conformance corpus.
+    /// </summary>
+    public static SixelCompatibilityPolicy Xterm411 { get; } = new()
+    {
+        BackgroundSource = SixelBackgroundSource.PaletteRegisterZero,
+        DecsdmPolarity = SixelDecsdmPolarity.Xterm,
+        AspectBehavior = SixelAspectBehavior.SquarePixels,
+        InitialColorRegister = 3,
+    };
+
+    /// <summary>
+    /// Gets the source-derived WezTerm 20240203-110809-5046fc22 profile used by
+    /// the differential conformance corpus.
+    /// </summary>
+    public static SixelCompatibilityPolicy WezTerm20240203 { get; } = new()
+    {
+        BackgroundSource = SixelBackgroundSource.PaletteRegisterZero,
+        DecsdmPolarity = SixelDecsdmPolarity.Xterm,
+        AspectBehavior = SixelAspectBehavior.SquarePixels,
+        ColorDefinitionBehavior = SixelColorDefinitionBehavior.DefineOnly,
+        ZeroRepeatBehavior = SixelZeroRepeatBehavior.RepeatZeroTimes,
+        RgbQuantization = SixelRgbQuantization.Truncate,
+        InitialDrawingColor = new Rgba32(0, 255, 0, 255),
+        RejectZeroExtentGraphics = true,
+    };
 
     /// <summary>
     /// Gets the maximum number of DCS content bytes retained for tokenization,
@@ -113,6 +193,46 @@ internal sealed record SixelCompatibilityPolicy
     public SixelDecsdmPolarity DecsdmPolarity { get; init; } = SixelDecsdmPolarity.Dec;
 
     /// <summary>
+    /// Gets how pixel-aspect metadata affects rendered geometry.
+    /// </summary>
+    public SixelAspectBehavior AspectBehavior { get; init; } = SixelAspectBehavior.Dec;
+
+    /// <summary>
+    /// Gets whether a color definition also selects the defined register.
+    /// </summary>
+    public SixelColorDefinitionBehavior ColorDefinitionBehavior { get; init; } =
+        SixelColorDefinitionBehavior.DefineAndSelect;
+
+    /// <summary>
+    /// Gets how a zero DECGRI repeat count is interpreted.
+    /// </summary>
+    public SixelZeroRepeatBehavior ZeroRepeatBehavior { get; init; } =
+        SixelZeroRepeatBehavior.RepeatOnce;
+
+    /// <summary>
+    /// Gets how RGB percentage components are quantized to 8-bit values.
+    /// </summary>
+    public SixelRgbQuantization RgbQuantization { get; init; } =
+        SixelRgbQuantization.Nearest;
+
+    /// <summary>
+    /// Gets the register selected before the first DECGCI command.
+    /// </summary>
+    public int InitialColorRegister { get; init; }
+
+    /// <summary>
+    /// Gets an optional initial drawing color that is independent of the
+    /// register file until the first selecting DECGCI command.
+    /// </summary>
+    public Rgba32? InitialDrawingColor { get; init; }
+
+    /// <summary>
+    /// Gets whether a complete sequence with no rasterable extent is discarded
+    /// instead of retained as a geometry-only placement.
+    /// </summary>
+    public bool RejectZeroExtentGraphics { get; init; }
+
+    /// <summary>
     /// Gets the Sixel scrolling state a reset restores.
     /// </summary>
     /// <remarks>
@@ -138,6 +258,29 @@ internal sealed record SixelCompatibilityPolicy
     /// <returns><see langword="true"/> when Sixel scrolling should be enabled.</returns>
     public bool ResolveSixelScrolling(bool decsdmEnabled) =>
         DecsdmPolarity == SixelDecsdmPolarity.Xterm ? !decsdmEnabled : decsdmEnabled;
+
+    /// <summary>
+    /// Resolves a parsed pixel aspect ratio for this compatibility profile.
+    /// </summary>
+    public SixelAspectRatio ResolveAspectRatio(SixelAspectRatio aspect) =>
+        AspectBehavior == SixelAspectBehavior.SquarePixels
+            ? new SixelAspectRatio(1, 1)
+            : aspect;
+
+    /// <summary>
+    /// Resolves a zero DECGRI count for this compatibility profile.
+    /// </summary>
+    public int ResolveRepeatCount(int repeatCount) =>
+        repeatCount == 0 && ZeroRepeatBehavior == SixelZeroRepeatBehavior.RepeatOnce
+            ? 1
+            : repeatCount;
+
+    /// <summary>
+    /// Gets whether the supplied palette command changes the selected register.
+    /// </summary>
+    public bool SelectsColorRegister(SixelPaletteCommand command) =>
+        !command.IsDefinition ||
+        ColorDefinitionBehavior == SixelColorDefinitionBehavior.DefineAndSelect;
 
     /// <summary>
     /// Gets the maximum number of logical pixels a single graphic may materialize.
@@ -184,6 +327,14 @@ internal sealed record SixelCompatibilityPolicy
         ArgumentOutOfRangeException.ThrowIfLessThan(MaximumPaletteMutations, 1);
         ArgumentOutOfRangeException.ThrowIfLessThan(MaximumDiagnostics, 1);
         ArgumentOutOfRangeException.ThrowIfLessThan(ColorRegisterCount, 1);
+        ArgumentOutOfRangeException.ThrowIfNegative(InitialColorRegister);
+        if (InitialColorRegister >= ColorRegisterCount)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(InitialColorRegister),
+                InitialColorRegister,
+                "The initial color register must be inside the configured register file.");
+        }
         ArgumentOutOfRangeException.ThrowIfLessThan(MaximumRasterPixels, 1);
         ArgumentOutOfRangeException.ThrowIfLessThan(MaximumRasterOperations, 1);
         ArgumentOutOfRangeException.ThrowIfLessThan(MaximumRasterTiles, 1);

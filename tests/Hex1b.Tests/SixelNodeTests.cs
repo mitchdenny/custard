@@ -41,6 +41,22 @@ public class SixelNodeTests
             Supports256Colors = true
         });
 
+    private static SixelPixelBuffer CreatePixelBuffer(byte[] rgba, int width, int height)
+    {
+        var pixels = new Rgba32[width * height];
+        for (var i = 0; i < pixels.Length; i++)
+        {
+            var offset = i * 4;
+            pixels[i] = new Rgba32(
+                rgba[offset],
+                rgba[offset + 1],
+                rgba[offset + 2],
+                rgba[offset + 3]);
+        }
+
+        return new SixelPixelBuffer(width, height, pixels);
+    }
+
     [TestMethod]
     public void Measure_WithRequestedDimensions_ReturnsRequestedSize()
     {
@@ -263,7 +279,7 @@ public class SixelNodeTests
         using var workload = CreateSixelEnabledWorkload();
         using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
         var context = new Hex1bRenderContext(workload);
-        node.Arrange(new Rect(0, 0, 40, 20));
+        node.Arrange(new Rect(0, 0, 1, 1));
         node.Render(context);
         await new Hex1bTerminalInputSequenceBuilder()
             .Wait(TimeSpan.FromMilliseconds(100))
@@ -292,7 +308,7 @@ public class SixelNodeTests
         using var workload = CreateSixelEnabledWorkload();
         using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
         var context = new Hex1bRenderContext(workload);
-        node.Arrange(new Rect(0, 0, 40, 20));
+        node.Arrange(new Rect(0, 0, 1, 1));
         node.Render(context);
         await new Hex1bTerminalInputSequenceBuilder()
             .Wait(TimeSpan.FromMilliseconds(100))
@@ -323,14 +339,12 @@ public class SixelNodeTests
         const int height = 30; // 30 pixels tall
         
         var pixels = TestPatternGenerator.GenerateSmpteColorBars(width, height);
-        var sixelPayload = TestPatternGenerator.ConvertToSixel(pixels, width, height);
-        
         var node = new SixelNode
         {
-            ImageData = sixelPayload,
             RequestedWidth = 10,
             RequestedHeight = 5
         };
+        node.SetPixels(CreatePixelBuffer(pixels, width, height));
         
         using var workload = CreateSixelEnabledWorkload();
         using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
@@ -385,14 +399,12 @@ public class SixelNodeTests
         const int height = 60; // 3 rows * 20 pixels
         
         var pixels = TestPatternGenerator.GenerateColorGrid(width, height);
-        var sixelPayload = TestPatternGenerator.ConvertToSixel(pixels, width, height);
-        
         var node = new SixelNode
         {
-            ImageData = sixelPayload,
             RequestedWidth = 10,
             RequestedHeight = 5
         };
+        node.SetPixels(CreatePixelBuffer(pixels, width, height));
         
         using var workload = CreateSixelEnabledWorkload();
         using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
@@ -442,14 +454,12 @@ public class SixelNodeTests
         const int height = 24;
         
         var pixels = TestPatternGenerator.GenerateGrayscaleGradient(width, height);
-        var sixelPayload = TestPatternGenerator.ConvertToSixel(pixels, width, height);
-        
         var node = new SixelNode
         {
-            ImageData = sixelPayload,
             RequestedWidth = 10,
             RequestedHeight = 3
         };
+        node.SetPixels(CreatePixelBuffer(pixels, width, height));
         
         using var workload = CreateSixelEnabledWorkload();
         using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
@@ -499,14 +509,12 @@ public class SixelNodeTests
         const int height = 36; // 3 bands of 12 pixels each
         
         var pixels = TestPatternGenerator.GenerateRgbGradients(width, height);
-        var sixelPayload = TestPatternGenerator.ConvertToSixel(pixels, width, height);
-        
         var node = new SixelNode
         {
-            ImageData = sixelPayload,
             RequestedWidth = 10,
             RequestedHeight = 4
         };
+        node.SetPixels(CreatePixelBuffer(pixels, width, height));
         
         using var workload = CreateSixelEnabledWorkload();
         using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
@@ -556,14 +564,12 @@ public class SixelNodeTests
         const int squareSize = 8;
         
         var pixels = TestPatternGenerator.GenerateCheckerboard(width, height, squareSize);
-        var sixelPayload = TestPatternGenerator.ConvertToSixel(pixels, width, height);
-        
         var node = new SixelNode
         {
-            ImageData = sixelPayload,
             RequestedWidth = 10,
             RequestedHeight = 5
         };
+        node.SetPixels(CreatePixelBuffer(pixels, width, height));
         
         using var workload = CreateSixelEnabledWorkload();
         using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
@@ -613,14 +619,12 @@ public class SixelNodeTests
         const int height = 60;
         
         var pixels = TestPatternGenerator.GenerateRegistrationMarks(width, height);
-        var sixelPayload = TestPatternGenerator.ConvertToSixel(pixels, width, height);
-        
         var node = new SixelNode
         {
-            ImageData = sixelPayload,
             RequestedWidth = 12,
             RequestedHeight = 6
         };
+        node.SetPixels(CreatePixelBuffer(pixels, width, height));
         
         using var workload = CreateSixelEnabledWorkload();
         using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();

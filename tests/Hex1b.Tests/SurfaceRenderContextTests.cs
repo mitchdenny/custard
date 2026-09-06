@@ -5,6 +5,7 @@ using Hex1b.Nodes;
 using Hex1b.Sixel;
 using Hex1b.Surfaces;
 using Hex1b.Theming;
+using Hex1b.Tokens;
 using Hex1b.Widgets;
 
 namespace Hex1b.Tests;
@@ -94,6 +95,8 @@ public class SurfaceRenderContextTests
         Assert.EndsWith("\x1b\\", sixel.Data.Payload);
         Assert.AreEqual(3, sixel.Data.WidthInCells);
         Assert.AreEqual(2, sixel.Data.HeightInCells);
+        Assert.AreEqual(24, sixel.Data.PixelWidth);
+        Assert.AreEqual(32, sixel.Data.PixelHeight);
         Assert.AreEqual(8d, sixel.Data.CellMetrics.Width);
         Assert.AreEqual(1, context.TrackedObjectStore.SixelCount);
     }
@@ -105,9 +108,42 @@ public class SurfaceRenderContextTests
         var context = new SurfaceRenderContext(surface);
         const string body = "#0;2;100;0;0#0~~~~~~";
 
-        context.WriteSixel(body, 2, 1);
+        context.WriteSixel(body, 1, 1);
 
         Assert.AreEqual($"\x1bPq{body}\x1b\\", surface[0, 0].Sixel!.Data.Payload);
+    }
+
+    [TestMethod]
+    public void WriteSixel_EightBitFraming_SerializesCanonicalSevenBitBytes()
+    {
+        var surface = new Surface(10, 5, new CellMetrics(10, 20));
+        var context = CreateSixelContext(surface, 10, 20);
+        var pixels = new SixelPixelBuffer(10, 20);
+        pixels[0, 0] = Rgba32.FromRgb(255, 0, 0);
+        var sevenBit = SixelEncoder.Encode(pixels);
+        var eightBit = $"\x90{sevenBit[2..^2]}\x9c";
+
+        context.WriteSixel(eightBit, 1, 1);
+
+        var tokens = SurfaceComparer.ToTokens(SurfaceComparer.CreateFullDiff(surface), surface);
+        var bytes = System.Text.Encoding.UTF8.GetBytes(AnsiTokenSerializer.Serialize(tokens));
+        Assert.AreEqual(0x1b, bytes.First(value => value == 0x1b));
+        Assert.IsTrue(bytes.AsSpan().IndexOf([(byte)0x1b, (byte)'P']) >= 0);
+        Assert.IsTrue(bytes.AsSpan().IndexOf([(byte)0x1b, (byte)'\\']) >= 0);
+        Assert.IsFalse(bytes.Contains((byte)0xc2));
+    }
+
+    [TestMethod]
+    public void WriteSixel_PreEncodedPayloadWithDifferentSpan_Throws()
+    {
+        var surface = new Surface(10, 5, new CellMetrics(10, 20));
+        var context = CreateSixelContext(surface, 10, 20);
+        var pixels = new SixelPixelBuffer(20, 20);
+        pixels[0, 0] = Rgba32.FromRgb(255, 0, 0);
+        var payload = SixelEncoder.Encode(pixels);
+
+        Assert.Throws<ArgumentException>(() => context.WriteSixel(payload, 3, 1));
+        Assert.IsFalse(surface.HasSixels);
     }
 
     [TestMethod]
@@ -218,11 +254,22 @@ public class SurfaceRenderContextTests
     }
 
     private static SurfaceRenderContext CreateSixelContext(Surface surface)
+        => CreateSixelContext(surface, 10, 20);
+
+    private static SurfaceRenderContext CreateSixelContext(
+        Surface surface,
+        double sixelCellWidth,
+        double sixelCellHeight)
     {
         var capabilities = new TerminalCapabilities
         {
             SupportsSixel = true,
-            SixelSupport = SixelPresentationSupport.Headless
+            SixelSupport = SixelPresentationSupport.Headless,
+            SixelCellMetrics = new SixelCellMetrics(
+                sixelCellWidth,
+                sixelCellHeight,
+                SixelCellMetricsSource.Direct,
+                SixelCellMetricsReliability.Authoritative)
         };
         var context = new SurfaceRenderContext(surface);
         context.SetCapabilities(capabilities);

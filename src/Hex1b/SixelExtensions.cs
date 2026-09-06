@@ -128,6 +128,10 @@ public static class SixelExtensions
     /// <summary>
     /// Sets the display width in terminal cells.
     /// </summary>
+    /// <remarks>
+    /// Structured pixels are resampled to this width. Pre-encoded content must
+    /// already have this natural width under the active Sixel protocol metrics.
+    /// </remarks>
     /// <param name="widget">The Sixel widget to configure.</param>
     /// <param name="width">The display width in terminal cells.</param>
     /// <returns>A new widget with the requested width.</returns>
@@ -143,6 +147,10 @@ public static class SixelExtensions
     /// <summary>
     /// Sets the display height in terminal cells.
     /// </summary>
+    /// <remarks>
+    /// Structured pixels are resampled to this height. Pre-encoded content must
+    /// already have this natural height under the active Sixel protocol metrics.
+    /// </remarks>
     /// <param name="widget">The Sixel widget to configure.</param>
     /// <param name="height">The display height in terminal cells.</param>
     /// <returns>A new widget with the requested height.</returns>

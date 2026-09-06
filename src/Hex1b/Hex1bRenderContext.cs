@@ -70,6 +70,7 @@ public class Hex1bRenderContext
 
     /// <summary>
     /// Writes structured pixels as a native Sixel sequence at the current cursor position.
+    /// The pixels are resampled to the requested cell span using the active Sixel protocol metrics.
     /// Surface-backed contexts override this operation to retain structured Sixel content.
     /// </summary>
     /// <param name="pixels">The pixels to encode.</param>
@@ -85,11 +86,20 @@ public class Hex1bRenderContext
     public virtual void WriteSixel(SixelPixelBuffer pixels, int cellWidth, int cellHeight)
     {
         ArgumentNullException.ThrowIfNull(pixels);
-        WriteSixel(SixelEncoder.Encode(pixels), cellWidth, cellHeight);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(cellWidth);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(cellHeight);
+
+        var metrics = Capabilities.SixelCellMetrics ?? SixelCellMetrics.FromCapabilities(Capabilities);
+        var resized = pixels.Resize(
+            metrics.GetPixelWidthForColumns(cellWidth),
+            metrics.GetPixelHeightForRows(cellHeight));
+        Write(SixelEncoder.Encode(resized));
     }
 
     /// <summary>
     /// Writes validated pre-encoded Sixel data at the current cursor position.
+    /// Pre-encoded content is not resampled and must naturally occupy the requested
+    /// cell span under the active Sixel protocol metrics.
     /// Surface-backed contexts override this operation to retain structured Sixel content.
     /// </summary>
     /// <param name="imageData">
@@ -98,7 +108,8 @@ public class Hex1bRenderContext
     /// <param name="cellWidth">The occupied width in terminal cells.</param>
     /// <param name="cellHeight">The occupied height in terminal cells.</param>
     /// <exception cref="ArgumentException">
-    /// Thrown when <paramref name="imageData"/> is malformed or incomplete.
+    /// Thrown when <paramref name="imageData"/> is malformed, incomplete, or
+    /// does not naturally occupy the requested cell span.
     /// </exception>
     /// <exception cref="ArgumentNullException">
     /// Thrown when <paramref name="imageData"/> is <see langword="null"/>.
@@ -111,7 +122,11 @@ public class Hex1bRenderContext
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(cellWidth);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(cellHeight);
-        Write(SixelPayload.NormalizeAndValidate(imageData, nameof(imageData)));
+        var payload = SixelPayload.NormalizeAndValidate(imageData, nameof(imageData));
+        var parseResult = SixelParser.ParsePayload(payload);
+        var metrics = Capabilities.SixelCellMetrics ?? SixelCellMetrics.FromCapabilities(Capabilities);
+        SixelPayload.ValidateCellSpan(parseResult, metrics, cellWidth, cellHeight, nameof(imageData));
+        Write(payload);
     }
     
     /// <summary>

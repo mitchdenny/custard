@@ -48,8 +48,9 @@ metrics, and stores structured graphics when rendering through a `Surface`.
 
 <CodeBlock lang="csharp" :code="basicCode" command="dotnet run" example="sixel" exampleTitle="Sixel Widget" />
 
-Omit `Width(...)` and `Height(...)` to use the natural pixel-to-cell size. Set
-either dimension fluently when the layout needs an explicit cell span.
+Omit `Width(...)` and `Height(...)` to use the natural pixel-to-cell size. For
+structured pixels, setting either dimension resamples the emitted raster to the
+widget's arranged cell span using the active Sixel protocol metrics.
 
 ## Pre-encoded compatibility
 
@@ -57,16 +58,20 @@ Use the string overload only when you already have Sixel data:
 
 ```csharp
 var image = ctx.Sixel(
-        encodedSixel,
-        fallback => fallback.Text("Sixel graphics are unavailable."))
-    .Width(24)
-    .Height(8);
+    encodedSixel,
+    fallback => fallback.Text("Sixel graphics are unavailable."));
 ```
 
 The input may be a complete 7-bit or 8-bit DCS sequence, or an unframed Sixel
 body. Hex1b validates it and normalizes output to one complete 7-bit
 `ESC P ... ESC \` sequence. Malformed or incomplete data throws
 `ArgumentException`.
+
+Pre-encoded payloads remain lossless and are not resampled. Their arranged cell
+span must match their natural span under the active Sixel protocol metrics. If
+you apply `Width(...)` or `Height(...)`, use the payload's exact natural
+dimension; an incompatible span throws `ArgumentException` when rendered. Use
+`SixelPixelBuffer` when the image needs to resize with layout.
 
 ## Capability and fallback behavior
 

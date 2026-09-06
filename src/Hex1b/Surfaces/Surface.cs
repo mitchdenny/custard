@@ -629,12 +629,25 @@ public sealed class Surface : ISurfaceSource
                 var index = destRowStart + destX;
                 var oldCell = _cells[index];
 
-                // Keep the Sixel anchor reachable when later text or an explicit
-                // background overlays its top-left cell. Visibility is resolved by
-                // SurfaceComparer, which can fragment around the overlaid cell.
-                if (oldCell.HasSixel && !srcCell.HasSixel && IsSixelOccluder(srcCell))
+                if ((oldCell.IsSixelUnderlay || oldCell.HasSixel) && !srcCell.IsSixelUnderlay)
                 {
-                    srcCell = srcCell with { Sixel = oldCell.Sixel };
+                    var occludesSixel = IsSixelOccluder(srcCell);
+                    if (!occludesSixel && srcCell.HasTransparentBackground)
+                    {
+                        occludesSixel = oldCell.OccludesSixel;
+                    }
+
+                    srcCell = srcCell with
+                    {
+                        IsSixelUnderlay = true,
+                        OccludesSixel = occludesSixel
+                    };
+
+                    // Keep the anchor reachable while higher-layer content covers it.
+                    if (oldCell.HasSixel && !srcCell.HasSixel)
+                    {
+                        srcCell = srcCell with { Sixel = oldCell.Sixel };
+                    }
                 }
 
                 // Handle partial transparency (has content but transparent background)
@@ -717,14 +730,15 @@ public sealed class Surface : ISurfaceSource
                 }
 
                 var extent = sixelData.GetRenderedPixelExtent();
+                var metrics = sixelData.CellMetrics;
                 var leftCells = visibleLeft - destAnchorX;
                 var topCells = visibleTop - destAnchorY;
                 var rightCells = visibleRight - destAnchorX;
                 var bottomCells = visibleBottom - destAnchorY;
-                var pixelLeft = Math.Min(extent.Width, CellMetrics.GetPixelForCellBoundary(leftCells));
-                var pixelTop = Math.Min(extent.Height, topCells * CellMetrics.PixelHeight);
-                var pixelRight = Math.Min(extent.Width, CellMetrics.GetPixelForCellBoundary(rightCells));
-                var pixelBottom = Math.Min(extent.Height, bottomCells * CellMetrics.PixelHeight);
+                var pixelLeft = Math.Min(extent.Width, metrics.GetPixelForColumnBoundary(leftCells));
+                var pixelTop = Math.Min(extent.Height, metrics.GetPixelForRowBoundary(topCells));
+                var pixelRight = Math.Min(extent.Width, metrics.GetPixelForColumnBoundary(rightCells));
+                var pixelBottom = Math.Min(extent.Height, metrics.GetPixelForRowBoundary(bottomCells));
                 var pixelRegion = new PixelRect(
                     pixelLeft,
                     pixelTop,
@@ -750,9 +764,10 @@ public sealed class Surface : ISurfaceSource
                     cellMetrics: sixelData.CellMetrics);
                 var tracked = new TrackedObject<SixelData>(clippedData, _ => { });
                 var visibleSourceCell = source.GetCell(visibleLeft - offsetX, visibleTop - offsetY);
-                overrides[(visibleLeft, visibleTop)] = visibleSourceCell == SurfaceCells.Empty
+                var overrideCell = visibleSourceCell == SurfaceCells.Empty
                     ? new SurfaceCell(" ", null, null, Sixel: tracked)
                     : visibleSourceCell with { Sixel = tracked };
+                overrides[(visibleLeft, visibleTop)] = overrideCell with { IsSixelUnderlay = true };
             }
         }
 
@@ -934,6 +949,7 @@ public sealed class Surface : ISurfaceSource
     private static bool IsCellComplex(in SurfaceCell cell)
     {
         if (cell.DisplayWidth != 1) return true;
+        if (cell.IsSixelUnderlay || cell.OccludesSixel) return true;
         if (cell.UnderlineStyle != UnderlineStyle.None) return true;
         if (cell.UnderlineColor.HasValue) return true;
         if (cell.Sixel is not null) return true;

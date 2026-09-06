@@ -11,8 +11,10 @@ namespace Hex1b.Widgets;
 /// </summary>
 /// <remarks>
 /// Structured <see cref="SixelPixelBuffer"/> input is the preferred path.
+/// Explicit cell dimensions resample structured pixels to the corresponding
+/// Sixel protocol raster.
 /// Pre-encoded input is retained for compatibility and is validated and
-/// normalized to a complete 7-bit DCS sequence.
+/// normalized to a complete 7-bit DCS sequence, but cannot be resampled.
 /// </remarks>
 /// <example>
 /// <code>
@@ -63,10 +65,17 @@ public sealed record SixelWidget : Hex1bWidget
     /// A complete Sixel DCS sequence, or the Sixel body without its DCS framing.
     /// </param>
     /// <param name="fallback">The widget displayed when Sixel is unavailable.</param>
-    /// <param name="width">Optional display width in terminal cells.</param>
-    /// <param name="height">Optional display height in terminal cells.</param>
+    /// <param name="width">
+    /// Optional display width in terminal cells. When specified, it must match
+    /// the payload's natural width under the active Sixel protocol metrics.
+    /// </param>
+    /// <param name="height">
+    /// Optional display height in terminal cells. When specified, it must match
+    /// the payload's natural height under the active Sixel protocol metrics.
+    /// </param>
     /// <exception cref="ArgumentException">
     /// Thrown when <paramref name="imageData"/> is malformed or incomplete.
+    /// A dimension mismatch is reported when the widget renders.
     /// </exception>
     /// <exception cref="ArgumentNullException">
     /// Thrown when <paramref name="imageData"/> or <paramref name="fallback"/> is <see langword="null"/>.
@@ -109,11 +118,19 @@ public sealed record SixelWidget : Hex1bWidget
     /// <summary>
     /// Gets the optional display width in terminal cells.
     /// </summary>
+    /// <remarks>
+    /// Structured pixels are resampled to this width. Pre-encoded content must
+    /// already have this natural width under the active Sixel protocol metrics.
+    /// </remarks>
     public int? Width { get; init; }
 
     /// <summary>
     /// Gets the optional display height in terminal cells.
     /// </summary>
+    /// <remarks>
+    /// Structured pixels are resampled to this height. Pre-encoded content must
+    /// already have this natural height under the active Sixel protocol metrics.
+    /// </remarks>
     public int? Height { get; init; }
 
     internal override async Task<Hex1bNode> ReconcileAsync(Hex1bNode? existingNode, ReconcileContext context)

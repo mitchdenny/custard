@@ -32,7 +32,10 @@ internal static class SixelPayload
                     parameterName);
             }
 
-            framed = imageData;
+            framed = string.Concat(
+                SevenBitIntroducer,
+                imageData.AsSpan(1, imageData.Length - 2),
+                SevenBitTerminator);
         }
         else
         {
@@ -50,5 +53,24 @@ internal static class SixelPayload
         }
 
         return framed;
+    }
+
+    internal static void ValidateCellSpan(
+        SixelParseResult parseResult,
+        SixelCellMetrics metrics,
+        int cellWidth,
+        int cellHeight,
+        string parameterName)
+    {
+        var naturalWidth = metrics.ColumnsFor(parseResult.LogicalCanvasExtent.Width);
+        var naturalHeight = metrics.RowsFor(parseResult.LogicalCanvasExtent.Height);
+        if (naturalWidth != cellWidth || naturalHeight != cellHeight)
+        {
+            throw new ArgumentException(
+                $"Pre-encoded Sixel data occupies {naturalWidth}x{naturalHeight} cells with the active " +
+                $"Sixel metrics and cannot be resized to {cellWidth}x{cellHeight}. Use structured pixels " +
+                "when resizing is required.",
+                parameterName);
+        }
     }
 }

@@ -397,7 +397,7 @@ public static class SurfaceComparer
             foreach (var (sx, sy, sw, sh, cell) in sixelRegions)
             {
                 var visibility = new SixelVisibility(cell.Sixel!, sx, sy, 0);
-                var metrics = currentSurface.CellMetrics;
+                var metrics = cell.Sixel!.Data.CellMetrics;
 
                 for (var y = sy; y < sy + sh && y < currentSurface.Height; y++)
                 {
@@ -716,7 +716,7 @@ public static class SurfaceComparer
     private static bool IsCoveredBySixelRegion(int x, int y, SurfaceCell cell, List<(int X, int Y, int Width, int Height, SurfaceCell Cell)> regions)
     {
         // If the cell has actual content, it should be rendered over the sixel
-        if (cell.Character != " " && cell.Character != string.Empty && cell.Character != SurfaceCells.UnwrittenMarker)
+        if (IsSixelOccluder(cell))
             return false;
         
         foreach (var (sx, sy, sw, sh, _) in regions)
@@ -832,6 +832,8 @@ public static class SurfaceComparer
             !ColorsEqual(a.Background, b.Background) ||
             a.Attributes != b.Attributes ||
             a.DisplayWidth != b.DisplayWidth ||
+            a.IsSixelUnderlay != b.IsSixelUnderlay ||
+            a.OccludesSixel != b.OccludesSixel ||
             a.UnderlineStyle != b.UnderlineStyle ||
             !ColorsEqual(a.UnderlineColor, b.UnderlineColor))
         {
@@ -991,8 +993,21 @@ public static class SurfaceComparer
     }
 
     private static bool IsSixelOccluder(SurfaceCell cell)
-        => cell.Character != SurfaceCells.UnwrittenMarker
-            && cell.Character != " ";
+    {
+        if (cell.OccludesSixel)
+        {
+            return true;
+        }
+
+        if (cell.HasSixel)
+        {
+            return cell.Character != SurfaceCells.UnwrittenMarker && cell.Character != " ";
+        }
+
+        return !cell.IsSixelUnderlay &&
+            cell.Character != SurfaceCells.UnwrittenMarker &&
+            (cell.Character != " " || cell.Background is not null);
+    }
     
     private static bool KgpEqual(TrackedObject<KgpCellData>? a, TrackedObject<KgpCellData>? b)
     {

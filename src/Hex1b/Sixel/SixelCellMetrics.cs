@@ -141,6 +141,24 @@ public readonly record struct SixelCellMetrics(
     /// <param name="renderedPixelHeight">The aspect-scaled vertical extent.</param>
     public int RowsFor(int renderedPixelHeight) => Occupancy(renderedPixelHeight, SafeHeight);
 
+    internal int GetPixelForColumnBoundary(int column)
+        => GetPixelForCellBoundary(column, SafeWidth);
+
+    internal int GetPixelForRowBoundary(int row)
+        => GetPixelForCellBoundary(row, SafeHeight);
+
+    internal int GetPixelWidthForColumns(int columns)
+        => GetPixelSpanForCells(columns, SafeWidth);
+
+    internal int GetPixelHeightForRows(int rows)
+        => GetPixelSpanForCells(rows, SafeHeight);
+
+    internal int GetColumnOffsetForPixel(int pixelX)
+        => GetCellOffsetForPixel(pixelX, SafeWidth);
+
+    internal int GetRowOffsetForPixel(int pixelY)
+        => GetCellOffsetForPixel(pixelY, SafeHeight);
+
     /// <summary>
     /// Formats the metrics for diagnostics, keeping estimated values visibly
     /// distinct from authoritative ones.
@@ -159,6 +177,49 @@ public readonly record struct SixelCellMetrics(
 
         var cells = Math.Ceiling(renderedPixels / cellPixels);
         return cells >= int.MaxValue ? int.MaxValue : (int)cells;
+    }
+
+    private static int GetPixelForCellBoundary(int cell, double cellPixels)
+    {
+        if (cell <= 0)
+        {
+            return 0;
+        }
+
+        var pixels = Math.Floor(cell * cellPixels);
+        return pixels >= int.MaxValue ? int.MaxValue : Math.Max(1, (int)pixels);
+    }
+
+    private static int GetPixelSpanForCells(int cells, double cellPixels)
+    {
+        if (cells <= 0)
+        {
+            return 0;
+        }
+
+        // Use the largest whole-pixel span that cannot cross into the next cell.
+        var pixels = Math.Floor(cells * cellPixels);
+        return pixels >= int.MaxValue ? int.MaxValue : Math.Max(1, (int)pixels);
+    }
+
+    private static int GetCellOffsetForPixel(int pixel, double cellPixels)
+    {
+        if (pixel <= 0)
+        {
+            return 0;
+        }
+
+        var cell = Math.Min(int.MaxValue - 1, (int)Math.Floor(pixel / cellPixels));
+        while (cell < int.MaxValue - 1 && GetPixelForCellBoundary(cell + 1, cellPixels) <= pixel)
+        {
+            cell++;
+        }
+        while (cell > 0 && GetPixelForCellBoundary(cell, cellPixels) > pixel)
+        {
+            cell--;
+        }
+
+        return cell;
     }
 
     private static double Sanitize(double value, double fallback) =>

@@ -282,37 +282,109 @@ public class SurfaceRenderContext : Hex1bRenderContext
     public override void WriteSixel(SixelPixelBuffer pixels, int cellWidth, int cellHeight)
     {
         ArgumentNullException.ThrowIfNull(pixels);
-        WriteSixelCore(SixelEncoder.Encode(pixels), cellWidth, cellHeight);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(cellWidth);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(cellHeight);
+
+        if (!TryGetVisibleSixelSpan(cellWidth, cellHeight, out var visibleWidth, out var visibleHeight))
+        {
+            return;
+        }
+
+        var metrics = Capabilities.SixelCellMetrics ?? SixelCellMetrics.FromCapabilities(Capabilities);
+        var resized = pixels.Resize(
+            metrics.GetPixelWidthForColumns(cellWidth),
+            metrics.GetPixelHeightForRows(cellHeight));
+        if (visibleWidth != cellWidth || visibleHeight != cellHeight)
+        {
+            resized = resized.Crop(
+                0,
+                0,
+                metrics.GetPixelForColumnBoundary(visibleWidth),
+                metrics.GetPixelForRowBoundary(visibleHeight));
+        }
+
+        var payload = SixelEncoder.Encode(resized);
+        WriteSixelCore(
+            payload,
+            visibleWidth,
+            visibleHeight,
+            SixelParser.ParsePayload(payload),
+            metrics);
     }
 
     /// <inheritdoc />
     public override void WriteSixel(string imageData, int cellWidth, int cellHeight)
-        => WriteSixelCore(
-            SixelPayload.NormalizeAndValidate(imageData, nameof(imageData)),
-            cellWidth,
-            cellHeight);
-
-    private void WriteSixelCore(string payload, int cellWidth, int cellHeight)
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(cellWidth);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(cellHeight);
 
+        var payload = SixelPayload.NormalizeAndValidate(imageData, nameof(imageData));
+        var parseResult = SixelParser.ParsePayload(payload);
+        var metrics = Capabilities.SixelCellMetrics ?? SixelCellMetrics.FromCapabilities(Capabilities);
+        SixelPayload.ValidateCellSpan(parseResult, metrics, cellWidth, cellHeight, nameof(imageData));
+
+        if (!TryGetVisibleSixelSpan(cellWidth, cellHeight, out var visibleWidth, out var visibleHeight))
+        {
+            return;
+        }
+
+        if (visibleWidth != cellWidth || visibleHeight != cellHeight)
+        {
+            var data = new SixelData(
+                payload,
+                cellWidth,
+                cellHeight,
+                SixelData.ComputeHash(payload),
+                parseResult.DeclaredExtent.Width,
+                parseResult.DeclaredExtent.Height,
+                parseResult,
+                cellMetrics: metrics);
+            var fragment = new SixelFragment(
+                data,
+                0,
+                0,
+                new PixelRect(
+                    0,
+                    0,
+                    Math.Min(data.GetRenderedPixelExtent().Width, metrics.GetPixelForColumnBoundary(visibleWidth)),
+                    Math.Min(data.GetRenderedPixelExtent().Height, metrics.GetPixelForRowBoundary(visibleHeight))));
+            payload = fragment.GetPayload()
+                ?? throw new InvalidOperationException("The pre-encoded Sixel payload could not be clipped.");
+            parseResult = SixelParser.ParsePayload(payload);
+        }
+
+        WriteSixelCore(payload, visibleWidth, visibleHeight, parseResult, metrics);
+    }
+
+    private bool TryGetVisibleSixelSpan(
+        int cellWidth,
+        int cellHeight,
+        out int visibleWidth,
+        out int visibleHeight)
+    {
         var writeX = _cursorX - _offsetX;
         var writeY = _cursorY - _offsetY;
         if (writeX < 0 || writeY < 0 || writeX >= _surface.Width || writeY >= _surface.Height)
         {
-            return;
+            visibleWidth = 0;
+            visibleHeight = 0;
+            return false;
         }
 
-        var visibleWidth = Math.Min(cellWidth, _surface.Width - writeX);
-        var visibleHeight = Math.Min(cellHeight, _surface.Height - writeY);
-        if (visibleWidth <= 0 || visibleHeight <= 0)
-        {
-            return;
-        }
+        visibleWidth = Math.Min(cellWidth, _surface.Width - writeX);
+        visibleHeight = Math.Min(cellHeight, _surface.Height - writeY);
+        return visibleWidth > 0 && visibleHeight > 0;
+    }
 
-        var parseResult = SixelParser.ParsePayload(payload);
-        var metrics = Capabilities.SixelCellMetrics ?? SixelCellMetrics.FromCapabilities(Capabilities);
+    private void WriteSixelCore(
+        string payload,
+        int visibleWidth,
+        int visibleHeight,
+        SixelParseResult parseResult,
+        SixelCellMetrics metrics)
+    {
+        var writeX = _cursorX - _offsetX;
+        var writeY = _cursorY - _offsetY;
         var tracked = _trackedObjects.GetOrCreateSixel(
             payload,
             visibleWidth,
@@ -346,7 +418,10 @@ public class SurfaceRenderContext : Hex1bRenderContext
                         _currentAttributes,
                         Sixel: tracked,
                         UnderlineStyle: _currentUnderlineStyle,
-                        UnderlineColor: _currentUnderlineColor);
+                        UnderlineColor: _currentUnderlineColor)
+                    {
+                        IsSixelUnderlay = true
+                    };
                 }
                 else
                 {
@@ -357,7 +432,10 @@ public class SurfaceRenderContext : Hex1bRenderContext
                         _currentBackground,
                         _currentAttributes,
                         UnderlineStyle: _currentUnderlineStyle,
-                        UnderlineColor: _currentUnderlineColor);
+                        UnderlineColor: _currentUnderlineColor)
+                    {
+                        IsSixelUnderlay = true
+                    };
                 }
             }
         }
@@ -1166,24 +1244,36 @@ public class SurfaceRenderContext : Hex1bRenderContext
                 if (displayWidth == 2)
                 {
                     // Write main cell
-                    var existingSixel = _surface[writeX, writeY].Sixel;
-                    _surface[writeX, writeY] = new SurfaceCell(
+                    var existingCell = _surface[writeX, writeY];
+                    var cell = new SurfaceCell(
                         grapheme,
                         _currentForeground,
                         _currentBackground,
                         _currentAttributes,
                         displayWidth,
-                        Sixel: existingSixel,
+                        Sixel: existingCell.Sixel,
                         Hyperlink: _currentHyperlink,
                         UnderlineStyle: _currentUnderlineStyle,
                         UnderlineColor: _currentUnderlineColor);
+                    if (existingCell.IsSixelUnderlay)
+                    {
+                        cell = cell with
+                        {
+                            IsSixelUnderlay = true,
+                            OccludesSixel = IsSixelOccluder(cell)
+                        };
+                    }
+                    _surface[writeX, writeY] = cell;
 
                     // Write continuation cell if space allows
                     if (writeX + 1 < _surface.Width)
                     {
+                        var existingContinuation = _surface[writeX + 1, writeY];
                         var continuation = SurfaceCell.CreateContinuation(_currentBackground) with
                         {
-                            Sixel = _surface[writeX + 1, writeY].Sixel
+                            Sixel = existingContinuation.Sixel,
+                            IsSixelUnderlay = existingContinuation.IsSixelUnderlay,
+                            OccludesSixel = existingContinuation.IsSixelUnderlay
                         };
                         _surface[writeX + 1, writeY] = continuation;
                     }
@@ -1192,17 +1282,26 @@ public class SurfaceRenderContext : Hex1bRenderContext
                 }
                 else if (displayWidth == 1)
                 {
-                    var existingSixel = _surface[writeX, writeY].Sixel;
-                    _surface[writeX, writeY] = new SurfaceCell(
+                    var existingCell = _surface[writeX, writeY];
+                    var cell = new SurfaceCell(
                         grapheme,
                         _currentForeground,
                         _currentBackground,
                         _currentAttributes,
                         displayWidth,
-                        Sixel: existingSixel,
+                        Sixel: existingCell.Sixel,
                         Hyperlink: _currentHyperlink,
                         UnderlineStyle: _currentUnderlineStyle,
                         UnderlineColor: _currentUnderlineColor);
+                    if (existingCell.IsSixelUnderlay)
+                    {
+                        cell = cell with
+                        {
+                            IsSixelUnderlay = true,
+                            OccludesSixel = IsSixelOccluder(cell)
+                        };
+                    }
+                    _surface[writeX, writeY] = cell;
                     writeX++;
                 }
                 else
@@ -1229,6 +1328,10 @@ public class SurfaceRenderContext : Hex1bRenderContext
             _cursorY = writeY + _offsetY;
         }
     }
+
+    private static bool IsSixelOccluder(in SurfaceCell cell)
+        => cell.Character != SurfaceCells.UnwrittenMarker
+            && (cell.Character != " " || cell.Background is not null);
     
     /// <summary>
     /// Gets the next grapheme cluster from the string starting at the given index.

@@ -6,6 +6,7 @@
 > **Snapshots, exports, recording, and replay**: [#456](https://github.com/mitchdenny/hex1b/issues/456)
 > **Capability discovery and protocol cell metrics**: [#455](https://github.com/mitchdenny/hex1b/issues/455)
 > **Differential conformance corpus**: [#457](https://github.com/mitchdenny/hex1b/issues/457)
+> **Widget and Surface integration**: [#480](https://github.com/mitchdenny/hex1b/issues/480)
 > **Baseline**: DEC VT340
 
 ## Purpose
@@ -23,6 +24,12 @@ contract. The finite differential corpus in
 `tests/Hex1b.Tests/TestData/Sixel/Conformance/terminal-reference-matrix.json`
 records the primary reference matrix, normalized expected outcomes, provenance,
 and the dedicated regression suites covering the rest of the terminal contract.
+
+The application-facing `SixelWidget` contract is documented separately in
+[`src/content/guide/widgets/sixel.md`](../src/content/guide/widgets/sixel.md).
+Direct render contexts emit normalized native Sixel, while Surface-backed
+contexts retain structured Sixel content for deterministic diffing, clipping,
+overlap, caching, movement, replacement, removal, and resize behavior.
 
 ## Governing decisions
 
@@ -209,9 +216,10 @@ through `SixelCompatibilityPolicy.BackgroundSource` rather than as a hidden
 branch. The #457 corpus exercises both the DEC/Hex1b captured-background
 profile and the source-derived xterm/WezTerm register-zero profile.
 
-Because the captured background and the persistent palette both change how an
-identical payload rasterizes, tracked Sixel deduplication keys on the payload
-*and* a raster-state identity rather than on payload content alone.
+Because captured background and persistent palette state change how an identical
+payload rasterizes, while protocol cell metrics and the declared cell span
+change how that raster is clipped and damaged, tracked Sixel deduplication keys
+on all of those immutable resource inputs rather than payload content alone.
 
 ## Placement, cursor, and modes
 
@@ -314,11 +322,11 @@ protocol-neutral:
   instances (main and alternate). Re-entering the alternate screen while
   already active resets only the alternate instance; RIS is the only
   operation that clears both.
-- Each `SixelScreenGraphicsState` owns a `SixelImageStore` (the raster
-  resources, deduplicated by content hash — payload plus captured
-  background/palette identity), a live `Placements` list, and — main screen
-  only — a `HistoryPlacements` partition keyed by stable scrollback row
-  identity.
+- Each `SixelScreenGraphicsState` owns a `SixelImageStore` (the image
+  resources, deduplicated by resource identity — payload, captured
+  background/palette state, protocol cell metrics, and declared cell span), a
+  live `Placements` list, and — main screen only — a `HistoryPlacements`
+  partition keyed by stable scrollback row identity.
 - `SixelPlacement` anchors a `SixelData` image at a cell position and retains
   the anchor/occupied cell span, the painted-crop geometry (offset and count,
   relative to the anchor so scrolling can shift the anchor without recomputing
@@ -330,12 +338,12 @@ protocol-neutral:
   earlier stages) carries the authoritative decoded raster or geometry-only
   outcome, logical/rendered/declared/painted extents, creation-time
   `SixelCellMetrics`, source and captured background, aspect state, a stable
-  content hash for dedup, and parser diagnostics.
+  resource identity hash exposed as `ContentHash`, and parser diagnostics.
 - **Lifetime is reachability-based, not manually reference-counted.** Mirroring
   `KgpImageStore`, every placement-removing mutation recomputes the set of
-  content hashes reachable from `Placements ∪ HistoryPlacements` and sweeps any
-  image no longer in that set. A `SixelPlacement`'s image is never released
-  just because one text cell it covered was overwritten — only when no
+  resource identity hashes reachable from `Placements ∪ HistoryPlacements` and
+  sweeps any image no longer in that set. A `SixelPlacement`'s image is never
+  released just because one text cell it covered was overwritten — only when no
   visible cell remains in any placement (live, historical, or held by an
   existing snapshot). Snapshots decouple entirely:
   `Hex1bTerminalSnapshot` copies its own `SixelPlacement`/`SixelData`
@@ -362,9 +370,9 @@ on `SixelDamaged`. A graphics-only delta is still a render-invalidating change
 even when no text cell value changed.
 
 **Extracted from KGP as genuinely protocol-neutral primitives:** raster
-content ownership by content hash, placement/source-crop geometry (anchor +
-occupied span + painted crop), reachability-based lifetime accounting,
-screen/history partitioning, and simple scroll/clip geometry helpers. **Kept
+resource ownership by immutable identity, placement/source-crop geometry
+(anchor + occupied span + painted crop), reachability-based lifetime
+accounting, screen/history partitioning, and simple scroll/clip geometry helpers. **Kept
 deliberately KGP-only, not extracted:** public image/placement IDs,
 image-number addressing, explicit delete selectors, relative placement
 graphs, Unicode placeholders, z-index, and chunked uploads — none of these
@@ -509,9 +517,10 @@ read paths over that authoritative state.
 
 - **Snapshot model.** `Hex1bTerminalSnapshot.SixelPlacements` (an
   `IReadOnlyList<SixelPlacement>`) and `SixelImages` (an
-  `IReadOnlyDictionary<byte[], SixelData>` keyed by content hash) are now
-  public, mirroring the shape of the existing `KgpPlacements`/KGP image
-  surfaces. `SixelPlacement` and the `SixelData` properties it exposes
+  `IReadOnlyDictionary<byte[], SixelData>` keyed by immutable resource identity
+  hash) are now public, mirroring the shape of the existing
+  `KgpPlacements`/KGP image surfaces. `SixelPlacement` and the `SixelData`
+  properties it exposes
   (`Image`, `Row`, `Column`, `WidthInCells`/`HeightInCells`,
   `PaintedRowOffset`/`PaintedRowCount`/`PaintedColumnOffset`/`PaintedColumnCount`
   and their derived `PaintedTop`/`PaintedBottom`/`PaintedLeft`/`PaintedRight`,
@@ -618,10 +627,15 @@ read paths over that authoritative state.
     missing references, invalid geometry, resource limits). It serializes
     an `IReadOnlyList<SixelPlacement>` — the same type the live snapshot and
     live wire replay use — into a `SXRC`-tagged, versioned
-    (`Hmp1SixelRecording.CurrentVersion = 1`) stream: an image table
-    deduplicated by `SixelData.ContentHash` (content-addressed, so a raster
-    shared by multiple placements is never repeated in the stream), followed
-    by placements referencing that table by index, each carrying its
+    (`Hmp1SixelRecording.CurrentVersion = 2`) stream: an image table
+    deduplicated by `SixelData.ContentHash`. Placements share an entry only
+    when payload, raster state, protocol metrics, and cell span all match, so
+    incompatible clipping/damage contexts are not conflated. Version 2 stores
+    each image's exact raw metric width/height bits plus
+    `SixelCellMetricsSource` and `SixelCellMetricsReliability`; version 1
+    remains readable and retains its historical target-metric replay behavior
+    because it did not carry per-image metric context. The image table is
+    followed by placements referencing it by index, each carrying its
     geometry, painted crop, sequence, creation time, and anchor-relative
     damaged-cell offsets. Rasterized images are re-encoded byte-exact via
     `SixelExactEncoder`; geometry-only images retain their original payload
@@ -639,10 +653,13 @@ read paths over that authoritative state.
     `MaxRecordingLength` = 72 MiB, and aggregate
     `MaxDamagedCellCount` = 2^20). Exact raster re-encoding is constrained by
     the remaining per-image and aggregate payload budget before allocating
-    its output. Expanding a deduplicated recording back into cursor-position
-    plus Sixel sequences performs a checked, cancellable preflight and rejects
-    output above the same 64 MiB aggregate limit before allocating the replay
-    string. Retention-limited images are rejected before
+    its output. `Hmp1SixelRecordingSnapshot.ReplayInto` performs a checked,
+    cancellable preflight and rejects expanded output above the same 64 MiB
+    aggregate limit before changing the target. It then applies each version
+    2 image's recorded metrics, feeds cursor-position plus Sixel DCS through
+    the ordinary terminal parser, restores the recorded painted crop and
+    damage mask, and finally restores the target's prior metric override.
+    Retention-limited images are rejected before
     serialization because their complete payload is unavailable; deserialization
     rejects an oversized input before copying it and rejects trailing bytes.
     Recorded
@@ -656,8 +673,9 @@ read paths over that authoritative state.
   deduplication, anchor-relative damage offsets, geometry-only payload
   preservation, main/alternate-screen isolation, and distinct
   history-vs-viewport unified row offsets across a scroll), replays a
-  recording's escape-sequence reconstruction into a fresh terminal and
-  compares resulting pixels, and exercises every `Hmp1SixelRecordingException`
+  a recording into a fresh terminal and compares resulting pixels, captured
+  metrics, spans, resource identity, painted crops, and damage boundaries,
+  and exercises every `Hmp1SixelRecordingException`
   failure mode named above. `tests/Hex1b.Tests/Hmp1/Hmp1SixelStateReplayTests.cs`
   covers the existing live wire replay path, including the damage-patch
   restoration. All pre-existing KGP snapshot/export/replay and terminal
@@ -960,8 +978,9 @@ Sixel presentation uses the existing terminal contracts:
   Sixel-specific event hierarchy.
 - **Snapshots provide full authoritative graphics state.**
   `Hex1bTerminal.CreateSnapshot()` exposes `SixelPlacements` and the
-  content-addressed `SixelImages` table, including decoded pixels or an explicit
-  geometry-only outcome, placement geometry, crop, ordering, and damage state.
+  identity-addressed `SixelImages` table, including decoded pixels or an explicit
+  geometry-only outcome, captured protocol metrics, placement geometry, crop,
+  ordering, and damage state.
   Consumers that need complete state use snapshots rather than reconstructing it
   from incremental impacts alone.
 - **HMP1 replay is private same-protocol restoration.**
@@ -1268,9 +1287,9 @@ beyond replaying the script: it also creates multiple snapshots to prove
 raster sharing and safe double-disposal, compares the four projection modes
 against each other, exports SVG/HTML to confirm the geometry-only diagnostic
 placeholder and byte-identical repeated export, and drives
-`Hmp1SixelRecording.Serialize`/`Deserialize`/`BuildReplayEscapeSequence` to
+`Hmp1SixelRecording.Serialize`/`Deserialize`/`ReplayInto` to
 record a snapshot, replay it into a brand-new terminal with no live upstream
-connection, and compare the resulting pixels and painted (damage) extent —
+connection, and compare the resulting pixels, painted crop, and damage mask —
 including across a main/alternate screen transition — plus feeds
 deliberately corrupted recordings (wrong magic marker, truncation, a bumped
 version number) through `Deserialize` to show each fails with its own
@@ -1297,9 +1316,9 @@ disagreement surfaced in diagnostics; a fractional cell size derived from
 rejected with an explicit diagnostic detail; a resize invalidating only
 `Derived`-sourced metrics while leaving `SixelSupport` itself untouched; a
 later `SetSixelCellMetrics` change leaving an already-created placement's
-recorded metrics unchanged while a subsequent placement (with distinct
-payload content, since identical content is deduplicated by
-`TrackedObjectStore.GetOrCreateSixel`) picks up the new value; and, run
+recorded metrics unchanged while a subsequent placement of the same payload
+picks up the new value and retains a distinct metric-specific image resource;
+and, run
 against `Hex1bTerminal` directly, native-presentation silence versus
 default-headless (`SixelSupport.Unknown`, "no parameter 4") versus an
 explicitly declared confirmed-unsupported headless (`SixelSupport.None`,

@@ -18,18 +18,25 @@ namespace Hex1b;
 /// Sixel parser.
 /// </para>
 /// <para>
-/// Images are content-addressed and deduplicated by <see cref="SixelData.ContentHash"/>:
-/// multiple placements sharing a raster reference the same image table entry, so
-/// pixel payloads are never repeated within a single recording (unlike the live
-/// wire replay, where the Sixel protocol has no "reuse an existing image at a new
-/// position" primitive).
+/// Images are identity-addressed and deduplicated by
+/// <see cref="SixelData.ContentHash"/>. Multiple placements share an image table
+/// entry only when their raster state, protocol metrics, and cell span are all
+/// compatible, so a recording never conflates placements whose pixels must be
+/// clipped or damaged on different protocol grids.
+/// </para>
+/// <para>
+/// Version 2 persists each image's exact protocol-metric bit patterns, source,
+/// and reliability. Version 1 remains readable for compatibility, but replays
+/// with the target terminal's current metrics because that version did not
+/// record per-image metric context.
 /// </para>
 /// </remarks>
 internal static class Hmp1SixelRecording
 {
     private static readonly byte[] Magic = "SXRC"u8.ToArray();
 
-    internal const int CurrentVersion = 1;
+    internal const int CurrentVersion = 2;
+    internal const int MinimumSupportedVersion = 1;
     internal const int MaxPlacementCount = Hmp1SixelLimits.MaximumPlacementCount;
     internal const int MaxImageCount = Hmp1SixelLimits.MaximumImageCount;
     internal const int MaxPayloadLength = Hmp1SixelLimits.MaximumSequenceBytes;
@@ -162,11 +169,11 @@ internal static class Hmp1SixelRecording
         }
 
         var version = ReadInt32(reader);
-        if (version != CurrentVersion)
+        if (version < MinimumSupportedVersion || version > CurrentVersion)
         {
             throw new Hmp1SixelRecordingException(
                 Hmp1SixelRecordingFailureReason.UnsupportedVersion,
-                $"Recording version {version} is not supported. Supported version: {CurrentVersion}.");
+                $"Recording version {version} is not supported. Supported versions: {MinimumSupportedVersion}-{CurrentVersion}.");
         }
 
         var placementCount = ReadInt32(reader);
@@ -178,7 +185,7 @@ internal static class Hmp1SixelRecording
         long totalPayloadLength = 0;
         for (var i = 0; i < imageCount; i++)
         {
-            var image = ReadImage(reader, ref totalPayloadLength);
+            var image = ReadImage(reader, version, ref totalPayloadLength);
             images.Add(image);
         }
 
@@ -186,7 +193,7 @@ internal static class Hmp1SixelRecording
         var totalDamagedCells = 0;
         for (var i = 0; i < placementCount; i++)
         {
-            placements.Add(ReadPlacement(reader, imageCount, ref totalDamagedCells));
+            placements.Add(ReadPlacement(reader, images, ref totalDamagedCells));
         }
 
         if (stream.Position != stream.Length)
@@ -207,6 +214,10 @@ internal static class Hmp1SixelRecording
         writer.Write(image.PixelHeight);
         writer.Write(image.WidthInCells);
         writer.Write(image.HeightInCells);
+        writer.Write(BitConverter.DoubleToInt64Bits(image.CellMetrics.Width));
+        writer.Write(BitConverter.DoubleToInt64Bits(image.CellMetrics.Height));
+        writer.Write((byte)image.CellMetrics.Source);
+        writer.Write((byte)image.CellMetrics.Reliability);
         writer.Write((byte)image.RasterStatus);
         writer.Write(payloadBytes.Length);
         writer.Write(payloadBytes);
@@ -301,7 +312,10 @@ internal static class Hmp1SixelRecording
         return totalDamagedCells + damagedCells.Count;
     }
 
-    private static Hmp1SixelRecordedImage ReadImage(BinaryReader reader, ref long totalPayloadLength)
+    private static Hmp1SixelRecordedImage ReadImage(
+        BinaryReader reader,
+        int version,
+        ref long totalPayloadLength)
     {
         var contentHash = ReadExact(reader, 32);
         var isGeometryOnly = ReadBool(reader);
@@ -309,6 +323,27 @@ internal static class Hmp1SixelRecording
         var declaredPixelHeight = ReadInt32(reader);
         var widthInCells = ReadInt32(reader);
         var heightInCells = ReadInt32(reader);
+        SixelCellMetrics? cellMetrics = null;
+        if (version >= 2)
+        {
+            var widthBits = ReadInt64(reader);
+            var heightBits = ReadInt64(reader);
+            var sourceByte = ReadByte(reader);
+            var reliabilityByte = ReadByte(reader);
+            if (!Enum.IsDefined(typeof(SixelCellMetricsSource), (int)sourceByte) ||
+                !Enum.IsDefined(typeof(SixelCellMetricsReliability), (int)reliabilityByte))
+            {
+                throw new Hmp1SixelRecordingException(
+                    Hmp1SixelRecordingFailureReason.Malformed,
+                    $"Image declares unrecognized Sixel metric metadata ({sourceByte}/{reliabilityByte}).");
+            }
+
+            cellMetrics = new SixelCellMetrics(
+                BitConverter.Int64BitsToDouble(widthBits),
+                BitConverter.Int64BitsToDouble(heightBits),
+                (SixelCellMetricsSource)sourceByte,
+                (SixelCellMetricsReliability)reliabilityByte);
+        }
         var rasterStatusByte = ReadByte(reader);
         var payloadLength = ReadInt32(reader);
 
@@ -349,13 +384,14 @@ internal static class Hmp1SixelRecording
             declaredPixelHeight,
             widthInCells,
             heightInCells,
+            cellMetrics,
             (SixelRasterStatus)rasterStatusByte,
             Encoding.UTF8.GetString(payloadBytes));
     }
 
     private static Hmp1SixelRecordedPlacement ReadPlacement(
         BinaryReader reader,
-        int imageCount,
+        IReadOnlyList<Hmp1SixelRecordedImage> images,
         ref int totalDamagedCells)
     {
         var imageIndex = ReadInt32(reader);
@@ -371,18 +407,28 @@ internal static class Hmp1SixelRecording
         var createdAtUnixMs = ReadInt64(reader);
         var damagedCellCount = ReadInt32(reader);
 
-        if (imageIndex < 0 || imageIndex >= imageCount)
+        if (imageIndex < 0 || imageIndex >= images.Count)
         {
             throw new Hmp1SixelRecordingException(
                 Hmp1SixelRecordingFailureReason.MissingImageReference,
-                $"Placement references image index {imageIndex}, but the recording only has {imageCount} image(s).");
+                $"Placement references image index {imageIndex}, but the recording only has {images.Count} image(s).");
         }
 
-        if (widthInCells <= 0 || heightInCells <= 0 || paintedRowCount < 0 || paintedColumnCount < 0)
+        var image = images[imageIndex];
+        if (widthInCells <= 0 ||
+            heightInCells <= 0 ||
+            widthInCells != image.WidthInCells ||
+            heightInCells != image.HeightInCells ||
+            paintedRowOffset < 0 ||
+            paintedRowCount < 0 ||
+            paintedColumnOffset < 0 ||
+            paintedColumnCount < 0 ||
+            paintedRowOffset > heightInCells - paintedRowCount ||
+            paintedColumnOffset > widthInCells - paintedColumnCount)
         {
             throw new Hmp1SixelRecordingException(
                 Hmp1SixelRecordingFailureReason.InvalidGeometry,
-                $"Placement declares invalid geometry (cells {widthInCells}x{heightInCells}, painted {paintedRowCount}x{paintedColumnCount}).");
+                $"Placement declares invalid geometry (cells {widthInCells}x{heightInCells}, painted rows {paintedRowOffset}+{paintedRowCount}, painted columns {paintedColumnOffset}+{paintedColumnCount}).");
         }
 
         if (damagedCellCount < 0 || damagedCellCount > MaxDamagedCellCount)
@@ -403,6 +449,15 @@ internal static class Hmp1SixelRecording
         {
             var damagedRow = ReadInt32(reader);
             var damagedCol = ReadInt32(reader);
+            if (damagedRow < paintedRowOffset ||
+                damagedRow >= paintedRowOffset + paintedRowCount ||
+                damagedCol < paintedColumnOffset ||
+                damagedCol >= paintedColumnOffset + paintedColumnCount)
+            {
+                throw new Hmp1SixelRecordingException(
+                    Hmp1SixelRecordingFailureReason.InvalidGeometry,
+                    $"Damage cell ({damagedRow},{damagedCol}) lies outside the placement's painted crop.");
+            }
             damagedCells.Add((damagedRow, damagedCol));
         }
         totalDamagedCells += damagedCellCount;

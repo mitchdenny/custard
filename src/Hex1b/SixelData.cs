@@ -1,3 +1,4 @@
+using System.Buffers.Binary;
 using System.Security.Cryptography;
 using Hex1b.Sixel;
 using Hex1b.Surfaces;
@@ -10,9 +11,10 @@ namespace Hex1b;
 /// <remarks>
 /// <para>
 /// Sixel data is content-addressable. Identical payloads share the same
-/// <see cref="SixelData"/> instance only when their captured background and
-/// persistent palette inputs also produce the same raster. This deduplicates
-/// equivalent images without conflating terminal graphics state.
+/// <see cref="SixelData"/> instance only when their captured background,
+/// persistent palette, protocol cell metrics, and cell span are also equal.
+/// This deduplicates equivalent image resources without conflating placement
+/// contexts that would crop or damage the raster differently.
 /// </para>
 /// <para>
 /// The raw DCS sequence is stored so it can be re-emitted during rendering.
@@ -28,7 +30,7 @@ public sealed class SixelData
     private bool _decodeAttempted;
 
     /// <summary>
-    /// Gets the retained DCS content between the introducer and string terminator.
+    /// Gets the complete framed DCS sequence used for rendering.
     /// </summary>
     public string Payload { get; }
 
@@ -53,13 +55,13 @@ public sealed class SixelData
     public int HeightInCells { get; }
 
     /// <summary>
-    /// Gets the content hash used for deduplication.
+    /// Gets the immutable image-resource identity used for deduplication.
     /// </summary>
     /// <remarks>
-    /// Identical payloads that also capture the same background and palette
-    /// state produce the same hash, which content-addressed replay and
-    /// serialization can use to reference this image without repeating its
-    /// pixel payload.
+    /// Identical payloads that also capture the same background, palette,
+    /// protocol cell metrics, and cell span produce the same hash. Replay and
+    /// serialization use this identity to share only resources whose placement
+    /// geometry has identical pixel-to-cell behavior.
     /// </remarks>
     public byte[] ContentHash { get; }
 
@@ -184,23 +186,34 @@ public sealed class SixelData
     public SixelCellMetrics CellMetrics { get; }
 
     /// <summary>
-    /// Gets the cell span for this sixel using the specified cell metrics.
+    /// Gets the cell span for this Sixel image using the protocol cell metrics
+    /// captured when the image was created.
     /// </summary>
-    /// <param name="metrics">The cell metrics to use for conversion.</param>
     /// <returns>The width and height in cells.</returns>
-    public (int Width, int Height) GetCellSpan(CellMetrics metrics)
+    public (int Width, int Height) GetCellSpan()
     {
         if (ParseResult.LogicalCanvasExtent is { Width: > 0, Height: > 0 } logical)
         {
-            return metrics.PixelToCellSpan(logical.Width, logical.Height);
+            return (CellMetrics.ColumnsFor(logical.Width), CellMetrics.RowsFor(logical.Height));
         }
         if (PixelWidth > 0 && PixelHeight > 0)
         {
-            return metrics.PixelToCellSpan(PixelWidth, PixelHeight);
+            return (CellMetrics.ColumnsFor(PixelWidth), CellMetrics.RowsFor(PixelHeight));
         }
         // Fall back to stored cell dimensions
         return (WidthInCells, HeightInCells);
     }
+
+    /// <summary>
+    /// Gets the cell span for this Sixel image using the protocol cell metrics
+    /// captured when the image was created.
+    /// </summary>
+    /// <param name="metrics">
+    /// Ignored. Sixel placement metrics are captured when the image is created.
+    /// </param>
+    /// <returns>The width and height in cells.</returns>
+    [Obsolete("Cell metrics are captured by SixelData. Use GetCellSpan().")]
+    public (int Width, int Height) GetCellSpan(CellMetrics metrics) => GetCellSpan();
 
     /// <summary>
     /// Materializes the sixel payload as a dense pixel buffer.
@@ -254,35 +267,63 @@ public sealed class SixelData
         return width > 0 && height > 0;
     }
 
-    /// <summary>
-    /// Computes a content hash for a Sixel payload.
-    /// </summary>
-    internal static byte[] ComputeHash(string payload) => ComputeHash(payload, null);
+    internal SixelExtent GetRenderedPixelExtent()
+    {
+        if (ParseResult.LogicalCanvasExtent is { Width: > 0, Height: > 0 } logical)
+        {
+            return logical;
+        }
+
+        if (TryGetRasterDimensions(out var width, out var height))
+        {
+            return new SixelExtent(width, height);
+        }
+
+        return new SixelExtent(
+            (int)Math.Ceiling(WidthInCells * CellMetrics.SafeWidth),
+            (int)Math.Ceiling(HeightInCells * CellMetrics.SafeHeight));
+    }
 
     /// <summary>
-    /// Computes a deduplication hash that combines the payload with the raster
-    /// state identity.
+    /// Computes a deduplication identity that combines the payload, raster
+    /// state, cell span, and captured protocol cell metrics.
     /// </summary>
     /// <remarks>
     /// Identical payloads produce different pixels when the captured background
-    /// or the persistent palette differ, so the raster identity must participate
-    /// in content-addressable reuse.
+    /// or persistent palette differ. Even when the pixels are identical,
+    /// different protocol metrics or cell spans change clipping and damage
+    /// behavior, so the complete immutable placement context participates in
+    /// resource reuse.
     /// </remarks>
-    internal static byte[] ComputeHash(string payload, byte[]? rasterIdentity)
+    internal static byte[] ComputeHash(
+        string payload,
+        byte[]? rasterIdentity,
+        int widthInCells,
+        int heightInCells,
+        SixelCellMetrics cellMetrics)
     {
         var payloadBytes = System.Text.Encoding.UTF8.GetBytes(payload);
-        if (rasterIdentity is null)
-        {
-            return SHA256.HashData(payloadBytes);
-        }
-
-        var combined = new byte[payloadBytes.Length + rasterIdentity.Length];
-        payloadBytes.CopyTo(combined, 0);
-        rasterIdentity.CopyTo(combined, payloadBytes.Length);
-        return SHA256.HashData(combined);
+        var payloadHash = SHA256.HashData(payloadBytes);
+        return ComputeHash(
+            payloadHash,
+            rasterIdentity,
+            widthInCells,
+            heightInCells,
+            cellMetrics);
     }
 
-    internal static byte[] ComputeHash(ReadOnlySpan<byte> payloadHash, byte[]? rasterIdentity)
+    internal static byte[] ComputeHash(
+        ReadOnlySpan<byte> payloadHash,
+        byte[]? rasterIdentity,
+        int widthInCells,
+        int heightInCells,
+        SixelCellMetrics cellMetrics)
+    {
+        var rasterHash = ComputeRasterHash(payloadHash, rasterIdentity);
+        return AddPlacementContext(rasterHash, widthInCells, heightInCells, cellMetrics);
+    }
+
+    private static byte[] ComputeRasterHash(ReadOnlySpan<byte> payloadHash, byte[]? rasterIdentity)
     {
         if (rasterIdentity is null)
         {
@@ -292,6 +333,32 @@ public sealed class SixelData
         var combined = new byte[payloadHash.Length + rasterIdentity.Length];
         payloadHash.CopyTo(combined);
         rasterIdentity.CopyTo(combined, payloadHash.Length);
+        return SHA256.HashData(combined);
+    }
+
+    private static byte[] AddPlacementContext(
+        ReadOnlySpan<byte> rasterHash,
+        int widthInCells,
+        int heightInCells,
+        SixelCellMetrics cellMetrics)
+    {
+        const int contextLength = 33;
+        Span<byte> context = stackalloc byte[contextLength];
+        context[0] = 1; // Identity format version.
+        BinaryPrimitives.WriteInt32LittleEndian(context[1..5], widthInCells);
+        BinaryPrimitives.WriteInt32LittleEndian(context[5..9], heightInCells);
+        BinaryPrimitives.WriteInt64LittleEndian(
+            context[9..17],
+            BitConverter.DoubleToInt64Bits(cellMetrics.Width));
+        BinaryPrimitives.WriteInt64LittleEndian(
+            context[17..25],
+            BitConverter.DoubleToInt64Bits(cellMetrics.Height));
+        BinaryPrimitives.WriteInt32LittleEndian(context[25..29], (int)cellMetrics.Source);
+        BinaryPrimitives.WriteInt32LittleEndian(context[29..33], (int)cellMetrics.Reliability);
+
+        var combined = new byte[rasterHash.Length + contextLength];
+        rasterHash.CopyTo(combined);
+        context.CopyTo(combined.AsSpan(rasterHash.Length));
         return SHA256.HashData(combined);
     }
 

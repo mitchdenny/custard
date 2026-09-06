@@ -14,13 +14,14 @@ namespace Hex1b;
 /// <para>
 /// This is internal infrastructure - not exposed to API consumers.
 /// Type-specific APIs (e.g., <see cref="GetOrCreateSixel(string, int, int)"/>) handle deduplication
-/// by content hash.
+/// by complete immutable resource identity.
 /// </para>
 /// </remarks>
 internal sealed class TrackedObjectStore
 {
-    // Content-addressable storage for Sixel data, keyed by content hash
-    private readonly Dictionary<byte[], TrackedObject<SixelData>> _sixelByHash = new(ByteArrayComparer.Instance);
+    // Sixel resource identity includes raster content/state, placement span,
+    // and captured protocol metrics.
+    private readonly Dictionary<string, TrackedObject<SixelData>> _sixelByIdentity = [];
     
     // Content-addressable storage for hyperlink data, keyed by content hash
     private readonly Dictionary<byte[], TrackedObject<HyperlinkData>> _hyperlinkByHash = new(ByteArrayComparer.Instance);
@@ -39,7 +40,7 @@ internal sealed class TrackedObjectStore
         {
             lock (_lock)
             {
-                return _sixelByHash.Count;
+                return _sixelByIdentity.Count;
             }
         }
     }
@@ -73,9 +74,9 @@ internal sealed class TrackedObjectStore
     }
 
     /// <summary>
-    /// Gets or creates a tracked Sixel object for the given payload.
-    /// If an identical payload already exists, adds a reference and returns it.
-    /// Otherwise, creates a new tracked object with refcount 1.
+    /// Gets or creates a tracked Sixel object for the given payload and cell span.
+    /// If an identical compatible resource already exists, adds a reference and
+    /// returns it. Otherwise, creates a new tracked object with refcount 1.
     /// </summary>
     /// <param name="payload">The raw Sixel DCS sequence.</param>
     /// <param name="widthInCells">Width of the image in terminal cells.</param>
@@ -96,11 +97,18 @@ internal sealed class TrackedObjectStore
         SixelRasterPreparation? rasterPreparation = null,
         SixelCellMetrics? cellMetrics = null)
     {
-        var hash = SixelData.ComputeHash(payload, rasterPreparation?.Identity);
+        var capturedMetrics = cellMetrics ?? SixelCellMetrics.Unknown;
+        var hash = SixelData.ComputeHash(
+            payload,
+            rasterPreparation?.Identity,
+            widthInCells,
+            heightInCells,
+            capturedMetrics);
+        var identity = Convert.ToHexString(hash);
 
         lock (_lock)
         {
-            if (_sixelByHash.TryGetValue(hash, out var existing))
+            if (_sixelByIdentity.TryGetValue(identity, out var existing))
             {
                 // Found existing - add a reference and return it
                 existing.AddRef();
@@ -117,14 +125,14 @@ internal sealed class TrackedObjectStore
                 parseResult.DeclaredExtent.Height,
                 parseResult,
                 rasterPreparation: rasterPreparation,
-                cellMetrics: cellMetrics);
+                cellMetrics: capturedMetrics);
             
             // Create new tracked wrapper with removal callback
             var tracked = new TrackedObject<SixelData>(
                 sixelData,
-                onZeroRefs: obj => RemoveSixel(obj.Data));
+                onZeroRefs: obj => RemoveSixel(identity, obj));
 
-            _sixelByHash[hash] = tracked;
+            _sixelByIdentity[identity] = tracked;
             return tracked;
         }
     }
@@ -202,17 +210,21 @@ internal sealed class TrackedObjectStore
     {
         lock (_lock)
         {
-            _sixelByHash.Clear();
+            _sixelByIdentity.Clear();
             _hyperlinkByHash.Clear();
             _kgpByHash.Clear();
         }
     }
 
-    private void RemoveSixel(SixelData sixel)
+    private void RemoveSixel(string identity, TrackedObject<SixelData> tracked)
     {
         lock (_lock)
         {
-            _sixelByHash.Remove(sixel.ContentHash);
+            if (_sixelByIdentity.TryGetValue(identity, out var current) &&
+                ReferenceEquals(current, tracked))
+            {
+                _sixelByIdentity.Remove(identity);
+            }
         }
     }
 

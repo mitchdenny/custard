@@ -1026,6 +1026,7 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
         var frameCapabilities = _adapter.Capabilities;
         if (_rootNode != null)
         {
+            _rootNode.SetTerminalCapabilities(frameCapabilities);
             var terminalSize = new Size(frameWidth, frameHeight);
             var constraints = Constraints.Tight(terminalSize);
             _rootNode.Measure(constraints);
@@ -1213,6 +1214,8 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
 
             _adapter.Write("\x1b[0m\x1b[2J");
 
+            _currentSurface?.ClearAndReleaseTrackedObjects();
+            _previousSurface?.ClearAndReleaseTrackedObjects();
             _currentSurface = new Surface(width, height, cellMetrics);
             _previousSurface = new Surface(width, height, cellMetrics);
             _isFirstFrame = true;
@@ -1221,7 +1224,7 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
         // Swap buffers (reuse previous surface as current for double-buffering)
         // After the needNewSurfaces block, both surfaces are guaranteed non-null
         (_previousSurface, _currentSurface) = (_currentSurface!, _previousSurface!);
-        _currentSurface.Clear();
+        _currentSurface.ClearAndReleaseTrackedObjects();
 
         if (_kgpRetransmitPendingAfterResize && !needNewSurfaces)
         {

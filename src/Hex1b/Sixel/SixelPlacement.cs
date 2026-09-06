@@ -30,7 +30,9 @@ namespace Hex1b;
 /// by intersecting the *current* painted rectangle with a new clip bound, so
 /// a row or column already cropped away can never resurface later regardless
 /// of operation order (scroll, resize, and history pruning all funnel through
-/// this same monotonic intersection). <see cref="Column"/> is likewise
+/// this same monotonic intersection). Internal recording replay may restore an
+/// already-captured crop and damage mask after recreating the raster through
+/// the normal parser. <see cref="Column"/> is likewise
 /// repositioned only via internal reflow machinery, used when an anchor's
 /// wrapped-line position genuinely moves horizontally; ordinary scrolling and
 /// margin operations never touch it.
@@ -156,24 +158,24 @@ public sealed class SixelPlacement
     /// crop begins. Stored relative to the anchor so shifting <see cref="Row"/>
     /// during scrolling automatically keeps the crop consistent.
     /// </summary>
-    public int PaintedRowOffset { get; }
+    public int PaintedRowOffset { get; private set; }
 
     /// <summary>
     /// Number of rows actually painted: the visible crop clipped to the
     /// scrolling region/page bounds in effect when the placement was created.
     /// </summary>
-    public int PaintedRowCount { get; }
+    public int PaintedRowCount { get; private set; }
 
     /// <summary>
     /// Column offset (relative to <see cref="Column"/>) where the
     /// visible/painted crop begins.
     /// </summary>
-    public int PaintedColumnOffset { get; }
+    public int PaintedColumnOffset { get; private set; }
 
     /// <summary>
     /// Number of columns actually painted.
     /// </summary>
-    public int PaintedColumnCount { get; }
+    public int PaintedColumnCount { get; private set; }
 
     /// <summary>
     /// Monotonic write sequence used to order overlapping placements (later
@@ -238,6 +240,52 @@ public sealed class SixelPlacement
         _visiblePixels = null;
         _damagedCells.Add(CellKey(row, column));
         return true;
+    }
+
+    /// <summary>
+    /// Restores a previously recorded painted crop and damage mask after the
+    /// raster has been recreated through the normal terminal parser.
+    /// </summary>
+    internal void RestoreVisibleState(
+        int paintedRowOffset,
+        int paintedRowCount,
+        int paintedColumnOffset,
+        int paintedColumnCount,
+        IReadOnlyList<(int Row, int Column)> damagedCells)
+    {
+        if (paintedRowOffset < 0 ||
+            paintedRowCount < 0 ||
+            paintedColumnOffset < 0 ||
+            paintedColumnCount < 0 ||
+            paintedRowOffset > HeightInCells - paintedRowCount ||
+            paintedColumnOffset > WidthInCells - paintedColumnCount)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(paintedRowOffset),
+                "The painted crop must lie within the placement's declared cell span.");
+        }
+
+        PaintedRowOffset = paintedRowOffset;
+        PaintedRowCount = paintedRowCount;
+        PaintedColumnOffset = paintedColumnOffset;
+        PaintedColumnCount = paintedColumnCount;
+        _damagedCells.Clear();
+        _visiblePixels = null;
+
+        foreach (var (row, column) in damagedCells)
+        {
+            if (row < paintedRowOffset ||
+                row >= paintedRowOffset + paintedRowCount ||
+                column < paintedColumnOffset ||
+                column >= paintedColumnOffset + paintedColumnCount)
+            {
+                throw new ArgumentOutOfRangeException(
+                    nameof(damagedCells),
+                    $"Damage cell ({row},{column}) lies outside the painted crop.");
+            }
+
+            _damagedCells.Add(row * WidthInCells + column);
+        }
     }
 
     /// <summary>

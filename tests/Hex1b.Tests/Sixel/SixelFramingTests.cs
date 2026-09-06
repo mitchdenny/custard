@@ -378,12 +378,13 @@ public class SixelFramingTests
     [TestMethod]
     public async Task PreTokenizedOutput_OverRetentionLimit_RetainsGeometryOnlyState()
     {
-        var policy = SixelCompatibilityPolicy.Default with
+        var graphics = new Hex1bTerminalGraphicsOptions
         {
-            MaximumRetainedDcsBytes = 16,
+            MaximumRetainedInputBytesPerImage = 16,
         };
-        await using var terminal = SixelTestTerminal.Create(policy: policy);
-        var payload = $"7q{new string('~', policy.MaximumRetainedDcsBytes + 8)}";
+        await using var terminal = SixelTestTerminal.Create(graphics: graphics);
+        var payload =
+            $"7q{new string('~', graphics.MaximumRetainedInputBytesPerImage + 8)}";
         var bytes = Encoding.ASCII.GetBytes($"\x1bP{payload}\x1b\\");
 
         await terminal.FeedPreTokenizedAsync(
@@ -400,7 +401,9 @@ public class SixelFramingTests
         Assert.AreEqual(SixelParseOutcome.LimitDowngraded, placement.Image.Outcome);
         Assert.IsTrue(placement.Image.Diagnostics.Any(
             diagnostic => diagnostic.Code == SixelDiagnosticCode.RetainedContentLimitExceeded));
-        Assert.AreEqual(policy.MaximumRetainedDcsBytes, placement.Image.Payload.Length);
+        Assert.AreEqual(
+            graphics.MaximumRetainedInputBytesPerImage,
+            placement.Image.Payload.Length);
         TestSeq.AreEqual(bytes, terminal.PresentationBytes);
     }
 

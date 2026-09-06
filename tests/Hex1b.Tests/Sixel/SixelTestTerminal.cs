@@ -30,7 +30,8 @@ internal sealed class SixelTestTerminal : IAsyncDisposable
         IHex1bTerminalPresentationFilter? presentationFilter,
         bool impactAware,
         SixelCellMetrics? cellMetrics,
-        SixelCompatibilityPolicy? policy)
+        SixelCompatibilityPolicy? policy,
+        Hex1bTerminalGraphicsOptions? graphics)
     {
         var capabilities = new TerminalCapabilities
         {
@@ -54,6 +55,7 @@ internal sealed class SixelTestTerminal : IAsyncDisposable
             ScrollbackCapacity = scrollbackCapacity > 0 ? scrollbackCapacity : null,
             Metrics = metrics,
             SixelPolicy = policy ?? SixelCompatibilityPolicy.Default,
+            Graphics = graphics ?? CreateGraphicsOptions(policy),
         };
         if (workloadFilter is not null)
         {
@@ -97,7 +99,8 @@ internal sealed class SixelTestTerminal : IAsyncDisposable
         IHex1bTerminalPresentationFilter? presentationFilter = null,
         bool impactAware = false,
         SixelCellMetrics? cellMetrics = null,
-        SixelCompatibilityPolicy? policy = null)
+        SixelCompatibilityPolicy? policy = null,
+        Hex1bTerminalGraphicsOptions? graphics = null)
         => new(
             width,
             height,
@@ -111,7 +114,25 @@ internal sealed class SixelTestTerminal : IAsyncDisposable
             presentationFilter,
             impactAware,
             cellMetrics,
-            policy);
+            policy,
+            graphics);
+
+    private static Hex1bTerminalGraphicsOptions CreateGraphicsOptions(
+        SixelCompatibilityPolicy? policy)
+    {
+        policy ??= SixelCompatibilityPolicy.Default;
+        return new Hex1bTerminalGraphicsOptions
+        {
+            MaximumRetainedInputBytesPerImage = policy.MaximumRetainedDcsBytes,
+            MaximumRasterPixelsPerImage = policy.MaximumRasterPixels,
+            MaximumRasterOperationsPerImage = policy.MaximumRasterOperations,
+            MaximumImagesPerScreen = policy.MaximumImagesPerScreen,
+            MaximumPlacementsPerScreen = policy.MaximumPlacementsPerScreen,
+            MaximumHistoryPlacements = policy.MaximumHistoryPlacements,
+            MaximumRetainedLogicalPixelsPerScreen =
+                policy.MaximumRetainedLogicalPixelsPerScreen,
+        };
+    }
 
     public async Task FeedAsync(
         ReadOnlyMemory<byte> bytes,

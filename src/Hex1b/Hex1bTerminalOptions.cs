@@ -28,6 +28,16 @@ public sealed class Hex1bTerminalOptions
         Sixel.SixelCompatibilityPolicy.Default;
 
     /// <summary>
+    /// Gets or sets the resource limits used when processing and retaining
+    /// terminal graphics.
+    /// </summary>
+    /// <remarks>
+    /// The default value preserves Hex1b's standard graphics limits. Main and
+    /// alternate screen resources are budgeted independently.
+    /// </remarks>
+    public Hex1bTerminalGraphicsOptions Graphics { get; set; } = new();
+
+    /// <summary>
     /// Terminal width in columns. Used when no presentation adapter is provided.
     /// Default is 80.
     /// </summary>
@@ -148,6 +158,20 @@ public sealed class Hex1bTerminalOptions
             throw new InvalidOperationException("Height must be greater than zero.");
         }
 
-        SixelPolicy.Validate();
+        ArgumentNullException.ThrowIfNull(Graphics);
+        Graphics.Validate();
+        CreateSixelPolicy().Validate();
     }
+
+    internal Sixel.SixelCompatibilityPolicy CreateSixelPolicy() => SixelPolicy with
+    {
+        MaximumRetainedDcsBytes = Graphics.MaximumRetainedInputBytesPerImage,
+        MaximumRasterPixels = Graphics.MaximumRasterPixelsPerImage,
+        MaximumRasterOperations = Graphics.MaximumRasterOperationsPerImage,
+        MaximumPlacementsPerScreen = Graphics.MaximumPlacementsPerScreen,
+        MaximumHistoryPlacements = Graphics.MaximumHistoryPlacements,
+        MaximumImagesPerScreen = Graphics.MaximumImagesPerScreen,
+        MaximumRetainedLogicalPixelsPerScreen =
+            Graphics.MaximumRetainedLogicalPixelsPerScreen,
+    };
 }

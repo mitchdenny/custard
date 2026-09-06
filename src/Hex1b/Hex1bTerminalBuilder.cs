@@ -54,6 +54,7 @@ public sealed class Hex1bTerminalBuilder
     private Action<ScrollbackRowEventArgs>? _scrollbackCallback;
     private Reflow.ITerminalReflowProvider? _reflowStrategy;
     private bool _reflowEnabled;
+    private readonly Hex1bTerminalGraphicsOptions _graphicsOptions = new();
 
     /// <summary>
     /// Creates a new terminal builder.
@@ -1351,6 +1352,44 @@ public sealed class Hex1bTerminalBuilder
     }
 
     /// <summary>
+    /// Configures resource limits for terminal graphics.
+    /// </summary>
+    /// <param name="configure">
+    /// A callback that configures the terminal's per-image and per-screen
+    /// graphics limits.
+    /// </param>
+    /// <returns>This builder for chaining.</returns>
+    /// <exception cref="ArgumentNullException">
+    /// Thrown when <paramref name="configure"/> is <see langword="null"/>.
+    /// </exception>
+    /// <remarks>
+    /// Main and alternate screens receive independent retained-resource budgets.
+    /// Invalid values are rejected when <see cref="Build"/> constructs the
+    /// terminal.
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// await using var terminal = Hex1bTerminal.CreateBuilder()
+    ///     .WithPtyProcess("bash")
+    ///     .WithGraphics(options =>
+    ///     {
+    ///         options.MaximumRetainedBytesPerScreen = 64L * 1024 * 1024;
+    ///         options.MaximumPlacementsPerScreen = 512;
+    ///     })
+    ///     .Build();
+    ///
+    /// await terminal.RunAsync();
+    /// </code>
+    /// </example>
+    public Hex1bTerminalBuilder WithGraphics(
+        Action<Hex1bTerminalGraphicsOptions> configure)
+    {
+        ArgumentNullException.ThrowIfNull(configure);
+        configure(_graphicsOptions);
+        return this;
+    }
+
+    /// <summary>
     /// Enables terminal reflow with automatic strategy detection based on the running
     /// terminal emulator (via <c>TERM_PROGRAM</c>, <c>WT_SESSION</c>, etc.).
     /// </summary>
@@ -1472,7 +1511,8 @@ public sealed class Hex1bTerminalBuilder
             RunCallback = runCallback,
             ScrollbackCapacity = _scrollbackCapacity,
             ScrollbackCallback = _scrollbackCallback,
-            Metrics = ResolveMetrics()
+            Metrics = ResolveMetrics(),
+            Graphics = _graphicsOptions.Clone(),
         };
         
         foreach (var filter in _workloadFilters)

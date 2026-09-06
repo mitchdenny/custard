@@ -131,12 +131,12 @@ public class SixelPlacementLifetimeTests
     [TestMethod]
     public async Task PlacementLimit_EvictsOldestPlacementAndReleasesItsImage()
     {
-        var policy = SixelCompatibilityPolicy.Default with
+        var graphics = new Hex1bTerminalGraphicsOptions
         {
             MaximumPlacementsPerScreen = 2,
             MaximumImagesPerScreen = 2,
         };
-        await using var terminal = SixelTestTerminal.Create(policy: policy);
+        await using var terminal = SixelTestTerminal.Create(graphics: graphics);
         var red = Encoding.ASCII.GetBytes("\x1bPq#1;2;100;0;0#1@\x1b\\");
         var green = Encoding.ASCII.GetBytes("\x1bPq#2;2;0;100;0#2A\x1b\\");
         var blue = Encoding.ASCII.GetBytes("\x1bPq#3;2;0;0;100#3B\x1b\\");
@@ -165,13 +165,13 @@ public class SixelPlacementLifetimeTests
     [TestMethod]
     public async Task ImageAndAggregateAreaLimits_EvictOldestPlacementDeterministically()
     {
-        var policy = SixelCompatibilityPolicy.Default with
+        var graphics = new Hex1bTerminalGraphicsOptions
         {
             MaximumPlacementsPerScreen = 8,
             MaximumImagesPerScreen = 1,
             MaximumRetainedLogicalPixelsPerScreen = 12,
         };
-        await using var terminal = SixelTestTerminal.Create(policy: policy);
+        await using var terminal = SixelTestTerminal.Create(graphics: graphics);
         var red = Encoding.ASCII.GetBytes("\x1bPq#1;2;100;0;0#1@\x1b\\");
         var green = Encoding.ASCII.GetBytes("\x1b[2;1H\x1bPq#2;2;0;100;0#2A\x1b\\Z");
 
@@ -191,7 +191,7 @@ public class SixelPlacementLifetimeTests
     [TestMethod]
     public async Task HistoryLimit_EvictsOldestHistoryFragment()
     {
-        var policy = SixelCompatibilityPolicy.Default with
+        var graphics = new Hex1bTerminalGraphicsOptions
         {
             MaximumHistoryPlacements = 1,
         };
@@ -199,7 +199,7 @@ public class SixelPlacementLifetimeTests
             width: 4,
             height: 2,
             scrollbackCapacity: 4,
-            policy: policy);
+            graphics: graphics);
         var first = Encoding.ASCII.GetBytes("\x1b[1;1H\x1bPq#1;2;100;0;0#1@\x1b\\");
         var second = Encoding.ASCII.GetBytes("\x1b[2;1H\n\x1b[1;1H\x1bPq#2;2;0;100;0#2A\x1b\\");
         var scrollAgain = Encoding.ASCII.GetBytes("\x1b[2;1H\n");
@@ -212,7 +212,9 @@ public class SixelPlacementLifetimeTests
             "two history scrolls",
             TestContext.Current.CancellationToken);
 
-        Assert.AreEqual(policy.MaximumHistoryPlacements, terminal.Terminal.SixelHistoryPlacementCount);
+        Assert.AreEqual(
+            graphics.MaximumHistoryPlacements,
+            terminal.Terminal.SixelHistoryPlacementCount);
         using var snapshot = terminal.Terminal.CreateSnapshot(scrollbackLines: 4);
         Assert.IsFalse(snapshot.SixelPlacements.Any(
             placement => placement.Image.Payload.Contains("100;0;0", StringComparison.Ordinal)));

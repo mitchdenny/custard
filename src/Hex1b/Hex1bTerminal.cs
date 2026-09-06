@@ -81,7 +81,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
     // capabilities and can be overridden by adapters and tests.
     private Sixel.SixelCellMetrics? _sixelCellMetricsOverride;
     private readonly TimeProvider _timeProvider;
-    private readonly KgpTerminalGraphicsState _kgpGraphicsState = new();
+    private readonly KgpTerminalGraphicsState _kgpGraphicsState;
     private readonly SixelGraphicsState _sixelGraphicsState;
     private long _sixelPlacementSequence;
     private ITimer? _kgpAnimationTimer;
@@ -335,9 +335,12 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         _timeProvider = options.TimeProvider ?? TimeProvider.System;
         _sessionStart = _timeProvider.GetUtcNow();
         _metrics = options.Metrics ?? Diagnostics.Hex1bMetrics.Default;
-        _sixelColorRegisters = new Sixel.SixelColorRegisters(options.SixelPolicy);
+        var sixelPolicy = options.CreateSixelPolicy();
+        _kgpGraphicsState = new KgpTerminalGraphicsState(
+            options.Graphics.MaximumRetainedBytesPerScreen);
+        _sixelColorRegisters = new Sixel.SixelColorRegisters(sixelPolicy);
         _sixelGraphicsState = new SixelGraphicsState(
-            options.SixelPolicy,
+            sixelPolicy,
             RecordSixelStateEvent);
         
         // Notify lifecycle-aware presentation adapters that the terminal is created
@@ -378,7 +381,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
             _scrollbackCallback = options.ScrollbackCallback;
         }
         
-        _dcsByteStreamParser = new DcsByteStreamParser(options.SixelPolicy);
+        _dcsByteStreamParser = new DcsByteStreamParser(sixelPolicy);
         _escapeTimeout = options.EscapeSequenceTimeout ?? TimeSpan.FromMilliseconds(50);
         ResetSixelModes();
 

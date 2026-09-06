@@ -86,7 +86,12 @@ internal sealed class KgpTerminalGraphicsState
 
     private sealed class ScreenState
     {
-        internal KgpImageStore ImageStore { get; } = new();
+        internal ScreenState(long retainedBytes)
+        {
+            ImageStore = new KgpImageStore(retainedBytes);
+        }
+
+        internal KgpImageStore ImageStore { get; }
         internal List<KgpPlacement> Placements { get; } = [];
         internal List<KgpVirtualPlacement> VirtualPlacements { get; } = [];
         internal Dictionary<long, List<HistoryPlacement>> HistoryPlacements { get; } = [];
@@ -106,9 +111,17 @@ internal sealed class KgpTerminalGraphicsState
         }
     }
 
-    private readonly ScreenState _main = new();
+    private readonly long _retainedBytesPerScreen;
+    private readonly ScreenState _main;
     private ScreenState? _alternate;
     private bool _alternateActive;
+
+    internal KgpTerminalGraphicsState(long retainedBytesPerScreen = 320L * 1024 * 1024)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(retainedBytesPerScreen);
+        _retainedBytesPerScreen = retainedBytesPerScreen;
+        _main = new ScreenState(retainedBytesPerScreen);
+    }
 
     private ScreenState Active
         => _alternateActive
@@ -554,11 +567,11 @@ internal sealed class KgpTerminalGraphicsState
         if (_alternateActive)
         {
             _alternate!.Clear();
-            _alternate = new ScreenState();
+            _alternate = new ScreenState(_retainedBytesPerScreen);
             return;
         }
 
-        _alternate = new ScreenState();
+        _alternate = new ScreenState(_retainedBytesPerScreen);
         _alternateActive = true;
     }
 

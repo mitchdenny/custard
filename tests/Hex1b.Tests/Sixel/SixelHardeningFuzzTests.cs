@@ -57,6 +57,14 @@ public class SixelHardeningFuzzTests
                 6,
                 new TerminalCapabilities { SupportsSixel = true }),
             SixelPolicy = policy,
+            Graphics = new Hex1bTerminalGraphicsOptions
+            {
+                MaximumPlacementsPerScreen = policy.MaximumPlacementsPerScreen,
+                MaximumHistoryPlacements = policy.MaximumHistoryPlacements,
+                MaximumImagesPerScreen = policy.MaximumImagesPerScreen,
+                MaximumRetainedLogicalPixelsPerScreen =
+                    policy.MaximumRetainedLogicalPixelsPerScreen,
+            },
         });
 
         for (var iteration = 0; iteration < 100; iteration++)

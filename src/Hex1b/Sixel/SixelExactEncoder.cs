@@ -25,6 +25,15 @@ namespace Hex1b.Sixel;
 /// </remarks>
 internal static class SixelExactEncoder
 {
+    internal enum EncodingOutcome
+    {
+        Complete,
+        PaletteLimitExceeded,
+        ByteLimitExceeded,
+    }
+
+    internal readonly record struct EncodingResult(EncodingOutcome Outcome, string? Payload);
+
     /// <summary>
     /// Encodes <paramref name="buffer"/> into a complete Sixel DCS sequence
     /// (ESC P ... ESC \), matching the shape of <see cref="SixelData.Payload"/>.
@@ -37,51 +46,70 @@ internal static class SixelExactEncoder
     /// </returns>
     internal static string? Encode(SixelPixelBuffer buffer)
     {
+        var result = EncodeBounded(buffer, int.MaxValue, CancellationToken.None);
+        return result.Outcome == EncodingOutcome.ByteLimitExceeded ? null : result.Payload;
+    }
+
+    internal static EncodingResult EncodeBounded(
+        SixelPixelBuffer buffer,
+        int maximumBytes,
+        CancellationToken cancellationToken)
+    {
         ArgumentNullException.ThrowIfNull(buffer);
+        ArgumentOutOfRangeException.ThrowIfNegative(maximumBytes);
 
         var width = buffer.Width;
         var height = buffer.Height;
 
         var palette = new Dictionary<Rgba32, int>();
-        var indexedPixels = new int[width, height];
         for (var y = 0; y < height; y++)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             for (var x = 0; x < width; x++)
             {
                 var pixel = buffer[x, y];
                 if (pixel.A == 0)
                 {
-                    indexedPixels[x, y] = -1;
                     continue;
                 }
 
-                if (!palette.TryGetValue(pixel, out var index))
+                if (!palette.ContainsKey(pixel))
                 {
                     if (palette.Count >= SixelEncoder.MaxPaletteColors)
-                        return null;
+                        return new EncodingResult(EncodingOutcome.PaletteLimitExceeded, null);
 
-                    index = palette.Count;
-                    palette[pixel] = index;
+                    palette[pixel] = palette.Count;
                 }
-
-                indexedPixels[x, y] = index;
             }
         }
 
         if (palette.Count == 0)
-            return "\x1bP0;1;0q\x1b\\";
+        {
+            const string empty = "\x1bP0;1;0q\x1b\\";
+            return empty.Length <= maximumBytes
+                ? new EncodingResult(EncodingOutcome.Complete, empty)
+                : new EncodingResult(EncodingOutcome.ByteLimitExceeded, null);
+        }
 
         var sb = new StringBuilder();
-        sb.Append("\x1bP0;1;0q");
-        sb.Append(FormattableString.Invariant($"\"1;1;{width};{height}"));
+        if (!TryAppend("\x1bP0;1;0q") ||
+            !TryAppend(FormattableString.Invariant($"\"1;1;{width};{height}")))
+        {
+            return new EncodingResult(EncodingOutcome.ByteLimitExceeded, null);
+        }
 
         foreach (var (color, index) in palette)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             var r = ComponentToPercent(color.R);
             var g = ComponentToPercent(color.G);
             var b = ComponentToPercent(color.B);
-            sb.Append(FormattableString.Invariant($"#{index};2;{r};{g};{b}"));
+            if (!TryAppend(FormattableString.Invariant($"#{index};2;{r};{g};{b}")))
+                return new EncodingResult(EncodingOutcome.ByteLimitExceeded, null);
         }
+        var colorsByIndex = new Rgba32[palette.Count];
+        foreach (var (color, index) in palette)
+            colorsByIndex[index] = color;
 
         var numBands = (height + 5) / 6;
         for (var band = 0; band < numBands; band++)
@@ -91,76 +119,138 @@ internal static class SixelExactEncoder
 
             foreach (var index in Enumerable.Range(0, palette.Count))
             {
-                var run = BuildColorRunForBand(indexedPixels, width, bandStartY, bandHeight, index);
+                cancellationToken.ThrowIfCancellationRequested();
+                var prefix = "#" + index.ToString(System.Globalization.CultureInfo.InvariantCulture);
+                var remainingBytes = maximumBytes - sb.Length - prefix.Length - 1;
+                if (remainingBytes < 0 ||
+                    !TryBuildColorRunForBand(
+                        buffer,
+                        width,
+                        bandStartY,
+                        bandHeight,
+                        colorsByIndex[index],
+                        remainingBytes,
+                        cancellationToken,
+                        out var run))
+                {
+                    return new EncodingResult(EncodingOutcome.ByteLimitExceeded, null);
+                }
                 if (run.Length == 0)
                     continue;
 
-                sb.Append('#');
-                sb.Append(index);
-                sb.Append(run);
-                sb.Append('$');
+                if (!TryAppend(prefix) ||
+                    !TryAppend(run) ||
+                    !TryAppend("$"))
+                {
+                    return new EncodingResult(EncodingOutcome.ByteLimitExceeded, null);
+                }
             }
 
-            if (band < numBands - 1)
-                sb.Append('-');
+            if (band < numBands - 1 && !TryAppend("-"))
+                return new EncodingResult(EncodingOutcome.ByteLimitExceeded, null);
         }
 
-        sb.Append("\x1b\\");
-        return sb.ToString();
+        if (!TryAppend("\x1b\\"))
+            return new EncodingResult(EncodingOutcome.ByteLimitExceeded, null);
+        return new EncodingResult(EncodingOutcome.Complete, sb.ToString());
+
+        bool TryAppend(string value)
+        {
+            if (value.Length > maximumBytes - sb.Length)
+                return false;
+            sb.Append(value);
+            return true;
+        }
     }
 
-    private static string BuildColorRunForBand(int[,] indexedPixels, int width, int bandStartY, int bandHeight, int colorIndex)
+    private static bool TryBuildColorRunForBand(
+        SixelPixelBuffer buffer,
+        int width,
+        int bandStartY,
+        int bandHeight,
+        Rgba32 color,
+        int maximumBytes,
+        CancellationToken cancellationToken,
+        out string result)
     {
-        var chars = new char[width];
-        var lastNonBlank = -1;
+        var sb = new StringBuilder(Math.Min(width, maximumBytes));
+        char current = '\0';
+        var runLength = 0;
         for (var x = 0; x < width; x++)
         {
+            if ((x & 4095) == 0)
+                cancellationToken.ThrowIfCancellationRequested();
             byte bits = 0;
             for (var row = 0; row < bandHeight; row++)
             {
-                if (indexedPixels[x, bandStartY + row] == colorIndex)
+                if (buffer[x, bandStartY + row] == color)
                     bits |= (byte)(1 << row);
             }
 
-            chars[x] = (char)('?' + bits);
-            if (bits != 0)
-                lastNonBlank = x;
-        }
-
-        // This color doesn't appear anywhere in this band — omit its line entirely.
-        if (lastNonBlank < 0)
-            return string.Empty;
-
-        // Trailing all-blank columns need no representation: nothing follows them
-        // on this color's line. Interior blank runs (between two occurrences of
-        // this color) MUST be kept — they are what keeps this color's pixels
-        // aligned to the correct column when its line is drawn independently of
-        // every other color's line.
-        var length = lastNonBlank + 1;
-
-        var sb = new StringBuilder();
-        var i = 0;
-        while (i < length)
-        {
-            var run = 1;
-            while (i + run < length && chars[i + run] == chars[i])
-                run++;
-
-            if (run > 3)
+            var value = (char)('?' + bits);
+            if (runLength == 0)
             {
-                sb.Append('!');
-                sb.Append(run);
-                sb.Append(chars[i]);
+                current = value;
+                runLength = 1;
+            }
+            else if (value == current)
+            {
+                runLength++;
             }
             else
             {
-                sb.Append(chars[i], run);
+                if (!TryAppendRun(current, runLength))
+                {
+                    result = "";
+                    return false;
+                }
+                current = value;
+                runLength = 1;
             }
-
-            i += run;
         }
 
-        return sb.ToString();
+        // Trailing blank columns need no representation. Leading and interior
+        // blank runs were emitted when a later non-blank run began.
+        if (current != '?' && !TryAppendRun(current, runLength))
+        {
+            result = "";
+            return false;
+        }
+
+        result = sb.ToString();
+        return true;
+
+        bool TryAppendRun(char value, int length)
+        {
+            var encodedLength = length > 3
+                ? 2 + CountDigits(length)
+                : length;
+            if (encodedLength > maximumBytes - sb.Length)
+                return false;
+
+            if (length > 3)
+            {
+                sb.Append('!');
+                sb.Append(length);
+                sb.Append(value);
+            }
+            else
+            {
+                sb.Append(value, length);
+            }
+            return true;
+        }
+    }
+
+    private static int CountDigits(int value)
+    {
+        var digits = 1;
+        while (value >= 10)
+        {
+            value /= 10;
+            digits++;
+        }
+        return digits;
     }
 
     /// <summary>

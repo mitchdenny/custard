@@ -1,4 +1,5 @@
 using System.Text;
+using Hex1b.Sixel;
 using Hex1b.Tokens;
 
 namespace Hex1b.Tests.Sixel;
@@ -125,6 +126,96 @@ public class SixelPlacementLifetimeTests
         var placement = TestSeq.Single(terminal.Terminal.SixelPlacements);
         Assert.IsTrue(placement.IsGeometryOnly);
         Assert.IsTrue(placement.WidthInCells > 0);
+    }
+
+    [TestMethod]
+    public async Task PlacementLimit_EvictsOldestPlacementAndReleasesItsImage()
+    {
+        var policy = SixelCompatibilityPolicy.Default with
+        {
+            MaximumPlacementsPerScreen = 2,
+            MaximumImagesPerScreen = 2,
+        };
+        await using var terminal = SixelTestTerminal.Create(policy: policy);
+        var red = Encoding.ASCII.GetBytes("\x1bPq#1;2;100;0;0#1@\x1b\\");
+        var green = Encoding.ASCII.GetBytes("\x1bPq#2;2;0;100;0#2A\x1b\\");
+        var blue = Encoding.ASCII.GetBytes("\x1bPq#3;2;0;0;100#3B\x1b\\");
+
+        await terminal.FeedAsync(
+            red.Concat("\x1b[2;1H"u8.ToArray())
+                .Concat(green)
+                .Concat("\x1b[3;1H"u8.ToArray())
+                .Concat(blue)
+                .ToArray(),
+            cancellationToken: TestContext.Current.CancellationToken);
+        await terminal.WaitForAsync(
+            _ => terminal.Terminal.SixelPlacementCount == 2,
+            "bounded placement set",
+            TestContext.Current.CancellationToken);
+
+        Assert.AreEqual(2, terminal.Terminal.TrackedSixelCount);
+        Assert.IsFalse(terminal.Terminal.SixelPlacements.Any(
+            placement => placement.Image.Payload.Contains("100;0;0", StringComparison.Ordinal)));
+        Assert.IsTrue(terminal.Terminal.SixelPlacements.Any(
+            placement => placement.Image.Payload.Contains("0;100;0", StringComparison.Ordinal)));
+        Assert.IsTrue(terminal.Terminal.SixelPlacements.Any(
+            placement => placement.Image.Payload.Contains("0;0;100", StringComparison.Ordinal)));
+    }
+
+    [TestMethod]
+    public async Task ImageAndAggregateAreaLimits_EvictOldestPlacementDeterministically()
+    {
+        var policy = SixelCompatibilityPolicy.Default with
+        {
+            MaximumPlacementsPerScreen = 8,
+            MaximumImagesPerScreen = 1,
+            MaximumRetainedLogicalPixelsPerScreen = 12,
+        };
+        await using var terminal = SixelTestTerminal.Create(policy: policy);
+        var red = Encoding.ASCII.GetBytes("\x1bPq#1;2;100;0;0#1@\x1b\\");
+        var green = Encoding.ASCII.GetBytes("\x1b[2;1H\x1bPq#2;2;0;100;0#2A\x1b\\Z");
+
+        await terminal.FeedAsync(
+            red.Concat(green).ToArray(),
+            cancellationToken: TestContext.Current.CancellationToken);
+        await terminal.WaitForAsync(
+            snapshot => snapshot.ContainsText("Z"),
+            "image and aggregate-area limits",
+            TestContext.Current.CancellationToken);
+
+        Assert.AreEqual(1, terminal.Terminal.TrackedSixelCount);
+        var retained = TestSeq.Single(terminal.Terminal.SixelPlacements);
+        StringAssert.Contains(retained.Image.Payload, "0;100;0");
+    }
+
+    [TestMethod]
+    public async Task HistoryLimit_EvictsOldestHistoryFragment()
+    {
+        var policy = SixelCompatibilityPolicy.Default with
+        {
+            MaximumHistoryPlacements = 1,
+        };
+        await using var terminal = SixelTestTerminal.Create(
+            width: 4,
+            height: 2,
+            scrollbackCapacity: 4,
+            policy: policy);
+        var first = Encoding.ASCII.GetBytes("\x1b[1;1H\x1bPq#1;2;100;0;0#1@\x1b\\");
+        var second = Encoding.ASCII.GetBytes("\x1b[2;1H\n\x1b[1;1H\x1bPq#2;2;0;100;0#2A\x1b\\");
+        var scrollAgain = Encoding.ASCII.GetBytes("\x1b[2;1H\n");
+
+        await terminal.FeedAsync(
+            first.Concat(second).Concat(scrollAgain).ToArray(),
+            cancellationToken: TestContext.Current.CancellationToken);
+        await terminal.WaitForAsync(
+            snapshot => snapshot.ScrollbackLineCount >= 2,
+            "two history scrolls",
+            TestContext.Current.CancellationToken);
+
+        Assert.AreEqual(policy.MaximumHistoryPlacements, terminal.Terminal.SixelHistoryPlacementCount);
+        using var snapshot = terminal.Terminal.CreateSnapshot(scrollbackLines: 4);
+        Assert.IsFalse(snapshot.SixelPlacements.Any(
+            placement => placement.Image.Payload.Contains("100;0;0", StringComparison.Ordinal)));
     }
 
     [TestMethod]

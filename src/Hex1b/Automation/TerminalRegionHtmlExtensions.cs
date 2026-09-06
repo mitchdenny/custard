@@ -74,7 +74,8 @@ public static class TerminalRegionHtmlExtensions
             ShowCellGrid = true,  // Include in SVG so it can be toggled via CSS
             ShowPixelGrid = true, // Include in SVG so it can be toggled via CSS
             CellGridColor = options.CellGridColor,
-            PixelGridColor = options.PixelGridColor
+            PixelGridColor = options.PixelGridColor,
+            MaximumEmbeddedSixelBytes = options.MaximumEmbeddedSixelBytes,
         };
 
         // Get the SVG content with grids included (hidden via CSS initially)

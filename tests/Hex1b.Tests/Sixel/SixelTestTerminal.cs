@@ -29,7 +29,8 @@ internal sealed class SixelTestTerminal : IAsyncDisposable
         IHex1bTerminalWorkloadFilter? workloadFilter,
         IHex1bTerminalPresentationFilter? presentationFilter,
         bool impactAware,
-        SixelCellMetrics? cellMetrics)
+        SixelCellMetrics? cellMetrics,
+        SixelCompatibilityPolicy? policy)
     {
         var capabilities = new TerminalCapabilities
         {
@@ -52,6 +53,7 @@ internal sealed class SixelTestTerminal : IAsyncDisposable
             Height = height,
             ScrollbackCapacity = scrollbackCapacity > 0 ? scrollbackCapacity : null,
             Metrics = metrics,
+            SixelPolicy = policy ?? SixelCompatibilityPolicy.Default,
         };
         if (workloadFilter is not null)
         {
@@ -94,7 +96,8 @@ internal sealed class SixelTestTerminal : IAsyncDisposable
         IHex1bTerminalWorkloadFilter? workloadFilter = null,
         IHex1bTerminalPresentationFilter? presentationFilter = null,
         bool impactAware = false,
-        SixelCellMetrics? cellMetrics = null)
+        SixelCellMetrics? cellMetrics = null,
+        SixelCompatibilityPolicy? policy = null)
         => new(
             width,
             height,
@@ -107,7 +110,8 @@ internal sealed class SixelTestTerminal : IAsyncDisposable
             workloadFilter,
             presentationFilter,
             impactAware,
-            cellMetrics);
+            cellMetrics,
+            policy);
 
     public async Task FeedAsync(
         ReadOnlyMemory<byte> bytes,

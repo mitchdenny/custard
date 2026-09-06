@@ -137,6 +137,31 @@ public class SixelHtmlExportTests
     }
 
     [TestMethod]
+    public async Task HtmlExport_WhenSixelPayloadLimitIsReached_EmbedsDiagnosticPlaceholder()
+    {
+        await using var terminal = SixelTestTerminal.Create();
+
+        await terminal.FeedAsync(
+            SingleBand.StandardBytes,
+            cancellationToken: TestContext.Current.CancellationToken);
+        await terminal.WaitForAsync(
+            snapshot => snapshot.ContainsSixelData(),
+            SingleBand.Name,
+            TestContext.Current.CancellationToken);
+
+        using var snapshot = terminal.Terminal.CreateSnapshot();
+        var html = snapshot.ToHtml(new TerminalSvgOptions
+        {
+            CellWidth = snapshot.CellPixelWidth,
+            CellHeight = snapshot.CellPixelHeight,
+            MaximumEmbeddedSixelBytes = 0,
+        });
+
+        Assert.Contains("sixel-export-limited", html);
+        Assert.DoesNotContain("data:image/bmp;base64,", html);
+    }
+
+    [TestMethod]
     public async Task HtmlExport_RepeatedExportOfSameSnapshot_IsByteIdentical()
     {
         await using var terminal = SixelTestTerminal.Create(width: 20, height: 10);

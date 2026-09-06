@@ -292,6 +292,8 @@ public class SixelGrammarParserTests
         var result = ParseFramed(Encoding.ASCII.GetBytes("\x1bPq@\x18")).SixelResult;
 
         Assert.AreEqual(SixelParseOutcome.Cancelled, result.Outcome);
+        Assert.IsTrue(result.Diagnostics.Any(
+            item => item.Code == SixelDiagnosticCode.CancelledSequence));
     }
 
     [TestMethod]
@@ -361,6 +363,22 @@ public class SixelGrammarParserTests
         Assert.AreEqual(new SixelExtent(100, 6), result.DataExtent);
         Assert.AreEqual(new SixelBounds(0, 0, 100, 6), result.PaintedBounds);
         Assert.IsFalse(result.CommandsComplete);
+        Assert.IsTrue(result.Diagnostics.Any(
+            item => item.Code == SixelDiagnosticCode.RetainedContentLimitExceeded));
+    }
+
+    [TestMethod]
+    public void RetentionLimitExceeded_PreservesUnscaledAndRenderedGeometrySeparately()
+    {
+        var result = Parse($"2q{new string('~', 100)}", retentionLimit: 8).SixelResult;
+        var raster = SixelRasterizer.Rasterize(
+            result,
+            SixelRasterEnvironment.CreateDefault());
+
+        Assert.AreEqual(new SixelExtent(100, 30), result.LogicalCanvasExtent);
+        Assert.AreEqual(new SixelExtent(100, 6), raster.Extents.Logical);
+        Assert.AreEqual(new SixelExtent(100, 30), raster.Extents.Rendered);
+        Assert.AreEqual(SixelRasterStatus.GeometryOnly, raster.Status);
     }
 
     private static DcsFrame Parse(string payload, int retentionLimit = DcsByteStreamParser.DefaultRetentionLimit) =>
@@ -389,6 +407,7 @@ public class SixelGrammarParserTests
         result.LogicalCanvasExtent,
         result.SelectedColorRegister,
         string.Join(",", result.PaletteMutations),
+        string.Join(",", result.FinalPaletteDefinitions),
         string.Join(",", result.Commands),
         result.CommandsComplete,
         result.Outcome,

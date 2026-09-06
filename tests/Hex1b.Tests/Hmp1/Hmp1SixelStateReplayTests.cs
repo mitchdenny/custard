@@ -1,5 +1,6 @@
 using System.IO.Pipelines;
 using System.Text;
+using Hex1b.Sixel;
 using Hex1b.Tests.Sixel;
 using Hex1b.Tokens;
 
@@ -83,6 +84,17 @@ public class Hmp1SixelStateReplayTests
         Assert.AreEqual(Hmp1FrameType.Hello, hello.Type);
         Assert.AreEqual(Hmp1FrameType.StateSync, stateSync.Type);
         Assert.AreEqual(Hmp1FrameType.Output, sixelReplay.Type);
+        var replayResultStarted = TimeProvider.System.GetTimestamp();
+        while (server.LastSixelReplayResult is null &&
+               TimeProvider.System.GetElapsedTime(replayResultStarted) < TestTimeout)
+        {
+            await Task.Delay(10, cts.Token);
+        }
+        Assert.IsNotNull(server.LastSixelReplayResult);
+        Assert.AreEqual(
+            Hmp1SixelStateReplay.ReplayOutcome.Complete,
+            server.LastSixelReplayResult.Value.Outcome);
+        Assert.AreEqual(1, server.LastSixelReplayResult.Value.ReplayedPlacements);
 
         var handle = await addClientTask;
         await using var handleDispose = handle;
@@ -209,6 +221,121 @@ public class Hmp1SixelStateReplayTests
         Assert.AreEqual(0, placement.Column);
     }
 
+    [TestMethod]
+    public void BuildPlacementSequence_GeometryOnlyPayload_RestoresDcsFraming()
+    {
+        using var producer = CreateHeadlessTerminal();
+        producer.ApplyTokens(AnsiTokenizer.Tokenize(
+            "\x1bP0;1q\"1;1;999999999;999999999#1@\x1b\\"));
+        using var producerSnapshot = producer.CreateSnapshot();
+        var placement = TestSeq.Single(producerSnapshot.SixelPlacements);
+        Assert.IsTrue(placement.IsGeometryOnly);
+
+        var replay = Hmp1SixelStateReplay.BuildPlacementSequence(placement);
+
+        StringAssert.Contains(replay, "\x1bP");
+        StringAssert.EndsWith(replay, "\x1b\\");
+        using var viewer = CreateHeadlessTerminal();
+        viewer.ApplyTokens(AnsiTokenizer.Tokenize(replay));
+        using var viewerSnapshot = viewer.CreateSnapshot();
+        var replayed = TestSeq.Single(viewerSnapshot.SixelPlacements);
+        Assert.AreEqual(placement.Image.Extents.Logical, replayed.Image.Extents.Logical);
+    }
+
+    [TestMethod]
+    public async Task WriteAsync_PlacementCountExceedsLimit_ReturnsTypedLimitWithoutWriting()
+    {
+        using var producer = CreateHeadlessTerminal();
+        producer.ApplyTokens(AnsiTokenizer.Tokenize("\x1bPq@\x1b\\"));
+        using var snapshot = producer.CreateSnapshot();
+        var placement = TestSeq.Single(snapshot.SixelPlacements);
+        var placements = Enumerable.Repeat(
+            placement,
+            Hmp1SixelStateReplay.MaximumPlacementCount + 1).ToArray();
+        await using var stream = new MemoryStream();
+
+        var result = await Hmp1SixelStateReplay.WriteAsync(
+            stream,
+            placements,
+            [],
+            TestContext.Current.CancellationToken);
+
+        Assert.AreEqual(Hmp1SixelStateReplay.ReplayOutcome.ResourceLimitExceeded, result.Outcome);
+        Assert.AreEqual("placement_count", result.Limit);
+        Assert.AreEqual(0, stream.Length);
+    }
+
+    [TestMethod]
+    public async Task WriteAsync_PreCancelled_DoesNotBuildOrWriteReplay()
+    {
+        using var producer = CreateHeadlessTerminal();
+        producer.ApplyTokens(AnsiTokenizer.Tokenize("\x1bPq@\x1b\\"));
+        using var snapshot = producer.CreateSnapshot();
+        var placement = TestSeq.Single(snapshot.SixelPlacements);
+        await using var stream = new MemoryStream();
+        using var cts = new CancellationTokenSource();
+        cts.Cancel();
+
+        await Assert.ThrowsAsync<OperationCanceledException>(
+            () => Hmp1SixelStateReplay.WriteAsync(stream, [placement], [], cts.Token));
+        Assert.AreEqual(0, stream.Length);
+    }
+
+    [TestMethod]
+    public async Task WriteAsync_CancelledDuringFrameWrite_StopsReplay()
+    {
+        using var producer = CreateHeadlessTerminal();
+        producer.ApplyTokens(AnsiTokenizer.Tokenize("\x1bPq!64~\x1b\\"));
+        using var snapshot = producer.CreateSnapshot();
+        var placement = TestSeq.Single(snapshot.SixelPlacements);
+        using var cts = new CancellationTokenSource();
+        await using var stream = new CancellingWriteStream(cts);
+
+        await Assert.ThrowsAsync<OperationCanceledException>(
+            () => Hmp1SixelStateReplay.WriteAsync(stream, [placement], [], cts.Token));
+
+        Assert.AreEqual(1, stream.WriteCount);
+    }
+
+    [TestMethod]
+    public async Task WriteAsync_RetentionLimitedPlacement_IsExplicitlySkipped()
+    {
+        var policy = SixelCompatibilityPolicy.Default with
+        {
+            MaximumRetainedDcsBytes = 16,
+            MaximumDiagnostics = 1,
+        };
+        await using var producer = SixelTestTerminal.Create(policy: policy);
+        var bytes = Encoding.ASCII.GetBytes(
+            $"\x1bP7q!9999999999~{new string('~', policy.MaximumRetainedDcsBytes + 8)}\x1b\\");
+        await producer.FeedAsync(bytes, cancellationToken: TestContext.Current.CancellationToken);
+        await producer.WaitForAsync(
+            _ => producer.Terminal.SixelPlacementCount == 1,
+            "retention-limited placement",
+            TestContext.Current.CancellationToken);
+        using var snapshot = producer.Terminal.CreateSnapshot();
+        await using var stream = new MemoryStream();
+
+        var result = await Hmp1SixelStateReplay.WriteAsync(
+            stream,
+            snapshot.SixelPlacements,
+            [],
+            TestContext.Current.CancellationToken);
+
+        Assert.AreEqual(Hmp1SixelStateReplay.ReplayOutcome.Complete, result.Outcome);
+        Assert.AreEqual(0, result.ReplayedPlacements);
+        Assert.AreEqual(1, result.SkippedPlacements);
+        Assert.AreEqual(0, result.FrameCount);
+        Assert.AreEqual(0, stream.Length);
+    }
+
+    private static Hex1bTerminal CreateHeadlessTerminal() =>
+        Hex1bTerminal.CreateBuilder()
+            .WithDimensions(20, 10)
+            .WithWorkload(new NullWorkloadAdapter())
+            .WithHeadless(new TerminalCapabilities { SupportsSixel = true })
+            .Build();
+
     private sealed class NullWorkloadAdapter : IHex1bTerminalWorkloadAdapter
     {
         public event Action? Disconnected
@@ -261,6 +388,30 @@ public class Hmp1SixelStateReplayTests
                 try { writeStream.Dispose(); } catch { }
             }
             base.Dispose(disposing);
+        }
+    }
+
+    private sealed class CancellingWriteStream(CancellationTokenSource cancellation) : Stream
+    {
+        internal int WriteCount { get; private set; }
+        public override bool CanRead => false;
+        public override bool CanWrite => true;
+        public override bool CanSeek => false;
+        public override long Length => 0;
+        public override long Position { get => 0; set => throw new NotSupportedException(); }
+        public override void Flush() { }
+        public override int Read(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+        public override void SetLength(long value) => throw new NotSupportedException();
+        public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+
+        public override ValueTask WriteAsync(
+            ReadOnlyMemory<byte> buffer,
+            CancellationToken cancellationToken = default)
+        {
+            WriteCount++;
+            cancellation.Cancel();
+            return ValueTask.FromCanceled(cancellationToken);
         }
     }
 }

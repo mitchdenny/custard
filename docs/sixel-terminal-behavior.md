@@ -70,6 +70,53 @@ counting and scanning for cancellation or ST after that limit. Its incremental
 Sixel observer also continues bounded grammar and geometry parsing, but reports
 a limit-downgraded outcome and stops retaining raster command events. The
 original bytes still flow to native presentations before either parser runs.
+The terminal retains that explicit geometry-only state using only the bounded
+content prefix; it never treats the prefix as a complete replayable payload.
+
+### Hardening limits and observability (#454)
+
+The default internal `SixelCompatibilityPolicy` applies these deterministic
+limits. Boundary and boundary-plus-one behavior is covered by parser,
+rasterizer, placement-lifetime, and fuzz tests.
+
+| Resource | Default limit | Limit behavior |
+|---|---:|---|
+| Retained DCS content | 1 MiB | Continue framing and geometry observation; retain a geometry-only image with `RetainedContentLimitExceeded` |
+| DCS header parameters | 16 | Reject the introducer with a typed diagnostic |
+| Numeric parameter/repeat value | 999,999,999 | Saturate geometry safely and report `NumericLimitExceeded`/`GeometrySaturated` |
+| Retained raster commands | 65,536 | Stop command retention, continue geometry, and report `CommandRetentionLimitExceeded` |
+| Palette mutations | 4,096 | Stop retaining ordered mutation history and report `MetadataLimitExceeded`; separately retain the final definition for each valid register so terminal-scoped palette state remains authoritative |
+| Parser diagnostics | 64 | Bound diagnostic cardinality; diagnostics never retain raw hostile payloads |
+| Raster pixels | 16 Mi pixels | Return geometry-only with `RasterPixelLimitExceeded` |
+| Raster operations | 64 Mi pixel writes | Return geometry-only with `RasterOperationLimitExceeded` |
+| Sparse raster tiles | 4,096 tiles of 64x64 | Return geometry-only with `RasterTileLimitExceeded` |
+| Live placements per screen | 4,096 | Evict oldest placements first |
+| History placement fragments | 4,096 | Evict oldest history fragments first |
+| Distinct images per screen | 1,024 | Evict oldest reachable placements until the image set is bounded |
+| Aggregate retained raster-capable area | 64 Mi logical pixels | Evict oldest placements; each image contributes at most the per-image raster limit |
+| Embedded Sixel data per SVG/HTML export | 64 MiB by default | `TerminalSvgOptions.MaximumEmbeddedSixelBytes` replaces later raster placements with deterministic diagnostic placeholders |
+
+The parser exposes typed outcomes (`Complete`, `LimitDowngraded`, `Cancelled`,
+`Malformed`, and `Rejected`) and bounded diagnostic codes for malformed,
+cancelled, unterminated, numeric/geometry saturation, command/palette
+retention, and DCS-content retention. Rasterization separately reports
+geometry-only reasons for incomplete commands, extent overflow, pixel,
+operation, tile, and color-register limits.
+
+The `Hex1b` meter exposes constant-cardinality operational measurements:
+
+- `hex1b.terminal.raw_passthrough.duration`
+- `hex1b.terminal.sixel.processing.duration`
+- `hex1b.terminal.sixel.outcomes` (`outcome`)
+- `hex1b.terminal.sixel.resources` (`action`, optional `reason`)
+- `hex1b.terminal.sixel.limit` (`limit`)
+
+Resource actions are allocation, deduplication, release, placement creation,
+damage, and eviction. Eviction reasons distinguish history pruning, scrolling,
+line edits, viewport clipping, reflow, and the `history_limit`,
+`placement_limit`, `image_limit`, and `logical_pixel_limit` policy limits.
+Existing DCS byte, dispatch, cancellation, malformed-recovery, and
+retention-limit instruments remain the framing-level source of truth.
 
 ## Grammar and raster model
 
@@ -521,7 +568,12 @@ read paths over that authoritative state.
   depends on whether an image happened to rasterize. HTML export's
   interaction payload reports the same `geometryOnly`/`outcome` metadata per
   cell. Both exporters reuse the snapshot's already-decoded `SixelData`
-  directly; neither reparses, redecodes, or rehashes the payload. Repeated
+  directly; neither reparses, redecodes, or rehashes the payload. Embedded
+  Sixel BMP data URIs are capped at 64 MiB per export by default through
+  `TerminalSvgOptions.MaximumEmbeddedSixelBytes`; a placement that would
+  exceed the remaining budget is represented by an explicit
+  `ExportLimitExceeded` placeholder before allocating its RGBA/BMP buffers.
+  HTML forwards the same option to its embedded SVG. Repeated
   export of the same snapshot is byte-identical
   (`SvgExport_RepeatedExportOfSameSnapshot_IsByteIdentical`,
   `HtmlExport_RepeatedExportOfSameSnapshot_IsByteIdentical`). KGP's own
@@ -545,9 +597,15 @@ read paths over that authoritative state.
     lossy/quantizing and reserved for widget authoring) rather than the
     placement's original payload, because that payload may depend on
     persistent color-register state the joining peer's terminal never saw;
-    a geometry-only placement has no decoded pixels and is safe to replay
-    verbatim, since its outcome is a deterministic function of the payload's
-    own declared extents. Only the viewport is replayed here, matching
+    a geometry-only placement has no decoded pixels, so replay restores DCS
+    framing around its retained content. A retention-limited placement is
+    skipped because the bounded prefix is not a complete replay payload.
+    Replay is bounded to 4,096 placements, 2^20 damaged cells, 64 MiB per
+    generated sequence, 64 MiB total output, and 1 MiB HMP1 frames. Exact
+    raster re-encoding is byte-budgeted before output construction and checks
+    cancellation while discovering palettes and constructing color runs.
+    Only the viewport is
+    replayed here, matching
     `Hex1bTerminal.CreateSnapshot()`'s existing zero-scrollback state-sync
     scope.
   - `Hmp1SixelRecording` (internal) is a new, versioned binary format for
@@ -573,7 +631,17 @@ read paths over that authoritative state.
     (a placement's image index is out of range), `InvalidGeometry`
     (non-positive cell dimensions or negative painted extents), or
     `ResourceLimitExceeded` (`MaxPlacementCount`/`MaxImageCount` = 4096,
-    `MaxPayloadLength` = 64 MiB, `MaxDamagedCellCount` = 2^20). Recorded
+    `MaxPayloadLength`/aggregate payload = 64 MiB,
+    `MaxRecordingLength` = 72 MiB, and aggregate
+    `MaxDamagedCellCount` = 2^20). Exact raster re-encoding is constrained by
+    the remaining per-image and aggregate payload budget before allocating
+    its output. Expanding a deduplicated recording back into cursor-position
+    plus Sixel sequences performs a checked, cancellable preflight and rejects
+    output above the same 64 MiB aggregate limit before allocating the replay
+    string. Retention-limited images are rejected before
+    serialization because their complete payload is unavailable; deserialization
+    rejects an oversized input before copying it and rejects trailing bytes.
+    Recorded
     placements/images (`Hmp1SixelRecordedPlacement`/`Hmp1SixelRecordedImage`)
     are plain immutable data carriers, not `SixelPlacement`/`SixelData`
     themselves, keeping the recording format decoupled from the live
@@ -974,6 +1042,16 @@ this stage.
 `tests/Hex1b.Tests/Hmp1/Hmp1SixelStateReplayTests.cs`, are #456's dedicated
 regression suites for the snapshot/export/recording/replay contract described
 above.
+`tests/Hex1b.Tests/Sixel/SixelHardeningFuzzTests.cs` runs the checked-in
+minimized regression fixtures (`regression-numeric-overflow`,
+`regression-command-replacement`, `regression-extent-overflow`, and
+`regression-palette-raster-repeat`) plus generated malformed-control,
+numeric-overflow, huge-repeat/extent, palette/raster, cancellation, truncation,
+chunking, and lifecycle operations with stable seeds `445`, `454`, `473`, and
+`0x51E1`. Every generated stream is compared across single-chunk and arbitrary
+chunk boundaries; lifecycle runs mix placement, damage, erasure, scrolling,
+alternate-screen switching, resize, RIS, snapshot, recording, and replay while
+asserting the configured state bounds.
 `tests/Hex1b.Tests/Sixel/SixelCapabilityDiscoveryTests.cs` is #455's dedicated
 regression suite for `ConsolePresentationAdapter`'s probe engine: direct
 declaration short-circuiting the probe, single-source acceptance for each of
@@ -1005,7 +1083,21 @@ dotnet test tests/Hex1b.Tests/Hex1b.Tests.csproj \
   --filter "FullyQualifiedName~Hex1b.Tests.Hmp1.Hmp1Sixel"
 dotnet test tests/Hex1b.Tests/Hex1b.Tests.csproj \
   --filter "FullyQualifiedName~SixelCapabilityDiscoveryTests|FullyQualifiedName~Hex1bTerminalQueryOwnershipTests"
+dotnet test tests/Hex1b.Tests/Hex1b.Tests.csproj \
+  --filter "FullyQualifiedName~SixelHardeningFuzzTests"
+dotnet run -c Release --project benchmarks/Hex1b.Benchmarks -- \
+  sixel --filter "*SixelHardeningBenchmarks*"
 ```
+
+`SixelHardeningBenchmarks` measures raw forwarding alone, raw forwarding with
+incremental Sixel observation, parser geometry, bounded worst-case raster
+rejection, placement/damage/scroll/resize lifecycle work, snapshot plus
+recording round-trip, and internal HMP1 replay. BenchmarkDotNet JSON output is
+the reproducible baseline artifact. These timings are intentionally not
+CI-gated: short terminal/parser operations are sensitive to runner CPU,
+virtualization, runtime tiering, and architecture, so a fixed cross-runner
+threshold would be noisy. Correctness and allocation bounds are CI-tested;
+performance budgets are reviewed against same-machine Release baselines.
 
 The terminal-first demo sends independently authored raw Sixel bytes through
 `Hex1bTerminal`. It does not use `SixelWidget` or `SixelEncoder`.

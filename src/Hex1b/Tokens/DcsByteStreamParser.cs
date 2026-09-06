@@ -1,4 +1,5 @@
 using System.Buffers;
+using System.Security.Cryptography;
 using Hex1b.Sixel;
 
 namespace Hex1b.Tokens;
@@ -31,6 +32,7 @@ internal sealed record DcsFrame(
     ReadOnlyMemory<byte> RetainedContent,
     long ByteCount,
     bool RetentionLimitExceeded,
+    byte[] ContentHash,
     SixelParseResult SixelResult);
 
 internal readonly record struct DcsFrameBoundary(int TextByteOffset, DcsFrame Frame);
@@ -54,6 +56,7 @@ internal sealed class DcsByteStreamParser
     private readonly int _retentionLimit;
     private readonly int _maximumParameterCount;
     private readonly int _maximumParameterValue;
+    private readonly SixelCompatibilityPolicy _sixelPolicy;
     private int _utf8ContinuationBytesRemaining;
     private ParserState _state;
     private ParserState _stateBeforeDcsEscape;
@@ -71,20 +74,35 @@ internal sealed class DcsByteStreamParser
     private int _intermediateCount;
     private byte? _finalByte;
     private SixelParser? _sixelParser;
+    private readonly IncrementalHash _contentHash =
+        IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+    private readonly byte[] _contentHashBuffer = new byte[4096];
+    private int _contentHashBufferCount;
 
     public DcsByteStreamParser(
         int retentionLimit = DefaultRetentionLimit,
         int maximumParameterCount = DefaultMaximumParameterCount,
         int maximumParameterValue = DefaultMaximumParameterValue)
+        : this(
+            SixelCompatibilityPolicy.Default with
+            {
+                MaximumRetainedDcsBytes = retentionLimit,
+                MaximumDcsHeaderParameters = maximumParameterCount,
+                MaximumNumericValue = maximumParameterValue,
+            })
     {
-        ArgumentOutOfRangeException.ThrowIfNegative(retentionLimit);
-        ArgumentOutOfRangeException.ThrowIfLessThan(maximumParameterCount, 1);
-        ArgumentOutOfRangeException.ThrowIfLessThan(maximumParameterValue, 1);
+    }
 
-        _retentionLimit = retentionLimit;
-        _maximumParameterCount = maximumParameterCount;
-        _maximumParameterValue = maximumParameterValue;
-        _parameters = new int?[maximumParameterCount];
+    internal DcsByteStreamParser(SixelCompatibilityPolicy sixelPolicy)
+    {
+        ArgumentNullException.ThrowIfNull(sixelPolicy);
+        sixelPolicy.Validate();
+
+        _sixelPolicy = sixelPolicy;
+        _retentionLimit = sixelPolicy.MaximumRetainedDcsBytes;
+        _maximumParameterCount = sixelPolicy.MaximumDcsHeaderParameters;
+        _maximumParameterValue = sixelPolicy.MaximumNumericValue;
+        _parameters = new int?[_maximumParameterCount];
     }
 
     public bool IsInDcs => _state is
@@ -282,6 +300,21 @@ internal sealed class DcsByteStreamParser
             retentionLimit,
             maximumParameterCount,
             maximumParameterValue);
+        return ParseCompleteContent(content, parser);
+    }
+
+    internal static DcsFrame ParseCompleteContent(
+        ReadOnlySpan<byte> content,
+        SixelCompatibilityPolicy sixelPolicy)
+    {
+        ArgumentNullException.ThrowIfNull(sixelPolicy);
+        return ParseCompleteContent(content, new DcsByteStreamParser(sixelPolicy));
+    }
+
+    private static DcsFrame ParseCompleteContent(
+        ReadOnlySpan<byte> content,
+        DcsByteStreamParser parser)
+    {
         _ = parser.Process("\x1bP"u8);
         _ = parser.Process(content);
         var completed = parser.Process("\x1b\\"u8);
@@ -331,6 +364,8 @@ internal sealed class DcsByteStreamParser
 
     private void StartDcs()
     {
+        FlushContentHashBuffer();
+        _ = _contentHash.GetHashAndReset();
         _state = ParserState.Introducer;
         _stateBeforeDcsEscape = ParserState.Introducer;
         _retained = [];
@@ -429,7 +464,7 @@ internal sealed class DcsByteStreamParser
             var introducer = CreateIntroducer();
             if (introducer.IsSixel)
             {
-                _sixelParser = new SixelParser(introducer);
+                _sixelParser = new SixelParser(introducer, _sixelPolicy);
             }
             return;
         }
@@ -445,6 +480,9 @@ internal sealed class DcsByteStreamParser
 
     private void AppendContent(byte value)
     {
+        _contentHashBuffer[_contentHashBufferCount++] = value;
+        if (_contentHashBufferCount == _contentHashBuffer.Length)
+            FlushContentHashBuffer();
         _byteCount++;
         if (_retainedCount == _retentionLimit)
         {
@@ -480,18 +518,29 @@ internal sealed class DcsByteStreamParser
         var introducer = CreateIntroducer();
         var sixelResult = _sixelParser?.Complete(status, _retentionLimitExceeded)
             ?? SixelParseResult.Rejected(introducer, status, _retentionLimitExceeded);
+        FlushContentHashBuffer();
         var frame = new DcsFrame(
             status,
             introducer,
             _retained.AsMemory(0, _retainedCount),
             _byteCount,
             _retentionLimitExceeded,
+            _contentHash.GetHashAndReset(),
             sixelResult);
 
         _retained = [];
         _retainedCount = 0;
         _state = ParserState.Ground;
         return frame;
+    }
+
+    private void FlushContentHashBuffer()
+    {
+        if (_contentHashBufferCount == 0)
+            return;
+
+        _contentHash.AppendData(_contentHashBuffer.AsSpan(0, _contentHashBufferCount));
+        _contentHashBufferCount = 0;
     }
 
     private void ProcessSixelPayloadByte(byte value)

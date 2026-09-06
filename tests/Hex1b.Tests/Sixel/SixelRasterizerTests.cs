@@ -1,6 +1,7 @@
 using System.Text;
 using Hex1b.Sixel;
 using Hex1b.Surfaces;
+using Hex1b.Tokens;
 
 namespace Hex1b.Tests.Sixel;
 
@@ -468,6 +469,32 @@ public class SixelRasterizerTests
         Assert.AreEqual(SixelParseOutcome.LimitDowngraded, parse.Outcome);
         Assert.IsFalse(parse.CommandsComplete);
         Assert.AreEqual(new Rgba32(255, 0, 0, 255), environment.Registers.Get(1));
+    }
+
+    [TestMethod]
+    public void Prepare_WhenCommandAndMutationHistoryAreTruncated_AppliesFinalPaletteDefinition()
+    {
+        var policy = SixelCompatibilityPolicy.Default with
+        {
+            MaximumRetainedCommands = 1,
+            MaximumPaletteMutations = 1,
+        };
+        var environment = new SixelRasterEnvironment(
+            policy.DefaultBackground,
+            new SixelColorRegisters(policy),
+            policy);
+        var defining = DcsByteStreamParser.ParseCompleteContent(
+            Encoding.ASCII.GetBytes($"0;1q#1{Red}"),
+            policy).SixelResult;
+
+        _ = SixelRasterizer.Prepare(defining, environment);
+        var later = SixelParser.ParsePayload("0;1q#1@");
+        var raster = SixelRasterizer.Rasterize(later, environment);
+
+        Assert.IsFalse(defining.CommandsComplete);
+        Assert.AreEqual(SixelParseOutcome.LimitDowngraded, defining.Outcome);
+        Assert.AreEqual(new Rgba32(255, 0, 0, 255), environment.Registers.Get(1));
+        Assert.AreEqual(new Rgba32(255, 0, 0, 255), RequireImage(raster)[0, 0]);
     }
 
     [TestMethod]

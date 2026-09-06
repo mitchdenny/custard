@@ -34,7 +34,7 @@ internal sealed class SixelScreenGraphicsState
     /// placements and history placements, sweeping everything else from
     /// <see cref="Images"/>.
     /// </summary>
-    internal void ReconcileImages()
+    internal int ReconcileImages()
     {
         var retained = new HashSet<byte[]>(SixelContentHashComparer.Instance);
         foreach (var placement in Placements)
@@ -45,6 +45,6 @@ internal sealed class SixelScreenGraphicsState
                 retained.Add(historyPlacement.Placement.Image.ContentHash);
         }
 
-        Images.RemoveUnreferenced(retained);
+        return Images.RemoveUnreferenced(retained);
     }
 }

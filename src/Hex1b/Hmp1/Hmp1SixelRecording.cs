@@ -30,10 +30,12 @@ internal static class Hmp1SixelRecording
     private static readonly byte[] Magic = "SXRC"u8.ToArray();
 
     internal const int CurrentVersion = 1;
-    internal const int MaxPlacementCount = 4096;
-    internal const int MaxImageCount = 4096;
-    internal const int MaxPayloadLength = 64 * 1024 * 1024;
-    internal const int MaxDamagedCellCount = 1 << 20;
+    internal const int MaxPlacementCount = Hmp1SixelLimits.MaximumPlacementCount;
+    internal const int MaxImageCount = Hmp1SixelLimits.MaximumImageCount;
+    internal const int MaxPayloadLength = Hmp1SixelLimits.MaximumSequenceBytes;
+    internal const int MaxTotalPayloadLength = Hmp1SixelLimits.MaximumTotalPayloadBytes;
+    internal const int MaxRecordingLength = Hmp1SixelLimits.MaximumRecordingBytes;
+    internal const int MaxDamagedCellCount = Hmp1SixelLimits.MaximumDamagedCellCount;
 
     /// <summary>
     /// Serializes the given viewport placements into a versioned recording.
@@ -67,6 +69,39 @@ internal static class Hmp1SixelRecording
                 $"Image count {images.Count} exceeds the limit of {MaxImageCount}.");
         }
 
+        long totalPayloadLength = 0;
+        var encodedPayloads = new Dictionary<byte[], byte[]>(SixelContentHashComparer.Instance);
+        foreach (var image in images)
+        {
+            if (Hmp1SixelStateReplay.HasIncompletePayload(image))
+            {
+                throw new Hmp1SixelRecordingException(
+                    Hmp1SixelRecordingFailureReason.ResourceLimitExceeded,
+                    "A retention-limited Sixel image cannot be serialized because its complete replay payload is unavailable.");
+            }
+
+            var remainingPayloadBytes = (int)Math.Min(
+                MaxPayloadLength,
+                MaxTotalPayloadLength - totalPayloadLength);
+            if (!TryEncodePayload(image, remainingPayloadBytes, out var payload))
+            {
+                throw new Hmp1SixelRecordingException(
+                    Hmp1SixelRecordingFailureReason.ResourceLimitExceeded,
+                    "Image payload exceeds the remaining recording payload budget.");
+            }
+            var payloadBytes = Encoding.UTF8.GetBytes(payload);
+            if (payloadBytes.Length > MaxPayloadLength ||
+                payloadBytes.Length > MaxTotalPayloadLength - totalPayloadLength)
+            {
+                throw new Hmp1SixelRecordingException(
+                    Hmp1SixelRecordingFailureReason.ResourceLimitExceeded,
+                    $"Image payload bytes exceed the per-image or aggregate recording limit ({MaxPayloadLength}/{MaxTotalPayloadLength}).");
+            }
+
+            totalPayloadLength += payloadBytes.Length;
+            encodedPayloads[image.ContentHash] = payloadBytes;
+        }
+
         using var stream = new MemoryStream();
         using (var writer = new BinaryWriter(stream, Encoding.UTF8, leaveOpen: true))
         {
@@ -77,13 +112,25 @@ internal static class Hmp1SixelRecording
 
             foreach (var image in images)
             {
-                WriteImage(writer, image);
+                WriteImage(writer, image, encodedPayloads[image.ContentHash]);
             }
 
+            var totalDamagedCells = 0;
             foreach (var placement in placements)
             {
-                WritePlacement(writer, placement, imageIndexByHash[placement.Image.ContentHash]);
+                totalDamagedCells = WritePlacement(
+                    writer,
+                    placement,
+                    imageIndexByHash[placement.Image.ContentHash],
+                    totalDamagedCells);
             }
+        }
+
+        if (stream.Length > MaxRecordingLength)
+        {
+            throw new Hmp1SixelRecordingException(
+                Hmp1SixelRecordingFailureReason.ResourceLimitExceeded,
+                $"Recording length {stream.Length} exceeds the limit of {MaxRecordingLength}.");
         }
 
         return stream.ToArray();
@@ -96,6 +143,13 @@ internal static class Hmp1SixelRecording
     /// </summary>
     internal static Hmp1SixelRecordingSnapshot Deserialize(ReadOnlyMemory<byte> data)
     {
+        if (data.Length > MaxRecordingLength)
+        {
+            throw new Hmp1SixelRecordingException(
+                Hmp1SixelRecordingFailureReason.ResourceLimitExceeded,
+                $"Recording length {data.Length} exceeds the limit of {MaxRecordingLength}.");
+        }
+
         using var stream = new MemoryStream(data.ToArray(), writable: false);
         using var reader = new BinaryReader(stream, Encoding.UTF8, leaveOpen: true);
 
@@ -121,34 +175,32 @@ internal static class Hmp1SixelRecording
         ValidateCount(imageCount, MaxImageCount, "image");
 
         var images = new List<Hmp1SixelRecordedImage>(imageCount);
+        long totalPayloadLength = 0;
         for (var i = 0; i < imageCount; i++)
         {
-            images.Add(ReadImage(reader));
+            var image = ReadImage(reader, ref totalPayloadLength);
+            images.Add(image);
         }
 
         var placements = new List<Hmp1SixelRecordedPlacement>(placementCount);
+        var totalDamagedCells = 0;
         for (var i = 0; i < placementCount; i++)
         {
-            placements.Add(ReadPlacement(reader, imageCount));
+            placements.Add(ReadPlacement(reader, imageCount, ref totalDamagedCells));
+        }
+
+        if (stream.Position != stream.Length)
+        {
+            throw new Hmp1SixelRecordingException(
+                Hmp1SixelRecordingFailureReason.Malformed,
+                "Recording contains trailing bytes after the declared images and placements.");
         }
 
         return new Hmp1SixelRecordingSnapshot(version, images, placements);
     }
 
-    private static void WriteImage(BinaryWriter writer, SixelData image)
+    private static void WriteImage(BinaryWriter writer, SixelData image, byte[] payloadBytes)
     {
-        var payload = image.RasterStatus == SixelRasterStatus.GeometryOnly
-            ? image.Payload
-            : EncodeRasterizedPayload(image);
-
-        var payloadBytes = Encoding.UTF8.GetBytes(payload);
-        if (payloadBytes.Length > MaxPayloadLength)
-        {
-            throw new Hmp1SixelRecordingException(
-                Hmp1SixelRecordingFailureReason.ResourceLimitExceeded,
-                $"Image payload length {payloadBytes.Length} exceeds the limit of {MaxPayloadLength}.");
-        }
-
         writer.Write(image.ContentHash);
         writer.Write(image.RasterStatus == SixelRasterStatus.GeometryOnly);
         writer.Write(image.PixelWidth);
@@ -160,18 +212,42 @@ internal static class Hmp1SixelRecording
         writer.Write(payloadBytes);
     }
 
-    private static string EncodeRasterizedPayload(SixelData image)
+    private static bool TryEncodePayload(SixelData image, int maximumBytes, out string payload)
     {
-        var pixels = image.GetPixels();
+        if (image.RasterStatus == SixelRasterStatus.GeometryOnly)
+        {
+            payload = image.Payload;
+            return Encoding.UTF8.GetByteCount(payload) <= maximumBytes;
+        }
 
-        // A non-geometry-only image should always have decoded pixels. Fall back to
-        // the original payload defensively rather than dropping the image.
-        return pixels is null
-            ? image.Payload
-            : SixelExactEncoder.Encode(pixels) ?? image.Payload;
+        var pixels = image.GetPixels();
+        if (pixels is not null)
+        {
+            var encoded = SixelExactEncoder.EncodeBounded(
+                pixels,
+                maximumBytes,
+                CancellationToken.None);
+            if (encoded.Outcome == SixelExactEncoder.EncodingOutcome.Complete)
+            {
+                payload = encoded.Payload!;
+                return true;
+            }
+            if (encoded.Outcome == SixelExactEncoder.EncodingOutcome.ByteLimitExceeded)
+            {
+                payload = "";
+                return false;
+            }
+        }
+
+        payload = image.Payload;
+        return Encoding.UTF8.GetByteCount(payload) <= maximumBytes;
     }
 
-    private static void WritePlacement(BinaryWriter writer, SixelPlacement placement, int imageIndex)
+    private static int WritePlacement(
+        BinaryWriter writer,
+        SixelPlacement placement,
+        int imageIndex,
+        int totalDamagedCells)
     {
         writer.Write(imageIndex);
         writer.Write(placement.Row);
@@ -208,6 +284,12 @@ internal static class Hmp1SixelRecording
                 Hmp1SixelRecordingFailureReason.ResourceLimitExceeded,
                 $"Damaged cell count {damagedCells.Count} exceeds the limit of {MaxDamagedCellCount}.");
         }
+        if (damagedCells.Count > MaxDamagedCellCount - totalDamagedCells)
+        {
+            throw new Hmp1SixelRecordingException(
+                Hmp1SixelRecordingFailureReason.ResourceLimitExceeded,
+                $"Aggregate damaged cell count exceeds the limit of {MaxDamagedCellCount}.");
+        }
 
         writer.Write(damagedCells.Count);
         foreach (var (row, col) in damagedCells)
@@ -215,9 +297,11 @@ internal static class Hmp1SixelRecording
             writer.Write(row);
             writer.Write(col);
         }
+
+        return totalDamagedCells + damagedCells.Count;
     }
 
-    private static Hmp1SixelRecordedImage ReadImage(BinaryReader reader)
+    private static Hmp1SixelRecordedImage ReadImage(BinaryReader reader, ref long totalPayloadLength)
     {
         var contentHash = ReadExact(reader, 32);
         var isGeometryOnly = ReadBool(reader);
@@ -234,8 +318,15 @@ internal static class Hmp1SixelRecording
                 Hmp1SixelRecordingFailureReason.ResourceLimitExceeded,
                 $"Image payload length {payloadLength} is invalid or exceeds the limit of {MaxPayloadLength}.");
         }
+        if (payloadLength > MaxTotalPayloadLength - totalPayloadLength)
+        {
+            throw new Hmp1SixelRecordingException(
+                Hmp1SixelRecordingFailureReason.ResourceLimitExceeded,
+                $"Aggregate image payload bytes exceed the limit of {MaxTotalPayloadLength}.");
+        }
 
         var payloadBytes = ReadExact(reader, payloadLength);
+        totalPayloadLength += payloadLength;
 
         if (declaredPixelWidth < 0 || declaredPixelHeight < 0 || widthInCells <= 0 || heightInCells <= 0)
         {
@@ -262,7 +353,10 @@ internal static class Hmp1SixelRecording
             Encoding.UTF8.GetString(payloadBytes));
     }
 
-    private static Hmp1SixelRecordedPlacement ReadPlacement(BinaryReader reader, int imageCount)
+    private static Hmp1SixelRecordedPlacement ReadPlacement(
+        BinaryReader reader,
+        int imageCount,
+        ref int totalDamagedCells)
     {
         var imageIndex = ReadInt32(reader);
         var row = ReadInt32(reader);
@@ -297,6 +391,12 @@ internal static class Hmp1SixelRecording
                 Hmp1SixelRecordingFailureReason.ResourceLimitExceeded,
                 $"Damaged cell count {damagedCellCount} is invalid or exceeds the limit of {MaxDamagedCellCount}.");
         }
+        if (damagedCellCount > MaxDamagedCellCount - totalDamagedCells)
+        {
+            throw new Hmp1SixelRecordingException(
+                Hmp1SixelRecordingFailureReason.ResourceLimitExceeded,
+                $"Aggregate damaged cell count exceeds the limit of {MaxDamagedCellCount}.");
+        }
 
         var damagedCells = new List<(int Row, int Column)>(damagedCellCount);
         for (var i = 0; i < damagedCellCount; i++)
@@ -305,6 +405,7 @@ internal static class Hmp1SixelRecording
             var damagedCol = ReadInt32(reader);
             damagedCells.Add((damagedRow, damagedCol));
         }
+        totalDamagedCells += damagedCellCount;
 
         return new Hmp1SixelRecordedPlacement(
             imageIndex,

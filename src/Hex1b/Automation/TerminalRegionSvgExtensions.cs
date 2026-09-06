@@ -47,6 +47,9 @@ public static class TerminalRegionSvgExtensions
 
     private static string RenderToSvg(IHex1bTerminalRegion region, TerminalSvgOptions options, int? cursorX, int? cursorY, int scrollbackLineCount = 0)
     {
+        if (options.MaximumEmbeddedSixelBytes < 0)
+            throw new ArgumentOutOfRangeException(nameof(options.MaximumEmbeddedSixelBytes));
+
         var cellWidth = options.CellWidth;
         var cellHeight = options.CellHeight;
         var width = region.Width * cellWidth;
@@ -384,6 +387,7 @@ public static class TerminalRegionSvgExtensions
         // rendering reflects the independent placement/image lifetime model.
         if (region is Hex1bTerminalSnapshot snapshot3)
         {
+            long embeddedSixelBytes = 0;
             foreach (var placement in snapshot3.SixelPlacements.OrderBy(p => p.Sequence))
             {
                 if (!placement.HasPaintedExtent)
@@ -392,6 +396,17 @@ public static class TerminalRegionSvgExtensions
                 if (placement.IsGeometryOnly)
                 {
                     AppendSixelGeometryOnlyPlaceholder(sb, placement, cellWidth, cellHeight);
+                    continue;
+                }
+
+                if (!TryGetSixelExportDimensions(placement, out var pixelWidth, out var pixelHeight) ||
+                    !TryReserveSixelExportBytes(
+                        pixelWidth,
+                        pixelHeight,
+                        options.MaximumEmbeddedSixelBytes,
+                        ref embeddedSixelBytes))
+                {
+                    AppendSixelExportLimitPlaceholder(sb, placement, cellWidth, cellHeight);
                     continue;
                 }
 
@@ -689,6 +704,86 @@ public static class TerminalRegionSvgExtensions
         sb.AppendLine($"""      <line x1="{imgX}" y1="{imgY}" x2="{imgX + imgWidth}" y2="{imgY + imgHeight}" stroke="currentColor" stroke-width="1" stroke-dasharray="4,2"/>""");
         sb.AppendLine($"""      <line x1="{imgX + imgWidth}" y1="{imgY}" x2="{imgX}" y2="{imgY + imgHeight}" stroke="currentColor" stroke-width="1" stroke-dasharray="4,2"/>""");
         sb.AppendLine("    </g>");
+    }
+
+    private static void AppendSixelExportLimitPlaceholder(
+        StringBuilder sb, SixelPlacement placement, int cellWidth, int cellHeight)
+    {
+        var x = placement.PaintedLeft * cellWidth;
+        var y = placement.PaintedTop * cellHeight;
+        var width = placement.PaintedColumnCount * cellWidth;
+        var height = placement.PaintedRowCount * cellHeight;
+
+        sb.AppendLine($"""    <g class="sixel-export-limited" data-sixel-outcome="ExportLimitExceeded">""");
+        sb.AppendLine("      <title>Sixel raster omitted because the configured export payload limit was reached.</title>");
+        sb.AppendLine($"""      <rect x="{x}" y="{y}" width="{width}" height="{height}" fill="none" stroke="#ffcc00" stroke-width="1" stroke-dasharray="3,2"/>""");
+        sb.AppendLine("    </g>");
+    }
+
+    private static bool TryGetSixelExportDimensions(
+        SixelPlacement placement,
+        out int width,
+        out int height)
+    {
+        if (!placement.HasPaintedExtent ||
+            !placement.Image.TryGetRasterDimensions(out var rasterWidth, out var rasterHeight))
+        {
+            width = 0;
+            height = 0;
+            return false;
+        }
+
+        var left = Math.Clamp(
+            (int)Math.Floor(placement.PaintedColumnOffset * placement.Image.CellMetrics.SafeWidth),
+            0,
+            rasterWidth);
+        var right = Math.Clamp(
+            (int)Math.Ceiling(
+                (placement.PaintedColumnOffset + placement.PaintedColumnCount) *
+                placement.Image.CellMetrics.SafeWidth),
+            0,
+            rasterWidth);
+        var top = Math.Clamp(
+            (int)Math.Floor(placement.PaintedRowOffset * placement.Image.CellMetrics.SafeHeight),
+            0,
+            rasterHeight);
+        var bottom = Math.Clamp(
+            (int)Math.Ceiling(
+                (placement.PaintedRowOffset + placement.PaintedRowCount) *
+                placement.Image.CellMetrics.SafeHeight),
+            0,
+            rasterHeight);
+
+        width = Math.Max(0, right - left);
+        height = Math.Max(0, bottom - top);
+        return width > 0 && height > 0;
+    }
+
+    internal static bool TryReserveSixelExportBytes(
+        int width,
+        int height,
+        long maximumBytes,
+        ref long consumedBytes)
+    {
+        if (width <= 0 || height <= 0 || maximumBytes < 0)
+            return false;
+
+        try
+        {
+            var rowStride = checked((width * 3L + 3L) & ~3L);
+            var bmpBytes = checked(54L + rowStride * height);
+            var base64Bytes = checked(4L * ((bmpBytes + 2L) / 3L));
+            var payloadBytes = checked("data:image/bmp;base64,".Length + base64Bytes);
+            if (payloadBytes > maximumBytes - consumedBytes)
+                return false;
+
+            consumedBytes += payloadBytes;
+            return true;
+        }
+        catch (OverflowException)
+        {
+            return false;
+        }
     }
 
     /// <summary>
@@ -1016,6 +1111,13 @@ public static class TerminalRegionSvgExtensions
 /// </summary>
 public class TerminalSvgOptions
 {
+    /// <summary>
+    /// Gets or sets the maximum aggregate number of bytes used by embedded
+    /// Sixel BMP data URIs. Placements beyond the limit render as diagnostic
+    /// placeholders. The default is 64 MiB.
+    /// </summary>
+    public long MaximumEmbeddedSixelBytes { get; set; } = 64L * 1024 * 1024;
+
     /// <summary>
     /// The font family to use for rendering. Should be a monospace font.
     /// </summary>

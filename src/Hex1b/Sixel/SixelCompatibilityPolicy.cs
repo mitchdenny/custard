@@ -64,6 +64,28 @@ internal sealed record SixelCompatibilityPolicy
     public static SixelCompatibilityPolicy Default { get; } = new();
 
     /// <summary>
+    /// Gets the maximum number of DCS content bytes retained for tokenization,
+    /// snapshots, and replay. Framing and geometry observation continue after
+    /// this limit so the parser can recover at CAN, SUB, or ST.
+    /// </summary>
+    public int MaximumRetainedDcsBytes { get; init; } = 1024 * 1024;
+
+    /// <summary>Gets the maximum number of parameters accepted in a DCS introducer.</summary>
+    public int MaximumDcsHeaderParameters { get; init; } = 16;
+
+    /// <summary>Gets the maximum numeric value accepted by DCS and Sixel parameters.</summary>
+    public int MaximumNumericValue { get; init; } = 999_999_999;
+
+    /// <summary>Gets the maximum number of raster commands retained for one graphic.</summary>
+    public int MaximumRetainedCommands { get; init; } = 65_536;
+
+    /// <summary>Gets the maximum number of palette mutations retained for one graphic.</summary>
+    public int MaximumPaletteMutations { get; init; } = 4_096;
+
+    /// <summary>Gets the maximum number of parser diagnostics retained for one graphic.</summary>
+    public int MaximumDiagnostics { get; init; } = 64;
+
+    /// <summary>
     /// Gets the number of addressable color registers. Registers outside this
     /// range are explicitly rejected rather than silently wrapped.
     /// </summary>
@@ -136,4 +158,39 @@ internal sealed record SixelCompatibilityPolicy
     /// Gets the edge length of a sparse raster tile.
     /// </summary>
     public int RasterTileSize { get; init; } = 64;
+
+    /// <summary>Gets the maximum number of live placements retained per screen.</summary>
+    public int MaximumPlacementsPerScreen { get; init; } = 4_096;
+
+    /// <summary>Gets the maximum number of placement fragments retained in scrollback.</summary>
+    public int MaximumHistoryPlacements { get; init; } = 4_096;
+
+    /// <summary>Gets the maximum number of distinct images retained per screen.</summary>
+    public int MaximumImagesPerScreen { get; init; } = 1_024;
+
+    /// <summary>
+    /// Gets the maximum aggregate logical pixel area retained by distinct images
+    /// on one screen. Sparse storage remains allocation-proportional to painted
+    /// tiles, while this bound also limits worst-case later dense materialization.
+    /// </summary>
+    public long MaximumRetainedLogicalPixelsPerScreen { get; init; } = 64L * 1024 * 1024;
+
+    internal void Validate()
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(MaximumRetainedDcsBytes);
+        ArgumentOutOfRangeException.ThrowIfLessThan(MaximumDcsHeaderParameters, 1);
+        ArgumentOutOfRangeException.ThrowIfLessThan(MaximumNumericValue, 1);
+        ArgumentOutOfRangeException.ThrowIfLessThan(MaximumRetainedCommands, 1);
+        ArgumentOutOfRangeException.ThrowIfLessThan(MaximumPaletteMutations, 1);
+        ArgumentOutOfRangeException.ThrowIfLessThan(MaximumDiagnostics, 1);
+        ArgumentOutOfRangeException.ThrowIfLessThan(ColorRegisterCount, 1);
+        ArgumentOutOfRangeException.ThrowIfLessThan(MaximumRasterPixels, 1);
+        ArgumentOutOfRangeException.ThrowIfLessThan(MaximumRasterOperations, 1);
+        ArgumentOutOfRangeException.ThrowIfLessThan(MaximumRasterTiles, 1);
+        ArgumentOutOfRangeException.ThrowIfLessThan(RasterTileSize, 1);
+        ArgumentOutOfRangeException.ThrowIfLessThan(MaximumPlacementsPerScreen, 1);
+        ArgumentOutOfRangeException.ThrowIfLessThan(MaximumHistoryPlacements, 1);
+        ArgumentOutOfRangeException.ThrowIfLessThan(MaximumImagesPerScreen, 1);
+        ArgumentOutOfRangeException.ThrowIfLessThan(MaximumRetainedLogicalPixelsPerScreen, 1);
+    }
 }

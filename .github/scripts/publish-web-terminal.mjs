@@ -5,6 +5,7 @@ import { pathToFileURL } from 'node:url';
 export const packageName = '@hex1b/web-terminal';
 export const repositoryUrl = 'git+https://github.com/mitchdenny/hex1b.git';
 
+
 export function publicationTarget(version, kind, prNumber) {
     const match = /^(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)(?:-([0-9A-Za-z.-]+))?$/.exec(version ?? '');
     if (!match) {

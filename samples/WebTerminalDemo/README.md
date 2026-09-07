@@ -86,6 +86,7 @@ origin:
 | `sizing.browser.js` | Auto font-size controls, fixed-grid presets, keyboard selection, resize authority, and retained sizing policy across primary handoff. |
 | `floating.browser.js` | Real workers/WebSockets/HMP1, dragging, primary-only resize, takeover, detach/reattach, and independent instances. |
 | `input.browser.js` | Real POSIX shell input, Backspace, history, paste, MouseTest, thumbnail coordinates, and window-chrome focus. Build `samples/MouseTest` in Release first. |
+| `hyperlinks.browser.js` | Real OSC 8 output through HWT1 and the worker, Ctrl/Cmd activation, safe new tabs, selection/capture isolation, read-only thumbnails, destination updates, and scrollback. |
 | `history.browser.js` | Shared producer history, independent viewports, character/word/logical-line/block selection, held/released wheel scrolling, clipboard intent, capture override, read-only inspection, and eviction. Clipboard writes are intercepted rather than changing the user's clipboard. |
 | `bindings.browser.js` | Per-view input overrides, named actions, Windows-style right-click copy/paste, clipboard failures/races, capture ownership, and native text/paste/IME paths. Clipboard access is mocked. |
 | `selection-ui.browser.js` | Default, augmented, and replaced selection controls; host CSS, highlight parts, canvas alignment, focus/input isolation, action reuse, UI errors, and disposal. |

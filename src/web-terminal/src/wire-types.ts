@@ -18,6 +18,9 @@ export interface TerminalCell {
   index: number; foreground: number; background: number; underlineColor: number;
   attributes: number; width: number; underlineStyle: number; text: string;
 }
+export interface HyperlinkRange {
+  row: number; startColumn: number; endColumn: number; uri: string;
+}
 export interface ImageMetadata {
   key: string; width: number; height: number; byteLength: number; format: "rgba" | "png";
 }
@@ -34,6 +37,7 @@ export interface FrameMetadata extends TerminalGeometry {
   defaultBackground?: number; defaultForeground?: number;
   cursor: { visible: boolean; x: number; y: number; shape: number };
   images: ImageMetadata[]; retainedImages: string[]; placements: ImagePlacement[]; warnings: string[];
+  hyperlinks: HyperlinkRange[];
   stats: { workloadBytes: number; outputBatches: number; captureMs: number; elapsedMs: number };
 }
 export interface TerminalFrame { metadata: FrameMetadata; cells: TerminalCell[]; images: FrameImage[] }
@@ -76,6 +80,6 @@ export type WorkerOutputMessage =
   | { type: "connected" | "disconnected" }
   | { type: "status"; message: string; level: TerminalStatusLevel }
   | ({ type: "geometry"; peer: TerminalPeer; history: HistoryMetadata | null;
-       revision: number; text: string } & TerminalGeometry)
+       revision: number; text: string; hyperlinks: HyperlinkRange[] } & TerminalGeometry)
   | { type: "history"; history: HistoryMetadata | null; revision: number; text: string }
   | { type: "stats"; stats: WorkerStats; text?: string };

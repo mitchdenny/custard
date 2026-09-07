@@ -8,6 +8,7 @@ import type { CellPosition, MouseButton, MouseCommand } from "./wire-types.js";
 const buttons: readonly (readonly [PointerButton, number])[] = [["left", 1], ["middle", 4], ["right", 2]];
 const pointerButtons: readonly PointerButton[] = ["left", "middle", "right"];
 interface SelectionClick { point: TerminalPoint; mode: SelectionMode; extend: boolean; dragged: boolean }
+interface HyperlinkClick { uri: string; x: number; y: number; dragged: boolean }
 interface MouseInspection {
   state?: () => Omit<GestureState, "tracking">;
   begin?: (point: TerminalPoint, selection: { mode: SelectionMode; extend: boolean }) => void;
@@ -16,9 +17,12 @@ interface MouseInspection {
   end?: (cancelled: boolean) => void;
   resolve?: (input: TerminalInput) => InputDecision;
   execute?: (decision: Extract<InputDecision, { action: unknown }>, input: TerminalInput) => void;
+  hyperlink?: (point: TerminalPoint) => string | null;
+  openHyperlink?: (uri: string) => void;
 }
 export interface MouseCapture {
   update(columns: number, rows: number, tracking: MouseTrackingMode): void;
+  refresh(): void;
   cancel(): void;
   dispose(): void;
 }
@@ -46,10 +50,26 @@ export function captureMouse(canvas: HTMLCanvasElement, send: (command: MouseCom
   let completedClick: SelectionClick | undefined;
   let routedGesture: InputRouteValue | undefined;
   let contextMenuRoute: InputRouteValue | undefined;
+  let hyperlinkClick: HyperlinkClick | undefined;
+  let hoverEvent: PointerEvent | undefined;
+  let hoverModifiers: Pick<MouseEvent, "ctrlKey" | "metaKey" | "altKey" | "shiftKey"> | undefined;
+  const originalTitle = canvas.title;
+  const originalCursor = canvas.style.cursor;
   const state = () => ({ tracking, ...inspection.state?.() });
 
   function point(event: MouseEvent, clamp = false): CellPosition | null {
     return cellPoint(event, canvas.getBoundingClientRect(), columns, rows, clamp);
+  }
+
+  function refreshHover(modifiers = hoverModifiers) {
+    if (!inspection.hyperlink) return;
+    hoverModifiers = modifiers;
+    const position = hoverEvent && point(hoverEvent);
+    const uri = position ? inspection.hyperlink(position) : null;
+    canvas.title = uri ? `${uri}\nCtrl/Cmd+click to open link` : originalTitle;
+    canvas.style.cursor = uri && modifiers && (modifiers.ctrlKey || modifiers.metaKey) &&
+      !modifiers.altKey && !modifiers.shiftKey ? "pointer" : originalCursor;
+    if (hyperlinkClick && hyperlinkClick.uri !== uri) hyperlinkClick.dragged = true;
   }
 
   function updateAutoScroll() {
@@ -101,6 +121,7 @@ export function captureMouse(canvas: HTMLCanvasElement, send: (command: MouseCom
     pointerEvent = undefined;
     selectionClick = undefined;
     completedClick = undefined;
+    hyperlinkClick = undefined;
     gesture.end();
     routedGesture = undefined;
     if (report) flushMove();
@@ -129,6 +150,7 @@ export function captureMouse(canvas: HTMLCanvasElement, send: (command: MouseCom
     const position = point(event);
     if (!position) return;
     if (pointerId !== null) {
+      if (hyperlinkClick) hyperlinkClick.dragged = true;
       if (routedGesture !== InputRoute.Browser) event.preventDefault();
       if ((gesture.owner === "app" || routedGesture === InputRoute.Application) && pointerId === event.pointerId)
         changeButtons(event, position);
@@ -138,8 +160,19 @@ export function captureMouse(canvas: HTMLCanvasElement, send: (command: MouseCom
     const input: TerminalInput = { type: "pointer", button: pointerButtons[event.button],
       point: Object.freeze({ ...position }), ...inputModifiers(event) };
     const decision = inspection.resolve?.(input) ?? { route: InputRoute.Continue };
-    const route = decision.action !== undefined ? InputRoute.Consume : decision.route;
+    let route = decision.action !== undefined ? InputRoute.Consume : decision.route;
+    if (route === InputRoute.Continue && event.button === 0 && (event.ctrlKey || event.metaKey) &&
+        !event.altKey && !event.shiftKey) {
+      const uri = inspection.hyperlink?.(position);
+      if (uri) {
+        hyperlinkClick = { uri, x: event.clientX, y: event.clientY, dragged: false };
+        route = InputRoute.Consume;
+      }
+    }
     contextMenuRoute = event.button === 2 ? route : undefined;
+    if (hyperlinkClick) contextMenuRoute = InputRoute.Consume;
+    hoverEvent = event;
+    refreshHover(event);
     if (route !== InputRoute.Continue) {
       completedClick = selectionClick = undefined;
       click.count = 0;
@@ -188,6 +221,10 @@ export function captureMouse(canvas: HTMLCanvasElement, send: (command: MouseCom
     if (event.pointerType !== "mouse") return;
     if (pointerId === null && event.buttons) return;
     if (pointerId !== null && pointerId !== event.pointerId) return;
+    hoverEvent = event;
+    refreshHover(event);
+    if (hyperlinkClick && Math.hypot(event.clientX - hyperlinkClick.x, event.clientY - hyperlinkClick.y) >= 4)
+      hyperlinkClick.dragged = true;
     const position = point(event, pointerId !== null);
     if (!position) return;
     lastPoint = position;
@@ -218,6 +255,18 @@ export function captureMouse(canvas: HTMLCanvasElement, send: (command: MouseCom
 
   canvas.addEventListener("pointerup", event => {
     if (pointerId !== event.pointerId) return;
+    if (hyperlinkClick) {
+      event.preventDefault();
+      const link = hyperlinkClick;
+      const position = point(event);
+      const activate = event.button === 0 && event.buttons === 0 && !link.dragged &&
+        Math.hypot(event.clientX - link.x, event.clientY - link.y) < 4 &&
+        position && inspection.hyperlink?.(position) === link.uri;
+      if (event.buttons === 0) cancel(false, false);
+      else link.dragged = true;
+      if (activate) inspection.openHyperlink?.(link.uri);
+      return;
+    }
     const position = point(event, true) ?? lastPoint;
     if (routedGesture) {
       if (routedGesture === InputRoute.Application && position) changeButtons(event, position);
@@ -249,10 +298,20 @@ export function captureMouse(canvas: HTMLCanvasElement, send: (command: MouseCom
       inspection.begin?.(completed.point, { mode, extend: false });
   }, options);
   canvas.addEventListener("pointercancel", () => cancel(), options);
+  canvas.addEventListener("pointerleave", () => {
+    hoverEvent = undefined;
+    refreshHover();
+  }, options);
   canvas.addEventListener("lostpointercapture", () => {
     if (pointerId !== null) cancel();
   }, options);
-  window.addEventListener("blur", () => cancel(), options);
+  window.addEventListener("blur", () => {
+    cancel();
+    hoverEvent = undefined;
+    refreshHover();
+  }, options);
+  window.addEventListener("keydown", event => refreshHover(event), { ...options, capture: true });
+  window.addEventListener("keyup", event => refreshHover(event), { ...options, capture: true });
   canvas.addEventListener("contextmenu", event => {
     if (contextMenuRoute !== undefined && contextMenuRoute !== InputRoute.Continue) {
       const route = contextMenuRoute;
@@ -263,6 +322,7 @@ export function captureMouse(canvas: HTMLCanvasElement, send: (command: MouseCom
     if (tracking || gesture.owner === "local") event.preventDefault();
   }, options);
   canvas.addEventListener("wheel", event => {
+    if (hyperlinkClick) hyperlinkClick.dragged = true;
     const input: TerminalInput = { type: "wheel", deltaX: event.deltaX, deltaY: event.deltaY,
       deltaMode: event.deltaMode, point: point(event), ...inputModifiers(event) };
     const decision: InputDecision = pointerId === null
@@ -321,11 +381,15 @@ export function captureMouse(canvas: HTMLCanvasElement, send: (command: MouseCom
         rows = nextRows;
         tracking = nextTracking;
       }
+      refreshHover();
     },
+    refresh() { refreshHover(); },
     cancel() { cancel(); },
     dispose() {
       cancel(false);
       listeners.abort();
+      canvas.title = originalTitle;
+      canvas.style.cursor = originalCursor;
     }
   };
 }

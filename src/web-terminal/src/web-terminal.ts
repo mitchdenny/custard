@@ -6,6 +6,7 @@ import { terminalThemeCss } from "./terminal-theme.js";
 import { InputPolicy, InputRoute, TerminalAction, inputModifiers } from "./input-policy.js";
 import { assertCommandSize } from "./protocol.js";
 import { SelectionUI } from "./selection-ui.js";
+import { Hyperlinks } from "./hyperlinks.js";
 import type { MouseCapture } from "./mouse-input.js";
 import type { CopySelectionOptions, InputActionHandler, InputDecision, InputBinding,
   TerminalActionName, TerminalGeometry, TerminalInput, TerminalInputContext, TerminalPeer,
@@ -64,6 +65,7 @@ export class WebTerminal implements WebTerminalHandle {
   #selectionOverlay!: HTMLDivElement;
   #selectionUIError = "";
   #canvasSize = { width: 0, height: 0 };
+  #hyperlinks = new Hyperlinks();
 
   /** Resolves after a connected terminal frame is presented. Supply signal to cancel mounting. */
   static async mount(container: HTMLElement, options: WebTerminalOptions): Promise<WebTerminal> {
@@ -203,7 +205,12 @@ export class WebTerminal implements WebTerminalHandle {
       scroll: (delta, endpoint) => inspect(() => this.#history.scroll(delta, endpoint)),
       end: cancelled => this.#history.endGesture(cancelled),
       resolve: input => this.#resolveInput(input),
-      execute: (decision, input) => this.#executeInputAction(decision, input)
+      execute: (decision, input) => this.#executeInputAction(decision, input),
+      hyperlink: point => this.#connected && !this.viewport.pending ? this.#hyperlinks.at(point) : null,
+      openHyperlink: uri => {
+        try { window.open(uri, "_blank", "noopener,noreferrer"); }
+        catch (error) { this.#actionFailed(error); }
+      }
     });
     this.#bindKeyboard();
     requiredElement(this.#inspection, ".return-live", HTMLButtonElement).addEventListener("click", () => {
@@ -270,7 +277,7 @@ export class WebTerminal implements WebTerminalHandle {
       this.#peer = message.peer;
       this.#input.disabled = !this.#canInput();
       if (this.#canInput() && document.activeElement === this.element && !this.element.shadowRoot?.activeElement) this.focus();
-      this.#mouse?.update(message.columns, message.rows, message.mouseTracking);
+      this.#hyperlinks.update(message.hyperlinks);
       if (geometryChanged || oldPeer.isPrimary !== this.#peer.isPrimary) this.#fit();
       if (!this.#peer.isPrimary) {
         clearTimeout(this.#resizeTimer);
@@ -283,6 +290,7 @@ export class WebTerminal implements WebTerminalHandle {
         this.#screenText = message.text;
         this.#history.accept(message.history, message.revision);
       }
+      this.#mouse?.update(message.columns, message.rows, message.mouseTracking);
       if (geometryChanged) this.#options.onGeometry?.(this.geometry);
       if (first) this.#options.onSizingChange?.(this.sizing);
       if (oldPeer.id !== this.#peer.id || oldPeer.primaryId !== this.#peer.primaryId || oldPeer.isPrimary !== this.#peer.isPrimary) {
@@ -358,6 +366,7 @@ export class WebTerminal implements WebTerminalHandle {
   #inspectionChanged() {
     const viewport = this.viewport;
     const selection = this.selection;
+    this.#mouse?.refresh();
     if (selection.status === "invalidated") this.#mouse?.cancel();
     if (this.#highlights) {
       this.#highlights.replaceChildren(...selection.ranges.map(range => {
@@ -650,6 +659,7 @@ export class WebTerminal implements WebTerminalHandle {
   #disconnect() {
     this.#inputSerial++;
     this.#connected = false;
+    this.#hyperlinks.update([]);
     if (this.#input) this.#input.disabled = true;
     this.#mouse?.update(1, 1, 0);
     this.#history.disconnect();

@@ -10,6 +10,33 @@ namespace Hex1b.Tests;
 public class Hwt1HistoryTests
 {
     [TestMethod]
+    public async Task Hyperlinks_HistoricalView_UsesProducerViewportAndClearsOnReturnToLive()
+    {
+        await using var muxer = new Hmp1PresentationAdapter(20, 10);
+        await using var producer = Hex1bTerminal.CreateBuilder()
+            .WithWorkload(new Hex1bAppWorkloadAdapter()).WithPresentation(muxer)
+            .WithDimensions(20, 10).WithScrollback(100).Build();
+        producer.ApplyTokens(AnsiTokenizer.Tokenize(
+            "\x1b]8;;https://example.com/history\x1b\\old link\x1b]8;;\x1b\\\r\n" + Lines(0, 30)));
+        await using var view = await muxer.CreateBrowserViewAsync();
+        var live = await FrameAsync(view);
+        Assert.AreEqual(0, live.GetProperty("hyperlinks").GetArrayLength());
+
+        await MessageAsync(view, new { type = "viewport", requestId = 1, delta = -100 });
+        var historical = await FrameAsync(view);
+        var links = historical.GetProperty("hyperlinks");
+        Assert.AreEqual(1, links.GetArrayLength());
+        Assert.AreEqual("https://example.com/history", links[0].GetProperty("uri").GetString());
+        Assert.AreEqual(0, links[0].GetProperty("row").GetInt32());
+        Assert.AreEqual(0, links[0].GetProperty("startColumn").GetInt32());
+        Assert.AreEqual(8, links[0].GetProperty("endColumn").GetInt32());
+
+        await MessageAsync(view, new { type = "viewport", requestId = 2, live = true });
+        var returned = await FrameAsync(view);
+        Assert.AreEqual(0, returned.GetProperty("hyperlinks").GetArrayLength());
+    }
+
+    [TestMethod]
     [DataRow("character", false)]
     [DataRow("character", true)]
     [DataRow("word", false)]

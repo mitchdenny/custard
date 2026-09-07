@@ -144,7 +144,7 @@ async page => {
           const history = structuredClone(this.history);
           validateHistory(history, 40, 12);
           const message = {
-            type: "geometry", columns: 40, rows: 12, cellWidth: 10, cellHeight: 20,
+            type: "geometry", columns: 40, rows: 12, cellWidth: 10, cellHeight: 20, hyperlinks: [],
             mouseTracking: this.tracking, peer: { id: this.name, primaryId: "native", isPrimary: false },
             revision: ++this.revision, history, text: history.rowIds.map(rowId => this.line(rowId)).join("\n")
           };

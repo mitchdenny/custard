@@ -172,6 +172,20 @@ actions reject if selection/input/focus changes before their asynchronous work
 can be applied safely. Errors are surfaced rather than silently reported as
 successful copies or pastes.
 
+### Hyperlinks
+
+Hold Ctrl or Cmd and click an OSC 8 hyperlink to open its destination in a new
+tab. Hovering shows the destination and activation hint; holding the modifier
+also shows a pointer cursor. Links work in live output, scrollback, and read-only
+views. Plain clicks and drags retain their existing selection/application
+behavior, and explicit input-policy routes or actions take precedence.
+Shift and Alt/Option continue to reserve selection gestures.
+
+Only absolute `http:`, `https:`, and `mailto:` destinations are activated
+(`mailto:` handling depends on the browser). New tabs use `noopener,noreferrer`.
+Script, data, file, relative, and custom-scheme URLs are not activated.
+Plain URL text is not automatically detected; the workload must emit OSC 8.
+
 ## Selection UI hooks
 
 `onSelectionUI` receives a typed `SelectionUIEvent`, also dispatched as the

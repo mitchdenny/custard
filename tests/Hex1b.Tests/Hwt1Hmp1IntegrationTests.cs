@@ -13,6 +13,41 @@ namespace Hex1b.Tests;
 public class Hwt1Hmp1IntegrationTests
 {
     [TestMethod]
+    public async Task ProducerBackedView_SplitSynchronizedOutput_PublishesCompleteFrameToAllViews()
+    {
+        var clock = new FakeTimeProvider();
+        using var workload = new Hex1bAppWorkloadAdapter();
+        await using var server = new Hmp1PresentationAdapter(20, 10);
+        await using var producer = Hex1bTerminal.CreateBuilder().WithWorkload(workload)
+            .WithPresentation(server).WithDimensions(20, 10).WithTimeProvider(clock).Build();
+        await using var first = await server.CreateBrowserViewAsync("first");
+        await ReadUntilAsync(first, _ => true);
+
+        workload.Write("\x1b[?20");
+        workload.Write("26h\x1b[H\x1b[2Jhalf");
+        await WaitForScreenAsync(producer, snapshot => snapshot.GetLineTrimmed(0) == "half");
+        var firstPending = first.ReadFrameAsync().AsTask();
+        await using var late = await server.CreateBrowserViewAsync("late");
+        var latePending = late.ReadFrameAsync().AsTask();
+        Assert.IsFalse(firstPending.IsCompleted);
+        Assert.IsFalse(latePending.IsCompleted);
+
+        // The raw output pump needs the same ordering lock as the browser reader.
+        // Waiting for ESU while holding it would deadlock this final chunk.
+        workload.Write("\x1b[Hdone\x1b[2;2H\x1bP7;1q\"1;1;2;6#1;2;100;0;0#1BB\x1b\\\x1b[?2026l");
+        await WaitForScreenAsync(producer, snapshot => snapshot.GetLineTrimmed(0) == "done");
+        var firstBytes = await firstPending.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+        var lateBytes = await latePending.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+        using var firstFrame = JsonDocument.Parse(firstBytes.Slice(8,
+            BinaryPrimitives.ReadInt32LittleEndian(firstBytes.Span[4..])));
+        using var lateFrame = JsonDocument.Parse(lateBytes.Slice(8,
+            BinaryPrimitives.ReadInt32LittleEndian(lateBytes.Span[4..])));
+        Assert.AreEqual(1, firstFrame.RootElement.GetProperty("placements").GetArrayLength());
+        Assert.AreEqual(1, lateFrame.RootElement.GetProperty("placements").GetArrayLength());
+        Assert.IsTrue(lateFrame.RootElement.GetProperty("full").GetBoolean());
+    }
+
+    [TestMethod]
     public async Task ProducerBackedView_NativePeerAndBrowser_ShareRosterAndPrimaryAuthority()
     {
         await using var server = new Hmp1PresentationAdapter(20, 10);

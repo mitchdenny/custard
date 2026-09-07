@@ -53,10 +53,13 @@ internal static class SixelExactEncoder
     internal static EncodingResult EncodeBounded(
         SixelPixelBuffer buffer,
         int maximumBytes,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        bool reuseColorRegisters = false)
     {
         ArgumentNullException.ThrowIfNull(buffer);
         ArgumentOutOfRangeException.ThrowIfNegative(maximumBytes);
+        if (reuseColorRegisters)
+            return EncodeCompositeBounded(buffer, maximumBytes, cancellationToken);
 
         var width = buffer.Width;
         var height = buffer.Height;
@@ -159,6 +162,78 @@ internal static class SixelExactEncoder
             if (value.Length > maximumBytes - sb.Length)
                 return false;
             sb.Append(value);
+            return true;
+        }
+    }
+
+    private static EncodingResult EncodeCompositeBounded(
+        SixelPixelBuffer buffer, int maximumBytes, CancellationToken cancellationToken)
+    {
+        // Stream horizontal pixel runs rather than rescanning the whole viewport
+        // for every color. Reusing registers cannot recolor already-painted pixels.
+        var output = new StringBuilder();
+        var palette = new Dictionary<Rgba32, int>();
+        var registers = new Rgba32[SixelEncoder.MaxPaletteColors];
+        var nextRegister = 0;
+        if (!Append(FormattableString.Invariant($"\x1bP0;1;0q\"1;1;{buffer.Width};{buffer.Height}")))
+            return new(EncodingOutcome.ByteLimitExceeded, null);
+        for (var band = 0; band < buffer.Height; band += 6)
+        {
+            for (var row = 0; row < 6 && band + row < buffer.Height; row++)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                var right = buffer.Width;
+                while (right > 0 && buffer[right - 1, band + row].A == 0)
+                    right--;
+                for (var x = 0; x < right;)
+                {
+                    var color = buffer[x, band + row];
+                    var count = 1;
+                    while (x + count < right && buffer[x + count, band + row] == color)
+                        count++;
+                    var value = '?';
+                    if (color.A != 0)
+                    {
+                        if (!palette.TryGetValue(color, out var index))
+                        {
+                            index = nextRegister;
+                            nextRegister = (nextRegister + 1) % registers.Length;
+                            if (palette.Count == registers.Length)
+                                palette.Remove(registers[index]);
+                            registers[index] = color;
+                            palette.Add(color, index);
+                            if (!Append(FormattableString.Invariant(
+                                $"#{index};2;{ComponentToPercent(color.R)};{ComponentToPercent(color.G)};{ComponentToPercent(color.B)}")))
+                                return new(EncodingOutcome.ByteLimitExceeded, null);
+                        }
+                        else if (!Append("#" + index.ToString(System.Globalization.CultureInfo.InvariantCulture)))
+                        {
+                            return new(EncodingOutcome.ByteLimitExceeded, null);
+                        }
+                        value = (char)('?' + (1 << row));
+                    }
+                    var run = count > 3
+                        ? FormattableString.Invariant($"!{count}{value}")
+                        : new string(value, count);
+                    if (!Append(run))
+                        return new(EncodingOutcome.ByteLimitExceeded, null);
+                    x += count;
+                }
+                if (right > 0 && !Append("$"))
+                    return new(EncodingOutcome.ByteLimitExceeded, null);
+            }
+            if (band + 6 < buffer.Height && !Append("-"))
+                return new(EncodingOutcome.ByteLimitExceeded, null);
+        }
+        if (!Append("\x1b\\"))
+            return new(EncodingOutcome.ByteLimitExceeded, null);
+        return new(EncodingOutcome.Complete, output.ToString());
+
+        bool Append(string text)
+        {
+            if (text.Length > maximumBytes - output.Length)
+                return false;
+            output.Append(text);
             return true;
         }
     }

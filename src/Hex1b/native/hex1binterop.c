@@ -34,6 +34,66 @@
 /* External environment variable */
 extern char **environ;
 
+size_t hex1b_termios_size(void)
+{
+    return sizeof(struct termios);
+}
+
+int hex1b_termios_get(int fd, void* buffer, size_t capacity)
+{
+    if (buffer == NULL || capacity < sizeof(struct termios)) {
+        errno = EINVAL;
+        return -1;
+    }
+    struct termios attributes = {0};
+    if (tcgetattr(fd, &attributes) != 0)
+        return -1;
+    memcpy(buffer, &attributes, sizeof(attributes));
+    return 0;
+}
+
+int hex1b_termios_make_raw(void* buffer, size_t capacity, int preserve_opost)
+{
+    if (buffer == NULL || capacity < sizeof(struct termios)) {
+        errno = EINVAL;
+        return -1;
+    }
+    struct termios attributes;
+    memcpy(&attributes, buffer, sizeof(attributes));
+    cfmakeraw(&attributes);
+    if (preserve_opost)
+        attributes.c_oflag |= OPOST;
+    memcpy(buffer, &attributes, sizeof(attributes));
+    return 0;
+}
+
+int hex1b_termios_set(int fd, const void* buffer, size_t capacity)
+{
+    if (buffer == NULL || capacity < sizeof(struct termios)) {
+        errno = EINVAL;
+        return -1;
+    }
+    struct termios attributes;
+    memcpy(&attributes, buffer, sizeof(attributes));
+    return tcsetattr(fd, TCSAFLUSH, &attributes);
+}
+
+int hex1b_get_window_pixel_size(int fd, int* pixel_width, int* pixel_height)
+{
+    if (pixel_width == NULL || pixel_height == NULL) {
+        errno = EINVAL;
+        return -1;
+    }
+    *pixel_width = 0;
+    *pixel_height = 0;
+    struct winsize size = {0};
+    if (ioctl(fd, TIOCGWINSZ, &size) != 0)
+        return -1;
+    *pixel_width = size.ws_xpixel;
+    *pixel_height = size.ws_ypixel;
+    return 0;
+}
+
 /**
  * Spawns a shell process attached to a new PTY using forkpty().
  * This is a simplified API that handles all PTY setup internally.

@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Text.Json;
 using Hex1b.Automation;
 
@@ -89,18 +90,34 @@ public sealed partial class Hex1bTerminal
             view.GoLive();
     }
 
-    internal Hex1bTerminalSnapshot CaptureBrowserSnapshot(Hwt1ViewState view, out Hwt1History history,
-        out Hmp1TerminalState? remoteState)
+    internal bool TryCaptureBrowserSnapshot(Hwt1ViewState view,
+        [NotNullWhen(true)] out Hex1bTerminalSnapshot? snapshot,
+        [NotNullWhen(true)] out Hwt1History? history,
+        out Hmp1TerminalState? remoteState,
+        [NotNullWhen(false)] out Task? pendingUpdate)
     {
         lock (_bufferLock)
         {
+            ObjectDisposedException.ThrowIf(_disposed, this);
+            pendingUpdate = _synchronizedOutputCompletion?.Task;
+            if (pendingUpdate is not null)
+            {
+                snapshot = null;
+                history = null;
+                remoteState = null;
+                return false;
+            }
+
+            // Checking the mode and capturing must be atomic: another begin marker
+            // may arrive after a waiter wakes but before it acquires the buffer lock.
             remoteState = _hmp1State;
             history = view.Capture(GetTextBuffer());
-            return history.Following
+            snapshot = history.Following
                 ? CreateSnapshot()
                 : new Hex1bTerminalSnapshot(this,
                     CaptureSnapshotState(0, ScrollbackWidth.CurrentTerminal, history.Top),
                     ScrollbackWidth.CurrentTerminal, TerminalCell.Empty);
+            return true;
         }
     }
 }

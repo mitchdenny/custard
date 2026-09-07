@@ -36,7 +36,7 @@ public class SurfaceRenderContext : Hex1bRenderContext
     private Kgp.KgpImageRegistry? _kgpRegistry;
     private int _kgpLayer;
 
-    // Hierarchical KGP clip rect (absolute coordinates).
+    // Hierarchical graphics clip rect (absolute coordinates), shared with Sixel.
     // In the non-caching render path children render directly into the parent
     // surface, so there is no Composite / ClipKgpCell step. This rect
     // accumulates the intersection of every ancestor's Bounds so that
@@ -714,6 +714,51 @@ public class SurfaceRenderContext : Hex1bRenderContext
             clipW,
             clipH,
             zOrder == KgpZOrder.AboveText ? 1 : -1);
+    }
+
+    internal override void RegisterSixel(SixelData image, int x, int y)
+    {
+        var surfaceBounds = new Rect(_offsetX, _offsetY, _surface.Width, _surface.Height);
+        var visibleBounds = _kgpClipRect is { } clip
+            ? IntersectRects(surfaceBounds, clip) : surfaceBounds;
+        if (visibleBounds is null ||
+            IntersectRects(visibleBounds.Value, new Rect(x, y, image.WidthInCells, image.HeightInCells)) is not { } visible)
+            return;
+        if (visible.X != x || visible.Y != y ||
+            visible.Width != image.WidthInCells || visible.Height != image.HeightInCells)
+        {
+            var metrics = image.CellMetrics;
+            var pixels = image.GetPixels()
+                ?? throw new InvalidOperationException("The embedded Sixel image cannot be rasterized for clipping.");
+            var pixelLeft = Math.Min(pixels.Width, metrics.GetPixelForColumnBoundary(visible.X - x));
+            var pixelTop = Math.Min(pixels.Height, metrics.GetPixelForRowBoundary(visible.Y - y));
+            var pixelRight = Math.Min(pixels.Width, metrics.GetPixelForColumnBoundary(visible.Right - x));
+            var pixelBottom = Math.Min(pixels.Height, metrics.GetPixelForRowBoundary(visible.Bottom - y));
+            if (pixelLeft >= pixelRight || pixelTop >= pixelBottom)
+                return;
+            image = SixelData.FromExactPixels(
+                pixels.Crop(pixelLeft, pixelTop, pixelRight - pixelLeft, pixelBottom - pixelTop),
+                visible.Width, visible.Height, metrics);
+        }
+
+        var tracked = _trackedObjects.GetOrCreateSixel(
+            image.Payload, image.WidthInCells, image.HeightInCells, image.ParseResult, cellMetrics: image.CellMetrics);
+        for (var row = visible.Y; row < visible.Bottom; row++)
+        {
+            for (var column = visible.X; column < visible.Right; column++)
+            {
+                var existing = _surface[column - _offsetX, row - _offsetY];
+                var anchor = row == visible.Y && column == visible.X;
+                existing.Sixel?.Release();
+                _surface[column - _offsetX, row - _offsetY] = existing with
+                {
+                    Sixel = anchor ? tracked : null,
+                    IsSixelUnderlay = true,
+                    OccludesSixel = existing.Character is not (" " or "") &&
+                        existing.Character != SurfaceCells.UnwrittenMarker
+                };
+            }
+        }
     }
 
     internal override void RegisterKgp(KgpImageData image, KgpPlacement placement)

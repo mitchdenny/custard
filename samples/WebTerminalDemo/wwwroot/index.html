@@ -115,7 +115,10 @@
     #screen-mirror { overflow: auto; max-height: 200px; white-space: pre; font: 12px/1.4 Consolas, "Courier New", Courier, monospace; }
     @media (max-width: 640px) { body { padding: 8px; } main { height: calc(100dvh - 16px); } .instance-controls { border-left: 0; padding-left: 0; } }
   </style>
-  <script type="module" src="./main.js"></script>
+  <script type="importmap">
+    { "imports": { "@hex1b/web-terminal": "./web-terminal/index.js" } }
+  </script>
+  <script type="module" src="./playground/main.js"></script>
 </head>
 <body>
   <main>

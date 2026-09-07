@@ -9,7 +9,7 @@ async page => {
   try {
     await test.goto(`${origin}/health`);
     await test.evaluate(async () => {
-      const { WebTerminal, TerminalAction } = await import("/web-terminal.js");
+      const { WebTerminal, TerminalAction } = await import("/web-terminal/index.js");
       window.uiFixture = { workers: [], commands: [], events: [], writes: [], statuses: [], mounts: 0,
         cleanup: 0, replace: true, fail: false, hostActions: 0, revision: 0 };
       const css = document.createElement("style");

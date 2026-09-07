@@ -3041,6 +3041,10 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                     // Sixel graphic instead of returning it to the original column.
                     _sixelCursorToRightMode = privateModeToken.Enable;
                 }
+                else if (privateModeToken.Mode == 2026)
+                {
+                    SetSynchronizedOutputMode(privateModeToken.Enable);
+                }
                 else if (privateModeToken.Mode == 2027)
                 {
                     // Grapheme cluster mode — when enabled, multi-codepoint graphemes
@@ -3267,6 +3271,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                 break;
 
             case SoftResetToken:
+                SetSynchronizedOutputMode(false);
                 // DECSTR (CSI ! p): mode-only reset. The screen, the scrollback, the
                 // Sixel color registers, placements, and the cursor position all survive.
                 _scrollTop = 0;
@@ -3303,6 +3308,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                 break;
 
             case RisToken:
+                SetSynchronizedOutputMode(false);
                 InvalidateTextCoordinates();
                 // RIS (ESC c): Full terminal reset — clear screen, reset all state
                 ReleaseSavedMainScreenBuffer();
@@ -7178,6 +7184,8 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                 return false;
 
             _disposed = true;
+            SetSynchronizedOutputMode(false);
+            _synchronizedOutputTimer?.Dispose();
             if (!RestoreMainScreenBuffer())
                 ReleaseSavedMainScreenBuffer();
             // History must release its owners before the per-screen image stores reset.

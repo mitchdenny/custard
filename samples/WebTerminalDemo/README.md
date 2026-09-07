@@ -2,13 +2,13 @@
 
 An experimental, server-authoritative browser renderer for `Hex1bTerminal`.
 The mounted multi-head proof-of-concept displays shared terminals in floating,
-draggable/resizable windows and thumbnails. This is a viability spike, not a
-supported web-terminal API or an xterm.js
-compatibility layer.
+draggable/resizable windows and thumbnails. This remains experimental, not an
+xterm.js compatibility layer or a promise of a stable wire protocol. Its browser component
+is the TypeScript package [`@hex1b/web-terminal`](../../src/web-terminal/README.md).
 
 For the architecture, lessons learned, gaps, and proposed production milestones,
-see [Web terminal design notes](../../doc/web-terminal.md).
-The [HWT1 internal implementation notes](../../doc/web-terminal-protocol.md)
+see [Web terminal design notes](../../docs/web-terminal.md).
+The [HWT1 internal implementation notes](../../docs/web-terminal-protocol.md)
 describe state transfer between the first-party server and browser client.
 **HWT1 is not currently intended for third-party implementation.** Both ends
 evolve together without wire-compatibility guarantees; keep their versions
@@ -16,16 +16,21 @@ paired and upgrade them together.
 
 ## Run
 
-From the repository root:
+From the repository root, using Node.js 24 or newer for the frontend build:
 
 ```sh
+npm ci --prefix src/web-terminal
+npm ci --prefix samples/WebTerminalDemo
 dotnet run --project samples/WebTerminalDemo -c Release
 ```
 
 Open <http://localhost:5290> in a browser with WebGPU and worker
-`OffscreenCanvas` support. No npm install, frontend build, WASM runtime, or
-xterm.js is required. The frontend is deliberately plain JavaScript ES modules
-until the transport and rendering design stabilizes.
+`OffscreenCanvas` support. The .NET build compiles the package and the
+TypeScript playground, then copies the package's complete `dist/` tree to
+`wwwroot/web-terminal/`. The playground consumes the package by its npm name,
+resolved by a browser import map. The generated assets are included in
+`dotnet publish`; Node.js is not needed by the deployed ASP.NET host. Neither
+WASM nor xterm.js is required.
 
 If another run occupies 5290, stop that run or choose a separate port:
 
@@ -45,7 +50,7 @@ to terminate the shared workload explicitly.
 From the repository root:
 
 ```sh
-node --test samples/WebTerminalDemo/tests/*.test.mjs
+npm test --prefix src/web-terminal
 ```
 
 These zero-dependency Node tests cover sizing modes, font configuration and metric normalization,
@@ -53,7 +58,8 @@ peer/primary metadata validation,
 native/thumbnail framebuffer sizing, large-grid GPU caps, hidden/restored
 surfaces, and logical-uniform updates. They use a stub GPU interface and do not
 exercise actual GPU rendering, mounted DOM/input, `ResizeObserver`, or view
-lifetime. No npm install or frontend build pipeline is required.
+lifetime. They exercise the package's compiled ES modules using Node's built-in
+test runner.
 
 With the sample serving assets and an existing WebGPU-enabled Playwright CLI
 browser session, run the persisted mounted-DOM fixture from the repository root:
@@ -84,20 +90,18 @@ origin:
 | `bindings.browser.js` | Per-view input overrides, named actions, Windows-style right-click copy/paste, clipboard failures/races, capture ownership, and native text/paste/IME paths. Clipboard access is mocked. |
 | `selection-ui.browser.js` | Default, augmented, and replaced selection controls; host CSS, highlight parts, canvas alignment, focus/input isolation, action reuse, UI errors, and disposal. |
 | `graphics.browser.js` | Sixel and KGP in two views, cached-image movement, and late attachment to silent server-driven animation. |
+| `cloud-flicker.browser.js` | Real shell-launched Sixel/KGP cloud animations, sampling visible canvas pixels over at least 180 browser frames and ten received updates to detect blank/partial redraws. Build `samples/SixelCloudDemo` and `samples/KgpCloudDemo` in Release first. |
+| `nested-flicker.browser.js` | WindowingDemo's Bash terminal running KittySearch: hover animation must keep painting through unrelated parent redraws, with at least 180 sampled browser frames and five distinct image states. Build `samples/WindowingDemo` and `samples/KittySearch` in Release first. Requires Bash. |
+| `nested-sixel.browser.js` | WindowingDemo's Bash terminal running both SixelCloudDemo modes: native Sixel presentation, overlapping motes, and synchronized frame persistence. Build `samples/WindowingDemo` and `samples/SixelCloudDemo` in Release first. Requires Bash. |
 
 The full-stack fixtures create and delete their own terminal instances. Run them
 against an isolated demo server with capacity available, not a production host.
 Headless Chromium may need `--enable-unsafe-webgpu` in its test launch configuration.
 These fixtures use WebGPU APIs rather than the Node tests' stub GPU interface.
 
-Twenty Node cases and the mounted Chromium fixture passed in the recorded local
-checks. Follow-up targeted Release .NET validation passed 1,377 tests across
-HMP1/HWT1 and related KGP replay/animation paths; the demo Release build passed
-with zero warnings/errors. Real DPR2 Chromium fixtures also cover multi-view
-resize/lifetime, GPU sprite pixels, shell/mouse input, Sixel, cached KGP movement,
-and late attachment to silent KGP animation. These targeted results
-are not a claim of CI wiring, broad HMP graphics/performance stability, or a
-browser/device compatibility matrix.
+The package's Node regressions and TypeScript builds run in CI. The browser
+fixtures remain focused, explicitly invoked checks; they are not a claim of
+broad HMP graphics/performance stability or a browser/device compatibility matrix.
 
 ## Shared instances and floating views
 
@@ -123,7 +127,7 @@ Instances persist with zero views until End terminal, workload exit, or server
 shutdown. Retention is process-local, not durable storage or automatic reconnect.
 The instance list and shared rate/batch/pause controls use `/api/terminals`
 HTTP endpoints; a view connects to `/ws?instance={id}&name={displayName}`.
-See the [host binding](../../doc/web-terminal-protocol.md#9-sample-websocket-host-binding-and-lifetime)
+See the [host binding](../../docs/web-terminal-protocol.md#9-sample-websocket-host-binding-and-lifetime)
 for the complete route and lifetime boundary.
 
 On initial page load without a scene query, the playground attaches the first
@@ -134,7 +138,7 @@ the normal controls remain available.
 
 ## Mount in a sized element
 
-[`wwwroot/web-terminal.js`](wwwroot/web-terminal.js) exports the sample
+[`@hex1b/web-terminal`](../../src/web-terminal/README.md) exports the
 `WebTerminal` class. It does not depend on the playground's IDs, window manager,
 or controls. The caller must provide a sized outer element; the mount appends
 one wrapper with its own shadow root and does not take ownership of the container.
@@ -146,7 +150,7 @@ instead when another view should share an existing terminal.
 ```html
 <div id="example-terminal" style="width: 800px; height: 480px"></div>
 <script type="module">
-  import { WebTerminal } from "/web-terminal.js";
+  import { WebTerminal } from "/web-terminal/index.js";
 
   const response = await fetch("/api/terminals", {
     method: "POST",
@@ -178,6 +182,7 @@ that call until the user chooses Take primary.
 | Options / handle members | Current sample behavior |
 |---|---|
 | `url` | Required view WebSocket URL; the sample uses the page's origin. |
+| `workerUrl` | Optional URL for the package's worker entry when your asset pipeline hosts it elsewhere. Preserve its relative module dependencies; defaults to the module-relative packaged worker. |
 | `scale` | `"auto"` (default) snapshots DPR at mount and clamps it to 0.5..3; an explicit numeric raster-scale setting must also be 0.5..3. |
 | `font` | Optional `{ family, faces?: [{ url, weight?, style? }] }`. Defaults to bundled Cascadia Mono NF; see font selection below. |
 | `sizing` | Initial sizing policy: `{ mode: "auto", fontSize: 16 }` by default, or `{ mode: "fixed", columns, rows }`. Secondary views still follow the primary. |
@@ -216,7 +221,7 @@ that call until the user chooses Take primary.
 The client has a small browser-local input/action layer, not a copy of
 Hex1bApp's widget router. No JavaScript binding definitions or action names are
 sent over HWT1. Import `TerminalAction`, `InputRoute`, and
-`defaultInputBindings` from `web-terminal.js` alongside `WebTerminal`.
+`defaultInputBindings` from `@hex1b/web-terminal` alongside `WebTerminal`.
 
 Resolution order is `onInput` interception, consumer bindings in array order,
 then remaining default bindings. The first non-`continue` decision wins.
@@ -231,7 +236,7 @@ This mount-options example assumes the host has created `container` and obtained
 the instance's WebSocket `url` as in the preceding example:
 
 ```js
-import { WebTerminal, TerminalAction, InputRoute } from "/web-terminal.js";
+import { WebTerminal, TerminalAction, InputRoute } from "/web-terminal/index.js";
 
 const view = await WebTerminal.mount(container, {
   url,
@@ -347,7 +352,7 @@ terminal's keybindings do not intercept editing inside custom controls.
 Inside your mount code, using your `container` and WebSocket `url`:
 
 ```js
-import { WebTerminal, TerminalAction } from "/web-terminal.js";
+import { WebTerminal, TerminalAction } from "/web-terminal/index.js";
 
 let copyButton;
 const view = await WebTerminal.mount(container, {
@@ -408,9 +413,10 @@ their container, and `selection-copy-button` for the stock button. For example:
 The default is the unmodified **Cascadia Mono NF** variable WOFF2 from Microsoft's
 Cascadia release `v2407.24`, also used by Aspire's embedded terminal. It includes
 Nerd Font symbols without programming ligatures. The font, original OFL 1.1
-license, and [provenance/hash](wwwroot/fonts/cascadia-mono-nf/README.md) are shipped
-together under `wwwroot/fonts/cascadia-mono-nf/`. Keep the license and copyright
-notice with the font in any future distribution; the font is not relicensed
+license, and provenance/hash are shipped with the package under
+`dist/fonts/cascadia-mono-nf/` and served here from
+`wwwroot/web-terminal/fonts/cascadia-mono-nf/`. Keep the license and copyright
+notice with the font in every distribution; the font is not relicensed
 under Hex1b's code license.
 
 Developers can choose another family per mount. For example, with your own
@@ -514,7 +520,10 @@ scale; live family/DPR changes are not implemented.
 
 Dispose with `view.dispose()` or `lifetime.abort()` when the host removes the
 view. Terminate the producer separately with `DELETE /api/terminals/{id}`.
-This module is not an npm package, embedded-JavaScript helper, or packaged SDK.
+The package does not create server terminal instances and is not an
+embedded-JavaScript .NET helper. See the
+[publishing guide](../../docs/web-terminal-publishing.md) for manual bootstrap,
+coordinated versions, preview packages, and trusted publishing.
 
 ## Workloads
 
@@ -689,6 +698,13 @@ and invalidations, including KGP timer ticks. It coalesces those notifications
 into a single dirty signal. A sender captures an atomic snapshot, projects it,
 and sends a revision. It does not capture one snapshot per output token.
 
+Synchronized-output markers (DEC mode 2026) defer capture until the complete
+application update arrives, even when its bytes span multiple PTY reads.
+The single canvas keeps showing its previous frame during that wait; it is not
+hidden or swapped. A one-second watchdog releases a missing end marker, and
+soft/full reset releases it immediately. Repeated begins do not extend the
+deadline. Unmarked output can still produce intermediate snapshots.
+
 At most one revision per view is in flight. The browser acknowledges after WebGPU reports
 submitted work complete. While it is busy, the terminal continues to consume workload output;
 superseded display states coalesce, but workload commands are not discarded.
@@ -720,7 +736,7 @@ placements remain visible. Reverse and dim colors are resolved on the server.
 
 The metadata JSON is a pragmatic implementation choice, not a stability promise.
 Large cell arrays and pixel payloads are binary, not JSON/base64. The
-[internal implementation notes](../../doc/web-terminal-protocol.md) record the
+[internal implementation notes](../../docs/web-terminal-protocol.md) record the
 current layouts, input messages, resource lifetime, revisions, and limits
 alongside the current text viewport/selection contract and future negotiation
 and reconnection proposals.
@@ -816,9 +832,10 @@ produce frames.
   throughput, projection time, and frame rate measure different stages;
   none alone establishes end-to-end performance.
 
-No embedded-JavaScript helper or npm package is introduced; the mounted class
-lives in the sample ES module. The experimental
-server adapter now lives in Hex1b and the sample is an ordinary public-API
+The mounted class lives in `@hex1b/web-terminal`; the playground is a separate
+TypeScript consumer rather than a second copy of the renderer. No
+embedded-JavaScript .NET helper is introduced. The experimental server adapter
+lives in Hex1b and the sample is an ordinary public-API
 consumer. Other spike changes fix Unix PTY environment propagation and preserve
 KGP native-size intent through snapshots and rendering/replay paths.
 Native interop is rebuilt when its source changes; the original native entry

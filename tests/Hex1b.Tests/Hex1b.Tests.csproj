@@ -21,6 +21,14 @@
     <ProjectReference Include="..\..\src\Hex1b\Hex1b.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Compile Include="../../samples/CloudDemo.Shared/CloudPalette.cs" Link="Samples/CloudPalette.cs" />
+    <Compile Include="../../samples/CloudDemo.Shared/DustCloud.cs" Link="Samples/DustCloud.cs" />
+    <Compile Include="../../samples/CloudDemo.Shared/ICloudRenderer.cs" Link="Samples/ICloudRenderer.cs" />
+    <Compile Include="../../samples/CloudDemo.Shared/MoteCursorOrder.cs" Link="Samples/MoteCursorOrder.cs" />
+    <Compile Include="../../samples/SixelCloudDemo/SixelCloudRenderer.cs" Link="Samples/SixelCloudRenderer.cs" />
+  </ItemGroup>
+
   <Target Name="CopyNativeLibraryLinux" AfterTargets="Build" Condition="$([MSBuild]::IsOSPlatform('Linux')) and Exists('../../src/Hex1b/Terminal/runtimes/linux-x64/native/libhex1binterop.so')">
     <Copy SourceFiles="../../src/Hex1b/Terminal/runtimes/linux-x64/native/libhex1binterop.so" DestinationFolder="$(OutputPath)" SkipUnchangedFiles="true" />
   </Target>

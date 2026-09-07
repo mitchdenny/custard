@@ -13,7 +13,7 @@ async page => {
     await test.goto(`${origin}/health`);
     await test.setContent('<canvas id="pixels"></canvas><div id="a" style="width:300px;height:200px"></div><div id="b" style="width:300px;height:200px"></div><div id="c" style="width:300px;height:200px"></div>');
     const pixels = await test.evaluate(async () => {
-      const { TerminalRenderer } = await import("/renderer.js");
+      const { TerminalRenderer } = await import("/web-terminal/renderer.js");
       const canvas = document.getElementById("pixels");
       const results = [];
       for (const scale of [1, 1.25, 1.5, 2, 3]) {
@@ -86,7 +86,7 @@ async page => {
       return results;
     });
 
-    const asset = await test.request.get(`${origin}/fonts/cascadia-mono-nf/CascadiaMonoNF.woff2`);
+    const asset = await test.request.get(`${origin}/web-terminal/fonts/cascadia-mono-nf/CascadiaMonoNF.woff2`);
     check(asset.ok(), "Bundled font was not served");
     const fontBytes = await asset.body();
     let requestedFont;
@@ -103,11 +103,12 @@ async page => {
     check(created.status() === 201, "Could not create isolated font fixture terminal");
     instanceId = (await created.json()).id;
     await test.evaluate(async instanceId => {
-      const { WebTerminal } = await import("/web-terminal.js");
+      const { WebTerminal } = await import("/web-terminal/index.js");
       window.WebTerminal = WebTerminal;
       window.wsUrl = `/ws?instance=${instanceId}`;
       window.pending = WebTerminal.mount(document.getElementById("a"), {
-        url: wsUrl, font: { family: "Developer Font", faces: [{ url: "/fonts/delayed.woff2", weight: "200 700" }] }
+        url: wsUrl, workerUrl: "/web-terminal/terminal-worker.js",
+        font: { family: "Developer Font", faces: [{ url: "/fonts/delayed.woff2", weight: "200 700" }] }
       }).then(view => { window.fontViewA = view; });
     }, instanceId);
     await requested;

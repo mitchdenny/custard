@@ -11,6 +11,141 @@ namespace Hex1b.Tests;
 public class Hwt1PresentationAdapterTests
 {
     [TestMethod]
+    [DataRow(false, false)]
+    [DataRow(true, false)]
+    [DataRow(false, true)]
+    [DataRow(true, true)]
+    public async Task ReadFrameAsync_SynchronizedRedraw_DoesNotPublishErasedOrPartialGraphics(bool impacts, bool kgp)
+    {
+        var clock = new FakeTimeProvider();
+        await using var presentation = new Hwt1PresentationAdapter(20, 10);
+        await using var terminal = CreateTerminal(presentation, new RecordingWorkload(), timeProvider: clock);
+        terminal.ApplyTokens(AnsiTokenizer.Tokenize("old"));
+        await presentation.ReadFrameAsync();
+        await presentation.HandleMessageAsync("""{"type":"ack","revision":1}"""u8.ToArray());
+        var erase = AnsiTokenizer.Tokenize("\x1b[?2026h\x1b[H\x1b[2J");
+        if (impacts)
+            terminal.ApplyTokensWithImpacts(erase);
+        else
+            terminal.ApplyTokens(erase);
+
+        // An already-queued invalidation must not bypass the synchronized block.
+        var next = presentation.ReadFrameAsync().AsTask();
+        Assert.IsFalse(next.IsCompleted, "The erased screen must never be published.");
+        terminal.ApplyTokens(AnsiTokenizer.Tokenize(
+            kgp
+                ? "\x1b[2;2H\x1b_Ga=T,f=32,s=1,v=1,i=1,p=1,C=1,q=2;/wAA/w==\x1b\\"
+                : "\x1b[2;2H\x1bP7;1q\"1;1;2;6#1;2;100;0;0#1BB\x1b\\"));
+        await presentation.HandleMessageAsync("""{"type":"resync"}"""u8.ToArray());
+        Assert.IsFalse(next.IsCompleted, "The first particle is still only a partial frame.");
+        terminal.ApplyTokens(AnsiTokenizer.Tokenize(
+            (kgp
+                ? "\x1b[4;4H\x1b_Ga=T,f=32,s=1,v=1,i=2,p=2,C=1,q=2;AP8A/w==\x1b\\"
+                : "\x1b[4;4H\x1bP7;1q\"1;1;2;6#1;2;0;100;0#1BB\x1b\\") +
+            "\x1b[Hnew\x1b[?2026l"));
+
+        var frame = await next.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+        using var metadata = ReadMetadata(frame);
+        Assert.AreEqual(2, metadata.RootElement.GetProperty("placements").GetArrayLength());
+        Assert.IsTrue(metadata.RootElement.GetProperty("full").GetBoolean());
+        Assert.AreEqual("n", ReadFirstCellText(frame));
+    }
+
+    [TestMethod]
+    public async Task ReadFrameAsync_UnterminatedSynchronizedRedraw_HasBoundedWait()
+    {
+        var clock = new FakeTimeProvider();
+        await using var presentation = new Hwt1PresentationAdapter(20, 10);
+        await using var terminal = CreateTerminal(presentation, new RecordingWorkload(), timeProvider: clock);
+        terminal.ApplyTokens(AnsiTokenizer.Tokenize("\x1b[?2026hA"));
+        var pending = presentation.ReadFrameAsync().AsTask();
+        Assert.IsFalse(pending.IsCompleted);
+
+        clock.Advance(TimeSpan.FromMilliseconds(900));
+        terminal.ApplyTokens(AnsiTokenizer.Tokenize("\x1b[?2026h"));
+        Assert.IsFalse(pending.IsCompleted);
+        clock.Advance(TimeSpan.FromMilliseconds(100));
+
+        var frame = await pending.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+        Assert.AreEqual("A", ReadFirstCellText(frame));
+    }
+
+    [TestMethod]
+    public async Task ReadFrameAsync_CancelledSynchronizedWait_CanRetryWithoutLosingBaseline()
+    {
+        var clock = new FakeTimeProvider();
+        await using var presentation = new Hwt1PresentationAdapter(20, 10);
+        await using var terminal = CreateTerminal(presentation, new RecordingWorkload(), timeProvider: clock);
+        terminal.ApplyTokens(AnsiTokenizer.Tokenize("\x1b[?2026h"));
+        using var cancellation = new CancellationTokenSource();
+        var cancelled = presentation.ReadFrameAsync(cancellation.Token).AsTask();
+        Assert.IsFalse(cancelled.IsCompleted);
+        cancellation.Cancel();
+        await Assert.ThrowsAsync<OperationCanceledException>(() => cancelled);
+        var retry = presentation.ReadFrameAsync().AsTask();
+        Assert.IsFalse(retry.IsCompleted);
+
+        terminal.ApplyTokens(AnsiTokenizer.Tokenize("complete\x1b[?2026l"));
+
+        var frame = await retry.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+        using var metadata = ReadMetadata(frame);
+        Assert.AreEqual(1u, metadata.RootElement.GetProperty("revision").GetUInt32());
+        Assert.AreEqual("c", ReadFirstCellText(frame));
+    }
+
+    [TestMethod]
+    public async Task ReadFrameAsync_NewSynchronizedBlockBeforeCapture_WaitsForItsEnd()
+    {
+        var clock = new FakeTimeProvider();
+        await using var presentation = new Hwt1PresentationAdapter(20, 10);
+        await using var terminal = CreateTerminal(presentation, new RecordingWorkload(), timeProvider: clock);
+        terminal.ApplyTokens(AnsiTokenizer.Tokenize("\x1b[?2026hA"));
+        var pending = presentation.ReadFrameAsync().AsTask();
+        Assert.IsFalse(pending.IsCompleted);
+
+        terminal.ApplyTokens(AnsiTokenizer.Tokenize("\x1b[?2026l\x1b[?2026h\rB"));
+        Assert.IsFalse(pending.IsCompleted);
+        terminal.ApplyTokens(AnsiTokenizer.Tokenize("\rC\x1b[?2026l"));
+
+        Assert.AreEqual("C", ReadFirstCellText(
+            await pending.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken)));
+    }
+
+    [TestMethod]
+    [DataRow(false)]
+    [DataRow(true)]
+    public async Task ReadFrameAsync_ResetDuringSynchronizedOutput_ReleasesWait(bool softReset)
+    {
+        var clock = new FakeTimeProvider();
+        await using var presentation = new Hwt1PresentationAdapter(20, 10);
+        await using var terminal = CreateTerminal(presentation, new RecordingWorkload(), timeProvider: clock);
+        terminal.ApplyTokens(AnsiTokenizer.Tokenize("\x1b[?2026hA"));
+        var pending = presentation.ReadFrameAsync().AsTask();
+        Assert.IsFalse(pending.IsCompleted);
+
+        terminal.ApplyTokens([softReset ? SoftResetToken.Instance : RisToken.Instance]);
+
+        await pending.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+    }
+
+    [TestMethod]
+    public async Task DisposeAsync_SynchronizedFrameWait_CancelsRead()
+    {
+        var clock = new FakeTimeProvider();
+        await using var presentation = new Hwt1PresentationAdapter(20, 10);
+        await using var terminal = CreateTerminal(presentation, new RecordingWorkload(), timeProvider: clock);
+        terminal.ApplyTokens(AnsiTokenizer.Tokenize("\x1b[?2026h"));
+        var pending = presentation.ReadFrameAsync().AsTask();
+        Assert.IsFalse(pending.IsCompleted);
+
+        await presentation.DisposeAsync();
+
+        await Assert.ThrowsAsync<OperationCanceledException>(() => pending);
+        await terminal.DisposeAsync();
+        clock.Advance(TimeSpan.FromSeconds(2));
+    }
+
+    [TestMethod]
     public async Task ReadFrameAsync_UnattachedAdapter_RequiresTerminal()
     {
         await using var presentation = new Hwt1PresentationAdapter();
@@ -335,11 +470,13 @@ public class Hwt1PresentationAdapterTests
     }
 
     private static Hex1bTerminal CreateTerminal(
-        Hwt1PresentationAdapter presentation, RecordingWorkload workload, bool startPumps = false)
+        Hwt1PresentationAdapter presentation, RecordingWorkload workload, bool startPumps = false,
+        TimeProvider? timeProvider = null)
         => new(new Hex1bTerminalOptions
         {
             Width = presentation.Width, Height = presentation.Height,
             PresentationAdapter = presentation, WorkloadAdapter = workload,
+            TimeProvider = timeProvider ?? TimeProvider.System,
             RunCallback = startPumps ? null : _ => Task.FromResult(0)
         });
 

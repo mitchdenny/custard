@@ -69,8 +69,8 @@ async page => {
       <div id="views"><div class="host" id="a"></div><div class="host" id="b"></div><div class="host" id="c"></div></div>
       <button id="outside">Outside terminal focus</button>`);
     await test.evaluate(async () => {
-      const { validateHistory } = await import("/protocol.js");
-      const { WebTerminal, TerminalAction, InputRoute, defaultInputBindings } = await import("/web-terminal.js");
+      const { validateHistory } = await import("/web-terminal/protocol.js");
+      const { WebTerminal, TerminalAction, InputRoute, defaultInputBindings } = await import("/web-terminal/index.js");
       const fixture = window.fixture = {
         views: {}, workers: {}, commands: [], clipboardCalls: [], clipboardPlans: [], gates: [],
         inputErrors: [], observed: [], events: [], actions: [], config: {

@@ -286,6 +286,12 @@ public class Hex1bRenderContext
             animationControlPayload: controlPayload);
     }
 
+    internal virtual void RegisterSixel(SixelData image, int x, int y)
+    {
+        SetCursorPosition(x, y);
+        Write(image.Payload);
+    }
+
     internal virtual void RegisterKgp(KgpImageData image, KgpPlacement placement)
     {
         if (!Capabilities.SupportsKgp)

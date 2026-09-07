@@ -568,5 +568,24 @@ public sealed class SixelPlacement
     /// <param name="column">The absolute column to check.</param>
     public bool IsCellDamaged(int row, int column) => _damagedCells.Contains(CellKey(row, column));
 
+    internal bool IsPixelDamaged(int pixelX, int pixelY)
+    {
+        if (_damagedCells.Count == 0)
+            return false;
+
+        // Fractional cell boundaries can intersect the same pixel twice. Match
+        // GetVisiblePixels' floor/ceiling damage rectangles, not just one cell.
+        var metrics = Image.CellMetrics;
+        var left = (int)Math.Min(WidthInCells - 1, Math.Floor(pixelX / metrics.SafeWidth));
+        var right = (int)Math.Min(WidthInCells - 1, Math.Ceiling((pixelX + 1d) / metrics.SafeWidth) - 1);
+        var top = (int)Math.Min(HeightInCells - 1, Math.Floor(pixelY / metrics.SafeHeight));
+        var bottom = (int)Math.Min(HeightInCells - 1, Math.Ceiling((pixelY + 1d) / metrics.SafeHeight) - 1);
+        for (var row = top; row <= bottom; row++)
+            for (var column = left; column <= right; column++)
+                if (_damagedCells.Contains(row * WidthInCells + column))
+                    return true;
+        return false;
+    }
+
     private int CellKey(int row, int column) => ((row - Row) * WidthInCells) + (column - Column);
 }

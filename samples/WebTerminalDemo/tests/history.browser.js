@@ -42,7 +42,7 @@ async page => {
     check(created.status() === 201, `Shell creation failed: ${created.status()}`);
     instanceId = (await created.json()).id;
     await test.evaluate(async id => {
-      const { WebTerminal } = await import("/web-terminal.js");
+      const { WebTerminal } = await import("/web-terminal/index.js");
       const layout = document.createElement("div");
       layout.style.cssText = "display:flex;gap:20px;align-items:flex-start";
       const primary = document.createElement("div");
@@ -71,7 +71,7 @@ async page => {
 
     stage = "late attachment and independent history";
     await test.evaluate(async id => {
-      const { WebTerminal } = await import("/web-terminal.js");
+      const { WebTerminal } = await import("/web-terminal/index.js");
       window.historySecondary = await WebTerminal.mount(document.getElementById("history-secondary"), {
         url: `/ws?instance=${id}&name=HistorySecondary`
       });
@@ -227,7 +227,7 @@ async page => {
 
     stage = "read-only history inspection";
     await test.evaluate(async id => {
-      const { WebTerminal } = await import("/web-terminal.js");
+      const { WebTerminal } = await import("/web-terminal/index.js");
       const element = document.createElement("div");
       element.style.cssText = "width:800px;height:360px";
       document.body.append(element);

@@ -144,6 +144,8 @@ public sealed class Hwt1PresentationAdapter :
     /// and a state invalidation before capturing a snapshot. Output processing continues
     /// while the reader waits. Send every returned frame or dispose this connection; do not
     /// discard frames locally. The host must cancel its read loop when the terminal ends.
+    /// DEC mode 2026 defers capture until synchronized output ends or its one-second
+    /// watchdog expires. The browser keeps its previous frame while capture is deferred.
     /// Projection and transport failures are fatal to the connection; they are not retried.
     /// </remarks>
     /// <exception cref="InvalidOperationException">The adapter is unattached or already has a reader.</exception>
@@ -157,6 +159,7 @@ public sealed class Hwt1PresentationAdapter :
         var terminal = _terminal ?? throw new InvalidOperationException("Attach the adapter to a terminal before reading frames.");
         if (Interlocked.CompareExchange(ref _reading, 1, 0) != 0)
             throw new InvalidOperationException("Only one HWT1 frame reader is supported.");
+        var consumedInvalidation = false;
         try
         {
             using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _disposedCancellation.Token);
@@ -167,25 +170,39 @@ public sealed class Hwt1PresentationAdapter :
                 await acknowledgement.WaitAsync(AcknowledgementTimeout, _timeProvider, linked.Token);
 
             _ = await _dirty.Reader.ReadAsync(linked.Token);
+            consumedInvalidation = true;
             linked.Token.ThrowIfCancellationRequested();
-            var snapshotStarted = Stopwatch.GetTimestamp();
-            Hex1bTerminalSnapshot snapshot;
-            Hwt1History history;
+            long snapshotStarted;
+            Hex1bTerminalSnapshot? snapshot;
+            Hwt1History? history;
             Hwt1Peer peer;
             var outputLock = _muxer is null ? null : terminal.Hmp1OutputStateLock;
-            if (outputLock is not null)
-                await outputLock.WaitAsync(linked.Token).ConfigureAwait(false);
-            try
+            while (true)
             {
-                peer = _muxer is not null ? _muxer.GetBrowserPeer(_session!) : Hwt1Peer.Standalone;
-                snapshot = terminal.CaptureBrowserSnapshot(_view, out history, out var remoteState);
-                if (_hmp1Workload is not null)
-                    peer = remoteState is null ? Hwt1Peer.Unconnected :
-                        new Hwt1Peer(remoteState.PeerId, remoteState.PrimaryPeerId, remoteState.IsPrimary);
-            }
-            finally
-            {
-                outputLock?.Release();
+                linked.Token.ThrowIfCancellationRequested();
+                while (_dirty.Reader.TryRead(out _)) { }
+                snapshotStarted = Stopwatch.GetTimestamp();
+                if (outputLock is not null)
+                    await outputLock.WaitAsync(linked.Token).ConfigureAwait(false);
+                Task? pendingUpdate;
+                try
+                {
+                    peer = _muxer is not null ? _muxer.GetBrowserPeer(_session!) : Hwt1Peer.Standalone;
+                    if (terminal.TryCaptureBrowserSnapshot(_view, out snapshot, out history,
+                        out var remoteState, out pendingUpdate))
+                    {
+                        if (_hmp1Workload is not null)
+                            peer = remoteState is null ? Hwt1Peer.Unconnected :
+                                new Hwt1Peer(remoteState.PeerId, remoteState.PrimaryPeerId, remoteState.IsPrimary);
+                        break;
+                    }
+                }
+                finally
+                {
+                    outputLock?.Release();
+                }
+                // Never hold the producer output lock while waiting for its end marker.
+                await pendingUpdate.WaitAsync(linked.Token).ConfigureAwait(false);
             }
             using var capturedSnapshot = snapshot;
             var snapshotMs = Stopwatch.GetElapsedTime(snapshotStarted).TotalMilliseconds;
@@ -198,6 +215,11 @@ public sealed class Hwt1PresentationAdapter :
                 _ack = new(TaskCreationOptions.RunContinuationsAsynchronously);
             }
             return bytes;
+        }
+        catch (OperationCanceledException) when (consumedInvalidation)
+        {
+            InvalidatePresentation();
+            throw;
         }
         finally
         {

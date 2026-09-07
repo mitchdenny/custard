@@ -55,7 +55,7 @@ async page => {
         }
         terminate() { this.stopped = true; }
       };
-      const { WebTerminal } = await import("/web-terminal.js");
+      const { WebTerminal } = await import("/web-terminal/index.js");
       window.WebTerminal = WebTerminal;
       window.a = await WebTerminal.mount(document.getElementById("a"), { url: "/ws" });
       window.b = await WebTerminal.mount(document.getElementById("b"), { url: "/ws" });

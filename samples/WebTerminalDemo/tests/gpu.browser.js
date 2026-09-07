@@ -6,7 +6,7 @@ async page => {
     await test.goto(`${origin}/health`);
     await test.setContent('<canvas id="terminal" style="width:400px;height:400px"></canvas>');
     return await test.evaluate(async () => {
-      const { TerminalRenderer } = await import("/renderer.js");
+      const { TerminalRenderer } = await import("/web-terminal/renderer.js");
       const errors = [];
       const canvas = document.querySelector("canvas");
       const renderer = await TerminalRenderer.create(canvas, 2, error => errors.push(error.message));

@@ -98,7 +98,7 @@ test("Trackpad fractions accumulate while line and page wheel units remain bound
   assert.deepEqual(wheel.take({ deltaX: 0, deltaY: 10000, deltaMode: 0 }, bounds, 10), { x: 0, y: 32 });
 });
 
-function mouseHarness(run, tracking = 1002, resolve) {
+function mouseHarness(run, tracking = 1002, resolve, inspection = {}) {
   const originals = Object.fromEntries(["window", "requestAnimationFrame", "cancelAnimationFrame", "setTimeout", "clearTimeout"]
     .map(key => [key, globalThis[key]]));
   const timers = new Map();
@@ -109,6 +109,8 @@ function mouseHarness(run, tracking = 1002, resolve) {
   globalThis.requestAnimationFrame = globalThis.setTimeout;
   globalThis.cancelAnimationFrame = globalThis.clearTimeout;
   const canvas = new EventTarget();
+  canvas.title = "";
+  canvas.style = { cursor: "" };
   canvas.getBoundingClientRect = () => ({ left: 0, top: 0, width: 200, height: 100, bottom: 100 });
   let capturedPointer;
   canvas.setPointerCapture = id => { capturedPointer = id; };
@@ -123,7 +125,8 @@ function mouseHarness(run, tracking = 1002, resolve) {
     scroll: (delta, point) => commands.push({ type: "scroll", delta, point }),
     end: cancelled => endings.push(cancelled),
     resolve,
-    execute: (decision, input) => commands.push({ type: "action", decision, input })
+    execute: (decision, input) => commands.push({ type: "action", decision, input }),
+    ...inspection
   });
   mouse.update(20, 10, tracking);
   endings.length = 0;
@@ -156,6 +159,100 @@ test("A routed clipboard gesture suppresses context menu and never leaks mouse r
     emit("pointerup", { button: 2, buttons: 0 });
     assert.deepEqual(commands.map(command => command.type), ["action"]);
   }, 1003, () => ({ action: "copyOrPaste" }));
+});
+
+test("Ctrl/Cmd hyperlink clicks open on release without application or selection commands", () => {
+  for (const tracking of [0, 9, 1000, 1002, 1003]) {
+    for (const modifiers of [{ ctrlKey: true }, { metaKey: true }]) {
+      const opened = [];
+      mouseHarness(({ commands, emit }) => {
+        assert.equal(emit("pointerdown", modifiers).defaultPrevented, true);
+        assert.deepEqual(opened, []);
+        assert.equal(emit("contextmenu", modifiers).defaultPrevented, true);
+        emit("pointerup", { buttons: 0 });
+        emit("click", { buttons: 0, detail: 1 });
+        assert.deepEqual(opened, ["https://example.com/"]);
+        assert.deepEqual(commands, []);
+      }, tracking, undefined, {
+        hyperlink: () => "https://example.com/", openHyperlink: uri => opened.push(uri)
+      });
+    }
+  }
+});
+
+test("Plain clicks, shift selection, and explicit routing retain ownership over hyperlinks", () => {
+  for (const [tracking, modifiers, resolve, expected] of [
+    [0, {}, undefined, ["begin"]],
+    [1003, {}, undefined, ["mouse", "mouse"]],
+    [1003, { ctrlKey: true, shiftKey: true }, undefined, ["begin"]],
+    [0, { ctrlKey: true, altKey: true }, undefined, ["begin"]],
+    [1003, { ctrlKey: true }, () => ({ route: "application" }), ["mouse", "mouse"]],
+    [1003, { ctrlKey: true }, () => ({ route: "consume" }), []],
+    [1003, { ctrlKey: true }, () => ({ route: "browser" }), []],
+    [1003, { ctrlKey: true }, () => ({ action: "custom" }), ["action"]]
+  ]) {
+    mouseHarness(({ commands, emit }) => {
+      emit("pointerdown", modifiers);
+      emit("pointerup", { buttons: 0 });
+      assert.deepEqual(commands.map(command => command.type), expected);
+    }, tracking, resolve, {
+      hyperlink: () => "https://example.com/", openHyperlink: () => assert.fail("Unexpected hyperlink activation")
+    });
+  }
+});
+
+test("Dragging, cancellation, scrolling, stale targets, and disposal never activate hyperlinks", () => {
+  for (const cancel of [
+    ({ emit }) => { emit("pointermove", { clientX: 35 }); emit("pointermove", { clientX: 25 }); },
+    ({ emit }) => emit("pointercancel"),
+    ({ emit }) => emit("blur", {}, window),
+    ({ emit }) => emit("pointerleave"),
+    ({ emit }) => emit("wheel"),
+    ({ emit }) => emit("pointerdown", { button: 2, buttons: 3 }),
+    ({ mouse }) => mouse.update(40, 10, 1003),
+    ({ mouse }) => mouse.cancel(),
+    ({ mouse }) => mouse.dispose()
+  ]) {
+    mouseHarness(harness => {
+      harness.emit("pointerdown", { ctrlKey: true });
+      cancel(harness);
+      harness.emit("pointerup", { buttons: 0 });
+    }, 1003, undefined, {
+      hyperlink: () => "https://example.com/", openHyperlink: () => assert.fail("Canceled hyperlink activated")
+    });
+  }
+  let uri = "https://example.com/old";
+  mouseHarness(({ emit, mouse }) => {
+    emit("pointerdown", { ctrlKey: true });
+    uri = "https://example.com/new";
+    mouse.update(20, 10, 1003);
+    uri = "https://example.com/old";
+    emit("pointerup", { buttons: 0 });
+  }, 1003, undefined, {
+    hyperlink: () => uri, openHyperlink: () => assert.fail("Changed hyperlink activated")
+  });
+});
+
+test("Hyperlink hover hints track modifiers, frame changes, and pointer departure", () => {
+  let uri = "https://example.com/";
+  mouseHarness(({ emit, canvas, mouse }) => {
+    emit("pointermove", { buttons: 0 });
+    assert.match(canvas.title, /https:\/\/example.com\/\nCtrl\/Cmd\+click/);
+    assert.equal(canvas.style.cursor, "");
+    emit("keydown", { ctrlKey: true }, window);
+    assert.equal(canvas.style.cursor, "pointer");
+    mouse.update(20, 10, 0);
+    assert.equal(canvas.style.cursor, "pointer");
+    emit("keyup", { ctrlKey: false }, window);
+    mouse.refresh();
+    assert.equal(canvas.style.cursor, "");
+    uri = "https://example.com/new";
+    mouse.update(20, 10, 0);
+    assert.match(canvas.title, /example.com\/new/);
+    emit("pointerleave");
+    assert.equal(canvas.title, "");
+    assert.equal(canvas.style.cursor, "");
+  }, 0, undefined, { hyperlink: () => uri });
 });
 
 test("Browser-routed pointer gestures preserve the native context menu even under capture", () => {

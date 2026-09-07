@@ -162,6 +162,7 @@ delta.
 | `mouseTracking` | integer | Effective mouse tracking mode: `0`, `9`, `1000`, `1002`, or `1003`; see §7. |
 | `peer` | object | Required complete HMP1 peer/primary state, or standalone defaults, defined below. |
 | `history` | object or null | Complete per-view text viewport, selection, and copy state, defined below. Null denotes a projection without history interaction metadata. |
+| `hyperlinks` | array of objects | Complete OSC 8 destination ranges for the presented viewport, including on cell-delta frames. |
 | `defaultBackground`, `defaultForeground` | integers | Resolved packed colors, using §3.3; producer emits opaque colors. |
 | `cursor` | object | Complete cursor state, defined below. |
 | `images` | array of objects | New/replacement resource descriptors, each with one corresponding binary payload. |
@@ -183,6 +184,22 @@ The reference renderer treats Default as a blinking block. It uses a local
 color. Its block has 0.55 alpha; underline and bar are two logical pixels thick.
 These raster details and blink phase are not transmitted. The numeric shape
 values follow [`CursorShape`](../src/Hex1b/CursorShape.cs).
+
+Each `hyperlinks` entry contains `row`, `startColumn`, `endColumn`, and `uri`.
+Coordinates are zero-based viewport cells, with an exclusive `endColumn`.
+Ranges are nonempty, sorted by row then column, nonoverlapping, and bounded by
+the current grid. The array is bounded by the total cell count. Contiguous cells
+with the same destination are combined within each row, including wide-cell
+continuations. Wrapped links have one range per row. Hidden cells are excluded.
+OSC 8 parameters are not transmitted.
+
+These ranges replace the previous frame's entire hyperlink map. An empty array
+clears all links; changing only a destination need not resend any binary cells.
+Historical ranges come from the same authoritative snapshot as displayed text.
+URI strings are untrusted terminal output. The browser permits activation only
+of absolute HTTP, HTTPS, or mailto URLs without raw ASCII whitespace/control
+characters; it does not resolve page-relative paths or detect URLs in plain text.
+Hyperlinks share the 8 MiB serialized metadata bound, which the producer enforces.
 
 `peer` contains:
 
@@ -332,8 +349,9 @@ request to perform Unicode width calculation in the browser:
 
 The projection substitutes a space for a null character value, a NUL character,
 or the internal U+E000 placeholder. Empty strings remain continuation cells.
-The wire has no hyperlink, font, original palette index, terminal sequence
-number, or original Sixel-ownership field.
+The binary cell record has no hyperlink, font, original palette index, terminal
+sequence number, or original Sixel-ownership field. Hyperlinks are carried in
+the complete viewport metadata instead.
 
 ### 3.3. Colors and attributes
 
@@ -911,7 +929,13 @@ This policy is not additional wire syntax:
   page-mode deltas use canvas height; one cell height is one report on either
   axis. Each emitted direction is capped at 32 reports. Ctrl+wheel/pinch and
   Meta+wheel remain browser gestures. X10 sends no wheel.
-* Meta-modified pointer-down/motion is filtered. Geometry changes cancel capture.
+* Ctrl/Cmd+left-click on an allowed OSC 8 destination opens a new tab on release
+  with `noopener,noreferrer`, without sending a mouse report or starting a selection.
+  Explicit input routes/actions take precedence, and Shift/Alt retain selection
+  behavior. Dragging, cancellation, or a changed destination cancels activation.
+  Hovering shows the destination and modifier hint. This works in historical and
+  read-only views too; pending viewport transitions cannot activate stale links.
+* Other Meta-modified pointer-down/motion is filtered. Geometry changes cancel capture.
   Changing a tracking mode does not transfer a locally owned gesture to the
   application.
 

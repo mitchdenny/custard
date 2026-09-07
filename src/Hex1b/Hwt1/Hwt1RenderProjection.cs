@@ -41,15 +41,29 @@ internal sealed class Hwt1RenderProjection
         _rows = snapshot.Height;
         var cells = new Hwt1RenderCell[checked(_columns * _rows)];
         var changed = new List<int>();
+        var hyperlinks = new List<Hwt1Hyperlink>();
         for (var y = 0; y < _rows; y++)
         {
+            string? linkUri = null;
+            var linkStart = 0;
             for (var x = 0; x < _columns; x++)
             {
                 var index = y * _columns + x;
                 cells[index] = ProjectCell(snapshot, x, y, capabilities);
                 if (full || cells[index] != _previous[index])
                     changed.Add(index);
+                var source = snapshot.GetCell(x, y);
+                var uri = source.IsHidden ? null : source.HyperlinkData?.Uri;
+                if (linkUri != uri)
+                {
+                    if (!string.IsNullOrEmpty(linkUri))
+                        hyperlinks.Add(new(y, linkStart, x, linkUri));
+                    linkUri = uri;
+                    linkStart = x;
+                }
             }
+            if (!string.IsNullOrEmpty(linkUri))
+                hyperlinks.Add(new(y, linkStart, _columns, linkUri));
         }
         _previous = cells;
 
@@ -157,7 +171,9 @@ internal sealed class Hwt1RenderProjection
             newImages, _images.Keys.ToArray(), placements,
             new(workloadBytes, outputBatches, elapsedMs,
                 snapshotMs + Stopwatch.GetElapsedTime(started).TotalMilliseconds),
-            warnings, peer ?? Hwt1Peer.Standalone, history), Hwt1JsonSerializerContext.Default.Hwt1FrameMetadata);
+            warnings, peer ?? Hwt1Peer.Standalone, history, hyperlinks), Hwt1JsonSerializerContext.Default.Hwt1FrameMetadata);
+        if (metadata.Length > 8 * 1024 * 1024)
+            throw new InvalidDataException("Frame metadata exceeds the HWT1 8 MiB limit.");
 
         using var stream = new MemoryStream();
         using var writer = new BinaryWriter(stream, Encoding.UTF8, leaveOpen: true);

@@ -118,7 +118,7 @@ function frame(peer) {
     version: 1, revision: 1, baseRevision: 0, full: true,
     columns: 1, rows: 1, cellWidth: 10, cellHeight: 20, mouseTracking: 0, peer,
     cursor: { x: 0, y: 0, visible: false, shape: 0 }, history: null,
-    images: [], retainedImages: [], placements: [], warnings: [],
+    images: [], retainedImages: [], placements: [], warnings: [], hyperlinks: [],
     stats: { workloadBytes: 0, outputBatches: 0, captureMs: 0, elapsedMs: 0 }
   };
   const json = new TextEncoder().encode(JSON.stringify(metadata));

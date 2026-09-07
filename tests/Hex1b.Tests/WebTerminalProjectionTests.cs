@@ -14,6 +14,74 @@ public class WebTerminalProjectionTests
     };
 
     [TestMethod]
+    public void Encode_Hyperlinks_PreservesWideCellsAndWrappedViewportRanges()
+    {
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = CreateTerminal(workload);
+        terminal.ApplyTokens(AnsiTokenizer.Tokenize(
+            "\x1b[1;39H\x1b]8;id=docs;https://example.com/docs\x1b\\\u754cAB\x1b]8;;\x1b\\plain"));
+        using var snapshot = terminal.CreateSnapshot();
+        using var frame = Decode(new Hwt1RenderProjection().Encode(snapshot, Capabilities, 0, 1, 1));
+        var links = frame.Metadata.RootElement.GetProperty("hyperlinks");
+        Assert.AreEqual(2, links.GetArrayLength());
+        Assert.AreEqual(0, links[0].GetProperty("row").GetInt32());
+        Assert.AreEqual(38, links[0].GetProperty("startColumn").GetInt32());
+        Assert.AreEqual(40, links[0].GetProperty("endColumn").GetInt32());
+        Assert.AreEqual(1, links[1].GetProperty("row").GetInt32());
+        Assert.AreEqual(0, links[1].GetProperty("startColumn").GetInt32());
+        Assert.AreEqual(2, links[1].GetProperty("endColumn").GetInt32());
+        foreach (var link in links.EnumerateArray())
+            Assert.AreEqual("https://example.com/docs", link.GetProperty("uri").GetString());
+    }
+
+    [TestMethod]
+    public void Encode_HyperlinkOnlyChanges_ReplaceDestinationsWithoutResendingText()
+    {
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = CreateTerminal(workload);
+        var projection = new Hwt1RenderProjection();
+        foreach (var uri in new[] { "https://example.com/first", "https://example.com/second", "" })
+        {
+            terminal.ApplyTokens(AnsiTokenizer.Tokenize($"\r\x1b]8;;{uri}\x1b\\link\x1b]8;;\x1b\\"));
+            using var snapshot = terminal.CreateSnapshot();
+            using var frame = Decode(projection.Encode(snapshot, Capabilities, 0, 1, 1));
+            var links = frame.Metadata.RootElement.GetProperty("hyperlinks");
+            Assert.AreEqual(uri.Length == 0 ? 0 : 1, links.GetArrayLength());
+            if (uri.Length != 0)
+            {
+                Assert.AreEqual(uri, links[0].GetProperty("uri").GetString());
+                Assert.AreEqual(4, links[0].GetProperty("endColumn").GetInt32());
+            }
+            if (projection.Revision > 1)
+                Assert.AreEqual(0, frame.Cells.Count);
+        }
+    }
+
+    [TestMethod]
+    public void Encode_HiddenAndErasedHyperlinks_DoNotLeaveClickableRanges()
+    {
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = CreateTerminal(workload);
+        var projection = new Hwt1RenderProjection();
+        terminal.ApplyTokens(AnsiTokenizer.Tokenize(
+            "\x1b]8;;https://example.com\x1b\\A\x1b[8mB\x1b[28mC\x1b]8;;\x1b\\"));
+        using (var snapshot = terminal.CreateSnapshot())
+        using (var frame = Decode(projection.Encode(snapshot, Capabilities, 0, 1, 1)))
+        {
+            var links = frame.Metadata.RootElement.GetProperty("hyperlinks");
+            Assert.AreEqual(2, links.GetArrayLength());
+            Assert.AreEqual(1, links[0].GetProperty("endColumn").GetInt32());
+            Assert.AreEqual(2, links[1].GetProperty("startColumn").GetInt32());
+        }
+        terminal.ApplyTokens(AnsiTokenizer.Tokenize("\x1b[2J"));
+        using var erased = terminal.CreateSnapshot();
+        using var cleared = Decode(projection.Encode(erased, Capabilities, 0, 2, 2));
+        Assert.AreEqual(0, cleared.Metadata.RootElement.GetProperty("hyperlinks").GetArrayLength());
+        using var resync = Decode(projection.Encode(erased, Capabilities, 0, 2, 3, forceFull: true));
+        Assert.AreEqual(0, resync.Metadata.RootElement.GetProperty("hyperlinks").GetArrayLength());
+    }
+
+    [TestMethod]
     public void Encode_MouseModeOnlyChange_AdvertisesTrackingWithoutCellChanges()
     {
         using var workload = new Hex1bAppWorkloadAdapter();

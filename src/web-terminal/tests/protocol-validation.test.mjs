@@ -8,7 +8,7 @@ function metadata() {
     columns: 1, rows: 1, cellWidth: 10, cellHeight: 20, mouseTracking: 0,
     peer: { id: null, primaryId: null, isPrimary: true },
     cursor: { x: 0, y: 0, visible: false, shape: "SteadyBlock" }, history: null,
-    images: [], retainedImages: [], placements: [], warnings: [],
+    images: [], retainedImages: [], placements: [], warnings: [], hyperlinks: [],
     stats: { workloadBytes: 0, outputBatches: 0, captureMs: 0, elapsedMs: 0 }
   };
 }
@@ -59,4 +59,16 @@ test("Typed protocol boundary rejects every truncated frame and trailing payload
   const trailing = new Uint8Array(buffer.byteLength + 1);
   trailing.set(new Uint8Array(buffer));
   assert.throws(() => decodeFrame(trailing.buffer), /Image payload length mismatch/u);
+});
+
+test("Hyperlink metadata preserves URI data and rejects malformed or overlapping ranges", () => {
+  const link = { row: 0, startColumn: 0, endColumn: 1, uri: "https://example.com" };
+  assert.deepEqual(decodeFrame(frame({ ...metadata(), hyperlinks: [link] })).metadata.hyperlinks, [link]);
+  for (const hyperlinks of [undefined, null, {}, [null], [link, link],
+    [{ ...link, row: 1 }], [{ ...link, row: -1 }], [{ ...link, row: .5 }],
+    [{ ...link, startColumn: -1 }], [{ ...link, startColumn: "0" }],
+    [{ ...link, endColumn: 0 }], [{ ...link, endColumn: 2 }],
+    [{ ...link, uri: "" }], [{ ...link, uri: null }], [{ ...link, uri: 42 }]]) {
+    assert.throws(() => decodeFrame(frame({ ...metadata(), hyperlinks })));
+  }
 });

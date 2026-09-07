@@ -2,8 +2,8 @@
 /// <remarks>
 /// Both renderers emit one graphics command per mote, and hundreds of commands that
 /// jump the cursor around arbitrarily is the access pattern terminals handle worst.
-/// Sorting into cursor order costs almost nothing and also lets a renderer skip the
-/// cursor move whenever consecutive motes land in the same cell.
+/// Sorting into cursor order costs almost nothing. A renderer may only skip moves
+/// for same-cell motes if its graphics commands preserve the cursor position.
 /// </remarks>
 internal sealed class MoteCursorOrder : IComparer<DustMote>
 {

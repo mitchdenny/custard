@@ -1598,15 +1598,15 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
         // Check if a TerminalNode is focused - if so, use its cursor
         if (focusedNode is Nodes.TerminalNode terminalNode && terminalNode.Handle != null)
         {
-            var handle = terminalNode.Handle;
+            var cursor = terminalNode.RenderedCursor;
             
             // Translate child cursor position to screen coordinates.
             // When the terminal is in scrollback mode, the active buffer content is shifted
             // down by the scrollback offset, so the cursor position must shift accordingly.
-            var screenCursorX = terminalNode.Bounds.X + handle.CursorX;
-            var screenCursorY = terminalNode.Bounds.Y + handle.CursorY + terminalNode.ScrollbackOffset;
-            var shape = handle.CursorShape;
-            var visible = handle.CursorVisible;
+            var screenCursorX = terminalNode.Bounds.X + cursor.X;
+            var screenCursorY = terminalNode.Bounds.Y + cursor.Y;
+            var shape = cursor.Shape;
+            var visible = cursor.Visible;
             
             // Check if anything changed (including which node is focused)
             if (screenCursorX == _lastRenderedCursorX && 

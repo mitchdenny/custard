@@ -606,13 +606,16 @@ public sealed class Surface : ISurfaceSource
                 var srcCell = source.GetCell(srcX, srcY);
                 if (kgpOverrides != null && kgpOverrides.TryGetValue((destX, destY), out var kgpOverride))
                 {
-                    srcCell = kgpOverride;
+                    srcCell = srcCell == SurfaceCells.Empty
+                        ? kgpOverride
+                        : srcCell with { Kgp = kgpOverride.Kgp };
                 }
                 var transfersSixelOverride = false;
                 if (sixelOverrides != null &&
                     sixelOverrides.TryGetValue((destX, destY), out var sixelOverride))
                 {
-                    srcCell = sixelOverride;
+                    // Each protocol clips independently, but may reanchor to the same cell.
+                    srcCell = sixelOverride with { Kgp = srcCell.Kgp };
                     transfersSixelOverride = true;
                 }
                 
@@ -812,6 +815,20 @@ public sealed class Surface : ISurfaceSource
                 if (visibleLeft == destAnchorX && visibleTop == destAnchorY)
                     continue;
 
+                if (kgpData.UsesNativeSize)
+                {
+                    var nativeClip = kgpData.ClipNativeToCells(
+                        visibleLeft - destAnchorX, visibleTop - destAnchorY,
+                        visibleRight - visibleLeft, visibleBottom - visibleTop);
+                    if (nativeClip is not null)
+                    {
+                        overrides[(visibleLeft, visibleTop)] = new SurfaceCell(
+                            " ", null, null,
+                            Kgp: new TrackedObject<KgpCellData>(nativeClip, _ => { }));
+                    }
+                    continue;
+                }
+
                 var effectiveClipW = kgpData.ClipW > 0 ? kgpData.ClipW : (int)kgpData.SourcePixelWidth;
                 var effectiveClipH = kgpData.ClipH > 0 ? kgpData.ClipH : (int)kgpData.SourcePixelHeight;
                 var leftClippedCells = visibleLeft - destAnchorX;
@@ -867,6 +884,17 @@ public sealed class Surface : ISurfaceSource
         
         if (visibleCellWidth <= 0 || visibleCellHeight <= 0)
             return cell with { Kgp = null };
+
+        if (kgpData.UsesNativeSize)
+        {
+            var nativeClip = kgpData.ClipNativeToCells(0, 0, visibleCellWidth, visibleCellHeight);
+            return cell with
+            {
+                Kgp = nativeClip is null
+                    ? null
+                    : new TrackedObject<KgpCellData>(nativeClip, _ => { })
+            };
+        }
         
         // Calculate pixel clip rect from cell dimensions
         var sourceWidth = kgpData.SourcePixelWidth > 0 ? (int)kgpData.SourcePixelWidth : kgpWidth * CellMetrics.PixelWidth;

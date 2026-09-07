@@ -21,6 +21,7 @@ internal sealed record Hex1bTerminalSnapshotState(
     bool MouseEncodingUrxvtEnabled,
     int CursorShape,
     DateTimeOffset Timestamp,
+    DateTimeOffset KgpAnimationTimestamp,
     int CellPixelWidth,
     int CellPixelHeight,
     TerminalCell[,] ScreenBuffer,

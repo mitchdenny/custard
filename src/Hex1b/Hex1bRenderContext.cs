@@ -286,6 +286,12 @@ public class Hex1bRenderContext
             animationControlPayload: controlPayload);
     }
 
+    internal virtual void RegisterSixel(SixelData image, int x, int y)
+    {
+        SetCursorPosition(x, y);
+        Write(image.Payload);
+    }
+
     internal virtual void RegisterKgp(KgpImageData image, KgpPlacement placement)
     {
         if (!Capabilities.SupportsKgp)
@@ -328,7 +334,12 @@ public class Hex1bRenderContext
             clipH: checked((int)placement.SourceHeight),
             zIndex: placement.ZIndex,
             cellOffsetX: placement.CellOffsetX,
-            cellOffsetY: placement.CellOffsetY);
+            cellOffsetY: placement.CellOffsetY)
+        {
+            UsesNativeSize = placement.UsesNativeSize,
+            NativeCellMetrics = new Surfaces.CellMetrics(
+                Capabilities.CellPixelWidth, Capabilities.CellPixelHeight)
+        };
     }
 
     private static byte[] ComputeKgpContentHash(

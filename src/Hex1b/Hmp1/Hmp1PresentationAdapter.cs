@@ -4,6 +4,7 @@ using System.Text;
 using System.Threading.Channels;
 using Hex1b.Automation;
 using Hex1b.Diagnostics;
+using Hex1b.Sixel;
 
 namespace Hex1b;
 
@@ -104,7 +105,13 @@ public sealed class Hmp1PresentationAdapter : ITerminalLifecycleAwarePresentatio
         Supports256Colors = true,
         SupportsAlternateScreen = true,
         SupportsBracketedPaste = true,
-        SupportsKgp = true
+        SupportsKgp = true,
+        SupportsSixel = true,
+        SixelSupport = SixelPresentationSupport.Headless,
+        // HMP's producer model uses a canonical virtual grid, not a peer's font.
+        CellPixelWidth = 10,
+        CellPixelHeight = 20,
+        SixelCellMetrics = new(10, 20, SixelCellMetricsSource.Direct, SixelCellMetricsReliability.Authoritative)
     };
 
     /// <inheritdoc />
@@ -181,6 +188,9 @@ public sealed class Hmp1PresentationAdapter : ITerminalLifecycleAwarePresentatio
     {
         _terminal = terminal;
         Metrics = terminal.DiagnosticsMetrics;
+        // The same gate spans a producer output read's forwarding AND application.
+        // Composite presentations participate through this lifecycle callback too.
+        _ = terminal.Hmp1OutputStateLock;
     }
 
     /// <inheritdoc />
@@ -221,6 +231,7 @@ public sealed class Hmp1PresentationAdapter : ITerminalLifecycleAwarePresentatio
     public async Task<Hmp1ClientHandle> AddClient(Stream stream, CancellationToken ct = default)
     {
         ArgumentNullException.ThrowIfNull(stream);
+        ObjectDisposedException.ThrowIf(_disposed, this);
 
         // Read the client's hello first. Apply a generous timeout so a stuck
         // peer cannot hold this slot open forever.
@@ -246,10 +257,113 @@ public sealed class Hmp1PresentationAdapter : ITerminalLifecycleAwarePresentatio
         var sessionCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
         var session = new Hmp1ClientSession(stream, sessionCts, peerId, displayName, defaultRole);
 
+        try
+        {
+            return await CompleteClientHandshakeAsync(session, ct).ConfigureAwait(false);
+        }
+        catch
+        {
+            // A peer is registered before Hello/StateSync to avoid losing output.
+            // Roll back that registration when no usable handle can be returned.
+            await RemoveSessionAsync(session).ConfigureAwait(false);
+            throw;
+        }
+    }
+
+    /// <summary>Creates an experimental HWT1 view of the producer and retained text history.</summary>
+    /// <param name="displayName">An optional label for the peer in the HMP1 roster.</param>
+    /// <param name="cancellationToken">Cancels creation; dispose the result to end the peer lifetime.</param>
+    /// <returns>An attached browser adapter owning one secondary HMP1 peer.</returns>
+    /// <remarks>
+    /// Shares producer state without an emulator or ANSI replay. HMP1 remains the authority
+    /// for identity, input, and primary-only resize. Local inspection never requests primary.
+    /// Disposing the primary leaves no primary. Historical views contain text only; live
+    /// graphics are unchanged. The experimental API and HWT1 contract must be upgraded
+    /// with the first-party client. See <see cref="Hwt1PresentationAdapter"/> for transport usage.
+    /// </remarks>
+    /// <exception cref="InvalidOperationException">The muxer is not attached to a producer.</exception>
+    /// <exception cref="ObjectDisposedException">The muxer is disposed.</exception>
+    public async Task<Hwt1PresentationAdapter> CreateBrowserViewAsync(
+        string? displayName = null, CancellationToken cancellationToken = default)
+    {
+        var terminal = _terminal ?? throw new InvalidOperationException("Attach the muxer to a producer first.");
+        var session = new Hmp1ClientSession(Stream.Null, new CancellationTokenSource(),
+            GeneratePeerId(), displayName, "secondary");
+        var view = new Hwt1PresentationAdapter();
+        session.BrowserView = view;
+        try
+        {
+            await terminal.Hmp1OutputStateLock.WaitAsync(cancellationToken).ConfigureAwait(false);
+            try
+            {
+                lock (_sessionsLock)
+                {
+                    ObjectDisposedException.ThrowIf(_disposed, this);
+                    session.RemoteWidth = _width;
+                    session.RemoteHeight = _height;
+                    view.AttachProducer(terminal, this, session);
+                    foreach (var peer in _sessions)
+                        EnqueueControlFrameAsync(peer, stream =>
+                            Hmp1Protocol.WritePeerJoinAsync(stream, session.PeerId, displayName,
+                                CancellationToken.None).AsTask());
+                    _sessions.Add(session);
+                }
+            }
+            finally
+            {
+                terminal.Hmp1OutputStateLock.Release();
+            }
+            await Hmp1AsyncCallback.InvokeAsync(OnClientConnected,
+                new Hmp1ClientConnectedEventArgs(session.PeerId, displayName, Hmp1Role.Secondary),
+                cancellationToken).ConfigureAwait(false);
+            return view;
+        }
+        catch
+        {
+            await RemoveSessionAsync(session).ConfigureAwait(false);
+            throw;
+        }
+    }
+
+    internal Hwt1Peer GetBrowserPeer(Hmp1ClientSession session)
+    {
+        lock (_sessionsLock)
+            return _sessions.Contains(session)
+                ? new(session.PeerId, _primaryPeerId, session.PeerId == _primaryPeerId)
+                : Hwt1Peer.Unconnected;
+    }
+
+    internal void SendBrowserInput(Hmp1ClientSession session, ReadOnlyMemory<byte> input)
+    {
+        lock (_sessionsLock)
+        {
+            ObjectDisposedException.ThrowIf(!_sessions.Contains(session), session.BrowserView!);
+            _inputChannel.Writer.TryWrite(input.ToArray());
+        }
+    }
+
+    internal async ValueTask ResizeBrowserAsync(Hmp1ClientSession session, int width, int height, bool primary,
+        CancellationToken cancellationToken)
+    {
+        using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, session.Cts.Token);
+        var operation = primary
+            ? HandleRequestPrimaryAsync(session, width, height, linked.Token)
+            : HandleResizeAsync(session, width, height, linked.Token);
+        await operation.AsTask().WaitAsync(linked.Token).ConfigureAwait(false);
+        linked.Token.ThrowIfCancellationRequested();
+    }
+
+    private async Task<Hmp1ClientHandle> CompleteClientHandshakeAsync(Hmp1ClientSession session, CancellationToken ct)
+    {
+        var stream = session.Stream;
+        var sessionCts = session.Cts;
+        var peerId = session.PeerId;
+        var displayName = session.DisplayName;
         Hmp1ClientSession[] existingPeers;
         byte[] syncBytes;
         IReadOnlyList<KgpPlacement> kgpPlacements;
         IReadOnlyDictionary<uint, KgpImageData> kgpImages;
+        DateTimeOffset? kgpAnimationTimestamp;
         IReadOnlyList<SixelPlacement> sixelPlacements;
         IReadOnlyList<(int Row, int Column, TerminalCell Cell)> sixelDamagedCells;
         int cursorX;
@@ -257,8 +371,14 @@ public sealed class Hmp1PresentationAdapter : ITerminalLifecycleAwarePresentatio
         string? primarySnapshot;
         int widthSnapshot;
         int heightSnapshot;
+        var outputStateLock = _terminal?.Hmp1OutputStateLock;
+        if (outputStateLock is not null)
+            await outputStateLock.WaitAsync(ct).ConfigureAwait(false);
+        try
+        {
         lock (_sessionsLock)
         {
+            ObjectDisposedException.ThrowIf(_disposed, this);
             existingPeers = [.. _sessions];
 
             if (_terminal != null)
@@ -285,6 +405,7 @@ public sealed class Hmp1PresentationAdapter : ITerminalLifecycleAwarePresentatio
                 syncBytes = Encoding.UTF8.GetBytes(prefix + ansi + suffix);
                 kgpPlacements = snap.KgpPlacements;
                 kgpImages = snap.KgpImages;
+                kgpAnimationTimestamp = snap.KgpAnimationTimestamp;
                 sixelPlacements = snap.SixelPlacements;
                 sixelDamagedCells = CaptureSixelDamagedCells(snap, sixelPlacements);
                 cursorX = snap.CursorX;
@@ -295,6 +416,7 @@ public sealed class Hmp1PresentationAdapter : ITerminalLifecycleAwarePresentatio
                 syncBytes = [];
                 kgpPlacements = [];
                 kgpImages = new Dictionary<uint, KgpImageData>();
+                kgpAnimationTimestamp = null;
                 sixelPlacements = [];
                 sixelDamagedCells = [];
                 cursorX = 0;
@@ -314,7 +436,8 @@ public sealed class Hmp1PresentationAdapter : ITerminalLifecycleAwarePresentatio
                         kgpImages,
                         cursorX,
                         cursorY,
-                        session.Cts.Token));
+                        session.Cts.Token,
+                        kgpAnimationTimestamp));
             }
 
             // Sixel placements own the character cells they occupy (unlike KGP), but
@@ -365,6 +488,11 @@ public sealed class Hmp1PresentationAdapter : ITerminalLifecycleAwarePresentatio
                     await Hmp1Protocol.WritePeerJoinAsync(s, newPeerId, newDisplayName, CancellationToken.None).ConfigureAwait(false));
             }
         }
+        }
+        finally
+        {
+            outputStateLock?.Release();
+        }
 
         // Build roster (existing peers, excluding the new one).
         var roster = new List<HelloPeerInfo>(existingPeers.Length);
@@ -381,9 +509,11 @@ public sealed class Hmp1PresentationAdapter : ITerminalLifecycleAwarePresentatio
 
         await Hmp1Protocol.WriteFrameAsync(stream, Hmp1FrameType.StateSync, syncBytes, ct).ConfigureAwait(false);
 
-        // Start per-client write pump and read pump
-        session.WriteTask = Task.Run(() => WriteClientPumpAsync(session), sessionCts.Token);
-        session.ReadTask = Task.Run(() => ReadClientPumpAsync(session), sessionCts.Token);
+        ct.ThrowIfCancellationRequested();
+        // Always enter the pumps so their finally blocks clean up even if the
+        // session is cancelled between scheduling and delegate execution.
+        session.WriteTask = Task.Run(() => WriteClientPumpAsync(session));
+        session.ReadTask = Task.Run(() => ReadClientPumpAsync(session));
 
         // Notify server-side observers AFTER the pumps are spinning so an
         // OnClientConnected handler that turns around and inspects the
@@ -530,6 +660,11 @@ public sealed class Hmp1PresentationAdapter : ITerminalLifecycleAwarePresentatio
             for (var i = _sessions.Count - 1; i >= 0; i--)
             {
                 var session = _sessions[i];
+                if (session.BrowserView is { } browserView)
+                {
+                    browserView.RecordOutputBatch();
+                    continue;
+                }
                 if (!session.OutputChannel.Writer.TryWrite(new Hmp1OutboundWork(copy, null)))
                 {
                     // Client can't keep up — disconnect it
@@ -686,11 +821,24 @@ public sealed class Hmp1PresentationAdapter : ITerminalLifecycleAwarePresentatio
     private async ValueTask HandleResizeAsync(Hmp1ClientSession session, ReadOnlyMemory<byte> payload)
     {
         var (width, height) = Hmp1Protocol.ParseResize(payload);
+        await HandleResizeAsync(session, width, height, session.Cts.Token).ConfigureAwait(false);
+    }
 
+    private async ValueTask HandleResizeAsync(Hmp1ClientSession session, int width, int height,
+        CancellationToken cancellationToken)
+    {
         bool acceptedAsPrimary;
         Hmp1ClientSession[] otherPeers;
+        var outputStateLock = _terminal?.Hmp1OutputStateLock;
+        if (outputStateLock is not null)
+            await outputStateLock.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
         lock (_sessionsLock)
         {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (!_sessions.Contains(session))
+                return;
             // Always remember the peer's *requested* dimensions so a later
             // RequestPrimary without explicit dims has something sensible to
             // fall back on (and so tests can observe per-peer last-resize).
@@ -722,33 +870,51 @@ public sealed class Hmp1PresentationAdapter : ITerminalLifecycleAwarePresentatio
                 EnqueueControlFrameAsync(p, async s =>
                     await Hmp1Protocol.WriteResizeAsync(s, w, h, CancellationToken.None).ConfigureAwait(false));
             }
+            // Apply the producer resize in the same ordered transaction as the
+            // authority update and broadcasts, before another transition or output.
+            Resized?.Invoke(width, height);
+        }
+        }
+        finally
+        {
+            outputStateLock?.Release();
         }
 
         if (acceptedAsPrimary)
         {
-            // The interface contract Resized event still drives the
-            // underlying PTY's resize.
-            Resized?.Invoke(width, height);
             // The HMP-server-specific async callback for observers.
             await Hmp1AsyncCallback.InvokeAsync(
                 OnResized,
                 new Hmp1ServerResizedEventArgs(width, height),
-                session.Cts.Token).ConfigureAwait(false);
+                cancellationToken).ConfigureAwait(false);
         }
     }
 
     private async ValueTask HandleRequestPrimaryAsync(Hmp1ClientSession session, ReadOnlyMemory<byte> payload)
     {
         var req = Hmp1Protocol.ParseRequestPrimary(payload);
+        await HandleRequestPrimaryAsync(session, req.Cols, req.Rows, session.Cts.Token).ConfigureAwait(false);
+    }
 
+    private async ValueTask HandleRequestPrimaryAsync(Hmp1ClientSession session, int requestedColumns, int requestedRows,
+        CancellationToken cancellationToken)
+    {
         Hmp1ClientSession[] peers;
         bool sizeChanged;
         int cols;
         int rows;
+        var outputStateLock = _terminal?.Hmp1OutputStateLock;
+        if (outputStateLock is not null)
+            await outputStateLock.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
         lock (_sessionsLock)
         {
-            cols = req.Cols > 0 ? req.Cols : session.RemoteWidth;
-            rows = req.Rows > 0 ? req.Rows : session.RemoteHeight;
+            cancellationToken.ThrowIfCancellationRequested();
+            if (!_sessions.Contains(session))
+                return;
+            cols = requestedColumns > 0 ? requestedColumns : session.RemoteWidth;
+            rows = requestedRows > 0 ? requestedRows : session.RemoteHeight;
             if (cols <= 0) cols = _width;
             if (rows <= 0) rows = _height;
 
@@ -779,22 +945,28 @@ public sealed class Hmp1PresentationAdapter : ITerminalLifecycleAwarePresentatio
                 EnqueueControlFrameAsync(p, async s =>
                     await Hmp1Protocol.WriteRoleChangeAsync(s, primaryId, w, h, "RequestPrimary", CancellationToken.None).ConfigureAwait(false));
             }
+            if (sizeChanged)
+                Resized?.Invoke(cols, rows);
+        }
+        }
+        finally
+        {
+            outputStateLock?.Release();
         }
 
-        // If size actually changed, fire Resized so the underlying PTY follows.
+        // Async observer callbacks are outside the ordered state transaction.
         if (sizeChanged)
         {
-            Resized?.Invoke(cols, rows);
             await Hmp1AsyncCallback.InvokeAsync(
                 OnResized,
                 new Hmp1ServerResizedEventArgs(cols, rows),
-                session.Cts.Token).ConfigureAwait(false);
+                cancellationToken).ConfigureAwait(false);
         }
 
         await Hmp1AsyncCallback.InvokeAsync(
             OnPrimaryChanged,
             new Hmp1ServerPrimaryChangedEventArgs(session.PeerId),
-            session.Cts.Token).ConfigureAwait(false);
+            cancellationToken).ConfigureAwait(false);
     }
 
     internal async ValueTask RemoveSessionAsync(Hmp1ClientSession session)
@@ -877,6 +1049,11 @@ public sealed class Hmp1PresentationAdapter : ITerminalLifecycleAwarePresentatio
 
     private static void EnqueueControlFrameAsync(Hmp1ClientSession session, Func<Stream, Task> writer)
     {
+        if (session.BrowserView is { } view)
+        {
+            view.InvalidatePresentation();
+            return;
+        }
         // Enqueue the control writer onto the per-client write pump so it's
         // serialised with normal output. If the channel is closed (peer is
         // gone), the write is dropped silently.
@@ -885,6 +1062,10 @@ public sealed class Hmp1PresentationAdapter : ITerminalLifecycleAwarePresentatio
 
     private static async Task DisposeSessionAsync(Hmp1ClientSession session)
     {
+        if (Interlocked.Exchange(ref session.Disposed, 1) != 0)
+            return;
+        if (session.BrowserView is { } view)
+            await view.DisposeAsync().ConfigureAwait(false);
         session.OutputChannel.Writer.TryComplete();
 
         try
@@ -904,6 +1085,11 @@ public sealed class Hmp1PresentationAdapter : ITerminalLifecycleAwarePresentatio
 
     private static async Task TrySendExitAsync(Hmp1ClientSession session, int exitCode)
     {
+        if (session.BrowserView is { } view)
+        {
+            view.TerminalCompleted(exitCode);
+            return;
+        }
         try
         {
             // Enqueue a sentinel, then write exit directly
@@ -962,6 +1148,8 @@ public sealed class Hmp1PresentationAdapter : ITerminalLifecycleAwarePresentatio
         public string? DefaultRole { get; }
         public Task? ReadTask { get; set; }
         public Task? WriteTask { get; set; }
+        public Hwt1PresentationAdapter? BrowserView { get; set; }
+        public int Disposed;
         public int RemoteWidth { get; set; }
         public int RemoteHeight { get; set; }
 

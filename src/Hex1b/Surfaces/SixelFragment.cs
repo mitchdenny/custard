@@ -118,7 +118,8 @@ public sealed class SixelFragment
         if (pixels is null)
             return null;
 
-        _encodedPayload = SixelEncoder.Encode(pixels);
+        _encodedPayload = SixelExactEncoder.EncodeBounded(
+            pixels, int.MaxValue, CancellationToken.None, reuseColorRegisters: true).Payload;
         return _encodedPayload;
     }
 

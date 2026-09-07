@@ -1014,7 +1014,7 @@ public static class SurfaceComparer
         if (a is null || b is null) return false;
         
         // Compare by content hash
-        return KgpCellData.HashEquals(a.Data.ContentHash, b.Data.ContentHash);
+        return KgpCellData.HashEquals(a.Data.TrackingHash, b.Data.TrackingHash);
     }
     
     private static bool HyperlinksEqual(TrackedObject<HyperlinkData>? a, TrackedObject<HyperlinkData>? b)

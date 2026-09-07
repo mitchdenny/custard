@@ -1,0 +1,107 @@
+import {
+  WebTerminal, InputRoute, TerminalAction, defaultInputBindings, MIN_FONT_SIZE, MAX_FONT_SIZE,
+  type WebTerminalOptions, type WebTerminalHandle, type TerminalInput, type InputBinding,
+  type TerminalSelection, type TerminalViewport, type SelectionUIEvent, type TerminalStats
+} from "@hex1b/web-terminal";
+
+const container = document.createElement("div");
+const minimumFontSize: 8 = MIN_FONT_SIZE;
+const maximumFontSize: 32 = MAX_FONT_SIZE;
+console.log(minimumFontSize, maximumFontSize);
+const bindings: InputBinding[] = defaultInputBindings();
+const options: WebTerminalOptions = {
+  url: new URL("wss://example.test/terminal"),
+  workerUrl: new URL("/web-terminal/terminal-worker.js", "https://example.test"),
+  signal: new AbortController().signal,
+  scale: "auto",
+  sizing: { mode: "fixed", columns: 80, rows: 24, fontSize: 16 },
+  font: { family: "Terminal Font", faces: [{ url: "/font.woff2", weight: "200 700" }] },
+  actions: {
+    inspect(context, args, input) {
+      const selection: TerminalSelection = context.selection;
+      const viewport: TerminalViewport = context.viewport;
+      const intent: Readonly<TerminalInput> | undefined = input;
+      if (typeof args === "string") context.terminal.paste(args);
+      // @ts-expect-error Custom action arguments require narrowing.
+      args.message;
+      return { selection, viewport, intent };
+    }
+  },
+  inputBindings: [
+    ...bindings,
+    { id: "remove-default", match: input => input.type === "key", route: InputRoute.Continue },
+    { id: "inspect", match: input => input.type === "pointer" && input.button === "left", action: "inspect" }
+  ],
+  onInput(input, context) {
+    if (input.type === "key") {
+      const repeat: boolean = input.repeat;
+      if (repeat) return InputRoute.Consume;
+    }
+    if (context.readOnly) return { action: TerminalAction.ClearSelection };
+    return undefined;
+  },
+  onStats(stats, text) {
+    const state: TerminalStats = stats;
+    const revision: number | undefined = state.revision;
+    const mirror: string | undefined = text;
+    console.log(revision, mirror);
+  },
+  onSelectionUI(event) {
+    const notification: SelectionUIEvent = event;
+    notification.preventDefault();
+    const { selection, viewport, overlay, rects, runAction, signal } = notification.detail;
+    if (selection.status === "valid") {
+      const text: string = selection.text;
+      console.log(text);
+    }
+    if (viewport.available) {
+      const generation: string = viewport.generation;
+      console.log(generation);
+    }
+    if (rects[0]) overlay.style.left = `${rects[0].left}px`;
+    overlay.addEventListener("click", () => void runAction(TerminalAction.CopySelection), { signal });
+    // @ts-expect-error Event snapshots are readonly.
+    selection.copying = true;
+    // @ts-expect-error Event ranges are readonly.
+    selection.ranges[0].row = 42;
+    // @ts-expect-error Built-in scrolling requires numeric arguments.
+    runAction(TerminalAction.ScrollLines, "20");
+  }
+};
+
+const terminal: WebTerminalHandle = await WebTerminal.mount(container, options);
+const copied: string = await terminal.runAction(TerminalAction.CopySelection, { clear: true });
+const pasted: string = await terminal.runAction(TerminalAction.PasteClipboard);
+await terminal.runAction(TerminalAction.ScrollLines, -20);
+await terminal.runAction("inspect", { source: "button" });
+await terminal.runAction(context => context.terminal.screenText);
+terminal.setSizing({ mode: "auto" });
+terminal.resize(80, 24);
+terminal.refreshSelectionUI();
+terminal.paste(copied + pasted);
+terminal.dispose();
+
+// @ts-expect-error Consumers must use mount to obtain an initialized handle.
+new WebTerminal(options);
+// @ts-expect-error Fixed sizing requires both grid dimensions.
+terminal.setSizing({ mode: "fixed", columns: 80 });
+// @ts-expect-error Paste is text, not bytes.
+terminal.paste(new Uint8Array());
+// @ts-expect-error Copy options use a boolean.
+terminal.runAction(TerminalAction.CopySelection, { clear: "yes" });
+// @ts-expect-error A built-in scrolling action requires its argument.
+terminal.runAction(TerminalAction.ScrollLines);
+// @ts-expect-error Selection UI ownership must be decided synchronously.
+const asyncUI: WebTerminalOptions = { url: "/terminal", onSelectionUI: async () => {} };
+// @ts-expect-error Routing callbacks must be synchronous.
+const asyncRouting: WebTerminalOptions = { url: "/terminal", onInput: async () => InputRoute.Browser };
+// @ts-expect-error Async binding match functions are not supported.
+const asyncBinding: InputBinding = { id: "async", match: async () => true, route: InputRoute.Consume };
+// @ts-expect-error Worker entries must be URL strings or URL objects.
+const invalidWorker: WebTerminalOptions = { url: "/terminal", workerUrl: 42 };
+// @ts-expect-error Routing decisions specify exactly one route or action.
+const ambiguous: InputBinding = { id: "both", match: () => true, route: InputRoute.Browser, action: "inspect" };
+// @ts-expect-error Protocol internals are not public package exports.
+import { decodeFrame } from "@hex1b/web-terminal";
+// @ts-expect-error Internal modules are not public package subpaths.
+import { TerminalRenderer } from "@hex1b/web-terminal/renderer.js";

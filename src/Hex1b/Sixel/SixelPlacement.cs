@@ -378,6 +378,31 @@ public sealed class SixelPlacement
         return cropped;
     }
 
+    internal bool TryGetPaintedPixelDimensions(out int width, out int height)
+    {
+        if (!HasPaintedExtent || !Image.TryGetRasterDimensions(out var rasterWidth, out var rasterHeight))
+        {
+            width = height = 0;
+            return false;
+        }
+
+        if (PaintedRowOffset == 0 && PaintedColumnOffset == 0 &&
+            PaintedRowCount == HeightInCells && PaintedColumnCount == WidthInCells)
+        {
+            width = rasterWidth;
+            height = rasterHeight;
+            return true;
+        }
+
+        var left = Math.Clamp((int)Math.Floor(PaintedColumnOffset * Image.CellMetrics.SafeWidth), 0, rasterWidth);
+        var right = Math.Clamp((int)Math.Ceiling((PaintedColumnOffset + PaintedColumnCount) * Image.CellMetrics.SafeWidth), 0, rasterWidth);
+        var top = Math.Clamp((int)Math.Floor(PaintedRowOffset * Image.CellMetrics.SafeHeight), 0, rasterHeight);
+        var bottom = Math.Clamp((int)Math.Ceiling((PaintedRowOffset + PaintedRowCount) * Image.CellMetrics.SafeHeight), 0, rasterHeight);
+        width = Math.Max(0, right - left);
+        height = Math.Max(0, bottom - top);
+        return width > 0 && height > 0;
+    }
+
 
     /// <summary>Creates a copy of this placement repositioned to <paramref name="row"/>.</summary>
     /// <remarks>
@@ -542,6 +567,25 @@ public sealed class SixelPlacement
     /// <param name="row">The absolute row to check.</param>
     /// <param name="column">The absolute column to check.</param>
     public bool IsCellDamaged(int row, int column) => _damagedCells.Contains(CellKey(row, column));
+
+    internal bool IsPixelDamaged(int pixelX, int pixelY)
+    {
+        if (_damagedCells.Count == 0)
+            return false;
+
+        // Fractional cell boundaries can intersect the same pixel twice. Match
+        // GetVisiblePixels' floor/ceiling damage rectangles, not just one cell.
+        var metrics = Image.CellMetrics;
+        var left = (int)Math.Min(WidthInCells - 1, Math.Floor(pixelX / metrics.SafeWidth));
+        var right = (int)Math.Min(WidthInCells - 1, Math.Ceiling((pixelX + 1d) / metrics.SafeWidth) - 1);
+        var top = (int)Math.Min(HeightInCells - 1, Math.Floor(pixelY / metrics.SafeHeight));
+        var bottom = (int)Math.Min(HeightInCells - 1, Math.Ceiling((pixelY + 1d) / metrics.SafeHeight) - 1);
+        for (var row = top; row <= bottom; row++)
+            for (var column = left; column <= right; column++)
+                if (_damagedCells.Contains(row * WidthInCells + column))
+                    return true;
+        return false;
+    }
 
     private int CellKey(int row, int column) => ((row - Row) * WidthInCells) + (column - Column);
 }

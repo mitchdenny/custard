@@ -22,9 +22,14 @@ public sealed class Hex1bTerminalSnapshot : IHex1bTerminalRegion, IDisposable
     }
 
     internal Hex1bTerminalSnapshot(Hex1bTerminal terminal, int scrollbackLines, ScrollbackWidth scrollbackWidth, TerminalCell voidCell)
+        : this(terminal, terminal.CaptureSnapshotState(scrollbackLines, scrollbackWidth), scrollbackWidth, voidCell)
+    {
+    }
+
+    internal Hex1bTerminalSnapshot(Hex1bTerminal terminal, Hex1bTerminalSnapshotState state,
+        ScrollbackWidth scrollbackWidth, TerminalCell voidCell)
     {
         Terminal = terminal;
-        var state = terminal.CaptureSnapshotState(scrollbackLines, scrollbackWidth);
         var terminalWidth = state.TerminalWidth;
         var terminalHeight = state.TerminalHeight;
         CursorX = state.CursorX;
@@ -45,6 +50,7 @@ public sealed class Hex1bTerminalSnapshot : IHex1bTerminalRegion, IDisposable
         MouseEncodingUrxvtEnabled = state.MouseEncodingUrxvtEnabled;
         CursorShape = state.CursorShape;
         Timestamp = state.Timestamp;
+        KgpAnimationTimestamp = state.KgpAnimationTimestamp;
         CellPixelWidth = state.CellPixelWidth;
         CellPixelHeight = state.CellPixelHeight;
         KgpPlacements = state.KgpPlacements;
@@ -142,6 +148,8 @@ public sealed class Hex1bTerminalSnapshot : IHex1bTerminalRegion, IDisposable
     /// When the snapshot was taken.
     /// </summary>
     public DateTimeOffset Timestamp { get; }
+
+    internal DateTimeOffset KgpAnimationTimestamp { get; }
 
     /// <summary>
     /// Whether the terminal was in alternate screen mode at snapshot time.

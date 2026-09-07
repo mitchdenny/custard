@@ -1,3 +1,4 @@
+#pragma warning disable HEX1B_SIXEL // Internal Sixel presentation integration.
 using Hex1b.Input;
 using Hex1b.Tokens;
 using Hex1b.Automation;
@@ -542,19 +543,24 @@ public sealed class TerminalWidgetHandle :
         }
     }
 
-    internal Hex1bTerminalSnapshot? CreateSnapshot(
-        int scrollbackLines,
-        ScrollbackWidth scrollbackWidth = ScrollbackWidth.CurrentTerminal)
-        => _terminal?.CreateSnapshot(scrollbackLines, scrollbackWidth);
+    internal bool TryCaptureRenderFrame(int scrollbackOffset, out TerminalWidgetRenderFrame? frame)
+    {
+        frame = _terminal?.CaptureTerminalWidgetFrame(scrollbackOffset);
+        return _terminal is null || frame is not null;
+    }
 
     internal void UpdateHostCapabilities(TerminalCapabilities hostCapabilities)
     {
         ArgumentNullException.ThrowIfNull(hostCapabilities);
 
         var current = Volatile.Read(ref _capabilities);
+        var supportsSixel = Nodes.SixelNode.IsSixelSupported(hostCapabilities);
         var updated = current with
         {
             SupportsKgp = hostCapabilities.SupportsKgp,
+            SupportsSixel = supportsSixel,
+            SixelSupport = supportsSixel ? Sixel.SixelPresentationSupport.Headless : Sixel.SixelPresentationSupport.None,
+            SixelCellMetrics = hostCapabilities.SixelCellMetrics,
             CellPixelWidth = hostCapabilities.CellPixelWidth,
             ActualCellPixelWidth = hostCapabilities.ActualCellPixelWidth,
             CellPixelHeight = hostCapabilities.CellPixelHeight,
@@ -674,14 +680,15 @@ public sealed class TerminalWidgetHandle :
     private void ApplyTokensToBuffer(IReadOnlyList<AppliedToken> appliedTokens)
     {
         int maxY = -1;
-        var hasGraphicsChanges = false;
+        var hasPresentationChanges = false;
         lock (_bufferLock)
         {
             foreach (var applied in appliedTokens)
             {
-                if (applied.Token is KgpToken || applied.HasGraphicsImpacts)
+                if (applied.Token is KgpToken or SoftResetToken or
+                    PrivateModeToken { Mode: 2026, Enable: false } || applied.HasGraphicsImpacts)
                 {
-                    hasGraphicsChanges = true;
+                    hasPresentationChanges = true;
                 }
 
                 // Check for mode changes from the child process
@@ -718,9 +725,9 @@ public sealed class TerminalWidgetHandle :
             }
         }
         
-        // Graphics state lives in the owning terminal rather than this cell
-        // buffer, but changes still require the bound TerminalNode to render a new frame.
-        if (maxY >= 0 || hasGraphicsChanges)
+        // Graphics and synchronized-output completion can change the presented frame
+        // without changing any cells, including an end marker in a separate read.
+        if (maxY >= 0 || hasPresentationChanges)
         {
             OutputReceived?.Invoke();
         }

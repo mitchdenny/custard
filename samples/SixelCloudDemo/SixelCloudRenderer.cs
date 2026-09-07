@@ -47,13 +47,12 @@ internal static class SixelCloudPalette
 /// demonstrate the contrast.
 /// </para>
 /// <para>
-/// Two hazards make per-mote placements harder than they look, and both are handled
-/// here rather than avoided. A placement issued on the last row scrolls the viewport
-/// under Sixel scrolling mode, dragging the cloud upward every frame, so placements
-/// are clipped to the last usable row rather than relying on DECSDM, whose polarity
-/// is inverted between terminals. And motes must be sorted into cursor order, because
-/// emitting hundreds of placements that jump the cursor around arbitrarily is what
-/// terminals handle worst.
+/// Placements reserve room for their entire declared raster and the final cursor row
+/// so Sixel scrolling cannot drag the cloud upward. Each mote explicitly positions
+/// the cursor, even when it shares a cell with the preceding mote: Sixel can move the
+/// cursor after painting. This avoids depending on DECSDM, whose polarity is inverted
+/// between terminals. Motes are still sorted into cursor order to reduce arbitrary
+/// jumps across the screen.
 /// </para>
 /// </remarks>
 internal sealed class SixelCloudRenderer : ICloudRenderer
@@ -124,9 +123,10 @@ internal sealed class SixelCloudRenderer : ICloudRenderer
 
         builder.Append("\x1b[H\x1b[2J");
 
-        // The last row stays clear even with scrolling disabled, because a placement
-        // there still has nowhere to put the six-pixel band it occupies.
-        var usableRows = Math.Max(1, rows - 1);
+        // Include transparent padding and band rounding, not just the visible 2x2 dot.
+        // The cursor needs one further row below the entire placement.
+        var placementRows = (int)Math.Ceiling(_placementHeight / _cellPixelHeight);
+        var usableRows = Math.Max(0, rows - placementRows);
 
         // Placements are emitted in cursor order (top-to-bottom, left-to-right).
         // Hundreds of placements that jump the cursor around arbitrarily is the access
@@ -148,8 +148,6 @@ internal sealed class SixelCloudRenderer : ICloudRenderer
         var cellHeight = _cellPixelHeight;
         Array.Sort(ordered, 0, count, MoteCursorOrder.Instance);
 
-        var lastRow = -1;
-        var lastColumn = -1;
         for (var index = 0; index < count; index++)
         {
             var mote = ordered[index];
@@ -168,14 +166,8 @@ internal sealed class SixelCloudRenderer : ICloudRenderer
             var offsetX = (int)(mote.X - (column * cellWidth));
             var offsetY = (int)(mote.Y - (row * cellHeight));
 
-            // Skip the cursor move when the previous placement already left the cursor
-            // in the right cell, which is common once motes are sorted.
-            if (row != lastRow || column != lastColumn)
-            {
-                builder.Append("\x1b[").Append(row + 1).Append(';').Append(column + 1).Append('H');
-                lastRow = row;
-                lastColumn = column;
-            }
+            // Sixel moves the cursor after painting, including for same-cell motes.
+            builder.Append("\x1b[").Append(row + 1).Append(';').Append(column + 1).Append('H');
 
             AppendMotePlacement(builder, mote, offsetX, offsetY);
         }
@@ -276,12 +268,16 @@ internal sealed class SixelCloudRenderer : ICloudRenderer
         // or wrap.
         var width = Math.Max(1, (int)(columns * _cellPixelWidth));
 
-        // The raster stops one row short of the bottom. Painting the last row
-        // scrolls the viewport under the default Sixel scrolling mode, which would
-        // drag the cloud upward a row every frame.
-        var usableRows = Math.Max(1, rows - 1);
-        var height = Math.Max(1, (int)(usableRows * _cellPixelHeight));
-        var bandCount = (height + SixelBandHeight - 1) / SixelBandHeight;
+        // Leave a cursor row and round DOWN to whole Sixel bands. Even a partially
+        // painted final band occupies six pixels and can otherwise scroll the frame.
+        var usableRows = Math.Max(0, rows - 1);
+        var bandCount = (int)(usableRows * _cellPixelHeight / SixelBandHeight);
+        var height = bandCount * SixelBandHeight;
+        if (height == 0)
+        {
+            // No complete band fits, but shrinking must still erase the previous frame.
+            return Encoding.ASCII.GetBytes("\x1b[?2026h\x1b[H\x1b[2J\x1b[?2026l");
+        }
 
         // One byte per pixel holding "colour index + 1", so 0 means transparent.
         // The buffer is reused across frames: at HiDPI metrics this is over ten

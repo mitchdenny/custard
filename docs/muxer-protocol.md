@@ -3,11 +3,12 @@
 The Hex1b Muxer Protocol is a binary framing protocol for multiplexing terminal sessions over any bidirectional byte stream (Unix domain sockets, TCP, named pipes, etc.).
 
 > **In-place update — no protocol version bump.** Hex1b is pre-v1 and currently
-> has a single coordinated consumer (Aspire). HMP1 has been extended in-place
+> coordinates its first-party consumers. HMP1 has been extended in-place
 > with multi-head primary/secondary semantics and four new frame types
 > (`RequestPrimary`, `RoleChange`, `PeerJoin`, `PeerLeave`) plus an extended
 > `Hello` payload and a new client-emitted `ClientHello`. Old binaries cannot
-> speak the updated HMP1 — all builds upgrade together.
+> speak the updated HMP1 — all builds upgrade together. Animation replay also
+> adds the one-time `KgpAnimationState` checkpoint described below.
 
 ## Frame Format
 
@@ -41,6 +42,7 @@ Maximum payload size: 16 MB.
 | PeerJoin | `0x09` | Server → Client (broadcast) | A new peer joined the session |
 | PeerLeave | `0x0A` | Server → Client (broadcast) | An existing peer disconnected |
 | ClientHello | `0x0B` | Client → Server | Client identifies itself before the server's Hello (display name, default role) |
+| KgpAnimationState | `0x0C` | Server → Client | One-time playback-progress checkpoint following KGP animation replay |
 
 ## Peer IDs
 
@@ -159,10 +161,53 @@ Sent by the server immediately after the Hello frame. Contains a full snapshot o
 
 The payload may be empty if no screen content is available yet.
 
-If the snapshot contains active Kitty Graphics Protocol images, the server queues
-KGP transmit and placement sequences as `Output` frames immediately after
-`StateSync` and before subsequent live output. Graphics are replayed separately
-because their encoded data may exceed the maximum size of one HMP frame.
+If the snapshot contains graphics, the server queues KGP and Sixel replay after
+`StateSync` and before subsequent live output. The clear-screen sequence in
+`StateSync` would erase graphics sent before it. Graphics use separate `Output`
+frames because their encoded data may exceed the maximum size of one HMP frame.
+
+KGP animation replay sends the root and all fully composed frames, timing gaps,
+current-frame selection, placements, and playback controls. A subsequent
+`KgpAnimationState` frame restores the captured loop progress and frame age.
+There is no per-animation-tick retransmission of these pixels.
+
+### KgpAnimationState (0x0C)
+
+This server-to-client JSON checkpoint follows the KGP replay `Output` frames,
+in the same ordered stream. It supplements standard KGP commands with progress
+that those commands cannot express. It is not an HWT1 frame or a new election
+mechanism.
+
+```json
+{
+  "images": [{
+    "imageId": 1,
+    "imageNumber": 0,
+    "currentFrameNumber": 2,
+    "playbackState": 3,
+    "maximumLoops": 1,
+    "completedLoops": 0,
+    "elapsedTicks": 800000
+  }]
+}
+```
+
+Each entry addresses an already-replayed image by `imageId`, or by
+`imageNumber` with `imageId: 0` for numbered images. `currentFrameNumber` is
+one-based. `playbackState` is numeric: `1` stopped, `2` loading, `3` running.
+`maximumLoops` and `completedLoops` restore the image store's loop counters;
+`maximumLoops: 1` denotes infinite playback. `elapsedTicks` is the captured
+frame age in 100-nanosecond ticks, or null when its presentation time is not
+initialized.
+
+Hex1b applies the checkpoint **after** the preceding pixel/control bytes have
+been interpreted, never from the network reader ahead of queued output.
+The checkpoint must reference valid replayed frames and playback counters;
+invalid checkpoints fail instead of silently resetting the animation.
+Byte-only consumers still receive standard KGP playback commands but do not
+restore this additional progress. Captured frame age is restored relative to
+the consumer's clock; this is not a transport-latency compensation or
+cross-peer wall-clock synchronization guarantee.
 
 ### Output (0x03)
 
@@ -325,11 +370,12 @@ Client                              Server
    dimensions, the assigned `peerId`, the current `primaryPeerId`, and the
    roster of other attached peers.
 4. Server sends **StateSync** with the full current text screen content, followed
-   by ordered **Output** frames that restore active KGP images and placements.
+   by ordered graphics **Output** frames and, for KGP animation,
+   **KgpAnimationState** checkpoints.
 5. Normal operation: **Output** flows server → client; **Input** flows client → server.
 6. To take control of the PTY size, a peer sends **RequestPrimary**. The
-   server applies the resize, broadcasts **RoleChange** to all peers, and
-   broadcasts **Resize** carrying the accepted dimensions.
+   server applies the resize and broadcasts **RoleChange**, including the
+   accepted dimensions, to all peers.
 7. While primary, a peer may send **Resize** frames; the server applies them
    and broadcasts the accepted dimensions back to all peers.
 8. Roster changes are broadcast via **PeerJoin** / **PeerLeave**.
@@ -437,3 +483,7 @@ Future versions may add:
   focus events, bracketed paste, `DECTCEM`, `DECCKM`, `DECKPAM`, `DECSCUSR`,
   mouse encoding plus alt-screen `DECSET` ordered before cell repaint. (See
   `Hmp1Protocol` `BuildStateSync*` helpers.)
+- **(in-place, pre-v1)** KGP animation replay restores composed frames, gaps,
+  current frame, and playback controls, followed by `KgpAnimationState (0x0C)`
+  for completed-loop counters and captured frame age. Late viewers can advance
+  a silent producer's animation without a per-tick output stream.

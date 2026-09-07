@@ -189,6 +189,20 @@ public sealed class SixelData
     /// </remarks>
     public SixelCellMetrics CellMetrics { get; }
 
+    internal static SixelData FromExactPixels(
+        SixelPixelBuffer pixels, int widthInCells, int heightInCells, SixelCellMetrics metrics)
+    {
+        var encoded = SixelExactEncoder.EncodeBounded(
+            pixels, 64 * 1024 * 1024, CancellationToken.None, reuseColorRegisters: true);
+        if (encoded.Outcome != SixelExactEncoder.EncodingOutcome.Complete || encoded.Payload is null)
+            throw new InvalidOperationException("The embedded Sixel presentation exceeds the encoded payload limit.");
+        var payload = encoded.Payload;
+        return new SixelData(
+            payload, widthInCells, heightInCells,
+            ComputeHash(payload, null, widthInCells, heightInCells, metrics),
+            pixels.Width, pixels.Height, cellMetrics: metrics);
+    }
+
     /// <summary>
     /// Gets the cell span for this Sixel image using the protocol cell metrics
     /// captured when the image was created.

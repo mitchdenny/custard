@@ -382,6 +382,10 @@ Current projection limits are 4096 pixels per image axis, 32 MiB decoded per
 image, and 4096 cached images / 64 MiB decoded image data. These are spike
 guardrails, not production sizing guidance. Glyph textures, driver overhead,
 server history, and other allocations are separate costs.
+The complete unique active-image set is checked before allocating dense
+projection pixels, including per-placement Sixel damage/crop variants. Inactive
+cache entries are evicted before replacements are allocated. This per-view
+budget is separate from the producer's shared Sixel/KGP retained-memory budget.
 
 Many tiny Sixels and a few large KGP images exercise very different paths.
 Increasing a limit prevents one failure; it does not prove that thousands of

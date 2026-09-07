@@ -718,40 +718,7 @@ public static class TerminalRegionSvgExtensions
         SixelPlacement placement,
         out int width,
         out int height)
-    {
-        if (!placement.HasPaintedExtent ||
-            !placement.Image.TryGetRasterDimensions(out var rasterWidth, out var rasterHeight))
-        {
-            width = 0;
-            height = 0;
-            return false;
-        }
-
-        var left = Math.Clamp(
-            (int)Math.Floor(placement.PaintedColumnOffset * placement.Image.CellMetrics.SafeWidth),
-            0,
-            rasterWidth);
-        var right = Math.Clamp(
-            (int)Math.Ceiling(
-                (placement.PaintedColumnOffset + placement.PaintedColumnCount) *
-                placement.Image.CellMetrics.SafeWidth),
-            0,
-            rasterWidth);
-        var top = Math.Clamp(
-            (int)Math.Floor(placement.PaintedRowOffset * placement.Image.CellMetrics.SafeHeight),
-            0,
-            rasterHeight);
-        var bottom = Math.Clamp(
-            (int)Math.Ceiling(
-                (placement.PaintedRowOffset + placement.PaintedRowCount) *
-                placement.Image.CellMetrics.SafeHeight),
-            0,
-            rasterHeight);
-
-        width = Math.Max(0, right - left);
-        height = Math.Max(0, bottom - top);
-        return width > 0 && height > 0;
-    }
+        => placement.TryGetPaintedPixelDimensions(out width, out height);
 
     internal static bool TryReserveSixelExportBytes(
         int width,

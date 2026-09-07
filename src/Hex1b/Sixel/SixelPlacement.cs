@@ -378,6 +378,31 @@ public sealed class SixelPlacement
         return cropped;
     }
 
+    internal bool TryGetPaintedPixelDimensions(out int width, out int height)
+    {
+        if (!HasPaintedExtent || !Image.TryGetRasterDimensions(out var rasterWidth, out var rasterHeight))
+        {
+            width = height = 0;
+            return false;
+        }
+
+        if (PaintedRowOffset == 0 && PaintedColumnOffset == 0 &&
+            PaintedRowCount == HeightInCells && PaintedColumnCount == WidthInCells)
+        {
+            width = rasterWidth;
+            height = rasterHeight;
+            return true;
+        }
+
+        var left = Math.Clamp((int)Math.Floor(PaintedColumnOffset * Image.CellMetrics.SafeWidth), 0, rasterWidth);
+        var right = Math.Clamp((int)Math.Ceiling((PaintedColumnOffset + PaintedColumnCount) * Image.CellMetrics.SafeWidth), 0, rasterWidth);
+        var top = Math.Clamp((int)Math.Floor(PaintedRowOffset * Image.CellMetrics.SafeHeight), 0, rasterHeight);
+        var bottom = Math.Clamp((int)Math.Ceiling((PaintedRowOffset + PaintedRowCount) * Image.CellMetrics.SafeHeight), 0, rasterHeight);
+        width = Math.Max(0, right - left);
+        height = Math.Max(0, bottom - top);
+        return width > 0 && height > 0;
+    }
+
 
     /// <summary>Creates a copy of this placement repositioned to <paramref name="row"/>.</summary>
     /// <remarks>

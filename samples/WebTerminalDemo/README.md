@@ -800,6 +800,9 @@ produce frames.
   The resource cache is bounded to 64 MiB decoded and 4096 images, matching the
   browser protocol's resource-count limit. The count accommodates workloads
   such as SixelCloudDemo's 700 small placements without relaxing the byte budget.
+  Unique active images, including Sixel crop/damage variants, are preflighted
+  before dense allocation; inactive cache entries make room before replacements
+  are allocated. Producer graphics accounting remains independent.
   Inactive resources are evicted first; exceeding visible-resource limits ends
   the session explicitly.
 - Historical graphics, hyperlink activation, a complete

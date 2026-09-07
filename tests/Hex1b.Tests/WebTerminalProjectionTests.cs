@@ -298,6 +298,95 @@ public class WebTerminalProjectionTests
     }
 
     [TestMethod]
+    public void Encode_OverBudgetDamageVariants_RejectsBeforeDenseAllocationAndPreservesBaseline()
+    {
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = CreateTerminal(workload);
+        terminal.Resize(256, 128);
+        terminal.ApplyTokens(AnsiTokenizer.Tokenize(
+            "\x1b_Ga=T,f=32,s=1,v=1,i=1,C=1,q=2;/wAA/w==\x1b\\"));
+        var projection = new Hwt1RenderProjection();
+        using var baseline = terminal.CreateSnapshot();
+        projection.Encode(baseline, Capabilities, 0, 0, 0);
+        AddLargeSixels(terminal, 9, 2048, 1024);
+        using var snapshot = terminal.CreateSnapshot();
+        var source = TestSeq.Single(snapshot.SixelImages.Values);
+        Assert.AreEqual(9, snapshot.SixelPlacements.Count);
+        Assert.IsFalse(source.HasMaterializedPixels);
+
+        var error = Assert.Throws<InvalidDataException>(() =>
+            projection.Encode(snapshot, Capabilities, 0, 1, 1));
+
+        Assert.Contains("64 MiB", error.Message);
+        Assert.IsFalse(source.HasMaterializedPixels);
+        Assert.AreEqual(1u, projection.Revision);
+        Assert.AreEqual(9, terminal.SixelPlacementCount);
+        Assert.AreEqual(1, terminal.TrackedSixelCount);
+        using var resumed = Decode(projection.Encode(baseline, Capabilities, 0, 2, 2));
+        Assert.AreEqual(1u, resumed.Metadata.RootElement.GetProperty("baseRevision").GetUInt32());
+        Assert.AreEqual(1, resumed.Metadata.RootElement.GetProperty("retainedImages").GetArrayLength());
+        Assert.AreEqual(0, resumed.Metadata.RootElement.GetProperty("images").GetArrayLength());
+    }
+
+    [TestMethod]
+    [DataRow(4096, 4096)]
+    [DataRow(4097, 6)]
+    public void Encode_OversizedSixel_RejectsBeforeDenseAllocation(int width, int height)
+    {
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = CreateTerminal(workload);
+        terminal.Resize(512, 256);
+        AddLargeSixels(terminal, 1, width, height);
+        using var snapshot = terminal.CreateSnapshot();
+        var source = TestSeq.Single(snapshot.SixelImages.Values);
+
+        Assert.Throws<InvalidDataException>(() =>
+            new Hwt1RenderProjection().Encode(snapshot, Capabilities, 0, 1, 1));
+
+        Assert.IsFalse(source.HasMaterializedPixels);
+        Assert.AreEqual(1, terminal.SixelPlacementCount);
+    }
+
+    [TestMethod]
+    public void Encode_ExactDecodedBudget_AdmitsVariantsAndReplacesInactiveResources()
+    {
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = CreateTerminal(workload);
+        terminal.Resize(512, 128);
+        var projection = new Hwt1RenderProjection();
+        HashSet<string>? previous = null;
+        for (var iteration = 0; iteration < 2; iteration++)
+        {
+            terminal.ApplyTokens(AnsiTokenizer.Tokenize("\x1b[2J"));
+            AddLargeSixels(terminal, 2, 4096, 2048, iteration * 2);
+            using var snapshot = terminal.CreateSnapshot();
+            var bytes = projection.Encode(snapshot, Capabilities, 0, iteration, iteration);
+            var metadataLength = System.Buffers.Binary.BinaryPrimitives.ReadInt32LittleEndian(bytes.AsSpan(4));
+            using var metadata = JsonDocument.Parse(bytes.AsMemory(8, metadataLength));
+            var images = metadata.RootElement.GetProperty("images");
+            Assert.AreEqual(2, images.GetArrayLength());
+            Assert.AreEqual(64L * 1024 * 1024, images.EnumerateArray().Sum(image =>
+                (long)image.GetProperty("width").GetInt32() * image.GetProperty("height").GetInt32() * 4));
+            var retained = metadata.RootElement.GetProperty("retainedImages").EnumerateArray()
+                .Select(key => key.GetString()!).ToHashSet(StringComparer.Ordinal);
+            Assert.AreEqual(2, retained.Count);
+            if (previous is not null)
+                Assert.IsFalse(previous.Overlaps(retained));
+            previous = retained;
+        }
+    }
+
+    private static void AddLargeSixels(Hex1bTerminal terminal, int count, int width, int height, int damageOffset = 0)
+    {
+        for (var index = 0; index < count; index++)
+        {
+            terminal.ApplyTokens(AnsiTokenizer.Tokenize(
+                $"\x1b[H\x1bP0;1q\"1;1;{width};{height}#1;2;100;0;0#1@\x1b\\" +
+                $"\x1b[1;{damageOffset + index + 2}HX"));
+        }
+    }
+
+    [TestMethod]
     public void Encode_Resize_StartsNewFullBaseline()
     {
         using var workload = new Hex1bAppWorkloadAdapter();

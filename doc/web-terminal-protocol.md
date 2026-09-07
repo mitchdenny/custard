@@ -937,7 +937,7 @@ decoder does not expand the public adapter's input or image limits.
 | Placements | At most 16,384 | No separate placement-count guard in the projection. |
 | Image axis | 1..16,384; GPU device limit can be smaller | 1..4,096. |
 | One image decoded size | Subject to receiver texture budget | At most 32 MiB (`width * height * 4`). |
-| Decoded images | 256 MiB incoming descriptors and 256 MiB complete retained texture set | 64 MiB decoded cache after eviction; active resources cannot be evicted to fit. |
+| Decoded images | 256 MiB incoming descriptors and 256 MiB complete retained texture set | Preflight the unique active set against 64 MiB before dense pixel allocation; evict inactive cache entries before allocating replacements. Active resources cannot be evicted to fit. |
 | Image key | Nonempty string, at most 1,024 JavaScript UTF-16 code units | Content-derived key. |
 | Warnings | Array of at most 256 strings | Diagnostic strings; no matching explicit count cap in projection. |
 | Client JSON message | Host assembles whole message | At most 64 KiB in adapter and sample host. |

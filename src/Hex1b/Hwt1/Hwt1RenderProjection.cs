@@ -31,8 +31,10 @@ internal sealed class Hwt1RenderProjection
 
         var started = Stopwatch.GetTimestamp();
         var full = forceFull || _previous.Length == 0 || _columns != snapshot.Width || _rows != snapshot.Height;
+        var plannedImages = PreflightImages(snapshot, out var sixelKeys);
         if (full)
             _images.Clear();
+        TrimImages(plannedImages);
         var baseRevision = full ? 0 : Revision;
         Revision = checked(Revision + 1);
         _columns = snapshot.Width;
@@ -109,21 +111,13 @@ internal sealed class Hwt1RenderProjection
         {
             if (!p.HasVisiblePaintedCells)
                 continue;
-            if (p.IsGeometryOnly)
+            if (!sixelKeys.TryGetValue(p, out var key))
             {
                 warnings.Add($"Sixel at {p.Column},{p.Row}: raster unavailable ({p.Image.RasterStatus}).");
                 continue;
             }
 
             // Crop/damage belongs to a placement, not to the shared Sixel resource.
-            var identity = new StringBuilder(Convert.ToHexString(p.Image.ContentHash))
-                .Append(':').Append(p.PaintedColumnOffset).Append(':').Append(p.PaintedRowOffset)
-                .Append(':').Append(p.PaintedColumnCount).Append(':').Append(p.PaintedRowCount);
-            for (var y = p.PaintedTop; y <= p.PaintedBottom; y++)
-                for (var x = p.PaintedLeft; x <= p.PaintedRight; x++)
-                    if (p.IsCellDamaged(y, x))
-                        identity.Append(':').Append(x - p.Column).Append(',').Append(y - p.Row);
-            var key = "s:" + Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(identity.ToString())));
             Hwt1RenderImage resource;
             if (_images.TryGetValue(key, out var cached))
             {
@@ -154,7 +148,6 @@ internal sealed class Hwt1RenderProjection
             placements.Add(new(resource.Key, "sixel", px, py, width, height,
                 0, 0, resource.Width, resource.Height, px, py, width, height, -1));
         }
-        TrimImages(active);
 
         var metadata = JsonSerializer.SerializeToUtf8Bytes(new Hwt1FrameMetadata(
             1, Revision, baseRevision, full, _columns, _rows, cw, ch,
@@ -228,7 +221,7 @@ internal sealed class Hwt1RenderProjection
             ? (uint)(c.R | c.G << 8 | c.B << 16) | 0xff000000
             : (uint)(((fallback >> 16) & 0xff) | (fallback & 0xff00) | ((fallback & 0xff) << 16)) | 0xff000000;
 
-    private Hwt1RenderImage ProjectKgpImage(KgpImageData image)
+    private Hwt1RenderImage ProjectKgpImage(KgpImageData image, bool dimensionsOnly = false)
     {
         var data = image.CurrentFrameData;
         var identity = _identities.GetValue(data, bytes => new(Convert.ToHexString(SHA256.HashData(bytes))));
@@ -244,6 +237,8 @@ internal sealed class Hwt1RenderProjection
         }
         EnsureImageSize(width, height);
         var key = $"k:{identity.Hash}:{width}:{height}:{format}";
+        if (dimensionsOnly)
+            return new(key, width, height, format == KgpFormat.Png ? "png" : "rgba", []);
         if (_images.TryGetValue(key, out var cached))
             return cached.Image;
         if (format == KgpFormat.Png)
@@ -283,20 +278,75 @@ internal sealed class Hwt1RenderProjection
         _images[resource.Key] = (resource, Revision);
     }
 
-    private void TrimImages(HashSet<string> active)
+    private Dictionary<string, long> PreflightImages(
+        Hex1bTerminalSnapshot snapshot, out Dictionary<SixelPlacement, string> sixelKeys)
     {
-        var bytes = _images.Values.Sum(i => (long)i.Image.Width * i.Image.Height * 4);
-        foreach (var entry in _images.Where(p => !active.Contains(p.Key)).OrderBy(p => p.Value.LastUsed).ToArray())
+        var planned = new Dictionary<string, long>(StringComparer.Ordinal);
+        sixelKeys = [];
+        long bytes = 0;
+        foreach (var placement in snapshot.KgpPlacements)
         {
-            if (bytes <= ImageBudget && _images.Count <= MaxImageCount)
+            if (!snapshot.KgpImages.TryGetValue(placement.ImageId, out var image))
+                throw new InvalidDataException("Snapshot placement references a missing KGP image.");
+            var resource = ProjectKgpImage(image, dimensionsOnly: true);
+            Reserve(resource.Key, resource.Width, resource.Height);
+        }
+        foreach (var placement in snapshot.SixelPlacements)
+        {
+            if (!placement.HasVisiblePaintedCells)
+                continue;
+            if (!placement.TryGetPaintedPixelDimensions(out var width, out var height))
+            {
+                if (placement.IsGeometryOnly)
+                    continue;
+                throw new InvalidDataException("Sixel raster disappeared from a captured placement.");
+            }
+            var key = SixelImageKey(placement);
+            Reserve(key, width, height);
+            sixelKeys[placement] = key;
+        }
+        return planned;
+
+        void Reserve(string key, int width, int height)
+        {
+            EnsureImageSize(width, height);
+            var size = (long)width * height * 4;
+            if (!planned.TryAdd(key, size))
+                return;
+            bytes += size;
+            if (bytes > ImageBudget)
+                throw new InvalidDataException("Visible graphics exceed the HWT1 64 MiB decoded-image budget.");
+            if (planned.Count > MaxImageCount)
+                throw new InvalidDataException($"Visible graphics exceed the HWT1 {MaxImageCount}-image resource limit.");
+        }
+    }
+
+    private static string SixelImageKey(SixelPlacement placement)
+    {
+        var identity = new StringBuilder(Convert.ToHexString(placement.Image.ContentHash))
+            .Append(':').Append(placement.PaintedColumnOffset).Append(':').Append(placement.PaintedRowOffset)
+            .Append(':').Append(placement.PaintedColumnCount).Append(':').Append(placement.PaintedRowCount);
+        for (var y = placement.PaintedTop; y <= placement.PaintedBottom; y++)
+            for (var x = placement.PaintedLeft; x <= placement.PaintedRight; x++)
+                if (placement.IsCellDamaged(y, x))
+                    identity.Append(':').Append(x - placement.Column).Append(',').Append(y - placement.Row);
+        return "s:" + Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(identity.ToString())));
+    }
+
+    private void TrimImages(Dictionary<string, long> planned)
+    {
+        // Reserve the complete next frame and evict inactive entries before allocating replacements.
+        var inactive = _images.Where(p => !planned.ContainsKey(p.Key)).OrderBy(p => p.Value.LastUsed).ToArray();
+        var bytes = planned.Values.Sum() + inactive.Sum(p => (long)p.Value.Image.Width * p.Value.Image.Height * 4);
+        var count = planned.Count + inactive.Length;
+        foreach (var entry in inactive)
+        {
+            if (bytes <= ImageBudget && count <= MaxImageCount)
                 break;
             bytes -= (long)entry.Value.Image.Width * entry.Value.Image.Height * 4;
+            count--;
             _images.Remove(entry.Key);
         }
-        if (bytes > ImageBudget)
-            throw new InvalidDataException("Visible graphics exceed the HWT1 64 MiB decoded-image budget.");
-        if (_images.Count > MaxImageCount)
-            throw new InvalidDataException($"Visible graphics exceed the HWT1 {MaxImageCount}-image resource limit.");
     }
 
     private sealed record ImageIdentity(string Hash);

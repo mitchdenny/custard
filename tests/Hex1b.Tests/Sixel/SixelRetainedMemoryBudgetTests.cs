@@ -414,50 +414,77 @@ public class SixelRetainedMemoryBudgetTests
     [TestMethod]
     public async Task UnfitKgpReplacement_WithResidentSixel_PreservesAllKgpState()
     {
-        var frame = Frame("#1;2;100;0;0#1@");
-        var sixelBytes = await MeasureInitialBytesAsync(frame);
-        var budget = checked(sixelBytes + 12);
-        await using var terminal = SixelTestTerminal.Create(
-            supportsKgp: true,
-            graphics: GraphicsWithBudget(budget));
+        await AssertUnfitKgpReplacementPreservesStateAsync(
+            "a=t,f=32,s=4,v=1,i=1",
+            Enumerable.Repeat((byte)0xCC, 16).ToArray(),
+            "EFBIG:Image data size 16 exceeds upload limit 13");
+    }
+
+    [TestMethod]
+    public async Task UnfitPngReplacement_NonMultipleOfThreeQuota_PreservesAllKgpState()
+    {
+        await AssertUnfitKgpReplacementPreservesStateAsync(
+            "a=t,f=100,i=1",
+            Enumerable.Range(0, 14).Select(value => (byte)value).ToArray(),
+            "ENOSPC:Image storage full");
+    }
+
+    [TestMethod]
+    public async Task UnfitCompressedReplacement_NonMultipleOfThreeQuota_PreservesAllKgpState()
+    {
+        await AssertUnfitKgpReplacementPreservesStateAsync(
+            "a=t,f=32,s=1,v=1,i=1,o=z",
+            Enumerable.Range(0, 15).Select(value => (byte)value).ToArray(),
+            "ENOSPC:Image storage full");
+    }
+
+    [TestMethod]
+    public async Task FittingPngReplacement_NonMultipleOfThreeQuota_ReplacesNormally()
+    {
+        var state = await CreateMixedKgpSixelStateAsync();
+        await using var terminal = state.Terminal;
+        var replacement = Enumerable.Range(0, 13).Select(value => (byte)value).ToArray();
+        terminal.ClearWorkloadInput();
 
         terminal.Terminal.ApplyTokens(AnsiTokenizer.Tokenize(
-            KgpTestHelper.BuildTransmitCommand(1, 1, 1, quiet: 2)));
+            KgpTestHelper.BuildCommand("a=t,f=100,i=1", replacement)));
+
+        var stored = terminal.Terminal.KgpImageStore.GetImageById(1);
+        Assert.IsNotNull(stored);
+        TestSeq.AreEqual(replacement, stored.Data);
+        Assert.IsNull(terminal.Terminal.KgpImageStore.GetImageById(2));
+        Assert.AreEqual(13L, terminal.Terminal.KgpImageStore.TotalSize);
+        Assert.IsEmpty(terminal.Terminal.KgpPlacements);
+        Assert.AreEqual(
+            state.SixelBytes + 13,
+            terminal.Terminal.GraphicsRetainedByteCount);
+        StringAssert.Contains(terminal.WorkloadInput, ";OK");
+    }
+
+    [TestMethod]
+    public async Task FittingCompressedReplacement_NonMultipleOfThreeQuota_ReplacesNormally()
+    {
+        var state = await CreateMixedKgpSixelStateAsync();
+        await using var terminal = state.Terminal;
+        byte[] replacement = [0x78, 0x9C, 0x03, 0x00];
+        terminal.ClearWorkloadInput();
+
         terminal.Terminal.ApplyTokens(AnsiTokenizer.Tokenize(
             KgpTestHelper.BuildCommand(
-                "a=f,f=32,s=1,v=1,i=1,q=2",
-                [0x11, 0x22, 0x33, 0xFF])));
-        terminal.Terminal.ApplyTokens(AnsiTokenizer.Tokenize(
-            KgpTestHelper.BuildTransmitCommand(2, 1, 1, quiet: 2)));
-        terminal.Terminal.ApplyTokens(AnsiTokenizer.Tokenize(
-            KgpTestHelper.BuildPutCommand(1, placementId: 11)));
-        terminal.Terminal.ApplyTokens(AnsiTokenizer.Tokenize(
-            KgpTestHelper.BuildPutCommand(2, placementId: 22)));
-        await FeedAndWaitAsync(terminal, frame, expectedPlacements: 1);
+                "a=t,f=32,s=1,v=1,i=1,o=z",
+                replacement)));
 
-        var originalFirst = terminal.Terminal.KgpImageStore.GetImageById(1);
-        var originalSecond = terminal.Terminal.KgpImageStore.GetImageById(2);
-        Assert.IsNotNull(originalFirst);
-        Assert.IsNotNull(originalSecond);
-        Assert.AreEqual(2, originalFirst.FrameCount);
-        Assert.AreEqual(12L, terminal.Terminal.KgpImageStore.TotalSize);
-        Assert.AreEqual(2, terminal.Terminal.KgpPlacements.Count);
-
-        terminal.Terminal.ApplyTokens(AnsiTokenizer.Tokenize(
-            KgpTestHelper.BuildTransmitCommand(
-                imageId: 1,
-                width: 4,
-                height: 1,
-                quiet: 2,
-                fillByte: 0xCC)));
-
-        Assert.AreSame(originalFirst, terminal.Terminal.KgpImageStore.GetImageById(1));
-        Assert.AreSame(originalSecond, terminal.Terminal.KgpImageStore.GetImageById(2));
-        Assert.AreEqual(2, originalFirst.FrameCount);
-        Assert.AreEqual(12L, terminal.Terminal.KgpImageStore.TotalSize);
-        Assert.AreEqual(2, terminal.Terminal.KgpPlacements.Count);
-        Assert.AreEqual(budget, terminal.Terminal.GraphicsRetainedByteCount);
-        Assert.AreEqual(1, terminal.Terminal.SixelPlacementCount);
+        var stored = terminal.Terminal.KgpImageStore.GetImageById(1);
+        Assert.IsNotNull(stored);
+        TestSeq.AreEqual(replacement, stored.Data);
+        Assert.IsNotNull(terminal.Terminal.KgpImageStore.GetImageById(2));
+        Assert.AreEqual(8L, terminal.Terminal.KgpImageStore.TotalSize);
+        Assert.HasCount(1, terminal.Terminal.KgpPlacements);
+        Assert.AreEqual(2u, terminal.Terminal.KgpPlacements[0].ImageId);
+        Assert.AreEqual(
+            state.SixelBytes + 8,
+            terminal.Terminal.GraphicsRetainedByteCount);
+        StringAssert.Contains(terminal.WorkloadInput, ";OK");
     }
 
     [TestMethod]
@@ -583,6 +610,73 @@ public class SixelRetainedMemoryBudgetTests
         Assert.IsNotNull(image.GetPixels());
         var dense = terminal.Terminal.SixelRetainedByteCount;
         return (initial, rasterized, dense);
+    }
+
+    private static async Task AssertUnfitKgpReplacementPreservesStateAsync(
+        string controlData,
+        byte[] replacement,
+        string expectedError)
+    {
+        var state = await CreateMixedKgpSixelStateAsync();
+        await using var terminal = state.Terminal;
+        terminal.ClearWorkloadInput();
+
+        terminal.Terminal.ApplyTokens(AnsiTokenizer.Tokenize(
+            KgpTestHelper.BuildCommand(controlData, replacement)));
+
+        Assert.AreSame(
+            state.FirstImage,
+            terminal.Terminal.KgpImageStore.GetImageById(1));
+        Assert.AreSame(
+            state.SecondImage,
+            terminal.Terminal.KgpImageStore.GetImageById(2));
+        Assert.AreEqual(2, state.FirstImage.FrameCount);
+        Assert.AreEqual(12L, terminal.Terminal.KgpImageStore.TotalSize);
+        Assert.AreEqual(2, terminal.Terminal.KgpPlacements.Count);
+        Assert.AreEqual(
+            state.SixelBytes + 12,
+            terminal.Terminal.GraphicsRetainedByteCount);
+        Assert.AreEqual(1, terminal.Terminal.SixelPlacementCount);
+        StringAssert.Contains(terminal.WorkloadInput, expectedError);
+    }
+
+    private static async Task<(
+        SixelTestTerminal Terminal,
+        KgpImageData FirstImage,
+        KgpImageData SecondImage,
+        long SixelBytes)> CreateMixedKgpSixelStateAsync()
+    {
+        var frame = Frame("#1;2;100;0;0#1@");
+        var sixelBytes = await MeasureInitialBytesAsync(frame);
+        var terminal = SixelTestTerminal.Create(
+            supportsKgp: true,
+            graphics: GraphicsWithBudget(checked(sixelBytes + 13)));
+
+        terminal.Terminal.ApplyTokens(AnsiTokenizer.Tokenize(
+            KgpTestHelper.BuildTransmitCommand(1, 1, 1, quiet: 2)));
+        terminal.Terminal.ApplyTokens(AnsiTokenizer.Tokenize(
+            KgpTestHelper.BuildCommand(
+                "a=f,f=32,s=1,v=1,i=1,q=2",
+                [0x11, 0x22, 0x33, 0xFF])));
+        terminal.Terminal.ApplyTokens(AnsiTokenizer.Tokenize(
+            KgpTestHelper.BuildTransmitCommand(2, 1, 1, quiet: 2)));
+        terminal.Terminal.ApplyTokens(AnsiTokenizer.Tokenize(
+            KgpTestHelper.BuildCommand("a=p,i=1,p=11,q=2")));
+        terminal.Terminal.ApplyTokens(AnsiTokenizer.Tokenize(
+            KgpTestHelper.BuildCommand("a=p,i=2,p=22,q=2")));
+        await FeedAndWaitAsync(terminal, frame, expectedPlacements: 1);
+
+        var first = terminal.Terminal.KgpImageStore.GetImageById(1);
+        var second = terminal.Terminal.KgpImageStore.GetImageById(2);
+        Assert.IsNotNull(first);
+        Assert.IsNotNull(second);
+        Assert.AreEqual(2, first.FrameCount);
+        Assert.AreEqual(12L, terminal.Terminal.KgpImageStore.TotalSize);
+        Assert.AreEqual(2, terminal.Terminal.KgpPlacements.Count);
+        Assert.AreEqual(
+            sixelBytes + 12,
+            terminal.Terminal.GraphicsRetainedByteCount);
+        return (terminal, first, second, sixelBytes);
     }
 
     private static void AssertAccountingMatchesSnapshot(Hex1bTerminal terminal)

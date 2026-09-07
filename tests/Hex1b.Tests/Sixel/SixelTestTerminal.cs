@@ -84,6 +84,10 @@ internal sealed class SixelTestTerminal : IAsyncDisposable
 
     public byte[] PresentationBytes => _presentation.CapturedBytes;
 
+    public string WorkloadInput => _workload.WrittenInput;
+
+    public void ClearWorkloadInput() => _workload.ClearWrittenInput();
+
     public IReadOnlyList<AppliedToken> AppliedTokens => _presentation is ImpactAwarePresentationAdapter adapter
         ? adapter.AppliedTokens
         : [];
@@ -359,6 +363,7 @@ internal sealed class SixelTestTerminal : IAsyncDisposable
             Channel.CreateUnbounded<WorkloadOutputItem>();
         private readonly object _eventLock = new();
         private Action? _disconnected;
+        private readonly List<byte> _input = [];
         private bool _completed;
 
         public event Action? Disconnected
@@ -409,8 +414,30 @@ internal sealed class SixelTestTerminal : IAsyncDisposable
             return default;
         }
 
+        public string WrittenInput
+        {
+            get
+            {
+                lock (_input)
+                    return Encoding.UTF8.GetString([.. _input]);
+            }
+        }
+
         public ValueTask WriteInputAsync(ReadOnlyMemory<byte> data, CancellationToken ct = default)
-            => ValueTask.CompletedTask;
+        {
+            lock (_input)
+            {
+                foreach (var value in data.Span)
+                    _input.Add(value);
+            }
+            return ValueTask.CompletedTask;
+        }
+
+        public void ClearWrittenInput()
+        {
+            lock (_input)
+                _input.Clear();
+        }
 
         public ValueTask ResizeAsync(int width, int height, CancellationToken ct = default)
             => ValueTask.CompletedTask;

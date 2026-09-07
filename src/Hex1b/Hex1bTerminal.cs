@@ -7913,6 +7913,38 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
             return;
         }
 
+        var maximumEncodedLength = transmission.MoreData
+            ? KgpMaximumEncodedChunkLength
+            : GetMaximumKgpEncodedPayloadLength();
+        byte[]? decodedData = null;
+        if (!transmission.MoreData)
+        {
+            if (!TryDecodeKgpPayload(
+                    base64Payload,
+                    moreData: false,
+                    maximumEncodedLength,
+                    out decodedData,
+                    out var preflightPayloadError))
+            {
+                SendKgpTransmissionResponse(
+                    transmission,
+                    storedImage: null,
+                    FormatKgpPayloadError(preflightPayloadError, maximumEncodedLength),
+                    command.Quiet);
+                return;
+            }
+
+            if (decodedData.LongLength > ActiveKgpImageStore.MaximumPendingUploadBytes)
+            {
+                SendKgpTransmissionResponse(
+                    transmission,
+                    storedImage: null,
+                    "ENOSPC:Image storage full",
+                    command.Quiet);
+                return;
+            }
+        }
+
         if (transmission.IdentityKind == KgpParsedCommand.ImageIdentityKind.ExplicitId)
         {
             var start = ActiveKgpImageStore.BeginExplicitTransmission(transmission.ImageId);
@@ -7922,14 +7954,12 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                 _kgpGraphicsState.RemoveActiveImageReferences(transmission.ImageId);
         }
 
-        var maximumEncodedLength = transmission.MoreData
-            ? KgpMaximumEncodedChunkLength
-            : GetMaximumKgpEncodedPayloadLength();
-        if (!TryDecodeKgpPayload(
+        if (decodedData is null &&
+            !TryDecodeKgpPayload(
                 base64Payload,
                 transmission.MoreData,
                 maximumEncodedLength,
-                out var decodedData,
+                out decodedData,
                 out var payloadError))
         {
             SendKgpTransmissionResponse(

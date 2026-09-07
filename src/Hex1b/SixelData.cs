@@ -25,6 +25,7 @@ public sealed class SixelData
 {
     private readonly object _decodeLock = new();
     private readonly SixelRasterPreparation? _rasterPreparation;
+    private ISixelRetainedResourceOwner? _retainedResourceOwner;
     private SixelRasterResult? _raster;
     private SixelPixelBuffer? _decodedPixels;
     private bool _decodeAttempted;
@@ -66,6 +67,7 @@ public sealed class SixelData
     public byte[] ContentHash { get; }
 
     internal SixelParseResult ParseResult { get; }
+    internal SixelRasterPreparation? RasterPreparation => _rasterPreparation;
     internal bool PayloadComplete { get; }
 
     /// <summary>
@@ -91,19 +93,21 @@ public sealed class SixelData
     /// </summary>
     /// <remarks>
     /// Terminal-created data captures an immutable background and palette
-    /// preparation so rasterization can occur on first use without holding the
-    /// terminal buffer lock. Data created without terminal state uses the
-    /// deterministic default environment.
+    /// preparation. First use reserves retained bytes atomically with the owning
+    /// screen before caching the result. Data created without terminal state uses
+    /// the deterministic default environment.
     /// </remarks>
     internal SixelRasterResult Raster
     {
         get
         {
+            var owner = Volatile.Read(ref _retainedResourceOwner);
+            if (owner is not null)
+                return owner.GetRaster(this);
+
             lock (_decodeLock)
             {
-                return _raster ??= SixelRasterizer.Rasterize(
-                    ParseResult,
-                    GetRasterEnvironment());
+                return GetRasterUnowned();
             }
         }
     }
@@ -217,7 +221,9 @@ public sealed class SixelData
 
     /// <summary>
     /// Materializes the sixel payload as a dense pixel buffer.
-    /// The result is cached, and repeated calls produce equal content.
+    /// The result is cached when the owning live screen's retained-byte budget
+    /// admits it. If that cache cannot fit, the returned buffer is not retained
+    /// by the live terminal and a later call may materialize it again.
     /// </summary>
     /// <returns>
     /// The materialized pixel buffer, or <see langword="null"/> when the
@@ -225,19 +231,13 @@ public sealed class SixelData
     /// </returns>
     public SixelPixelBuffer? GetPixels()
     {
+        var owner = Volatile.Read(ref _retainedResourceOwner);
+        if (owner is not null)
+            return owner.GetPixels(this);
+
         lock (_decodeLock)
         {
-            if (_decodeAttempted)
-            {
-                return _decodedPixels;
-            }
-
-            _raster ??= SixelRasterizer.Rasterize(
-                ParseResult,
-                GetRasterEnvironment());
-            _decodedPixels = _raster.Image?.Materialize();
-            _decodeAttempted = true;
-            return _decodedPixels;
+            return GetPixelsUnowned();
         }
     }
 
@@ -249,6 +249,135 @@ public sealed class SixelData
             {
                 return _decodedPixels is not null;
             }
+        }
+    }
+
+    internal long RetainedByteCount
+    {
+        get
+        {
+            lock (_decodeLock)
+            {
+                var total = SixelRetainedSize.GetInitialBytes(this);
+                if (_raster is not null)
+                    total = SaturatingAdd(total, SixelRetainedSize.GetRasterBytes(_raster));
+                if (_decodedPixels is not null)
+                    total = SaturatingAdd(total, SixelRetainedSize.GetDensePixelBytes(_decodedPixels));
+                return total;
+            }
+        }
+    }
+
+    internal void AttachRetainedResourceOwner(ISixelRetainedResourceOwner owner)
+    {
+        ArgumentNullException.ThrowIfNull(owner);
+        if (Interlocked.CompareExchange(ref _retainedResourceOwner, owner, null) is not null)
+            throw new InvalidOperationException("The Sixel image is already owned by a screen.");
+    }
+
+    internal void DetachRetainedResourceOwner(ISixelRetainedResourceOwner owner) =>
+        Interlocked.CompareExchange(ref _retainedResourceOwner, null, owner);
+
+    internal bool TryGetCachedRaster(out SixelRasterResult raster)
+    {
+        lock (_decodeLock)
+        {
+            raster = _raster!;
+            return raster is not null;
+        }
+    }
+
+    internal SixelRasterResult ComputeRasterCandidate()
+    {
+        lock (_decodeLock)
+        {
+            return _raster ??
+                SixelRasterizer.Rasterize(ParseResult, GetRasterEnvironment());
+        }
+    }
+
+    internal SixelRasterResult PublishRasterOwned(
+        SixelRasterResult candidate,
+        Func<long, bool> tryReserve)
+    {
+        lock (_decodeLock)
+        {
+            if (_raster is not null)
+                return _raster;
+
+            if (tryReserve(SixelRetainedSize.GetRasterBytes(candidate)))
+                _raster = candidate;
+            return candidate;
+        }
+    }
+
+    internal SixelRasterResult PublishRasterUnowned(SixelRasterResult candidate)
+    {
+        lock (_decodeLock)
+            return _raster ??= candidate;
+    }
+
+    internal bool TryGetCachedPixels(
+        out SixelPixelBuffer? pixels,
+        out bool attempted)
+    {
+        lock (_decodeLock)
+        {
+            pixels = _decodedPixels;
+            attempted = _decodeAttempted;
+            return pixels is not null;
+        }
+    }
+
+    internal SixelPixelBuffer? ComputePixelCandidate(SixelRasterResult raster)
+    {
+        lock (_decodeLock)
+        {
+            if (_decodeAttempted)
+                return _decodedPixels;
+            return raster.Image?.Materialize();
+        }
+    }
+
+    internal SixelPixelBuffer? PublishPixelsOwned(
+        SixelRasterResult raster,
+        SixelPixelBuffer? candidate,
+        Func<long, bool> tryReserve)
+    {
+        lock (_decodeLock)
+        {
+            if (_decodeAttempted)
+                return _decodedPixels;
+            if (!ReferenceEquals(_raster, raster))
+                return candidate;
+            if (candidate is null)
+            {
+                _decodeAttempted = true;
+                return null;
+            }
+
+            if (tryReserve(SixelRetainedSize.GetDensePixelBytes(candidate)))
+            {
+                _decodedPixels = candidate;
+                _decodeAttempted = true;
+            }
+
+            return candidate;
+        }
+    }
+
+    internal SixelPixelBuffer? PublishPixelsUnowned(
+        SixelRasterResult raster,
+        SixelPixelBuffer? candidate)
+    {
+        lock (_decodeLock)
+        {
+            _raster ??= raster;
+            if (_decodeAttempted)
+                return _decodedPixels;
+            _decodedPixels = candidate;
+            _decodeAttempted = true;
+            return candidate;
         }
     }
 
@@ -372,4 +501,33 @@ public sealed class SixelData
 
     private SixelRasterEnvironment GetRasterEnvironment() =>
         _rasterPreparation?.Environment ?? SixelRasterEnvironment.CreateDefault();
+
+    internal SixelRasterResult GetRasterUnowned()
+    {
+        lock (_decodeLock)
+        {
+            return _raster ??= SixelRasterizer.Rasterize(
+                ParseResult,
+                GetRasterEnvironment());
+        }
+    }
+
+    internal SixelPixelBuffer? GetPixelsUnowned()
+    {
+        lock (_decodeLock)
+        {
+            if (_decodeAttempted)
+                return _decodedPixels;
+
+            _raster ??= SixelRasterizer.Rasterize(
+                ParseResult,
+                GetRasterEnvironment());
+            _decodedPixels = _raster.Image?.Materialize();
+            _decodeAttempted = true;
+            return _decodedPixels;
+        }
+    }
+
+    private static long SaturatingAdd(long left, long right) =>
+        right > long.MaxValue - left ? long.MaxValue : left + right;
 }

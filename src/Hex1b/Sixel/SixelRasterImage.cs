@@ -1,4 +1,5 @@
 using Hex1b.Surfaces;
+using System.Runtime.CompilerServices;
 
 namespace Hex1b.Sixel;
 
@@ -57,6 +58,29 @@ internal sealed class SixelRasterImage
     /// Gets the number of tiles currently allocated.
     /// </summary>
     public int AllocatedTileCount => _tiles.Count;
+
+    /// <summary>
+    /// Gets the deterministic retained bytes for allocated tile pixels and
+    /// their logical keys.
+    /// </summary>
+    internal long RetainedTileBytes
+    {
+        get
+        {
+            const int arrayHeaderBytes = 24;
+            const int dictionaryEntryStateBytes = 2 * sizeof(int);
+            var capacity = _tiles.EnsureCapacity(0);
+            var buckets = checked((long)capacity * sizeof(int));
+            var entries = checked(
+                (long)capacity *
+                (Unsafe.SizeOf<KeyValuePair<long, Rgba32[]>>() +
+                 dictionaryEntryStateBytes));
+            var tiles = checked(
+                (long)_tiles.Count *
+                (arrayHeaderBytes + ((long)_tilePixelCount * 4)));
+            return checked(buckets + entries + tiles);
+        }
+    }
 
     /// <summary>
     /// Gets the number of pixels that would be materialized densely.

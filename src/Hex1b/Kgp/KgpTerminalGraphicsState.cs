@@ -86,9 +86,9 @@ internal sealed class KgpTerminalGraphicsState
 
     private sealed class ScreenState
     {
-        internal ScreenState(long retainedBytes)
+        internal ScreenState(TerminalGraphicsRetainedBudget retainedBudget)
         {
-            ImageStore = new KgpImageStore(retainedBytes);
+            ImageStore = new KgpImageStore(retainedBudget);
         }
 
         internal KgpImageStore ImageStore { get; }
@@ -111,16 +111,21 @@ internal sealed class KgpTerminalGraphicsState
         }
     }
 
-    private readonly long _retainedBytesPerScreen;
+    private readonly TerminalGraphicsRetainedBudgetSet _retainedBudgets;
     private readonly ScreenState _main;
     private ScreenState? _alternate;
     private bool _alternateActive;
 
-    internal KgpTerminalGraphicsState(long retainedBytesPerScreen = 320L * 1024 * 1024)
+    internal KgpTerminalGraphicsState(
+        long retainedBytesPerScreen = 320L * 1024 * 1024)
+        : this(new TerminalGraphicsRetainedBudgetSet(retainedBytesPerScreen))
     {
-        ArgumentOutOfRangeException.ThrowIfNegative(retainedBytesPerScreen);
-        _retainedBytesPerScreen = retainedBytesPerScreen;
-        _main = new ScreenState(retainedBytesPerScreen);
+    }
+
+    internal KgpTerminalGraphicsState(TerminalGraphicsRetainedBudgetSet retainedBudgets)
+    {
+        _retainedBudgets = retainedBudgets;
+        _main = new ScreenState(retainedBudgets.Main);
     }
 
     private ScreenState Active
@@ -567,11 +572,11 @@ internal sealed class KgpTerminalGraphicsState
         if (_alternateActive)
         {
             _alternate!.Clear();
-            _alternate = new ScreenState(_retainedBytesPerScreen);
+            _alternate = new ScreenState(_retainedBudgets.Alternate);
             return;
         }
 
-        _alternate = new ScreenState(_retainedBytesPerScreen);
+        _alternate = new ScreenState(_retainedBudgets.Alternate);
         _alternateActive = true;
     }
 

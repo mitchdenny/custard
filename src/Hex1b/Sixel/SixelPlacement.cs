@@ -57,7 +57,6 @@ namespace Hex1b;
 public sealed class SixelPlacement
 {
     private readonly HashSet<int> _damagedCells;
-    private SixelPixelBuffer? _visiblePixels;
 
     internal SixelPlacement(
         SixelData image,
@@ -237,7 +236,6 @@ public sealed class SixelPlacement
         if (!CoversCell(row, column))
             return false;
 
-        _visiblePixels = null;
         _damagedCells.Add(CellKey(row, column));
         return true;
     }
@@ -270,8 +268,6 @@ public sealed class SixelPlacement
         PaintedColumnOffset = paintedColumnOffset;
         PaintedColumnCount = paintedColumnCount;
         _damagedCells.Clear();
-        _visiblePixels = null;
-
         foreach (var (row, column) in damagedCells)
         {
             if (row < paintedRowOffset ||
@@ -296,9 +292,6 @@ public sealed class SixelPlacement
         var pixels = Image.GetPixels();
         if (pixels is null || _damagedCells.Count == 0)
             return pixels;
-
-        if (_visiblePixels is not null)
-            return _visiblePixels;
 
         var visible = new SixelPixelBuffer(pixels.Width, pixels.Height);
         for (var y = 0; y < pixels.Height; y++)
@@ -327,7 +320,6 @@ public sealed class SixelPlacement
             }
         }
 
-        _visiblePixels = visible;
         return visible;
     }
 

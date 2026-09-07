@@ -1,4 +1,5 @@
 using Hex1b.Sixel;
+using Hex1b.Surfaces;
 
 namespace Hex1b;
 
@@ -10,7 +11,71 @@ namespace Hex1b;
 /// </summary>
 internal sealed class SixelScreenGraphicsState
 {
-    internal SixelImageStore Images { get; } = new();
+    private sealed class RetainedResourceOwner(
+        SixelScreenGraphicsState screen,
+        object syncRoot,
+        Func<SixelScreenGraphicsState, SixelData, long, bool> tryReserve)
+        : ISixelRetainedResourceOwner
+    {
+        public SixelRasterResult GetRaster(SixelData image)
+        {
+            if (image.TryGetCachedRaster(out var cached))
+                return cached;
+
+            var candidate = image.ComputeRasterCandidate();
+            lock (syncRoot)
+            {
+                if (!screen.Images.Contains(image))
+                {
+                    image.DetachRetainedResourceOwner(this);
+                    return image.PublishRasterUnowned(candidate);
+                }
+
+                return image.PublishRasterOwned(
+                    candidate,
+                    bytes => tryReserve(screen, image, bytes));
+            }
+        }
+
+        public SixelPixelBuffer? GetPixels(SixelData image)
+        {
+            if (image.TryGetCachedPixels(out var cached, out var attempted))
+                return cached;
+            if (attempted)
+                return null;
+
+            var raster = GetRaster(image);
+            var candidate = image.ComputePixelCandidate(raster);
+            lock (syncRoot)
+            {
+                if (!screen.Images.Contains(image))
+                {
+                    image.DetachRetainedResourceOwner(this);
+                    return image.PublishPixelsUnowned(raster, candidate);
+                }
+
+                return image.PublishPixelsOwned(
+                    raster,
+                    candidate,
+                    bytes => tryReserve(screen, image, bytes));
+            }
+        }
+    }
+
+    internal SixelScreenGraphicsState(
+        object syncRoot,
+        TerminalGraphicsRetainedBudget retainedBudget,
+        Func<SixelScreenGraphicsState, SixelData, long, bool> tryReserve)
+    {
+        RetainedBudget = retainedBudget;
+        Images = new SixelImageStore(
+            new RetainedResourceOwner(this, syncRoot, tryReserve),
+            retainedBudget);
+    }
+
+    internal SixelImageStore Images { get; }
+
+    internal TerminalGraphicsRetainedBudget RetainedBudget { get; }
 
     internal List<SixelPlacement> Placements { get; } = [];
 

@@ -336,12 +336,15 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         _sessionStart = _timeProvider.GetUtcNow();
         _metrics = options.Metrics ?? Diagnostics.Hex1bMetrics.Default;
         var sixelPolicy = options.CreateSixelPolicy();
-        _kgpGraphicsState = new KgpTerminalGraphicsState(
+        var graphicsBudgets = new TerminalGraphicsRetainedBudgetSet(
             options.Graphics.MaximumRetainedBytesPerScreen);
+        _kgpGraphicsState = new KgpTerminalGraphicsState(graphicsBudgets);
         _sixelColorRegisters = new Sixel.SixelColorRegisters(sixelPolicy);
         _sixelGraphicsState = new SixelGraphicsState(
             sixelPolicy,
-            RecordSixelStateEvent);
+            RecordSixelStateEvent,
+            graphicsBudgets,
+            _bufferLock);
         
         // Notify lifecycle-aware presentation adapters that the terminal is created
         if (presentation is ITerminalLifecycleAwarePresentationAdapter lifecycleAdapter)
@@ -1658,6 +1661,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         {
             SixelStateEventKind.ImageAllocated => "image_allocated",
             SixelStateEventKind.ImageDeduplicated => "image_deduplicated",
+            SixelStateEventKind.ImageRejected => "image_rejected",
             SixelStateEventKind.ImageReleased => "image_released",
             SixelStateEventKind.PlacementAdded => "placement_added",
             SixelStateEventKind.PlacementDamaged => "placement_damaged",
@@ -1672,7 +1676,8 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         if (stateEvent.Reason is "history_limit" or
             "placement_limit" or
             "image_limit" or
-            "logical_pixel_limit")
+            "logical_pixel_limit" or
+            "retained_byte_limit")
         {
             _metrics.TerminalSixelLimitEvents.Add(
                 stateEvent.Count,
@@ -2742,6 +2747,11 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
     internal int SixelPlacementCount => _sixelGraphicsState.ActivePlacements.Count;
 
     internal int SixelHistoryPlacementCount => _sixelGraphicsState.MainHistoryPlacementCount;
+
+    internal long SixelRetainedByteCount => _sixelGraphicsState.ActiveRetainedBytes;
+
+    internal long GraphicsRetainedByteCount =>
+        checked(ActiveKgpImageStore.TotalSize + SixelRetainedByteCount);
 
     internal Diagnostics.Hex1bMetrics DiagnosticsMetrics => _metrics;
 
@@ -7893,6 +7903,48 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                 nameof(command));
         }
 
+        if (!TryGetKgpUploadLimit(transmission, out _, out var preflightError))
+        {
+            SendKgpTransmissionResponse(
+                transmission,
+                storedImage: null,
+                preflightError,
+                command.Quiet);
+            return;
+        }
+
+        var maximumEncodedLength = transmission.MoreData
+            ? KgpMaximumEncodedChunkLength
+            : GetMaximumKgpEncodedPayloadLength();
+        byte[]? decodedData = null;
+        if (!transmission.MoreData)
+        {
+            if (!TryDecodeKgpPayload(
+                    base64Payload,
+                    moreData: false,
+                    maximumEncodedLength,
+                    out decodedData,
+                    out var preflightPayloadError))
+            {
+                SendKgpTransmissionResponse(
+                    transmission,
+                    storedImage: null,
+                    FormatKgpPayloadError(preflightPayloadError, maximumEncodedLength),
+                    command.Quiet);
+                return;
+            }
+
+            if (decodedData.LongLength > ActiveKgpImageStore.MaximumPendingUploadBytes)
+            {
+                SendKgpTransmissionResponse(
+                    transmission,
+                    storedImage: null,
+                    "ENOSPC:Image storage full",
+                    command.Quiet);
+                return;
+            }
+        }
+
         if (transmission.IdentityKind == KgpParsedCommand.ImageIdentityKind.ExplicitId)
         {
             var start = ActiveKgpImageStore.BeginExplicitTransmission(transmission.ImageId);
@@ -7902,14 +7954,12 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                 _kgpGraphicsState.RemoveActiveImageReferences(transmission.ImageId);
         }
 
-        var maximumEncodedLength = transmission.MoreData
-            ? KgpMaximumEncodedChunkLength
-            : GetMaximumKgpEncodedPayloadLength();
-        if (!TryDecodeKgpPayload(
+        if (decodedData is null &&
+            !TryDecodeKgpPayload(
                 base64Payload,
                 transmission.MoreData,
                 maximumEncodedLength,
-                out var decodedData,
+                out decodedData,
                 out var payloadError))
         {
             SendKgpTransmissionResponse(
@@ -8046,6 +8096,16 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         var stored = ActiveKgpImageStore.StoreImage(transmission, decodedData);
         if (stored.Relocation is { } relocation)
             ApplyKgpImageRelocation(relocation);
+        if (!stored.Stored)
+        {
+            _kgpGraphicsState.ReconcileActiveImageReferences();
+            SendKgpTransmissionResponse(
+                transmission,
+                storedImage: null,
+                "ENOSPC:Image storage full",
+                quiet);
+            return;
+        }
 
         if (stored.Replaced)
             _kgpGraphicsState.RemoveActiveImageReferences(stored.Image.ImageId);

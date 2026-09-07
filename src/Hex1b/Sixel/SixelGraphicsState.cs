@@ -7,6 +7,7 @@ internal enum SixelStateEventKind
 {
     ImageAllocated,
     ImageDeduplicated,
+    ImageRejected,
     ImageReleased,
     PlacementAdded,
     PlacementDamaged,
@@ -80,8 +81,10 @@ internal sealed class SixelReflowPlan
 internal sealed class SixelGraphicsState
 {
     private readonly SixelCompatibilityPolicy _policy;
+    private readonly TerminalGraphicsRetainedBudgetSet _retainedBudgets;
+    private readonly object _syncRoot;
     private readonly Action<SixelStateEvent>? _observe;
-    private readonly SixelScreenGraphicsState _main = new();
+    private readonly SixelScreenGraphicsState _main;
     private SixelScreenGraphicsState? _alternate;
     private bool _alternateActive;
 
@@ -89,11 +92,17 @@ internal sealed class SixelGraphicsState
 
     internal SixelGraphicsState(
         SixelCompatibilityPolicy? policy = null,
-        Action<SixelStateEvent>? observe = null)
+        Action<SixelStateEvent>? observe = null,
+        TerminalGraphicsRetainedBudgetSet? retainedBudgets = null,
+        object? syncRoot = null)
     {
         _policy = policy ?? SixelCompatibilityPolicy.Default;
         _policy.Validate();
+        _retainedBudgets = retainedBudgets ??
+            new TerminalGraphicsRetainedBudgetSet(320L * 1024 * 1024);
+        _syncRoot = syncRoot ?? new object();
         _observe = observe;
+        _main = CreateScreen(_retainedBudgets.Main);
     }
 
     internal bool InAlternateScreen => _alternateActive;
@@ -103,6 +112,9 @@ internal sealed class SixelGraphicsState
 
     /// <summary>The active screen's live placements (for testing/inspection).</summary>
     internal IReadOnlyList<SixelPlacement> ActivePlacements => Active.Placements;
+
+    /// <summary>Deterministic retained bytes on the active screen.</summary>
+    internal long ActiveRetainedBytes => Active.Images.RetainedBytes;
 
     /// <summary>Total number of placements the main screen has moved into history.</summary>
     internal int MainHistoryPlacementCount
@@ -140,19 +152,25 @@ internal sealed class SixelGraphicsState
         bool payloadComplete = true)
     {
         var active = Active;
-        var image = active.Images.GetOrCreate(
-            payload,
+        var hash = SixelData.ComputeHash(
             sourceContentHash,
+            rasterPreparation.Identity,
             widthInCells,
             heightInCells,
-            parseResult,
-            rasterPreparation,
-            cellMetrics,
-            payloadComplete,
-            out var imageCreated);
-        Observe(imageCreated
-            ? SixelStateEventKind.ImageAllocated
-            : SixelStateEventKind.ImageDeduplicated);
+            cellMetrics);
+        var imageCreated = !active.Images.TryGet(hash, out var image);
+        if (imageCreated)
+        {
+            image = SixelImageStore.Create(
+                payload,
+                hash,
+                widthInCells,
+                heightInCells,
+                parseResult,
+                rasterPreparation,
+                cellMetrics,
+                payloadComplete);
+        }
         var placement = new SixelPlacement(
             image,
             row,
@@ -165,6 +183,24 @@ internal sealed class SixelGraphicsState
             paintedColumnCount,
             sequence,
             createdAt);
+
+        if (imageCreated)
+        {
+            var retainedBytes = image.RetainedByteCount;
+            if (!EnsureCapacity(active, retainedBytes, protectedImage: null))
+            {
+                Observe(SixelStateEventKind.ImageRejected, reason: "retained_byte_limit");
+                return new SixelPlacementCreationResult(placement, Retained: false);
+            }
+
+            active.Images.Add(image);
+            Observe(SixelStateEventKind.ImageAllocated);
+        }
+        else
+        {
+            Observe(SixelStateEventKind.ImageDeduplicated);
+        }
+
         active.Placements.Add(placement);
         Observe(SixelStateEventKind.PlacementAdded);
         EnforceLimits(active);
@@ -181,7 +217,7 @@ internal sealed class SixelGraphicsState
     {
         if (_alternate is not null)
             ClearScreen(_alternate);
-        _alternate = new SixelScreenGraphicsState();
+        _alternate = CreateScreen(_retainedBudgets.Alternate);
         _alternateActive = true;
     }
 
@@ -791,11 +827,15 @@ internal sealed class SixelGraphicsState
         ReconcileImages(screen);
         while (screen.Images.Count > _policy.MaximumImagesPerScreen ||
                screen.Images.GetBoundedLogicalPixelCount(_policy.MaximumRasterPixels) >
-                   _policy.MaximumRetainedLogicalPixelsPerScreen)
+                   _policy.MaximumRetainedLogicalPixelsPerScreen ||
+               !screen.RetainedBudget.CanSetSixelBytes(screen.Images.RetainedBytes))
         {
             var reason = screen.Images.Count > _policy.MaximumImagesPerScreen
                 ? "image_limit"
-                : "logical_pixel_limit";
+                : screen.Images.GetBoundedLogicalPixelCount(_policy.MaximumRasterPixels) >
+                    _policy.MaximumRetainedLogicalPixelsPerScreen
+                    ? "logical_pixel_limit"
+                    : "retained_byte_limit";
             if (!TryRemoveOldestPlacement(screen))
                 break;
             Observe(SixelStateEventKind.PlacementEvicted, reason: reason);
@@ -840,14 +880,23 @@ internal sealed class SixelGraphicsState
     }
 
     private static bool TryRemoveOldestPlacement(SixelScreenGraphicsState screen)
+        => TryRemoveOldestPlacement(screen, protectedImage: null);
+
+    private static bool TryRemoveOldestPlacement(
+        SixelScreenGraphicsState screen,
+        SixelData? protectedImage)
     {
         var live = screen.Placements
             .Select((placement, index) => (placement.Sequence, IsHistory: false, RowId: 0L, Index: index))
+            .Where(item => !ReferenceEquals(screen.Placements[item.Index].Image, protectedImage))
             .ToList();
         foreach (var (rowId, placements) in screen.HistoryPlacements)
         {
-            live.AddRange(placements.Select((placement, index) =>
-                (placement.Placement.Sequence, IsHistory: true, RowId: rowId, Index: index)));
+            live.AddRange(placements
+                .Select((placement, index) => (placement, index))
+                .Where(item => !ReferenceEquals(item.placement.Placement.Image, protectedImage))
+                .Select(item =>
+                    (item.placement.Placement.Sequence, IsHistory: true, RowId: rowId, Index: item.index)));
         }
 
         if (live.Count == 0)
@@ -873,6 +922,50 @@ internal sealed class SixelGraphicsState
         if (released > 0)
             Observe(SixelStateEventKind.ImageReleased, released);
     }
+
+    private bool TryReserveGrowth(
+        SixelScreenGraphicsState screen,
+        SixelData image,
+        long addedBytes)
+    {
+        if (addedBytes < 0)
+            throw new ArgumentOutOfRangeException(nameof(addedBytes));
+        if (!screen.Images.Contains(image))
+            return false;
+
+        var retainedBytes = SaturatingAdd(screen.Images.RetainedBytes, addedBytes);
+        if (!screen.RetainedBudget.CanSetSixelBytes(retainedBytes))
+            return false;
+
+        return screen.Images.TryIncreaseRetainedBytes(image, addedBytes);
+    }
+
+    private bool EnsureCapacity(
+        SixelScreenGraphicsState screen,
+        long addedBytes,
+        SixelData? protectedImage)
+    {
+        if (addedBytes > screen.RetainedBudget.MaximumSixelBytes)
+            return false;
+
+        while (!screen.RetainedBudget.CanSetSixelBytes(
+                   SaturatingAdd(screen.Images.RetainedBytes, addedBytes)))
+        {
+            if (!TryRemoveOldestPlacement(screen, protectedImage))
+                return false;
+            Observe(SixelStateEventKind.PlacementEvicted, reason: "retained_byte_limit");
+            ReconcileImages(screen);
+        }
+
+        return true;
+    }
+
+    private SixelScreenGraphicsState CreateScreen(
+        TerminalGraphicsRetainedBudget retainedBudget) =>
+        new(_syncRoot, retainedBudget, TryReserveGrowth);
+
+    private static long SaturatingAdd(long left, long right) =>
+        right > long.MaxValue - left ? long.MaxValue : left + right;
 
     private void ClearScreen(SixelScreenGraphicsState screen)
     {

@@ -620,7 +620,7 @@ jobs:
           name: nuget-packages-release
           path: ./artifacts/*.nupkg
 
-  publish-pr:
+  publish-nuget-pr:
     runs-on: ubuntu-latest
     needs: [version, build-pr]
     if: >-
@@ -648,28 +648,6 @@ jobs:
           name: nuget-packages-pr
           path: ./artifacts
 
-      - name: Download npm artifact
-        uses: actions/download-artifact@v5
-        with:
-          name: npm-web-terminal
-          path: artifacts/npm
-
-      - name: Setup Node.js for GitHub Packages
-        uses: actions/setup-node@v6
-        with:
-          node-version: '24'
-          registry-url: https://npm.pkg.github.com
-          scope: '@hex1b'
-          package-manager-cache: false
-
-      - name: Publish npm preview to GitHub Packages
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_GITHUB_PACKAGES_TOKEN || github.token }}
-          PACKAGE_VERSION: ${{ needs.version.outputs.version }}
-          PACKAGE_KIND: ${{ needs.version.outputs.kind }}
-          PR_NUMBER: ${{ github.event.pull_request.number }}
-        run: node .github/scripts/publish-web-terminal.mjs
-
       - name: Setup .NET
         uses: actions/setup-dotnet@v5
         with:
@@ -693,7 +671,7 @@ jobs:
           gh pr view ${{ github.event.pull_request.number }} \
             --repo ${{ github.repository }} \
             --json comments \
-            --jq '.comments[]? | select(.body | startswith("## 📦 PR Package Published")) | .databaseId' 2>/dev/null | \
+            --jq '.comments[]? | select(.body | startswith("<!-- hex1b-pr-nuget -->")) | .databaseId' | \
           while IFS= read -r comment_id; do
             if [ -n "$comment_id" ]; then
               echo "Deleting old package comment: $comment_id"
@@ -707,9 +685,11 @@ jobs:
 
           # Create comment body
           cat > artifacts/pr_comment.md << EOF
-          ## 📦 PR Packages Published
+          <!-- hex1b-pr-nuget -->
+          ## 📦 PR NuGet Packages Published
 
-          Preview packages for this PR have been published to GitHub Packages.
+          NuGet preview packages for this PR have been published to GitHub Packages.
+          npm publication is reported separately and may still be pending or failed.
 
           ### Package Version
           \`${PACKAGE_VERSION}\`
@@ -721,18 +701,8 @@ jobs:
           | Hex1b | Core TUI library |
           | Hex1b.McpServer | MCP server for terminal session management |
           | Hex1b.Tool | CLI tool for terminal management and diagnostics |
-          | @hex1b/web-terminal | Paired experimental HWT1 browser client |
 
           ### Usage Examples
-
-          **Browser client (GitHub Packages login required):**
-          \`\`\`bash
-          npm install @hex1b/web-terminal@${PACKAGE_VERSION} --save-exact --registry=https://npm.pkg.github.com
-          \`\`\`
-
-          The moving npm preview tag is \`pr-${{ github.event.pull_request.number }}\`.
-          Pin the exact version above alongside the matching Hex1b NuGet packages.
-          See the [publishing and authentication guide](https://github.com/mitchdenny/hex1b/blob/${{ github.event.pull_request.head.sha }}/docs/web-terminal-publishing.md).
 
           **Hex1b - PackageReference (csproj):**
           \`\`\`xml
@@ -815,15 +785,91 @@ jobs:
             --body-file artifacts/pr_comment.md \
             --repo ${{ github.repository }}
 
-  publish-release:
+  publish-npm-pr:
+    runs-on: ubuntu-latest
+    needs: [version, build-pr]
+    if: >-
+      needs.version.outputs.kind == 'pr' &&
+      github.event_name == 'pull_request' &&
+      github.repository == 'mitchdenny/hex1b' &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.user.login != 'dependabot[bot]' &&
+      github.actor != 'dependabot[bot]' &&
+      github.triggering_actor != 'dependabot[bot]'
+    permissions:
+      contents: read
+      packages: write
+      pull-requests: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+
+      - name: Download npm artifact
+        uses: actions/download-artifact@v5
+        with:
+          name: npm-web-terminal
+          path: artifacts/npm
+
+      - name: Setup Node.js for GitHub Packages
+        uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          registry-url: https://npm.pkg.github.com
+          scope: '@hex1b'
+          package-manager-cache: false
+
+      - name: Publish npm preview to GitHub Packages
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_GITHUB_PACKAGES_TOKEN || github.token }}
+          PACKAGE_VERSION: ${{ needs.version.outputs.version }}
+          PACKAGE_KIND: ${{ needs.version.outputs.kind }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: node .github/scripts/publish-web-terminal.mjs
+
+      - name: Post npm package info to PR
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PACKAGE_VERSION: ${{ needs.version.outputs.version }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          set -euo pipefail
+          gh pr view "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --json comments \
+            --jq '.comments[]? | select(.body | startswith("<!-- hex1b-pr-npm -->")) | .databaseId' |
+          while IFS= read -r comment_id; do
+            if [ -n "$comment_id" ]; then
+              gh api --method DELETE "/repos/${GITHUB_REPOSITORY}/issues/comments/${comment_id}"
+            fi
+          done
+
+          cat > artifacts/npm/pr_comment.md << EOF
+          <!-- hex1b-pr-npm -->
+          ## 📦 PR npm Package Published
+
+          \`@hex1b/web-terminal@${PACKAGE_VERSION}\` is available on GitHub Packages.
+          The moving preview tag is \`pr-${PR_NUMBER}\`.
+
+          After authenticating to GitHub Packages:
+          \`\`\`bash
+          npm install @hex1b/web-terminal@${PACKAGE_VERSION} --save-exact --registry=https://npm.pkg.github.com
+          \`\`\`
+
+          This experimental HWT1 client requires matching Hex1b NuGet packages.
+          NuGet publication is reported separately and may still be pending or failed.
+          See the [publishing and authentication guide](https://github.com/mitchdenny/hex1b/blob/${{ github.event.pull_request.head.sha }}/docs/web-terminal-publishing.md).
+          EOF
+          gh pr comment "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --body-file artifacts/npm/pr_comment.md
+
+  publish-nuget-release:
     runs-on: ubuntu-latest
     needs: [version, build-release]
     if: needs.version.outputs.kind != 'pr' && github.repository == 'mitchdenny/hex1b'
     environment: production
     permissions:
-      contents: write
+      contents: read
       id-token: write
-      actions: write  # so the post-release step can dispatch baseline-bump.yml
 
     steps:
       - name: Checkout code
@@ -834,32 +880,6 @@ jobs:
         with:
           name: nuget-packages-release
           path: ./artifacts
-
-      - name: Download npm artifact
-        uses: actions/download-artifact@v5
-        with:
-          name: npm-web-terminal
-          path: artifacts/npm
-
-      - name: Setup Node.js for npm trusted publishing
-        if: vars.NPM_PUBLISH_ENABLED == 'true'
-        uses: actions/setup-node@v6
-        with:
-          node-version: '24'
-          package-manager-cache: false
-
-      - name: Verify npm supports trusted publishing
-        if: vars.NPM_PUBLISH_ENABLED == 'true'
-        run: |
-          node --input-type=module -e '
-            import { execFileSync } from "node:child_process";
-            const version = execFileSync("npm", ["--version"], { encoding: "utf8" }).trim();
-            const [major, minor, patch] = version.split(".").map(Number);
-            if (!(major > 11 || (major === 11 && (minor > 5 || (minor === 5 && patch >= 1))))) {
-              throw new Error(`npm >= 11.5.1 is required for trusted publishing; found ${version}`);
-            }
-            console.log(`Using npm ${version} for trusted publishing`);
-          '
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v5
@@ -882,66 +902,23 @@ jobs:
             echo "skip=false" >> $GITHUB_OUTPUT
           fi
 
-      # Publish npm first: a failed npm push must not leave NuGet published
-      # while preventing the GitHub release on a retry. Reuse the built tarball.
-      - name: Publish to npmjs with trusted publishing
-        if: vars.NPM_PUBLISH_ENABLED == 'true' && steps.stale-check.outputs.skip != 'true'
-        env:
-          PACKAGE_VERSION: ${{ needs.version.outputs.version }}
-          PACKAGE_KIND: ${{ needs.version.outputs.kind }}
-        run: node .github/scripts/publish-web-terminal.mjs
-
       - name: Check if packages exist on NuGet.org
         id: check-package
         if: steps.stale-check.outputs.skip != 'true'
         run: |
+          set -euo pipefail
           PACKAGE_VERSION="${{ needs.version.outputs.version }}"
-          
-          # Check Hex1b
-          echo "Checking if Hex1b version $PACKAGE_VERSION exists on NuGet.org..."
-          HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" \
-            "https://api.nuget.org/v3-flatcontainer/hex1b/$PACKAGE_VERSION/hex1b.nuspec")
-          
-          if [ "$HTTP_CODE" = "200" ]; then
-            echo "Hex1b version $PACKAGE_VERSION already exists on NuGet.org"
-            echo "hex1b-exists=true" >> $GITHUB_OUTPUT
-          else
-            echo "Hex1b version $PACKAGE_VERSION does not exist on NuGet.org"
-            echo "hex1b-exists=false" >> $GITHUB_OUTPUT
-          fi
-          
-          # Check Hex1b.McpServer
-          echo "Checking if Hex1b.McpServer version $PACKAGE_VERSION exists on NuGet.org..."
-          HTTP_CODE_MCP=$(curl -s -o /dev/null -w "%{http_code}" \
-            "https://api.nuget.org/v3-flatcontainer/hex1b.mcpserver/$PACKAGE_VERSION/hex1b.mcpserver.nuspec")
-          
-          if [ "$HTTP_CODE_MCP" = "200" ]; then
-            echo "Hex1b.McpServer version $PACKAGE_VERSION already exists on NuGet.org"
-            echo "mcpserver-exists=true" >> $GITHUB_OUTPUT
-          else
-            echo "Hex1b.McpServer version $PACKAGE_VERSION does not exist on NuGet.org"
-            echo "mcpserver-exists=false" >> $GITHUB_OUTPUT
-          fi
-          
-          # Check Hex1b.Tool
-          echo "Checking if Hex1b.Tool version $PACKAGE_VERSION exists on NuGet.org..."
-          HTTP_CODE_TOOL=$(curl -s -o /dev/null -w "%{http_code}" \
-            "https://api.nuget.org/v3-flatcontainer/hex1b.tool/$PACKAGE_VERSION/hex1b.tool.nuspec")
-          
-          if [ "$HTTP_CODE_TOOL" = "200" ]; then
-            echo "Hex1b.Tool version $PACKAGE_VERSION already exists on NuGet.org"
-            echo "tool-exists=true" >> $GITHUB_OUTPUT
-          else
-            echo "Hex1b.Tool version $PACKAGE_VERSION does not exist on NuGet.org"
-            echo "tool-exists=false" >> $GITHUB_OUTPUT
-          fi
-          
-          # Set combined flag - only skip if ALL exist
-          if [ "$HTTP_CODE" = "200" ] && [ "$HTTP_CODE_MCP" = "200" ] && [ "$HTTP_CODE_TOOL" = "200" ]; then
-            echo "exists=true" >> $GITHUB_OUTPUT
-          else
-            echo "exists=false" >> $GITHUB_OUTPUT
-          fi
+          ALL_EXIST=true
+          for PACKAGE in hex1b hex1b.mcpserver hex1b.tool; do
+            HTTP_CODE=$(curl --silent --show-error --output /dev/null --write-out "%{http_code}" \
+              "https://api.nuget.org/v3-flatcontainer/${PACKAGE}/${PACKAGE_VERSION}/${PACKAGE}.nuspec")
+            case "$HTTP_CODE" in
+              200) echo "${PACKAGE}@${PACKAGE_VERSION} already exists on NuGet.org" ;;
+              404) ALL_EXIST=false ;;
+              *) echo "::error::NuGet lookup for ${PACKAGE} failed: HTTP ${HTTP_CODE}"; exit 1 ;;
+            esac
+          done
+          echo "exists=${ALL_EXIST}" >> "$GITHUB_OUTPUT"
 
       - name: Authenticate to NuGet
         if: steps.check-package.outputs.exists == 'false'
@@ -958,8 +935,118 @@ jobs:
             --source "https://api.nuget.org/v3/index.json" \
             --skip-duplicate
 
+  publish-npm-release:
+    runs-on: ubuntu-latest
+    needs: [version, build-release]
+    if: >-
+      needs.version.outputs.kind != 'pr' &&
+      github.repository == 'mitchdenny/hex1b' &&
+      vars.NPM_PUBLISH_ENABLED == 'true'
+    environment: production
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Download npm artifact
+        uses: actions/download-artifact@v5
+        with:
+          name: npm-web-terminal
+          path: artifacts/npm
+
+      - name: Setup Node.js for npm trusted publishing
+        uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          registry-url: https://registry.npmjs.org
+          package-manager-cache: false
+
+      - name: Verify npm supports trusted publishing
+        run: |
+          node --input-type=module -e '
+            import { execFileSync } from "node:child_process";
+            const version = execFileSync("npm", ["--version"], { encoding: "utf8" }).trim();
+            const [major, minor, patch] = version.split(".").map(Number);
+            if (!(major > 11 || (major === 11 && (minor > 5 || (minor === 5 && patch >= 1))))) {
+              throw new Error(`npm >= 11.5.1 is required for trusted publishing; found ${version}`);
+            }
+            console.log(`Using npm ${version} for trusted publishing`);
+          '
+
+      - name: Skip stale beta if final tag now exists
+        id: stale-check
+        if: needs.version.outputs.kind == 'beta'
+        run: |
+          set -euo pipefail
+          git fetch --tags --quiet
+          BASE="${{ needs.version.outputs.base }}"
+          if git rev-parse -q --verify "refs/tags/v${BASE}" >/dev/null; then
+            echo "Tag v${BASE} already exists; skipping stale beta publish."
+            echo "skip=true" >> $GITHUB_OUTPUT
+          else
+            echo "skip=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Publish to npmjs with trusted publishing
+        if: steps.stale-check.outputs.skip != 'true'
+        env:
+          PACKAGE_VERSION: ${{ needs.version.outputs.version }}
+          PACKAGE_KIND: ${{ needs.version.outputs.kind }}
+          NPM_CONFIG_LOGLEVEL: verbose
+        run: node .github/scripts/publish-web-terminal.mjs
+
+  finalize-release:
+    runs-on: ubuntu-latest
+    needs: [version, publish-nuget-release, publish-npm-release]
+    if: >-
+      always() && !cancelled() &&
+      needs.version.result == 'success' &&
+      needs.version.outputs.kind == 'release' &&
+      github.repository == 'mitchdenny/hex1b' &&
+      needs.publish-nuget-release.result == 'success' &&
+      (needs.publish-npm-release.result == 'success' ||
+        (vars.NPM_PUBLISH_ENABLED != 'true' && needs.publish-npm-release.result == 'skipped'))
+    environment: production
+    permissions:
+      contents: write
+      actions: write  # dispatch baseline-bump.yml after finalization
+
+    steps:
+      - name: Download NuGet artifacts
+        uses: actions/download-artifact@v5
+        with:
+          name: nuget-packages-release
+          path: artifacts
+
+      - name: Download npm artifact
+        uses: actions/download-artifact@v5
+        with:
+          name: npm-web-terminal
+          path: artifacts/npm
+
+      - name: Check if GitHub Release exists
+        id: check-release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PACKAGE_VERSION: ${{ needs.version.outputs.version }}
+        run: |
+          set -euo pipefail
+          HTTP_CODE=$(curl --silent --show-error --output artifacts/github-release.json --write-out "%{http_code}" \
+            --header "Accept: application/vnd.github+json" \
+            --header "Authorization: Bearer ${GH_TOKEN}" \
+            --header "X-GitHub-Api-Version: 2022-11-28" \
+            "${GITHUB_API_URL}/repos/${GITHUB_REPOSITORY}/releases/tags/v${PACKAGE_VERSION}")
+          case "$HTTP_CODE" in
+            200) echo "exists=true" >> "$GITHUB_OUTPUT" ;;
+            404) echo "exists=false" >> "$GITHUB_OUTPUT" ;;
+            *) echo "::error::GitHub release lookup failed: HTTP ${HTTP_CODE}"; exit 1 ;;
+          esac
+
       - name: Create GitHub Release
-        if: needs.version.outputs.kind == 'release' && steps.check-package.outputs.exists == 'false'
+        if: steps.check-release.outputs.exists == 'false'
         env:
           GH_TOKEN: ${{ github.token }}
           PACKAGE_VERSION: ${{ needs.version.outputs.version }}
@@ -1007,10 +1094,20 @@ jobs:
           *Released from commit ${{ github.sha }}*
           EOF
 
-          # Attach both distributions from the same versioned build.
+          # Tag the exact build commit, not the repository's default-branch tip.
           gh release create "v${PACKAGE_VERSION}" \
+            --repo "$GITHUB_REPOSITORY" \
+            --target "$GITHUB_SHA" \
             --title "v${PACKAGE_VERSION}" \
-            --notes-file artifacts/release_notes.md \
+            --notes-file artifacts/release_notes.md
+
+      - name: Ensure GitHub Release artifacts
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PACKAGE_VERSION: ${{ needs.version.outputs.version }}
+        run: |
+          gh release upload "v${PACKAGE_VERSION}" \
+            --repo "$GITHUB_REPOSITORY" --clobber \
             ./artifacts/*.nupkg ./artifacts/npm/*.tgz
 
       - name: Dispatch baseline-bump workflow
@@ -1021,18 +1118,18 @@ jobs:
         # baseline-bump.yml explicitly here. Runs against the default branch
         # so the latest bump rules and rewrite script are used regardless of
         # which release/X.Y branch shipped this release.
-        if: needs.version.outputs.kind == 'release' && steps.check-package.outputs.exists == 'false'
         env:
           GH_TOKEN: ${{ github.token }}
           PACKAGE_VERSION: ${{ needs.version.outputs.version }}
         run: |
           gh workflow run baseline-bump.yml \
+            --repo "$GITHUB_REPOSITORY" \
             --ref "${{ github.event.repository.default_branch }}" \
             -f version="${PACKAGE_VERSION}"
 
   deploy-production:
     runs-on: ubuntu-latest
-    needs: [version, publish-release]
+    needs: [version, finalize-release]
     # Production only redeploys for final releases (workflow_dispatch on a
     # release/X.Y branch with release=true). Alpha and beta builds publish
     # packages but do not redeploy production.

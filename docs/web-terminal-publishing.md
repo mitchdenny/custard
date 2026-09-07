@@ -38,7 +38,7 @@ It does not derive a separate npm version from tags, commits, or `package.json`.
 
 `BASE`, the PR number, run number, attempt, and short SHA are all supplied by the
 existing version action. Prereleases never move `latest`. Fork and Dependabot
-PRs still build and test, but **do not run the credential-bearing publish job**.
+PRs still build and test, but **do not run the credential-bearing publish jobs**.
 Publishing jobs run only in the canonical repository.
 If a short SHA is entirely numeric and starts with zero, the shared action
 prefixes that identifier with `g` to satisfy npm's SemVer rules. This
@@ -55,6 +55,21 @@ The .NET test/package jobs depend on that job. Publishing downloads this artifac
 and uses `npm publish <tarball> --ignore-scripts`; it does not install development
 dependencies, rebuild, or run package lifecycle scripts with publishing credentials.
 No npm version-stamping commit or git tag is created.
+
+Publishing uses separate jobs so one registry's failure does not prevent the
+other from publishing or force it to publish again:
+
+| Job | Destination | Build prerequisite |
+| --- | --- | --- |
+| `publish-nuget-pr` | GitHub Packages NuGet feed | `build-pr` |
+| `publish-npm-pr` | GitHub Packages npm registry | `build-pr` |
+| `publish-nuget-release` | NuGet.org | `build-release` |
+| `publish-npm-release` | npmjs, when enabled | `build-release` |
+
+All four also consume the same successful `version` job. The PR publishers
+post separate success comments, labeled **PR NuGet Packages Published** and
+**PR npm Package Published**. Neither comment claims the other registry
+succeeded; verify both before consuming a paired preview.
 
 ## One-time manual npmjs bootstrap: `0.1.0`
 
@@ -132,9 +147,16 @@ not the npm organization `hex1b`. Keep `repository.url` exactly as shown above.
 The workflow uses a GitHub-hosted Ubuntu runner, Node.js 24, and
 `id-token: write` in the `production` environment. It verifies npm is at least
 11.5.1 before publishing. npm exchanges the OIDC identity for short-lived
-credentials; **no npmjs access-token secret or `NODE_AUTH_TOKEN` is configured**.
+credentials; **no npmjs access-token secret is configured**. The public npm job
+receives no stored npm or GitHub Packages token. Its `setup-node` step explicitly
+selects `https://registry.npmjs.org`; GitHub Packages authentication remains in a
+different job.
 Trusted publishing automatically supplies provenance for eligible public
 repositories/packages.
+
+The public npm job is named `publish-npm-release`, but it remains in
+**`build-deploy.yml`** and **`production`**. Splitting jobs does not change those
+trusted-publisher fields.
 
 Configure the GitHub `production` environment's review and branch protections
 as appropriate, ensuring the intended `main` and `release/X.Y` publications are
@@ -209,9 +231,11 @@ and [package/Actions access](https://docs.github.com/en/packages/learn-github-pa
 
 ## Failure handling and retries
 
-The workflow serializes publishing per branch. The existing stale-beta check
-applies to **both** npm and NuGet: if the final `vBASE` tag already exists, neither
-publishes that beta.
+The workflow serializes runs per branch. npm and NuGet publishers can run
+independently within a run. **Each release publisher** refreshes the current git
+tags before deciding whether to publish a beta, including on retry. If the final
+`vBASE` tag already exists, that publisher skips the beta. A failed tag fetch
+fails the job instead of assuming the beta is still eligible.
 
 For npm, the helper first queries the exact package version in the selected
 registry. An already published version is skipped; only an npm `E404`/HTTP 404
@@ -220,17 +244,72 @@ responses, and server failures stop the job rather than trigger a blind publish.
 GitHub may hide inaccessible packages behind a 404, so verify permissions when
 troubleshooting an unexpected publish rejection.
 
-npm publication runs **before NuGet**. If npm fails, NuGet has not been pushed by
-that job; if NuGet subsequently fails, retrying the failed publish job reuses the
-artifact, skips an existing npm version, and uses NuGet's duplicate-safe push.
-Existing npm versions are not republished or retagged on retry. Review any
-partially completed stable GitHub release/baseline dispatch separately.
+An npm failure does not block NuGet, and a NuGet failure does not block npm.
+Retrying a failed publisher reuses its versioned artifact. Existing npm versions
+are not republished or retagged; NuGet checks all three exact package versions
+and uses a duplicate-safe push when any are absent. NuGet lookups also fail on
+unexpected HTTP or network errors rather than treating them as missing packages.
 
 Prefer rerunning **failed jobs**, retaining the successful version/build job
-outputs and artifacts. Rerunning the whole workflow can compute a different
+outputs and artifacts. In GitHub Actions, use **Re-run failed jobs**, or inspect
+the job database IDs and rerun the selected publisher with the GitHub CLI:
+
+```bash
+# Replace RUN_ID and JOB_ID with the run and failed publisher's database ID.
+gh run view RUN_ID --repo mitchdenny/hex1b --json jobs --jq '.jobs[] | {name, databaseId, conclusion}'
+gh run rerun RUN_ID --job JOB_ID --repo mitchdenny/hex1b
+```
+
+The selected job and its dependent jobs can rerun without rerunning the other
+successful publisher. Rerunning the whole workflow can compute a different
 version because attempt numbers and release tags are inputs to the version
 action. npm does not permit reusing a published name/version, even after
-unpublishing.
+unpublishing. These retry commands are actions for an authorized maintainer;
+diagnosing a failure does not itself trigger a retry.
+
+### Stable release finalization
+
+For stable releases only, `finalize-release` waits for successful NuGet
+publication and successful npm publication. It also permits npm to be skipped
+**only when `NPM_PUBLISH_ENABLED` is not `true`**. An npm failure while enabled
+blocks finalization, not NuGet publication.
+
+Only this finalizer creates the stable GitHub release/tag, attaches both built
+distributions, and dispatches `baseline-bump.yml`. New tags target the build's
+exact commit. Production deployment depends on successful finalization and
+remains stable-release-only. Alpha and beta publishers never create the final
+release or deploy production.
+
+Finalization does not require a package to have been newly uploaded: it can
+complete after retrying a publisher that finds its version already present.
+The GitHub release lookup treats only HTTP 404 as missing; network,
+authentication, authorization, and other HTTP failures stop the finalizer.
+An existing release is reused, and artifact uploads are repeatable, so a failure
+after release creation can be retried without trying to create it again.
+The baseline workflow dispatch follows successful artifact attachment and may
+be repeated if finalization is explicitly rerun.
+
+### Diagnosing npm authentication failures
+
+`publish-npm-release` enables npm **verbose logging only for its public publish
+step**, not dependency installation or GitHub Packages publication. This exposes
+npm's OIDC attempt/error messages and registry HTTP outcomes that may be hidden
+behind a final `ENEEDAUTH`. These logs can help distinguish a token-exchange
+rejection, registry response, or missing credential fallback.
+
+`ENEEDAUTH` alone does **not** establish which trusted-publisher setting is
+wrong, or even prove that npm attempted an OIDC exchange. A matching Node/npm
+version, an explicit registry, and `id-token: write` are prerequisites, not
+proof that npm accepted the identity. Compare the diagnostic messages with the
+package's configured owner, repository, workflow filename, environment, allowed
+publish action, and repository metadata. Adding `registry-url` alone is not a
+confirmed fix for an authentication failure.
+
+Do not print token environment values, full JWTs, Authorization headers, or
+entire npm configurations while troubleshooting. Do not add a long-lived npm
+token to bypass trusted publishing. Consult the
+[npm trusted-publisher troubleshooting guide](https://docs.npmjs.com/trusted-publishers/#troubleshooting)
+and [GitHub CLI retry reference](https://cli.github.com/manual/gh_run_rerun).
 
 To test publication decisions locally without publishing or registry requests:
 

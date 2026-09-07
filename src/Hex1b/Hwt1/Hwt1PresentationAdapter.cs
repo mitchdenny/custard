@@ -119,7 +119,7 @@ public sealed class Hwt1PresentationAdapter :
         SupportsAlternateScreen = true,
         SupportsBracketedPaste = true,
         SupportsSixel = true,
-        SixelSupport = SixelPresentationSupport.Translated,
+        SixelSupport = SixelPresentationSupport.Headless,
         SupportsKgp = true,
         SupportsStyledUnderlines = true,
         SupportsUnderlineColor = true,

@@ -104,7 +104,31 @@ rasterizer, placement-lifetime, and fuzz tests.
 | History placement fragments | 4,096 | Evict oldest history fragments first |
 | Distinct images per screen | 1,024 | Evict oldest reachable placements until the image set is bounded |
 | Aggregate retained raster-capable area | 64 Mi logical pixels | Evict oldest placements; each image contributes at most the per-image raster limit |
+| Aggregate retained image data per screen | 320 MiB | Count each distinct image once; evict oldest reachable placements until payload, parsed metadata, sparse tiles, and cached dense pixels fit |
 | Embedded Sixel data per SVG/HTML export | 64 MiB by default | `TerminalSvgOptions.MaximumEmbeddedSixelBytes` replaces later raster placements with deterministic diagnostic placeholders |
+
+`Hex1bTerminalGraphicsOptions.MaximumRetainedBytesPerScreen` configures the
+aggregate retained-image budget independently for the main and alternate
+screens. Accounting is deterministic protocol content accounting, not a CLR
+heap-size estimate: UTF-8 payload bytes, content identities, parsed commands,
+palette and diagnostic metadata, captured palette state, sparse tile pixels
+and keys, raster diagnostics, and a cached dense RGBA buffer are included.
+Placements and history fragments remain governed by their count limits and do
+not cause a shared image to be counted more than once.
+
+When admitting a new distinct image would exceed the byte budget, the terminal
+evicts oldest placements until enough image resources become unreachable. An
+image larger than the entire budget is rejected without evicting existing
+content. Lazy sparse-raster or dense-cache growth protects the image being
+materialized and evicts older unrelated placements first. If the protected
+image still cannot fit, the requested pixels are produced without attaching
+the new cache to live terminal state; accounting and existing placements remain
+unchanged. Clearing, history pruning, alternate-screen exit, RIS, reflow, and
+terminal disposal sweep unreachable images and their accounting together.
+
+Snapshots copy placements but intentionally share immutable `SixelData`
+resources. A caller-retained snapshot can therefore extend an evicted image's
+payload, raster, or pixel-cache lifetime outside the live terminal budget.
 
 The parser exposes typed outcomes (`Complete`, `LimitDowngraded`, `Cancelled`,
 `Malformed`, and `Rejected`) and bounded diagnostic codes for malformed,
@@ -121,10 +145,11 @@ The `Hex1b` meter exposes constant-cardinality operational measurements:
 - `hex1b.terminal.sixel.resources` (`action`, optional `reason`)
 - `hex1b.terminal.sixel.limit` (`limit`)
 
-Resource actions are allocation, deduplication, release, placement creation,
-damage, and eviction. Eviction reasons distinguish history pruning, scrolling,
-line edits, viewport clipping, reflow, and the `history_limit`,
-`placement_limit`, `image_limit`, and `logical_pixel_limit` policy limits.
+Resource actions are allocation, deduplication, rejection, release, placement
+creation, damage, and eviction. Eviction reasons distinguish history pruning,
+scrolling, line edits, viewport clipping, reflow, and the `history_limit`,
+`placement_limit`, `image_limit`, `logical_pixel_limit`, and
+`retained_byte_limit` policy limits.
 Existing DCS byte, dispatch, cancellation, malformed-recovery, and
 retention-limit instruments remain the framing-level source of truth.
 

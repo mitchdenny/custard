@@ -59,6 +59,21 @@ internal sealed class SixelRasterImage
     public int AllocatedTileCount => _tiles.Count;
 
     /// <summary>
+    /// Gets the deterministic retained bytes for allocated tile pixels and
+    /// their logical keys.
+    /// </summary>
+    internal long RetainedTileBytes
+    {
+        get
+        {
+            var bytesPerTile = checked((long)_tilePixelCount * 4 + sizeof(long));
+            return _tiles.Count > long.MaxValue / bytesPerTile
+                ? long.MaxValue
+                : _tiles.Count * bytesPerTile;
+        }
+    }
+
+    /// <summary>
     /// Gets the number of pixels that would be materialized densely.
     /// </summary>
     public long PixelCount => (long)Width * Height;

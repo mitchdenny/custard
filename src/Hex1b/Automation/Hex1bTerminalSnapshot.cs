@@ -267,6 +267,10 @@ public sealed class Hex1bTerminalSnapshot : IHex1bTerminalRegion, IDisposable
     /// per compatible resource identity, never once per covered cell. Two
     /// placements share a <see cref="SixelData"/> instance only when their
     /// payload, raster state, protocol metrics, and cell span are all equal.
+    /// Snapshot image references are ordinary caller-owned references: keeping a
+    /// snapshot alive can retain payload, sparse raster, or dense pixel data after
+    /// the live terminal has evicted that image, outside the terminal's per-screen
+    /// retained-byte budget.
     /// </remarks>
     public IReadOnlyDictionary<byte[], SixelData> SixelImages { get; }
 

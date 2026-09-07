@@ -243,6 +243,24 @@ public class Hmp1SixelStateReplayTests
     }
 
     [TestMethod]
+    public void BuildPlacementSequence_ReplayedIntoZeroBudgetTerminal_IsRejectedCleanly()
+    {
+        using var producer = CreateHeadlessTerminal();
+        producer.ApplyTokens(AnsiTokenizer.Tokenize(
+            "\x1bPq#1;2;100;0;0#1@\x1b\\"));
+        using var producerSnapshot = producer.CreateSnapshot();
+        var placement = TestSeq.Single(producerSnapshot.SixelPlacements);
+        var replay = Hmp1SixelStateReplay.BuildPlacementSequence(placement);
+
+        using var viewer = CreateHeadlessTerminal(maximumRetainedBytesPerScreen: 0);
+        viewer.ApplyTokens(AnsiTokenizer.Tokenize(replay));
+
+        Assert.AreEqual(0, viewer.SixelPlacementCount);
+        Assert.AreEqual(0, viewer.TrackedSixelCount);
+        Assert.AreEqual(0L, viewer.SixelRetainedByteCount);
+    }
+
+    [TestMethod]
     public async Task WriteAsync_PlacementCountExceedsLimit_ReturnsTypedLimitWithoutWriting()
     {
         using var producer = CreateHeadlessTerminal();
@@ -329,11 +347,14 @@ public class Hmp1SixelStateReplayTests
         Assert.AreEqual(0, stream.Length);
     }
 
-    private static Hex1bTerminal CreateHeadlessTerminal() =>
+    private static Hex1bTerminal CreateHeadlessTerminal(
+        long maximumRetainedBytesPerScreen = 320L * 1024 * 1024) =>
         Hex1bTerminal.CreateBuilder()
             .WithDimensions(20, 10)
             .WithWorkload(new NullWorkloadAdapter())
             .WithHeadless(new TerminalCapabilities { SupportsSixel = true })
+            .WithGraphics(options =>
+                options.MaximumRetainedBytesPerScreen = maximumRetainedBytesPerScreen)
             .Build();
 
     private sealed class NullWorkloadAdapter : IHex1bTerminalWorkloadAdapter

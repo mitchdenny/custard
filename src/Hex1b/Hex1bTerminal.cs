@@ -341,7 +341,9 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         _sixelColorRegisters = new Sixel.SixelColorRegisters(sixelPolicy);
         _sixelGraphicsState = new SixelGraphicsState(
             sixelPolicy,
-            RecordSixelStateEvent);
+            RecordSixelStateEvent,
+            options.Graphics.MaximumRetainedBytesPerScreen,
+            _bufferLock);
         
         // Notify lifecycle-aware presentation adapters that the terminal is created
         if (presentation is ITerminalLifecycleAwarePresentationAdapter lifecycleAdapter)
@@ -1658,6 +1660,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         {
             SixelStateEventKind.ImageAllocated => "image_allocated",
             SixelStateEventKind.ImageDeduplicated => "image_deduplicated",
+            SixelStateEventKind.ImageRejected => "image_rejected",
             SixelStateEventKind.ImageReleased => "image_released",
             SixelStateEventKind.PlacementAdded => "placement_added",
             SixelStateEventKind.PlacementDamaged => "placement_damaged",
@@ -1672,7 +1675,8 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         if (stateEvent.Reason is "history_limit" or
             "placement_limit" or
             "image_limit" or
-            "logical_pixel_limit")
+            "logical_pixel_limit" or
+            "retained_byte_limit")
         {
             _metrics.TerminalSixelLimitEvents.Add(
                 stateEvent.Count,
@@ -2742,6 +2746,8 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
     internal int SixelPlacementCount => _sixelGraphicsState.ActivePlacements.Count;
 
     internal int SixelHistoryPlacementCount => _sixelGraphicsState.MainHistoryPlacementCount;
+
+    internal long SixelRetainedByteCount => _sixelGraphicsState.ActiveRetainedBytes;
 
     internal Diagnostics.Hex1bMetrics DiagnosticsMetrics => _metrics;
 

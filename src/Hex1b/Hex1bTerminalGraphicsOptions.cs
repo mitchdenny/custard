@@ -86,14 +86,17 @@ public sealed class Hex1bTerminalGraphicsOptions
         64L * 1024 * 1024;
 
     /// <summary>
-    /// Gets or sets the maximum aggregate encoded and decoded image and animation
-    /// frame data retained by one screen. The default is 335,544,320 bytes.
+    /// Gets or sets the maximum aggregate encoded and decoded image data retained
+    /// by one screen. The default is 335,544,320 bytes.
     /// </summary>
     /// <remarks>
-    /// The main and alternate screens each receive an independent budget. A value
-    /// of zero disables retained byte-backed image data. Protocols that do not yet
-    /// account all retained state in bytes continue to use the other configured
-    /// cardinality and logical-pixel limits. Per-image input and raster limits remain
+    /// The main and alternate screens each receive an independent budget. KGP
+    /// counts encoded image and animation-frame bytes. Sixel counts each distinct
+    /// image once, including retained payload, parsed metadata, sparse raster
+    /// tiles, and a cached dense pixel buffer. Sixel evicts the oldest placements
+    /// whose image is not the resource currently growing; if one image cannot fit,
+    /// the new placement or cache is not retained. A value of zero disables
+    /// retained byte-backed image data. Per-image input and raster limits remain
     /// independent safety bounds.
     /// </remarks>
     public long MaximumRetainedBytesPerScreen { get; set; } = 320L * 1024 * 1024;

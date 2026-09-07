@@ -115,6 +115,9 @@ public class SixelHardeningFuzzTests
                         Assert.IsLessThanOrEqualTo(
                             graphics.MaximumImagesPerScreen,
                             viewer.TrackedSixelCount);
+                        Assert.IsLessThanOrEqualTo(
+                            graphics.MaximumRetainedBytesPerScreen,
+                            viewer.SixelRetainedByteCount);
                         using var viewerSnapshot = viewer.CreateSnapshot();
                         Assert.IsLessThanOrEqualTo(
                             graphics.MaximumPlacementsPerScreen +
@@ -126,6 +129,9 @@ public class SixelHardeningFuzzTests
 
             Assert.IsLessThanOrEqualTo(policy.MaximumPlacementsPerScreen, terminal.SixelPlacementCount);
             Assert.IsLessThanOrEqualTo(policy.MaximumImagesPerScreen, terminal.TrackedSixelCount);
+            Assert.IsLessThanOrEqualTo(
+                graphics.MaximumRetainedBytesPerScreen,
+                terminal.SixelRetainedByteCount);
             using var current = terminal.CreateSnapshot();
             Assert.IsLessThanOrEqualTo(
                 policy.MaximumPlacementsPerScreen + policy.MaximumHistoryPlacements,

@@ -1,4 +1,5 @@
 using Hex1b.Sixel;
+using Hex1b.Surfaces;
 
 namespace Hex1b;
 
@@ -10,7 +11,47 @@ namespace Hex1b;
 /// </summary>
 internal sealed class SixelScreenGraphicsState
 {
-    internal SixelImageStore Images { get; } = new();
+    private sealed class RetainedResourceOwner(
+        SixelScreenGraphicsState screen,
+        object syncRoot,
+        Func<SixelScreenGraphicsState, SixelData, long, bool> tryReserve)
+        : ISixelRetainedResourceOwner
+    {
+        public SixelRasterResult GetRaster(SixelData image)
+        {
+            lock (syncRoot)
+            {
+                if (!screen.Images.Contains(image))
+                {
+                    image.DetachRetainedResourceOwner(this);
+                    return image.GetRasterUnowned();
+                }
+                return image.GetRasterOwned(bytes => tryReserve(screen, image, bytes));
+            }
+        }
+
+        public SixelPixelBuffer? GetPixels(SixelData image)
+        {
+            lock (syncRoot)
+            {
+                if (!screen.Images.Contains(image))
+                {
+                    image.DetachRetainedResourceOwner(this);
+                    return image.GetPixelsUnowned();
+                }
+                return image.GetPixelsOwned(bytes => tryReserve(screen, image, bytes));
+            }
+        }
+    }
+
+    internal SixelScreenGraphicsState(
+        object syncRoot,
+        Func<SixelScreenGraphicsState, SixelData, long, bool> tryReserve)
+    {
+        Images = new SixelImageStore(new RetainedResourceOwner(this, syncRoot, tryReserve));
+    }
+
+    internal SixelImageStore Images { get; }
 
     internal List<SixelPlacement> Placements { get; } = [];
 

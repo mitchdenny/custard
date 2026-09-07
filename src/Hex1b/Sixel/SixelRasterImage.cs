@@ -7,9 +7,11 @@ namespace Hex1b.Sixel;
 /// </summary>
 /// <remarks>
 /// <para>
-/// Painted pixels are stored in lazily allocated square tiles so a sequence that
-/// declares a very large transparent or background-filled canvas never allocates
-/// in proportion to its declared extent. Unpainted pixels resolve to
+/// Painted pixels are stored in lazily allocated row-major tiles so a sequence
+/// that declares a very large transparent or background-filled canvas never
+/// allocates in proportion to its declared extent. Each tile contains at most
+/// the policy's tile edge length squared pixels, including across row boundaries.
+/// Unpainted pixels resolve to
 /// <see cref="UnpaintedPixel"/>, which is the captured background for opaque
 /// graphics and transparent for <c>P2=1</c>.
 /// </para>
@@ -21,8 +23,7 @@ namespace Hex1b.Sixel;
 internal sealed class SixelRasterImage
 {
     private readonly Dictionary<long, Rgba32[]> _tiles = [];
-    private readonly int _tileSize;
-    private readonly int _tileColumns;
+    private readonly int _tilePixelCount;
     private readonly int _maximumTiles;
 
     public SixelRasterImage(int width, int height, Rgba32 unpaintedPixel, SixelCompatibilityPolicy policy)
@@ -33,8 +34,7 @@ internal sealed class SixelRasterImage
         Width = width;
         Height = height;
         UnpaintedPixel = unpaintedPixel;
-        _tileSize = policy.RasterTileSize;
-        _tileColumns = ((width - 1) / _tileSize) + 1;
+        _tilePixelCount = checked(policy.RasterTileSize * policy.RasterTileSize);
         _maximumTiles = policy.MaximumRasterTiles;
     }
 
@@ -80,7 +80,7 @@ internal sealed class SixelRasterImage
                 return UnpaintedPixel;
             }
 
-            var pixel = tile[((y % _tileSize) * _tileSize) + (x % _tileSize)];
+            var pixel = tile[TileOffset(x, y)];
             return pixel.A == 0 ? UnpaintedPixel : pixel;
         }
     }
@@ -104,11 +104,11 @@ internal sealed class SixelRasterImage
                 return false;
             }
 
-            tile = new Rgba32[_tileSize * _tileSize];
+            tile = new Rgba32[_tilePixelCount];
             _tiles[key] = tile;
         }
 
-        tile[((y % _tileSize) * _tileSize) + (x % _tileSize)] = color;
+        tile[TileOffset(x, y)] = color;
         return true;
     }
 
@@ -125,21 +125,14 @@ internal sealed class SixelRasterImage
 
         foreach (var (key, tile) in _tiles)
         {
-            var tileX = (int)(key % _tileColumns) * _tileSize;
-            var tileY = (int)(key / _tileColumns) * _tileSize;
-            var rows = Math.Min(_tileSize, Height - tileY);
-            var columns = Math.Min(_tileSize, Width - tileX);
-            for (var row = 0; row < rows; row++)
+            var destinationOffset = checked((int)(key * _tilePixelCount));
+            var count = Math.Min(tile.Length, pixels.Length - destinationOffset);
+            for (var index = 0; index < count; index++)
             {
-                var sourceOffset = row * _tileSize;
-                var destinationOffset = ((tileY + row) * Width) + tileX;
-                for (var column = 0; column < columns; column++)
+                var pixel = tile[index];
+                if (pixel.A != 0)
                 {
-                    var pixel = tile[sourceOffset + column];
-                    if (pixel.A != 0)
-                    {
-                        pixels[destinationOffset + column] = pixel;
-                    }
+                    pixels[destinationOffset + index] = pixel;
                 }
             }
         }
@@ -147,5 +140,9 @@ internal sealed class SixelRasterImage
         return new SixelPixelBuffer(Width, Height, pixels);
     }
 
-    private long TileKey(int x, int y) => ((long)(y / _tileSize) * _tileColumns) + (x / _tileSize);
+    private long PixelOffset(int x, int y) => ((long)y * Width) + x;
+
+    private long TileKey(int x, int y) => PixelOffset(x, y) / _tilePixelCount;
+
+    private int TileOffset(int x, int y) => (int)(PixelOffset(x, y) % _tilePixelCount);
 }

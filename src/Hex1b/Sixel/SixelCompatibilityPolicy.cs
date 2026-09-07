@@ -313,14 +313,27 @@ internal sealed record SixelCompatibilityPolicy
     public long MaximumRasterOperations { get; init; } = 64L * 1024 * 1024;
 
     /// <summary>
-    /// Gets the maximum number of sparse tiles retained for a single graphic.
-    /// </summary>
-    public int MaximumRasterTiles { get; init; } = 4 * 1024;
-
-    /// <summary>
     /// Gets the edge length of a sparse raster tile.
     /// </summary>
     public int RasterTileSize { get; init; } = 64;
+
+    /// <summary>
+    /// Gets the maximum number of sparse tiles retained for a single graphic.
+    /// </summary>
+    /// <remarks>
+    /// Tiles contain up to <see cref="RasterTileSize"/> squared pixels in
+    /// row-major order. Deriving this value from the raster pixel limit keeps
+    /// the storage bound consistent for every permitted aspect ratio.
+    /// </remarks>
+    public int MaximumRasterTiles
+    {
+        get
+        {
+            var tilePixels = checked((long)RasterTileSize * RasterTileSize);
+            var required = ((MaximumRasterPixels - 1) / tilePixels) + 1;
+            return (int)Math.Min(required, int.MaxValue);
+        }
+    }
 
     /// <summary>Gets the maximum number of live placements retained per screen.</summary>
     public int MaximumPlacementsPerScreen { get; init; } = 4_096;
@@ -357,8 +370,14 @@ internal sealed record SixelCompatibilityPolicy
         }
         ArgumentOutOfRangeException.ThrowIfLessThan(MaximumRasterPixels, 1);
         ArgumentOutOfRangeException.ThrowIfLessThan(MaximumRasterOperations, 1);
-        ArgumentOutOfRangeException.ThrowIfLessThan(MaximumRasterTiles, 1);
         ArgumentOutOfRangeException.ThrowIfLessThan(RasterTileSize, 1);
+        if ((long)RasterTileSize * RasterTileSize > Array.MaxLength)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(RasterTileSize),
+                RasterTileSize,
+                "The raster tile must not exceed the maximum supported array length.");
+        }
         ArgumentOutOfRangeException.ThrowIfLessThan(MaximumPlacementsPerScreen, 1);
         ArgumentOutOfRangeException.ThrowIfLessThan(MaximumHistoryPlacements, 1);
         ArgumentOutOfRangeException.ThrowIfLessThan(MaximumImagesPerScreen, 1);

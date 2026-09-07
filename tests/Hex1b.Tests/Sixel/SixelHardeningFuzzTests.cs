@@ -46,6 +46,7 @@ public class SixelHardeningFuzzTests
             MaximumImagesPerScreen = 8,
             MaximumRetainedLogicalPixelsPerScreen = 16 * 1024,
         };
+        var graphics = CreateGraphicsOptions(policy);
         using var terminal = new Hex1bTerminal(new Hex1bTerminalOptions
         {
             Width = 12,
@@ -57,6 +58,7 @@ public class SixelHardeningFuzzTests
                 6,
                 new TerminalCapabilities { SupportsSixel = true }),
             SixelPolicy = policy,
+            Graphics = graphics,
         });
 
         for (var iteration = 0; iteration < 100; iteration++)
@@ -104,8 +106,20 @@ public class SixelHardeningFuzzTests
                                 terminal.Height,
                                 new TerminalCapabilities { SupportsSixel = true }),
                             SixelPolicy = policy,
+                            Graphics = graphics,
                         });
                         decoded.ReplayInto(viewer);
+                        Assert.IsLessThanOrEqualTo(
+                            graphics.MaximumPlacementsPerScreen,
+                            viewer.SixelPlacementCount);
+                        Assert.IsLessThanOrEqualTo(
+                            graphics.MaximumImagesPerScreen,
+                            viewer.TrackedSixelCount);
+                        using var viewerSnapshot = viewer.CreateSnapshot();
+                        Assert.IsLessThanOrEqualTo(
+                            graphics.MaximumPlacementsPerScreen +
+                                graphics.MaximumHistoryPlacements,
+                            viewerSnapshot.SixelPlacements.Count);
                     }
                     break;
             }
@@ -118,6 +132,19 @@ public class SixelHardeningFuzzTests
                 current.SixelPlacements.Count);
         }
     }
+
+    private static Hex1bTerminalGraphicsOptions CreateGraphicsOptions(
+        SixelCompatibilityPolicy policy) => new()
+    {
+        MaximumRetainedInputBytesPerImage = policy.MaximumRetainedDcsBytes,
+        MaximumRasterPixelsPerImage = policy.MaximumRasterPixels,
+        MaximumRasterOperationsPerImage = policy.MaximumRasterOperations,
+        MaximumImagesPerScreen = policy.MaximumImagesPerScreen,
+        MaximumPlacementsPerScreen = policy.MaximumPlacementsPerScreen,
+        MaximumHistoryPlacements = policy.MaximumHistoryPlacements,
+        MaximumRetainedLogicalPixelsPerScreen =
+            policy.MaximumRetainedLogicalPixelsPerScreen,
+    };
 
     public static TheoryData<int> StableSeeds()
     {

@@ -606,13 +606,16 @@ public sealed class Surface : ISurfaceSource
                 var srcCell = source.GetCell(srcX, srcY);
                 if (kgpOverrides != null && kgpOverrides.TryGetValue((destX, destY), out var kgpOverride))
                 {
-                    srcCell = kgpOverride;
+                    srcCell = srcCell == SurfaceCells.Empty
+                        ? kgpOverride
+                        : srcCell with { Kgp = kgpOverride.Kgp };
                 }
                 var transfersSixelOverride = false;
                 if (sixelOverrides != null &&
                     sixelOverrides.TryGetValue((destX, destY), out var sixelOverride))
                 {
-                    srcCell = sixelOverride;
+                    // Each protocol clips independently, but may reanchor to the same cell.
+                    srcCell = sixelOverride with { Kgp = srcCell.Kgp };
                     transfersSixelOverride = true;
                 }
                 

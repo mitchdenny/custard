@@ -1,4 +1,5 @@
 export const QUAD_STRIDE = 16;
+
 export type RenderColor = [number, number, number, number];
 export type RenderPixels = Uint8Array<ArrayBuffer> | Uint8ClampedArray<ArrayBuffer>;
 

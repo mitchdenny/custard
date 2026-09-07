@@ -44,6 +44,15 @@ internal sealed class TerminalGraphicsRetainedBudget
         }
     }
 
+    internal long MaximumSixelBytes
+    {
+        get
+        {
+            lock (_lock)
+                return Math.Max(0, MaximumBytes - _kgpBytes);
+        }
+    }
+
     internal bool CanSetSixelBytes(long bytes)
     {
         ArgumentOutOfRangeException.ThrowIfNegative(bytes);

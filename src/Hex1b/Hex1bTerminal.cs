@@ -7903,6 +7903,16 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                 nameof(command));
         }
 
+        if (!TryGetKgpUploadLimit(transmission, out _, out var preflightError))
+        {
+            SendKgpTransmissionResponse(
+                transmission,
+                storedImage: null,
+                preflightError,
+                command.Quiet);
+            return;
+        }
+
         if (transmission.IdentityKind == KgpParsedCommand.ImageIdentityKind.ExplicitId)
         {
             var start = ActiveKgpImageStore.BeginExplicitTransmission(transmission.ImageId);

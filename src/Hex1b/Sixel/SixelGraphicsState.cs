@@ -945,6 +945,9 @@ internal sealed class SixelGraphicsState
         long addedBytes,
         SixelData? protectedImage)
     {
+        if (addedBytes > screen.RetainedBudget.MaximumSixelBytes)
+            return false;
+
         while (!screen.RetainedBudget.CanSetSixelBytes(
                    SaturatingAdd(screen.Images.RetainedBytes, addedBytes)))
         {

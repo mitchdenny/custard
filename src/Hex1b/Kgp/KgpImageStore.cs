@@ -1015,6 +1015,10 @@ public sealed class KgpImageStore
         var imageId = transmission.ImageId > 0
             ? transmission.ImageId
             : AllocateIdUnsafe();
+        var image = CreateImage(imageId, transmission, data);
+        if (_sharedBudget is not null && image.StorageSize > EffectiveQuotaBytes)
+            return new StoreResult(image, Replaced: false, Stored: false);
+
         ImageRelocation? relocation = null;
         if (transmission.IdentityKind == KgpParsedCommand.ImageIdentityKind.ExplicitId &&
             _unaddressableImageIds.Contains(imageId))
@@ -1024,7 +1028,6 @@ public sealed class KgpImageStore
             relocation = RelocateUnaddressableImageUnsafe(imageId);
         }
 
-        var image = CreateImage(imageId, transmission, data);
         var stored = StoreImageUnsafe(
             image,
             transmission.IdentityKind != KgpParsedCommand.ImageIdentityKind.Anonymous);
@@ -1035,6 +1038,9 @@ public sealed class KgpImageStore
         KgpImageData image,
         bool addressable = true)
     {
+        if (_sharedBudget is not null && image.StorageSize > EffectiveQuotaBytes)
+            return new StoreResult(image, Replaced: false, Stored: false);
+
         var replaced = _imagesById.TryGetValue(image.ImageId, out var existing);
         if (existing is not null)
         {

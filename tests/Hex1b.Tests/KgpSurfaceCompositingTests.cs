@@ -44,6 +44,37 @@ public class KgpSurfaceCompositingTests
     #region Surface.Composite KGP Clipping
 
     [TestMethod]
+    [DataRow(false)]
+    [DataRow(true)]
+    public void Composite_NativeSprite_ClipsInPixelSpace(bool clipOrigin)
+    {
+        var parent = new Surface(1, 1, DefaultMetrics);
+        var child = new Surface(2, 2, DefaultMetrics);
+        var data = new KgpCellData(null, 1, 2, 2, 3, 3, new byte[32],
+            clipW: 3, clipH: 3, cellOffsetX: 8, cellOffsetY: 18)
+        {
+            UsesNativeSize = true,
+            NativeCellMetrics = DefaultMetrics
+        };
+        child[0, 0] = new SurfaceCell(" ", null, null, Kgp: Track(data));
+
+        parent.Composite(child, offsetX: clipOrigin ? -1 : 0, offsetY: clipOrigin ? -1 : 0);
+
+        var clipped = parent[0, 0].Kgp!.Data;
+        Assert.IsTrue(clipped.UsesNativeSize);
+        Assert.AreEqual(1, clipped.WidthInCells);
+        Assert.AreEqual(1, clipped.HeightInCells);
+        Assert.AreEqual(clipOrigin ? 2 : 0, clipped.ClipX);
+        Assert.AreEqual(clipOrigin ? 2 : 0, clipped.ClipY);
+        Assert.AreEqual(clipOrigin ? 1 : 2, clipped.ClipW);
+        Assert.AreEqual(clipOrigin ? 1 : 2, clipped.ClipH);
+        Assert.AreEqual(clipOrigin ? 0u : 8u, clipped.CellOffsetX);
+        Assert.AreEqual(clipOrigin ? 0u : 18u, clipped.CellOffsetY);
+        Assert.DoesNotContain(",c=", clipped.BuildPlacementPayload());
+        Assert.DoesNotContain(",r=", clipped.BuildPlacementPayload());
+    }
+
+    [TestMethod]
     public void Composite_KgpImage_FitsInBounds_NoClipping()
     {
         var parent = new Surface(10, 5, DefaultMetrics);

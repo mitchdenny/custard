@@ -321,12 +321,8 @@ public static class TerminalRegionSvgExtensions
                     }
                     else if (imageData.CurrentFrameFormat == KgpFormat.Png)
                     {
-                        var destinationX = placement.Column * cellWidth;
-                        var destinationY = placement.Row * cellHeight;
-                        var destinationWidth =
-                            (double)placement.DisplayColumns * cellWidth;
-                        var destinationHeight =
-                            (double)placement.DisplayRows * cellHeight;
+                        var (destinationX, destinationY, destinationWidth, destinationHeight) =
+                            GetKgpDestinationBounds(placement, imageData, snapshot2, cellWidth, cellHeight);
                         if (!placeholderImageDefinitions.TryGetValue(
                                 placement.ImageId,
                                 out var definition) ||
@@ -361,10 +357,8 @@ public static class TerminalRegionSvgExtensions
                     }
                     else
                     {
-                        var imgX = placement.Column * cellWidth;
-                        var imgY = placement.Row * cellHeight;
-                        var imgWidth = (int)placement.DisplayColumns * cellWidth;
-                        var imgHeight = (int)placement.DisplayRows * cellHeight;
+                        var (imgX, imgY, imgWidth, imgHeight) =
+                            GetKgpDestinationBounds(placement, imageData, snapshot2, cellWidth, cellHeight);
                         var dataUri = EncodeKgpImageToDataUri(
                             imageData.CurrentFrameData,
                             imageData.Width,
@@ -376,7 +370,7 @@ public static class TerminalRegionSvgExtensions
                             placement.SourceHeight);
                         if (dataUri is not null)
                         {
-                            sb.AppendLine($"""    <image x="{imgX}" y="{imgY}" width="{imgWidth}" height="{imgHeight}" href="{dataUri}" preserveAspectRatio="none" data-image-id="{placement.ImageId}" style="image-rendering: pixelated;"/>""");
+                            sb.AppendLine($"""    <image x="{FormatSvgNumber(imgX)}" y="{FormatSvgNumber(imgY)}" width="{FormatSvgNumber(imgWidth)}" height="{FormatSvgNumber(imgHeight)}" href="{dataUri}" preserveAspectRatio="none" data-image-id="{placement.ImageId}" style="image-rendering: pixelated;"/>""");
                         }
                     }
                 }
@@ -1030,6 +1024,38 @@ public static class TerminalRegionSvgExtensions
             ? fullHeight - cropY
             : checked((int)Math.Min(sourceHeight, height - sourceY));
         return cropWidth > 0 && cropHeight > 0;
+    }
+
+    private static (double X, double Y, double Width, double Height) GetKgpDestinationBounds(
+        KgpPlacement placement,
+        KgpImageData image,
+        Hex1bTerminalSnapshot snapshot,
+        int cellWidth,
+        int cellHeight)
+    {
+        if (!placement.UsesNativeSize)
+        {
+            return (
+                (double)placement.Column * cellWidth,
+                (double)placement.Row * cellHeight,
+                (double)placement.DisplayColumns * cellWidth,
+                (double)placement.DisplayRows * cellHeight);
+        }
+
+        var scaleX = (double)cellWidth / Math.Max(1, snapshot.CellPixelWidth);
+        var scaleY = (double)cellHeight / Math.Max(1, snapshot.CellPixelHeight);
+        var sourceWidth = Math.Max(0d, (double)image.Width - placement.SourceX);
+        var sourceHeight = Math.Max(0d, (double)image.Height - placement.SourceY);
+        if (placement.SourceWidth > 0)
+            sourceWidth = Math.Min(sourceWidth, placement.SourceWidth);
+        if (placement.SourceHeight > 0)
+            sourceHeight = Math.Min(sourceHeight, placement.SourceHeight);
+
+        return (
+            placement.Column * (double)cellWidth + placement.CellOffsetX * scaleX,
+            placement.Row * (double)cellHeight + placement.CellOffsetY * scaleY,
+            sourceWidth * scaleX,
+            sourceHeight * scaleY);
     }
 
     private static bool TryGetPngRenderBounds(

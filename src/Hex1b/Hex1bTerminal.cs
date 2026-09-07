@@ -112,6 +112,9 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
     private readonly TaskCompletionSource<(string PumpName, Exception Error)> _pumpFaultTcs =
         new(TaskCreationOptions.RunContinuationsAsynchronously);
     private long _writeSequence; // Monotonically increasing write order counter
+    private long _outputBytesRead;
+    private Hmp1TerminalState? _hmp1State;
+    private SemaphoreSlim? _hmp1OutputStateLock;
     private int _savedCursorX; // Saved cursor X position for DECSC/DECRC
     private int _savedCursorY; // Saved cursor Y position for DECSC/DECRC
     private bool _cursorSaved; // Whether cursor has been saved (for restore without prior save)
@@ -366,7 +369,8 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         _height = _presentation.Height > 0 ? _presentation.Height : options.Height;
         
         // Notify workload of initial dimensions (ResizeAsync handles not firing event on init)
-        _ = _workload.ResizeAsync(_width, _height);
+        if (_workload is not Hmp1WorkloadAdapter)
+            _ = _workload.ResizeAsync(_width, _height);
         
         _screenBuffer = new TerminalCell[_height, _width];
         _scrollBottom = _height - 1; // Default scroll region is full screen
@@ -420,6 +424,14 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
     /// </summary>
     internal void ResizeWithWorkload(int width, int height)
     {
+        if (_workload is Hmp1WorkloadAdapter remote)
+        {
+            // HMP1 owns geometry. Even a primary must wait for the producer's
+            // ordered confirmation before resizing its local mirror.
+            _ = remote.ResizeAsync(width, height);
+            return;
+        }
+
         // IMPORTANT: Call Resize() first before updating _width/_height
         // because Resize() needs the OLD dimensions to know how much to copy
         Resize(width, height);
@@ -448,6 +460,8 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
     /// The workload adapter for this terminal.
     /// </summary>
     internal IHex1bTerminalWorkloadAdapter Workload => _workload;
+
+    internal SemaphoreSlim Hmp1OutputStateLock => _hmp1OutputStateLock ??= new(1, 1);
     
     /// <summary>
     /// Terminal capabilities from the presentation adapter, workload adapter, or defaults.
@@ -1153,180 +1167,43 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         return null;
     }
     
-    /// <summary>
-    /// Converts a Hex1b input event to ANSI tokens for serialization.
-    /// This is the inverse of TokenToEvent.
-    /// </summary>
-    private static IReadOnlyList<AnsiToken> EventToTokens(Hex1bEvent evt)
+    private byte[] EncodeInputEvent(Hex1bEvent evt, out IReadOnlyList<AnsiToken> tokens)
     {
-        var token = EventToToken(evt);
-        return token != null ? [token] : [];
-    }
-    
-    /// <summary>
-    /// Converts a Hex1b input event to a single ANSI token.
-    /// Returns null if the event cannot be represented as a token.
-    /// </summary>
-    private static AnsiToken? EventToToken(Hex1bEvent evt)
-    {
-        return evt switch
+        var modes = InputModes;
+        var bytes = evt switch
         {
-            Hex1bMouseEvent mouse => MouseEventToToken(mouse),
-            Hex1bKeyEvent key => KeyEventToToken(key),
-            _ => null
+            Hex1bKeyEvent key => Encoding.UTF8.GetBytes(TerminalInputEncoder.EncodeKey(key, modes)),
+            Hex1bMouseEvent mouse => TerminalInputEncoder.EncodeMouse(TerminalInputEncoder.MouseInput(mouse), modes),
+            _ => []
         };
-    }
-    
-    private static SgrMouseToken MouseEventToToken(Hex1bMouseEvent evt)
-    {
-        // Encode button and modifiers into raw button code
-        int rawButton = evt.Button switch
+        if (bytes.Length == 0)
         {
-            MouseButton.Left => 0,
-            MouseButton.Middle => 1,
-            MouseButton.Right => 2,
-            MouseButton.None when evt.Action == MouseAction.Move => 35, // Motion with no button
-            MouseButton.ScrollUp => 64,
-            MouseButton.ScrollDown => 65,
-            _ => 0
-        };
-        
-        // Add modifier bits
-        if (evt.Modifiers.HasFlag(Hex1bModifiers.Shift)) rawButton |= 4;
-        if (evt.Modifiers.HasFlag(Hex1bModifiers.Alt)) rawButton |= 8;
-        if (evt.Modifiers.HasFlag(Hex1bModifiers.Control)) rawButton |= 16;
-        
-        // Add motion bit for drag
-        if (evt.Action == MouseAction.Move || evt.Action == MouseAction.Drag) rawButton |= 32;
-        
-        return new SgrMouseToken(evt.Button, evt.Action, evt.X, evt.Y, evt.Modifiers, rawButton);
-    }
-    
-    private static AnsiToken? KeyEventToToken(Hex1bKeyEvent evt)
-    {
-        // Check for Ctrl+letter combinations (emit as control character)
-        // Ctrl+A = 0x01, Ctrl+B = 0x02, ..., Ctrl+Z = 0x1A
-        if (evt.Modifiers.HasFlag(Hex1bModifiers.Control) && !evt.Modifiers.HasFlag(Hex1bModifiers.Alt))
-        {
-            var ctrlChar = GetControlCharacter(evt.Key);
-            if (ctrlChar != '\0')
-            {
-                return new ControlCharacterToken(ctrlChar);
-            }
+            tokens = [];
+            return bytes;
         }
-        
-        // Check if it's an Alt+key combination (emit as unrecognized ESC+char sequence)
-        if (evt.Modifiers.HasFlag(Hex1bModifiers.Alt) && !evt.Modifiers.HasFlag(Hex1bModifiers.Control))
+
+        // Legacy mouse reports use byte-valued characters; only the original
+        // bytes go on wire, never a UTF-8 re-encoding of the observer's tokens.
+        var encoding = evt is Hex1bMouseEvent && modes.MouseEncoding == TerminalMouseEncoding.Legacy
+            ? Encoding.Latin1 : Encoding.UTF8;
+        var text = encoding.GetString(bytes);
+        if (evt is Hex1bKeyEvent { Key: Hex1bKey.None, Modifiers: Hex1bModifiers.None })
         {
-            var c = evt.Text;
-            if (!string.IsNullOrEmpty(c) && c.Length == 1)
-            {
-                return new UnrecognizedSequenceToken($"\x1b{c}");
-            }
+            tokens = [new TextToken(text)];
         }
-        
-        // Check for special keys that use SS3 sequences (F1-F4)
-        var ss3Char = evt.Key switch
+        else if ((evt is Hex1bMouseEvent && modes.MouseEncoding != TerminalMouseEncoding.Sgr) ||
+            evt is Hex1bKeyEvent { Alt: true } ||
+            text.StartsWith("\x1b[1;", StringComparison.Ordinal) || text is "\x1b[Z" or "\x1b\x1b[Z")
         {
-            Hex1bKey.F1 => 'P',
-            Hex1bKey.F2 => 'Q',
-            Hex1bKey.F3 => 'R',
-            Hex1bKey.F4 => 'S',
-            _ => '\0'
-        };
-        if (ss3Char != '\0')
-        {
-            // Plain F1-F4 use SS3 (ESC O <P/Q/R/S>); modified F1-F4 use CSI 1;{mod}<P/Q/R/S>
-            // (xterm convention). The corresponding F-key codes for SpecialKeyToken are
-            // 11=F1, 12=F2, 13=F3, 14=F4.
-            if (evt.Modifiers == Hex1bModifiers.None)
-            {
-                return new Ss3Token(ss3Char);
-            }
-            var fKeyCode = evt.Key switch
-            {
-                Hex1bKey.F1 => 11,
-                Hex1bKey.F2 => 12,
-                Hex1bKey.F3 => 13,
-                Hex1bKey.F4 => 14,
-                _ => 0
-            };
-            return new SpecialKeyToken(fKeyCode, EncodeModifiers(evt.Modifiers));
+            // These input forms do not round-trip through the output serializer
+            // (modified cursor/F1–F4 keys, backtab, and non-SGR mouse reports).
+            tokens = [new UnrecognizedSequenceToken(text)];
         }
-        
-        // Check for special keys that use CSI ~ sequences
-        var specialCode = evt.Key switch
+        else
         {
-            Hex1bKey.Insert => 2,
-            Hex1bKey.Delete => 3,
-            Hex1bKey.PageUp => 5,
-            Hex1bKey.PageDown => 6,
-            Hex1bKey.F5 => 15,
-            Hex1bKey.F6 => 17,
-            Hex1bKey.F7 => 18,
-            Hex1bKey.F8 => 19,
-            Hex1bKey.F9 => 20,
-            Hex1bKey.F10 => 21,
-            Hex1bKey.F11 => 23,
-            Hex1bKey.F12 => 24,
-            _ => 0
-        };
-        if (specialCode != 0)
-        {
-            var modCode = EncodeModifiers(evt.Modifiers);
-            return new SpecialKeyToken(specialCode, modCode);
+            tokens = AnsiTokenizer.Tokenize(text);
         }
-        
-        // Arrow keys and Home/End use CSI sequences
-        var arrowDir = evt.Key switch
-        {
-            Hex1bKey.UpArrow => CursorMoveDirection.Up,
-            Hex1bKey.DownArrow => CursorMoveDirection.Down,
-            Hex1bKey.RightArrow => CursorMoveDirection.Forward,
-            Hex1bKey.LeftArrow => CursorMoveDirection.Back,
-            _ => (CursorMoveDirection?)null
-        };
-        if (arrowDir.HasValue)
-        {
-            if (evt.Modifiers == Hex1bModifiers.None)
-                return new CursorMoveToken(arrowDir.Value, 1);
-            return new ArrowKeyToken(arrowDir.Value, EncodeModifiers(evt.Modifiers));
-        }
-        
-        // Home/End
-        if (evt.Key == Hex1bKey.Home)
-        {
-            if (evt.Modifiers == Hex1bModifiers.None) return new Ss3Token('H');
-            return new SpecialKeyToken(1, EncodeModifiers(evt.Modifiers));
-        }
-        if (evt.Key == Hex1bKey.End)
-        {
-            if (evt.Modifiers == Hex1bModifiers.None) return new Ss3Token('F');
-            return new SpecialKeyToken(4, EncodeModifiers(evt.Modifiers));
-        }
-        
-        // Control characters
-        if (evt.Key == Hex1bKey.Enter) return new ControlCharacterToken('\r');
-        if (evt.Key == Hex1bKey.Tab) return new ControlCharacterToken('\t');
-        if (evt.Key == Hex1bKey.Escape) return new UnrecognizedSequenceToken("\x1b");
-        if (evt.Key == Hex1bKey.Backspace)
-        {
-            // Preserve the original backspace character from the host terminal.
-            // Windows sends 0x08 (BS), Unix typically sends 0x7F (DEL).
-            // Child processes expect the same encoding their terminal would normally use.
-            var c = (!string.IsNullOrEmpty(evt.Text) && (evt.Text[0] == '\b' || evt.Text[0] == '\x7f'))
-                ? evt.Text[0]
-                : '\x7f'; // Default to DEL for programmatic events without original text
-            return new ControlCharacterToken(c);
-        }
-        
-        // Regular text
-        if (!string.IsNullOrEmpty(evt.Text))
-        {
-            return new TextToken(evt.Text);
-        }
-        
-        return null;
+        return bytes;
     }
     
     /// <summary>
@@ -1344,58 +1221,6 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         return modifiers;
     }
     
-    private static int EncodeModifiers(Hex1bModifiers modifiers)
-    {
-        if (modifiers == Hex1bModifiers.None)
-            return 1; // No modifiers = 1 in xterm encoding
-        
-        int bits = 0;
-        if (modifiers.HasFlag(Hex1bModifiers.Shift)) bits |= 1;
-        if (modifiers.HasFlag(Hex1bModifiers.Alt)) bits |= 2;
-        if (modifiers.HasFlag(Hex1bModifiers.Control)) bits |= 4;
-        
-        return bits + 1; // xterm modifier encoding: bits + 1
-    }
-    
-    /// <summary>
-    /// Gets the control character for a Ctrl+key combination.
-    /// Ctrl+A = 0x01, Ctrl+B = 0x02, ..., Ctrl+Z = 0x1A
-    /// </summary>
-    private static char GetControlCharacter(Hex1bKey key)
-    {
-        // Map letter keys to control characters
-        return key switch
-        {
-            Hex1bKey.A => '\x01',
-            Hex1bKey.B => '\x02',
-            Hex1bKey.C => '\x03',
-            Hex1bKey.D => '\x04',
-            Hex1bKey.E => '\x05',
-            Hex1bKey.F => '\x06',
-            Hex1bKey.G => '\x07',
-            Hex1bKey.H => '\x08',
-            Hex1bKey.I => '\x09', // Tab
-            Hex1bKey.J => '\x0A', // LF
-            Hex1bKey.K => '\x0B',
-            Hex1bKey.L => '\x0C',
-            Hex1bKey.M => '\x0D', // CR
-            Hex1bKey.N => '\x0E',
-            Hex1bKey.O => '\x0F',
-            Hex1bKey.P => '\x10',
-            Hex1bKey.Q => '\x11',
-            Hex1bKey.R => '\x12',
-            Hex1bKey.S => '\x13',
-            Hex1bKey.T => '\x14',
-            Hex1bKey.U => '\x15',
-            Hex1bKey.V => '\x16',
-            Hex1bKey.W => '\x17',
-            Hex1bKey.X => '\x18',
-            Hex1bKey.Y => '\x19',
-            Hex1bKey.Z => '\x1A',
-            _ => '\0'
-        };
-    }
-    
     private async Task PumpWorkloadOutputAsync(CancellationToken ct)
     {
         try
@@ -1408,7 +1233,24 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                 List<AnsiToken>? pooledItemTokens = null;
                 Action<List<AnsiToken>>? pooledItemTokensReturn = null;
 
-                if (_workload is IHex1bTerminalTokenWorkloadAdapter tokenWorkload)
+                if (_workload is Hmp1WorkloadAdapter remoteWorkload)
+                {
+                    var item = await remoteWorkload.ReadTerminalOutputAsync(ct);
+                    if (item.State is { } state)
+                    {
+                        await ApplyHmp1StateAsync(state);
+                        if (item.Bytes.IsEmpty)
+                            continue;
+                    }
+                    if (item.AnimationState is { } animationState)
+                    {
+                        ApplyHmp1KgpAnimationState(animationState);
+                        if (item.Bytes.IsEmpty)
+                            continue;
+                    }
+                    data = item.Bytes;
+                }
+                else if (_workload is IHex1bTerminalTokenWorkloadAdapter tokenWorkload)
                 {
                     var item = await tokenWorkload.ReadOutputItemAsync(ct);
                     data = item.Bytes;
@@ -1436,9 +1278,18 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                     await Task.Delay(10, ct);
                     continue;
                 }
-                
+
+                Interlocked.Add(ref _outputBytesRead, data.Length);
+
+                var outputStateLock = _hmp1OutputStateLock;
+                var outputStateLockTaken = false;
                 try
                 {
+                if (outputStateLock is not null)
+                {
+                    await outputStateLock.WaitAsync(ct);
+                    outputStateLockTaken = true;
+                }
                 var rawPresentationPassthrough =
                     _presentationFilters.Count == 0 &&
                     _presentation is not ICellImpactAwarePresentationAdapter;
@@ -1522,6 +1373,8 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                 }
                 finally
                 {
+                    if (outputStateLockTaken)
+                        outputStateLock!.Release();
                     if (pooledItemBuffer is not null)
                         System.Buffers.ArrayPool<byte>.Shared.Return(pooledItemBuffer);
                     if (pooledItemTokens is not null && pooledItemTokensReturn is not null)
@@ -2003,6 +1856,26 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
     /// <summary>Gets whether the terminal has a pending wrap (for testing).</summary>
     internal bool PendingWrap => _pendingWrap;
 
+    internal long OutputBytesRead => Interlocked.Read(ref _outputBytesRead);
+
+    internal TerminalInputModes InputModes
+    {
+        get
+        {
+            lock (_bufferLock)
+            {
+                return new TerminalInputModes(
+                    _appCursorKeysMode, _bracketedPasteMode,
+                    TerminalInputEncoder.MouseTracking(
+                        _mouseProtocolX10, _mouseProtocolNormal, _mouseProtocolButton, _mouseProtocolAny),
+                    _mouseEncodingSgr ? TerminalMouseEncoding.Sgr :
+                        _mouseEncodingUrxvt ? TerminalMouseEncoding.Urxvt :
+                        _mouseEncodingUtf8 ? TerminalMouseEncoding.Utf8 : TerminalMouseEncoding.Legacy,
+                    _width, _height);
+            }
+        }
+    }
+
     // Replayable terminal mode accessors. See the field declarations near the
     // top of the file for the rationale. These are exposed as internal so that
     // Hex1b.Automation.Hex1bTerminalSnapshot (same assembly) can capture them
@@ -2073,12 +1946,21 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
 
     internal Hex1bTerminalSnapshotState CaptureSnapshotState(
         int scrollbackLines,
-        ScrollbackWidth scrollbackWidth)
+        ScrollbackWidth scrollbackWidth,
+        int? textViewportTop = null)
     {
         lock (_bufferLock)
         {
             var screenBuffer = new TerminalCell[_height, _width];
-            Array.Copy(_screenBuffer, screenBuffer, _screenBuffer.Length);
+            if (textViewportTop is int top)
+            {
+                var text = GetTextBuffer();
+                for (var row = 0; row < _height; row++)
+                    for (var column = 0; column < _width; column++)
+                        screenBuffer[row, column] = text.Cell(top + row, column);
+            }
+            else
+                Array.Copy(_screenBuffer, screenBuffer, _screenBuffer.Length);
             for (int y = 0; y < _height; y++)
             {
                 for (int x = 0; x < _width; x++)
@@ -2087,7 +1969,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                 }
             }
 
-            var allScrollbackEntries = !_inAlternateScreen && _scrollbackBuffer is { } scrollback
+            var allScrollbackEntries = textViewportTop is null && !_inAlternateScreen && _scrollbackBuffer is { } scrollback
                 ? scrollback.GetEntries(scrollback.Count)
                 : [];
             var selectedScrollbackEntries = !_inAlternateScreen && scrollbackLines > 0
@@ -2112,7 +1994,9 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                 }
             }
 
-            var kgp = _kgpGraphicsState.CaptureActiveSnapshot(
+            (IReadOnlyList<KgpPlacement> Placements, IReadOnlyDictionary<uint, KgpImageData> Images) kgp =
+                textViewportTop is not null ? ([], new Dictionary<uint, KgpImageData>()) :
+                _kgpGraphicsState.CaptureActiveSnapshot(
                 allScrollbackEntries,
                 selectedScrollbackEntries.Length,
                 screenBuffer,
@@ -2120,7 +2004,9 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                 _height,
                 Capabilities.CellPixelWidth,
                 Capabilities.CellPixelHeight);
-            var sixel = _sixelGraphicsState.CaptureActiveSnapshot(
+            (IReadOnlyList<SixelPlacement> Placements, IReadOnlyDictionary<byte[], SixelData> Images) sixel =
+                textViewportTop is not null ? ([], new Dictionary<byte[], SixelData>()) :
+                _sixelGraphicsState.CaptureActiveSnapshot(
                 allScrollbackEntries,
                 selectedScrollbackEntries.Length,
                 _height,
@@ -2131,7 +2017,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                 _cursorX,
                 _cursorY,
                 _inAlternateScreen,
-                _cursorVisible,
+                _cursorVisible && textViewportTop is null,
                 _bracketedPasteMode,
                 _appCursorKeysMode,
                 _appKeypadMode,
@@ -2146,6 +2032,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                 _mouseEncodingUrxvt,
                 _cursorShape,
                 DateTimeOffset.UtcNow,
+                _timeProvider.GetUtcNow(),
                 Capabilities.CellPixelWidth,
                 Capabilities.CellPixelHeight,
                 screenBuffer,
@@ -2324,12 +2211,9 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         }
         else
         {
-            // Serialize event to ANSI bytes for child process workloads
-            var tokens = EventToTokens(evt);
-            if (tokens.Count > 0)
+            var bytes = EncodeInputEvent(evt, out _);
+            if (bytes.Length > 0)
             {
-                var serialized = AnsiTokenSerializer.Serialize(tokens);
-                var bytes = Encoding.UTF8.GetBytes(serialized);
                 // Fire and forget - synchronous API can't wait for async write
                 _ = WriteWorkloadInputAsync(bytes, CancellationToken.None);
             }
@@ -2352,12 +2236,9 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         }
         else
         {
-            // Serialize event to ANSI bytes for child process workloads
-            var tokens = EventToTokens(evt);
-            if (tokens.Count > 0)
+            var bytes = EncodeInputEvent(evt, out var tokens);
+            if (bytes.Length > 0)
             {
-                var serialized = AnsiTokenSerializer.Serialize(tokens);
-                var bytes = Encoding.UTF8.GetBytes(serialized);
                 await WriteWorkloadInputAsync(bytes, ct);
                 
                 // Also notify filters of the input
@@ -2399,6 +2280,50 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         return new Hex1bTerminalSnapshot(this);
     }
 
+    internal Hex1bTerminalSnapshot CreateSnapshot(out Hmp1TerminalState? remoteState)
+    {
+        lock (_bufferLock)
+        {
+            remoteState = _hmp1State;
+            return new Hex1bTerminalSnapshot(this);
+        }
+    }
+
+    private async Task ApplyHmp1StateAsync(Hmp1TerminalState state)
+    {
+        bool resized;
+        lock (_bufferLock)
+        {
+            _hmp1State = state;
+            resized = state.Width > 0 && state.Height > 0 &&
+                (_width != state.Width || _height != state.Height);
+            if (resized)
+                Resize(state.Width, state.Height);
+        }
+        if (resized)
+        {
+            await NotifyPresentationFiltersResizeAsync(state.Width, state.Height);
+            await NotifyWorkloadFiltersResizeAsync(state.Width, state.Height);
+        }
+        NotifyPresentationInvalidated();
+    }
+
+    internal void ApplyHmp1KgpAnimationState(Hmp1KgpAnimationState checkpoint)
+    {
+        if (_disposed || !Capabilities.SupportsKgp)
+            return;
+        if (checkpoint.Images is null)
+            throw new InvalidDataException("Missing KGP animation checkpoint images.");
+        lock (_bufferLock)
+        {
+            var now = _timeProvider.GetUtcNow();
+            foreach (var image in checkpoint.Images)
+                ActiveKgpImageStore.RestoreAnimationPlayback(image, now);
+            RefreshKgpAnimationTimerUnsafe();
+        }
+        NotifyPresentationInvalidated();
+    }
+
     /// <summary>
     /// Creates an immutable snapshot of the current terminal state, optionally including
     /// lines from the scrollback buffer.
@@ -2421,6 +2346,8 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
     {
         lock (_bufferLock)
         {
+            if (_width != newWidth || _height != newHeight)
+                InvalidateTextCoordinates();
             // Check if the presentation adapter supports reflow and has it enabled
             if (_presentation is ITerminalReflowProvider { ReflowEnabled: true } reflowProvider)
             {
@@ -2430,6 +2357,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
             {
                 ResizeWithCrop(newWidth, newHeight);
             }
+            EnsureTabStops(newWidth);
             
             // Reset margins on resize - this matches xterm behavior
             _marginRight = newWidth - 1;
@@ -2443,6 +2371,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
             
             _pendingWrap = false;
         }
+        NotifyPresentationInvalidated();
     }
 
     private void ResizeWithReflow(int newWidth, int newHeight, ITerminalReflowProvider reflowProvider)
@@ -2921,6 +2850,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
 
             RefreshKgpAnimationTimerUnsafe();
         }
+        PresentationInvalidated?.Invoke();
     }
 
     /// <summary>
@@ -2983,6 +2913,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
             }
 
             RefreshKgpAnimationTimerUnsafe();
+            PresentationInvalidated?.Invoke();
             return result;
         }
     }
@@ -3372,6 +3303,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                 break;
 
             case RisToken:
+                InvalidateTextCoordinates();
                 // RIS (ESC c): Full terminal reset — clear screen, reset all state
                 ReleaseSavedMainScreenBuffer();
                 _inAlternateScreen = false;
@@ -4359,8 +4291,20 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
     /// </summary>
     private void InitializeTabStops()
     {
-        _tabStops = new bool[_width];
-        for (int i = 0; i < _width; i++)
+        _tabStops = Array.Empty<bool>();
+        EnsureTabStops(_width);
+    }
+
+    private void EnsureTabStops(int width)
+    {
+        var oldWidth = _tabStops.Length;
+        if (width <= oldWidth)
+            return;
+
+        // Retain cleared stops across shrink/grow cycles, including offscreen
+        // columns. Only newly allocated columns receive default stops.
+        Array.Resize(ref _tabStops, width);
+        for (int i = oldWidth; i < width; i++)
         {
             _tabStops[i] = (i % 8 == 0) && i > 0;
         }
@@ -4948,6 +4892,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         
         _kgpGraphicsState.EnterAlternateScreen();
         _sixelGraphicsState.EnterAlternateScreen();
+        InvalidateTextCoordinates();
         _inAlternateScreen = true;
         
         // If the presentation handles alternate screen natively, the real terminal
@@ -4986,6 +4931,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
             Capabilities.CellPixelHeight);
         _sixelGraphicsState.ClipActiveScreenToViewport(historyRows, _width, _height);
         _inAlternateScreen = false;
+        InvalidateTextCoordinates();
     }
 
     private bool RestoreMainScreenBuffer(List<CellImpact>? impacts = null)
@@ -5484,6 +5430,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
             if (_disposed)
                 return false;
         }
+        AdvanceTextRowsForScroll(leftCol, rightCol);
         
         // Shift rows up within the scroll region
         // All affected cells need to be recorded as impacts. Sixel damage is
@@ -5547,6 +5494,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
     {
         if (_disposed)
             return false;
+        InvalidateTextRows(_scrollTop, _scrollBottom);
 
         // Scroll down within the scroll region
         // When DECLRMM is enabled, only scroll within left/right margins
@@ -5600,13 +5548,19 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         }
 
         var timestamp = _timeProvider.GetUtcNow();
+        EnsureTextRows();
+        var textRowId = _textScreenRowIds[row];
         var push = _scrollbackBuffer!.PushWithIdentity(cells, _width, timestamp);
+        _textHistoryRowIds[push.RowId] = textRowId;
         _scrollbackCallback?.Invoke(new ScrollbackRowEventArgs(this, cells, _width, timestamp));
         return push.RowId;
     }
 
     private void OnScrollbackRowPruned(ScrollbackPrunedRow pruned)
     {
+        _textHistoryRowIds.Remove(pruned.RowId);
+        if (pruned.Reason == ScrollbackPruneReason.Clear)
+            InvalidateTextCoordinates();
         _kgpGraphicsState.PruneMainHistoryRow(
             pruned,
             Capabilities.CellPixelHeight);
@@ -5628,6 +5582,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         // No-op if cursor is outside the scroll region
         if (_cursorY < _scrollTop || _cursorY > _scrollBottom)
             return;
+        InvalidateTextRows(_cursorY, _scrollBottom);
         
         var bottom = _scrollBottom;
         count = Math.Min(count, bottom - _cursorY + 1);
@@ -5676,6 +5631,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         // No-op if cursor is outside the scroll region
         if (_cursorY < _scrollTop || _cursorY > _scrollBottom)
             return;
+        InvalidateTextRows(_cursorY, _scrollBottom);
         
         var bottom = _scrollBottom;
         count = Math.Min(count, bottom - _cursorY + 1);
@@ -8143,8 +8099,6 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
             return "OK";
         }
 
-        var cols = command.Display.Columns > 0 ? (int)command.Display.Columns : 1;
-        var rows = command.Display.Rows > 0 ? (int)command.Display.Rows : 1;
         var placementId = command.Transmission.IdentityKind ==
             KgpParsedCommand.ImageIdentityKind.Anonymous
                 ? 0
@@ -8153,9 +8107,9 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         var placementError = CreateKgpPlacement(
             image.ImageId,
             placementId,
-            (uint)cols,
-            (uint)rows,
             command.Display,
+            out var cols,
+            out var rows,
             imageIsAddressable: command.Transmission.IdentityKind !=
                 KgpParsedCommand.ImageIdentityKind.Anonymous);
         if (placementError != KgpTerminalGraphicsState.PlacementError.None)
@@ -8390,11 +8344,8 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         }
 
         // Create placement and move cursor
-        var cols = command.Columns > 0 ? (int)command.Columns : 1;
-        var rows = command.Rows > 0 ? (int)command.Rows : 1;
-
         var placementError = CreateKgpPlacement(image.ImageId, command.PlacementId,
-            (uint)cols, (uint)rows, command, imageIsAddressable: true);
+            command, out var cols, out var rows, imageIsAddressable: true);
         if (placementError != KgpTerminalGraphicsState.PlacementError.None)
         {
             SendKgpResponse(
@@ -8518,7 +8469,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         }
 
         if (currentFrameChanged)
-            _presentation.InvalidatePresentation();
+            NotifyPresentationInvalidated();
     }
 
     internal void RefreshKgpAnimationPlayback(int selectedHistoryCount)
@@ -8590,9 +8541,9 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
     private KgpTerminalGraphicsState.PlacementError CreateKgpPlacement(
         uint imageId,
         uint placementId,
-        uint cols,
-        uint rows,
         KgpParsedCommand.DisplayData command,
+        out int cursorColumns,
+        out int cursorRows,
         bool imageIsAddressable)
     {
         var isRelative = command.ParentImageId > 0;
@@ -8600,7 +8551,8 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
             imageId, placementId,
             isRelative ? 0 : _cursorY,
             isRelative ? 0 : _cursorX,
-            cols, rows,
+            command.Columns > 0 ? command.Columns : 1,
+            command.Rows > 0 ? command.Rows : 1,
             command.SourceX,
             command.SourceY,
             command.SourceWidth,
@@ -8613,6 +8565,13 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         var image = ActiveKgpImageStore.GetImageById(imageId)
             ?? throw new InvalidOperationException(
                 $"Cannot create a KGP placement for missing image {imageId}.");
+        if (command.Columns == 0 && command.Rows == 0)
+        {
+            placement = placement.WithNativeSize(
+                image, Capabilities.CellPixelWidth, Capabilities.CellPixelHeight);
+        }
+        cursorColumns = (int)Math.Min(placement.DisplayColumns, (uint)_width);
+        cursorRows = (int)Math.Min(placement.DisplayRows, (uint)_height);
         var stored = isRelative
             ? placement
             : placement.ClipToCellRectangle(

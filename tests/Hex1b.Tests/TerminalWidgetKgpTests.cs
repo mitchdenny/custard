@@ -158,6 +158,94 @@ public class TerminalWidgetKgpTests
     }
 
     [TestMethod]
+    [DataRow(false)]
+    [DataRow(true)]
+    public async Task Render_NativeSprite_EmitsNativePlacementWithOffsetsAndCrop(bool crop)
+    {
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = Hex1bTerminal.CreateBuilder()
+            .WithWorkload(workload)
+            .WithDimensions(6, 4)
+            .WithTerminalWidget(out var handle)
+            .Build();
+        var node = CreateNode(handle, new Rect(3, 2, 6, 4));
+        var context = CreateContext(12, 8, out var registry);
+        node.Render(context);
+        var cropControls = crop ? ",x=1,y=1,w=2,h=2" : "";
+        var applied = terminal.ApplyTokensWithImpacts(AnsiTokenizer.Tokenize(
+            "\x1b[2;3H" + KgpTestHelper.BuildCommand(
+                $"a=T,f=32,s=3,v=3,i=77,X=9,Y=19,C=1,q=2{cropControls}",
+                KgpTestHelper.CreatePixelData(3, 3))));
+        await handle.WriteOutputWithImpactsAsync(applied);
+
+        node.Render(context);
+
+        var entry = TestSeq.Single(registry.Images);
+        Assert.AreEqual(5, entry.AbsoluteX);
+        Assert.AreEqual(3, entry.AbsoluteY);
+        Assert.IsTrue(entry.Data.UsesNativeSize);
+        Assert.AreEqual(2, entry.Data.WidthInCells);
+        Assert.AreEqual(2, entry.Data.HeightInCells);
+        var tracker = new KgpPlacementTracker();
+        var (before, after) = tracker.GenerateCommands(KgpOcclusionSolver.ComputeFragments(registry));
+        var emitted = before.Concat(after).ToList();
+        var placementPayload = TestSeq.Single(emitted
+            .OfType<UnrecognizedSequenceToken>()
+            .Where(token => token.Sequence.Contains("a=p"))).Sequence;
+        Assert.DoesNotContain(",c=", placementPayload);
+        Assert.DoesNotContain(",r=", placementPayload);
+        Assert.Contains(",X=9", placementPayload);
+        Assert.Contains(",Y=19", placementPayload);
+        Assert.Contains(crop ? ",w=2,h=2" : ",w=3,h=3", placementPayload);
+        if (crop)
+            Assert.Contains(",x=1,y=1", placementPayload);
+
+        using var viewerWorkload = new Hex1bAppWorkloadAdapter();
+        using var viewer = Hex1bTerminal.CreateBuilder()
+            .WithWorkload(viewerWorkload)
+            .WithHeadless(KgpCapabilities)
+            .WithDimensions(12, 8)
+            .Build();
+        viewer.ApplyTokens(AnsiTokenizer.Tokenize(AnsiTokenSerializer.Serialize(emitted)));
+        using var snapshot = viewer.CreateSnapshot();
+        var placement = TestSeq.Single(snapshot.KgpPlacements);
+        Assert.IsTrue(placement.UsesNativeSize);
+        Assert.AreEqual(5, placement.Column);
+        Assert.AreEqual(3, placement.Row);
+        Assert.AreEqual(2u, placement.DisplayColumns);
+        Assert.AreEqual(2u, placement.DisplayRows);
+        Assert.AreEqual(crop ? 2u : 3u, placement.SourceWidth);
+        Assert.AreEqual(crop ? 2u : 3u, placement.SourceHeight);
+        Assert.AreEqual(9u, placement.CellOffsetX);
+        Assert.AreEqual(19u, placement.CellOffsetY);
+    }
+
+    [TestMethod]
+    public void RegisterKgp_NativePlacementsWithoutRegistry_PreservesDistinctOffsets()
+    {
+        var image = new KgpImageData(91, 0, KgpTestHelper.CreatePixelData(3, 3),
+            3, 3, KgpFormat.Rgba32);
+        var surface = new Surface(10, 5, new CellMetrics(10, 20));
+        var context = new SurfaceRenderContext(surface)
+        {
+            CellMetrics = new CellMetrics(10, 20)
+        };
+        context.SetCapabilities(KgpCapabilities);
+        context.RegisterKgp(image, new KgpPlacement(91, 1, 0, 0, 1, 1,
+            sourceWidth: 3, sourceHeight: 3));
+        context.RegisterKgp(image, new KgpPlacement(91, 2, 0, 2, 1, 1, cellOffsetX: 1)
+            .WithNativeSize(image, 10, 20));
+        context.RegisterKgp(image, new KgpPlacement(91, 3, 0, 4, 1, 1, cellOffsetX: 2)
+            .WithNativeSize(image, 10, 20));
+
+        Assert.IsFalse(surface[0, 0].Kgp!.Data.UsesNativeSize);
+        Assert.IsTrue(surface[2, 0].Kgp!.Data.UsesNativeSize);
+        Assert.IsTrue(surface[4, 0].Kgp!.Data.UsesNativeSize);
+        Assert.AreEqual(1u, surface[2, 0].Kgp!.Data.CellOffsetX);
+        Assert.AreEqual(2u, surface[4, 0].Kgp!.Data.CellOffsetX);
+    }
+
+    [TestMethod]
     public async Task NestedHex1bApp_KgpImage_RendersInOuterTerminal()
     {
         var imageBytes = KgpTestHelper.CreatePixelData(4, 4, fillByte: 0x5A);

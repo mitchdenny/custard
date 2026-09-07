@@ -180,7 +180,7 @@ internal sealed class TrackedObjectStore
     /// <returns>A tracked KGP object (new or existing with added ref).</returns>
     public TrackedObject<KgpCellData> GetOrCreateKgp(KgpCellData kgpData)
     {
-        var hash = kgpData.ContentHash;
+        var hash = kgpData.TrackingHash;
 
         lock (_lock)
         {
@@ -240,7 +240,7 @@ internal sealed class TrackedObjectStore
     {
         lock (_lock)
         {
-            _kgpByHash.Remove(kgp.ContentHash);
+            _kgpByHash.Remove(kgp.TrackingHash);
         }
     }
 

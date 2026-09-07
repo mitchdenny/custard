@@ -176,6 +176,14 @@ internal sealed class ScrollbackBuffer
         return result;
     }
 
+    internal ScrollbackEntry GetEntryAt(int index)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(index);
+        ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(index, _count);
+        var slot = ((_count == Capacity ? _head : 0) + index) % Capacity;
+        return new ScrollbackEntry(_rowIds[slot], _rows[slot]);
+    }
+
     /// <summary>
     /// Removes all rows from the buffer, releasing tracked object references.
     /// </summary>

@@ -132,10 +132,12 @@
     <NativeLibraryPath>$(MSBuildThisFileDirectory)runtimes/$(NativeLibraryRid)/native/$(NativeLibraryName)</NativeLibraryPath>
   </PropertyGroup>
 
-  <!-- Build native library if it doesn't exist (Linux/macOS only) -->
+  <!-- Rebuild native interop when its source changes (Linux/macOS only). -->
   <Target Name="BuildNativeInteropLibrary" 
           BeforeTargets="BeforeBuild" 
-          Condition="'$(NativeLibraryPath)' != '' and !Exists('$(NativeLibraryPath)')">
+          Condition="'$(NativeLibraryPath)' != ''"
+          Inputs="$(MSBuildThisFileDirectory)native/hex1binterop.c;$(MSBuildThisFileDirectory)native/Makefile"
+          Outputs="$(NativeLibraryPath)">
     <Message Importance="High" Text="Building native interop library ($(NativeLibraryName))..." />
     <Exec Command="make" WorkingDirectory="$(MSBuildThisFileDirectory)native" />
   </Target>

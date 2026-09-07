@@ -170,9 +170,7 @@ public sealed class KgpImageStore
                         animation.PlaybackState is
                             KgpParsedCommand.AnimationPlaybackState.Loading or
                             KgpParsedCommand.AnimationPlaybackState.Running &&
-                        animation.TotalDurationMilliseconds > 0 &&
-                        (animation.MaximumLoops <= 1 ||
-                         animation.CompletedLoops < animation.MaximumLoops - 1))
+                        animation.TotalDurationMilliseconds > 0)
                     {
                         return true;
                     }
@@ -703,6 +701,34 @@ public sealed class KgpImageStore
                     image.ImageId,
                     image.ImageNumber);
             }
+        }
+    }
+
+    internal void RestoreAnimationPlayback(KgpAnimationPlaybackSnapshot snapshot, DateTimeOffset now)
+    {
+        if (snapshot is null)
+            throw new InvalidDataException("Missing KGP animation checkpoint.");
+        lock (_lock)
+        {
+            var image = ResolveAddressableImageUnsafe(snapshot.ImageId, snapshot.ImageNumber);
+            var animation = image?.AnimationState;
+            if (animation is null || snapshot.CurrentFrameNumber < 1 ||
+                snapshot.CurrentFrameNumber > animation.FrameCount ||
+                snapshot.PlaybackState is < KgpParsedCommand.AnimationPlaybackState.Stopped or > KgpParsedCommand.AnimationPlaybackState.Running ||
+                snapshot.MaximumLoops < 1 ||
+                (snapshot.MaximumLoops == 1 ? snapshot.CompletedLoops != 0 : snapshot.CompletedLoops >= snapshot.MaximumLoops) ||
+                snapshot.ElapsedTicks is < 0 ||
+                snapshot.ElapsedTicks > now.UtcTicks - DateTimeOffset.MinValue.UtcTicks)
+                throw new InvalidDataException("Invalid KGP animation checkpoint.");
+
+            var currentFrameIndex = snapshot.CurrentFrameNumber - 1;
+            var shownAt = snapshot.ElapsedTicks is { } ticks
+                ? now - TimeSpan.FromTicks(ticks) : (DateTimeOffset?)null;
+            animation = animation.SetCurrentFrame(currentFrameIndex)
+                .SetPlaybackState(snapshot.PlaybackState)
+                .SetMaximumLoops(snapshot.MaximumLoops)
+                .SetPlaybackPosition(currentFrameIndex, snapshot.CompletedLoops, shownAt);
+            _imagesById[image!.ImageId] = image.WithAnimation(animation);
         }
     }
 

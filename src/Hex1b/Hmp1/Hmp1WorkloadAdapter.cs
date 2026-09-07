@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Text.Json;
 using System.Threading.Channels;
 
 namespace Hex1b;
@@ -33,7 +34,7 @@ public sealed class Hmp1WorkloadAdapter : IHex1bTerminalWorkloadAdapter, IHmp1Co
     private readonly Hmp1ClientOptions _options;
     private readonly string _localDisplayName;
     private Stream? _stream;
-    private readonly Channel<ReadOnlyMemory<byte>> _outputChannel;
+    private readonly Channel<Hmp1WorkloadOutput> _outputChannel;
     private CancellationTokenSource? _readCts;
     private Task? _readTask;
     private bool _disposed;
@@ -43,6 +44,7 @@ public sealed class Hmp1WorkloadAdapter : IHex1bTerminalWorkloadAdapter, IHmp1Co
     private string? _primaryPeerId;
     private int _currentWidth;
     private int _currentHeight;
+    private bool _terminalDisconnectDelivered;
     // Completed early in the read-pump finally — *before* invoking the
     // user's OnDisconnected — so internal "wait for transport disconnect"
     // consumers (e.g. WithHmp1Client's runCallback) don't get coupled to
@@ -83,7 +85,7 @@ public sealed class Hmp1WorkloadAdapter : IHex1bTerminalWorkloadAdapter, IHmp1Co
         // Wait (not DropOldest) so producer back-pressures over the wire when the
         // consumer is slow, instead of silently losing terminal output. Restored
         // from Hex1b PR #308 (Phase 9c) after the Phase 10 rewrite.
-        _outputChannel = Channel.CreateBounded<ReadOnlyMemory<byte>>(
+        _outputChannel = Channel.CreateBounded<Hmp1WorkloadOutput>(
             new BoundedChannelOptions(1000)
             {
                 FullMode = BoundedChannelFullMode.Wait,
@@ -299,11 +301,9 @@ public sealed class Hmp1WorkloadAdapter : IHex1bTerminalWorkloadAdapter, IHmp1Co
         if (syncFrame.Type != Hmp1FrameType.StateSync)
             throw new InvalidOperationException($"Expected StateSync frame, got {syncFrame.Type}.");
 
-        // Queue the initial screen content so the terminal displays it immediately
-        if (!syncFrame.Payload.IsEmpty)
-        {
-            _outputChannel.Writer.TryWrite(syncFrame.Payload);
-        }
+        // Hello geometry must be applied before StateSync, even when the adapter
+        // was connected before its consuming terminal was constructed.
+        _outputChannel.Writer.TryWrite(new(syncFrame.Payload, CaptureTerminalState(connected: true)));
 
         // Start the background read pump. Important: do NOT capture the caller-supplied
         // CancellationToken here. A "handshake timeout" CT must NOT keep cancelling
@@ -354,27 +354,61 @@ public sealed class Hmp1WorkloadAdapter : IHex1bTerminalWorkloadAdapter, IHmp1Co
 
     private async ValueTask<ReadOnlyMemory<byte>> ReadOutputCoreAsync(CancellationToken ct)
     {
+        while (!ct.IsCancellationRequested)
+        {
+            var item = await ReadOutputItemCoreAsync(ct).ConfigureAwait(false);
+            if (!item.Bytes.IsEmpty)
+                return item.Bytes;
+            if (_outputChannel.Reader.Completion.IsCompleted)
+                break;
+        }
+        return ReadOnlyMemory<byte>.Empty;
+    }
+
+    internal async ValueTask<Hmp1WorkloadOutput> ReadTerminalOutputAsync(CancellationToken ct)
+    {
+        var item = await ReadOutputItemCoreAsync(ct).ConfigureAwait(false);
+        if (item.State is null && item.AnimationState is null && item.Bytes.IsEmpty &&
+            _outputChannel.Reader.Completion.IsCompleted && !_terminalDisconnectDelivered)
+        {
+            _terminalDisconnectDelivered = true;
+            return new(default, CaptureTerminalState(connected: false));
+        }
+        return item;
+    }
+
+    private Hmp1TerminalState CaptureTerminalState(bool connected)
+    {
+        lock (_stateLock)
+        {
+            return new(_peerId.Length == 0 ? null : _peerId,
+                connected ? _primaryPeerId : null, _currentWidth, _currentHeight, connected);
+        }
+    }
+
+    private async ValueTask<Hmp1WorkloadOutput> ReadOutputItemCoreAsync(CancellationToken ct)
+    {
         try
         {
             if (!await _outputChannel.Reader.WaitToReadAsync(ct).ConfigureAwait(false))
-                return ReadOnlyMemory<byte>.Empty;
+                return default;
 
             if (!_outputChannel.Reader.TryRead(out var first))
-                return ReadOnlyMemory<byte>.Empty;
+                return default;
 
-            // Coalesce any other frames that are immediately available into a single
-            // returned buffer. Reduces per-frame overhead in the consumer pump (xterm.js,
-            // headless emulator, etc.) under high producer throughput. Restored from
-            // Hex1b PR #308 (Phase 9c).
-            if (!_outputChannel.Reader.TryPeek(out _))
+            // Never coalesce across a terminal-state or animation checkpoint. Public callbacks
+            // still run at receipt time; terminal state follows this ordered queue.
+            if (first.State is not null || first.AnimationState is not null ||
+                !_outputChannel.Reader.TryPeek(out var next) || next.State is not null || next.AnimationState is not null)
                 return first;
 
-            var pending = new List<ReadOnlyMemory<byte>> { first };
-            var total = first.Length;
-            while (_outputChannel.Reader.TryRead(out var more))
+            var pending = new List<ReadOnlyMemory<byte>> { first.Bytes };
+            var total = first.Bytes.Length;
+            while (_outputChannel.Reader.TryPeek(out next) && next.State is null && next.AnimationState is null &&
+                _outputChannel.Reader.TryRead(out var more))
             {
-                pending.Add(more);
-                total += more.Length;
+                pending.Add(more.Bytes);
+                total += more.Bytes.Length;
             }
 
             var combined = new byte[total];
@@ -384,12 +418,12 @@ public sealed class Hmp1WorkloadAdapter : IHex1bTerminalWorkloadAdapter, IHmp1Co
                 chunk.Span.CopyTo(combined.AsSpan(pos));
                 pos += chunk.Length;
             }
-            return combined;
+            return new(combined);
         }
         catch (OperationCanceledException) { }
         catch (ChannelClosedException) { }
 
-        return ReadOnlyMemory<byte>.Empty;
+        return default;
     }
 
     private readonly SemaphoreSlim _writeLock = new(1, 1);
@@ -528,7 +562,15 @@ public sealed class Hmp1WorkloadAdapter : IHex1bTerminalWorkloadAdapter, IHmp1Co
                         // WriteAsync (not TryWrite) so the bounded channel back-pressures
                         // the network when the consumer is slow, instead of silently
                         // losing frames. Restored from Hex1b PR #308 (Phase 9c).
-                        await _outputChannel.Writer.WriteAsync(frame.Payload, ct).ConfigureAwait(false);
+                        await _outputChannel.Writer.WriteAsync(new(frame.Payload), ct).ConfigureAwait(false);
+                        break;
+
+                    case Hmp1FrameType.KgpAnimationState:
+                        var animationState = JsonSerializer.Deserialize(
+                            frame.Payload.Span, Hmp1JsonContext.Default.Hmp1KgpAnimationState)
+                            ?? throw new InvalidDataException("Missing KGP animation checkpoint.");
+                        await _outputChannel.Writer.WriteAsync(
+                            new(default, AnimationState: animationState), ct).ConfigureAwait(false);
                         break;
 
                     case Hmp1FrameType.Resize:
@@ -544,6 +586,8 @@ public sealed class Hmp1WorkloadAdapter : IHex1bTerminalWorkloadAdapter, IHmp1Co
                         }
                         if (resizeChanged)
                         {
+                            await _outputChannel.Writer.WriteAsync(
+                                new(default, CaptureTerminalState(connected: true)), ct).ConfigureAwait(false);
                             await Hmp1AsyncCallback.InvokeAsync(
                                 OnRemoteResized,
                                 new RemoteResizedEventArgs(width, height, resizeIsPrimary),
@@ -611,6 +655,8 @@ public sealed class Hmp1WorkloadAdapter : IHex1bTerminalWorkloadAdapter, IHmp1Co
             _currentHeight = p.Height;
             nowPrimary = _primaryPeerId != null && _primaryPeerId == _peerId;
         }
+        await _outputChannel.Writer.WriteAsync(
+            new(default, CaptureTerminalState(connected: true)), ct).ConfigureAwait(false);
         await Hmp1AsyncCallback.InvokeAsync(
             OnRoleChanged,
             new RoleChangedEventArgs(p.PrimaryPeerId, p.Width, p.Height, p.Reason, previouslyPrimary, nowPrimary),

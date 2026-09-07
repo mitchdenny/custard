@@ -328,7 +328,12 @@ public class Hex1bRenderContext
             clipH: checked((int)placement.SourceHeight),
             zIndex: placement.ZIndex,
             cellOffsetX: placement.CellOffsetX,
-            cellOffsetY: placement.CellOffsetY);
+            cellOffsetY: placement.CellOffsetY)
+        {
+            UsesNativeSize = placement.UsesNativeSize,
+            NativeCellMetrics = new Surfaces.CellMetrics(
+                Capabilities.CellPixelWidth, Capabilities.CellPixelHeight)
+        };
     }
 
     private static byte[] ComputeKgpContentHash(

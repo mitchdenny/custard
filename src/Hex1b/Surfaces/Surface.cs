@@ -812,6 +812,20 @@ public sealed class Surface : ISurfaceSource
                 if (visibleLeft == destAnchorX && visibleTop == destAnchorY)
                     continue;
 
+                if (kgpData.UsesNativeSize)
+                {
+                    var nativeClip = kgpData.ClipNativeToCells(
+                        visibleLeft - destAnchorX, visibleTop - destAnchorY,
+                        visibleRight - visibleLeft, visibleBottom - visibleTop);
+                    if (nativeClip is not null)
+                    {
+                        overrides[(visibleLeft, visibleTop)] = new SurfaceCell(
+                            " ", null, null,
+                            Kgp: new TrackedObject<KgpCellData>(nativeClip, _ => { }));
+                    }
+                    continue;
+                }
+
                 var effectiveClipW = kgpData.ClipW > 0 ? kgpData.ClipW : (int)kgpData.SourcePixelWidth;
                 var effectiveClipH = kgpData.ClipH > 0 ? kgpData.ClipH : (int)kgpData.SourcePixelHeight;
                 var leftClippedCells = visibleLeft - destAnchorX;
@@ -867,6 +881,17 @@ public sealed class Surface : ISurfaceSource
         
         if (visibleCellWidth <= 0 || visibleCellHeight <= 0)
             return cell with { Kgp = null };
+
+        if (kgpData.UsesNativeSize)
+        {
+            var nativeClip = kgpData.ClipNativeToCells(0, 0, visibleCellWidth, visibleCellHeight);
+            return cell with
+            {
+                Kgp = nativeClip is null
+                    ? null
+                    : new TrackedObject<KgpCellData>(nativeClip, _ => { })
+            };
+        }
         
         // Calculate pixel clip rect from cell dimensions
         var sourceWidth = kgpData.SourcePixelWidth > 0 ? (int)kgpData.SourcePixelWidth : kgpWidth * CellMetrics.PixelWidth;

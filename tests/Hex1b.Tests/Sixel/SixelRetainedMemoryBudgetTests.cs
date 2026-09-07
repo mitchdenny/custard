@@ -1,4 +1,5 @@
 using System.Text;
+using System.Runtime.CompilerServices;
 using Hex1b.Reflow;
 using Hex1b.Sixel;
 using Hex1b.Tokens;
@@ -133,15 +134,16 @@ public class SixelRetainedMemoryBudgetTests
     }
 
     [TestMethod]
-    public async Task DenseMaterialization_EvictsOlderImageBeforeCachingGrowth()
+    public async Task DenseMaterialization_WhenBudgetIsFull_DoesNotEvictOlderImage()
     {
         var first = Frame("#1;2;100;0;0#1!8~");
         var second = Frame("#2;2;0;100;0#2!8~");
         var firstSizes = await MeasureStagesAsync(first);
         var secondSizes = await MeasureStagesAsync(second);
         var budget = checked(firstSizes.Initial + secondSizes.Rasterized);
-        Assert.IsGreaterThan(secondSizes.Rasterized, secondSizes.Dense);
-        Assert.IsLessThanOrEqualTo(budget, secondSizes.Dense);
+        Assert.IsTrue(secondSizes.Dense > secondSizes.Rasterized);
+        Assert.IsTrue(
+            checked(firstSizes.Initial + secondSizes.Dense) > budget);
 
         await using var terminal = SixelTestTerminal.Create(
             graphics: GraphicsWithBudget(budget));
@@ -158,12 +160,14 @@ public class SixelRetainedMemoryBudgetTests
         var newest = terminal.Terminal.SixelPlacements.MaxBy(placement => placement.Sequence)!;
         Assert.AreEqual(SixelRasterStatus.Rasterized, newest.Image.RasterStatus);
         Assert.AreEqual(2, terminal.Terminal.TrackedSixelCount);
+        var before = terminal.Terminal.SixelRetainedByteCount;
 
         Assert.IsNotNull(newest.Image.GetPixels());
 
-        Assert.IsTrue(newest.Image.HasMaterializedPixels);
-        Assert.AreEqual(1, terminal.Terminal.TrackedSixelCount);
-        Assert.AreSame(newest.Image, TestSeq.Single(terminal.Terminal.SixelPlacements).Image);
+        Assert.IsFalse(newest.Image.HasMaterializedPixels);
+        Assert.AreEqual(2, terminal.Terminal.TrackedSixelCount);
+        Assert.AreEqual(2, terminal.Terminal.SixelPlacementCount);
+        Assert.AreEqual(before, terminal.Terminal.SixelRetainedByteCount);
         Assert.IsLessThanOrEqualTo(budget, terminal.Terminal.SixelRetainedByteCount);
     }
 
@@ -286,6 +290,100 @@ public class SixelRetainedMemoryBudgetTests
         Assert.IsNotNull(image.GetPixels());
         Assert.IsTrue(image.HasMaterializedPixels);
         Assert.AreEqual(0L, terminal.Terminal.SixelRetainedByteCount);
+    }
+
+    [TestMethod]
+    public async Task SnapshotExportsAndHmp1Replay_DoNotEvictLivePlacements()
+    {
+        var first = Frame("#1;2;100;0;0#1!8~");
+        var second = Frame("#2;2;0;100;0#2!8~");
+        var firstSizes = await MeasureStagesAsync(first);
+        var secondSizes = await MeasureStagesAsync(second);
+        var budget = checked(firstSizes.Initial + secondSizes.Initial);
+        await using var terminal = SixelTestTerminal.Create(
+            graphics: GraphicsWithBudget(budget));
+        await terminal.FeedAsync(
+            first.Concat(Encoding.ASCII.GetBytes("\x1b[2;1H"))
+                .Concat(second)
+                .ToArray(),
+            cancellationToken: TestContext.Current.CancellationToken);
+        await terminal.WaitForAsync(
+            _ => terminal.Terminal.SixelPlacementCount == 2,
+            "two images before read-only materialization",
+            TestContext.Current.CancellationToken);
+        var before = terminal.Terminal.SixelRetainedByteCount;
+
+        using var snapshot = terminal.Terminal.CreateSnapshot();
+        _ = snapshot.ToSvg();
+        _ = snapshot.ToHtml();
+        foreach (var placement in snapshot.SixelPlacements)
+            _ = Hmp1SixelStateReplay.BuildPlacementSequence(placement);
+
+        Assert.AreEqual(2, terminal.Terminal.SixelPlacementCount);
+        Assert.AreEqual(2, terminal.Terminal.TrackedSixelCount);
+        Assert.AreEqual(before, terminal.Terminal.SixelRetainedByteCount);
+    }
+
+    [TestMethod]
+    public async Task MixedProtocols_ShareOneScreenBudgetWithoutCrossProtocolEviction()
+    {
+        var frame = Frame("#1;2;100;0;0#1@");
+        var sixelBytes = await MeasureInitialBytesAsync(frame);
+        var graphics = GraphicsWithBudget(sixelBytes);
+        await using var kgpFirst = SixelTestTerminal.Create(
+            supportsKgp: true,
+            graphics: graphics);
+
+        kgpFirst.Terminal.ApplyTokens(AnsiTokenizer.Tokenize(
+            KgpTestHelper.BuildTransmitCommand(
+                imageId: 1,
+                width: 1,
+                height: 1,
+                quiet: 2)));
+        Assert.AreEqual(4L, kgpFirst.Terminal.KgpImageStore.TotalSize);
+        await FeedAndWaitAsync(kgpFirst, frame, expectedPlacements: 0);
+        Assert.AreEqual(4L, kgpFirst.Terminal.GraphicsRetainedByteCount);
+        Assert.IsNotNull(kgpFirst.Terminal.KgpImageStore.GetImageById(1));
+
+        kgpFirst.Terminal.ApplyTokens(AnsiTokenizer.Tokenize("\x1b[?1049h"));
+        Assert.AreEqual(0L, kgpFirst.Terminal.GraphicsRetainedByteCount);
+        await FeedAndWaitAsync(kgpFirst, frame, expectedPlacements: 1);
+        Assert.AreEqual(sixelBytes, kgpFirst.Terminal.GraphicsRetainedByteCount);
+        kgpFirst.Terminal.ApplyTokens(AnsiTokenizer.Tokenize("\x1b[?1049l"));
+        Assert.AreEqual(4L, kgpFirst.Terminal.GraphicsRetainedByteCount);
+        Assert.IsNotNull(kgpFirst.Terminal.KgpImageStore.GetImageById(1));
+
+        await using var sixelFirst = SixelTestTerminal.Create(
+            supportsKgp: true,
+            graphics: graphics);
+        await FeedAndWaitAsync(sixelFirst, frame, expectedPlacements: 1);
+        sixelFirst.Terminal.ApplyTokens(AnsiTokenizer.Tokenize(
+            KgpTestHelper.BuildTransmitCommand(
+                imageId: 1,
+                width: 1,
+                height: 1,
+                quiet: 2)));
+
+        Assert.IsNull(sixelFirst.Terminal.KgpImageStore.GetImageById(1));
+        Assert.AreEqual(1, sixelFirst.Terminal.SixelPlacementCount);
+        Assert.AreEqual(sixelBytes, sixelFirst.Terminal.GraphicsRetainedByteCount);
+    }
+
+    [TestMethod]
+    public async Task PayloadAndCommandMetadata_AreCountedAsRetainedManagedContent()
+    {
+        var body = "#1;2;100;0;0" + string.Concat(Enumerable.Repeat("#1@", 256));
+        var frame = Frame(body);
+        await using var terminal = SixelTestTerminal.Create();
+        await FeedAndWaitAsync(terminal, frame, expectedPlacements: 1);
+        var image = TestSeq.Single(terminal.Terminal.SixelPlacements).Image;
+        var minimumPayloadAndCommands =
+            ((long)image.Payload.Length * sizeof(char)) +
+            ((long)image.ParseResult.Commands.Count * Unsafe.SizeOf<SixelCommand>());
+
+        Assert.IsGreaterThanOrEqualTo(
+            minimumPayloadAndCommands,
+            terminal.Terminal.SixelRetainedByteCount);
     }
 
     [TestMethod]

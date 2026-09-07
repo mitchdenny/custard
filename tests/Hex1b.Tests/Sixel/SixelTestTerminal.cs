@@ -29,6 +29,7 @@ internal sealed class SixelTestTerminal : IAsyncDisposable
         IHex1bTerminalWorkloadFilter? workloadFilter,
         IHex1bTerminalPresentationFilter? presentationFilter,
         bool impactAware,
+        bool supportsKgp,
         SixelCellMetrics? cellMetrics,
         SixelCompatibilityPolicy? policy,
         Hex1bTerminalGraphicsOptions? graphics)
@@ -36,6 +37,7 @@ internal sealed class SixelTestTerminal : IAsyncDisposable
         var capabilities = new TerminalCapabilities
         {
             SupportsSixel = true,
+            SupportsKgp = supportsKgp,
             SupportsTrueColor = true,
             Supports256Colors = true,
             CellPixelWidth = cellPixelWidth,
@@ -98,6 +100,7 @@ internal sealed class SixelTestTerminal : IAsyncDisposable
         IHex1bTerminalWorkloadFilter? workloadFilter = null,
         IHex1bTerminalPresentationFilter? presentationFilter = null,
         bool impactAware = false,
+        bool supportsKgp = false,
         SixelCellMetrics? cellMetrics = null,
         SixelCompatibilityPolicy? policy = null,
         Hex1bTerminalGraphicsOptions? graphics = null)
@@ -113,6 +116,7 @@ internal sealed class SixelTestTerminal : IAsyncDisposable
             workloadFilter,
             presentationFilter,
             impactAware,
+            supportsKgp,
             cellMetrics,
             policy,
             graphics);

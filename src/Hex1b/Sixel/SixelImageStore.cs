@@ -23,11 +23,15 @@ internal sealed class SixelImageStore
 
     private readonly Dictionary<byte[], Entry> _byHash = new(SixelContentHashComparer.Instance);
     private readonly ISixelRetainedResourceOwner _owner;
+    private readonly TerminalGraphicsRetainedBudget _retainedBudget;
     private long _retainedBytes;
 
-    internal SixelImageStore(ISixelRetainedResourceOwner owner)
+    internal SixelImageStore(
+        ISixelRetainedResourceOwner owner,
+        TerminalGraphicsRetainedBudget retainedBudget)
     {
         _owner = owner;
+        _retainedBudget = retainedBudget;
     }
 
     /// <summary>Number of distinct images currently retained.</summary>
@@ -79,6 +83,7 @@ internal sealed class SixelImageStore
         image.AttachRetainedResourceOwner(_owner);
         _byHash.Add(image.ContentHash, new Entry(image, retainedBytes));
         _retainedBytes = checked(_retainedBytes + retainedBytes);
+        _retainedBudget.SetSixelBytes(_retainedBytes);
     }
 
     internal bool Contains(SixelData image) =>
@@ -98,6 +103,7 @@ internal sealed class SixelImageStore
         var retainedBytes = checked(entry.RetainedBytes + addedBytes);
         _byHash[image.ContentHash] = entry with { RetainedBytes = retainedBytes };
         _retainedBytes = checked(_retainedBytes + addedBytes);
+        _retainedBudget.SetSixelBytes(_retainedBytes);
         return true;
     }
 
@@ -130,6 +136,7 @@ internal sealed class SixelImageStore
             entry.Image.DetachRetainedResourceOwner(_owner);
         _byHash.Clear();
         _retainedBytes = 0;
+        _retainedBudget.SetSixelBytes(0);
     }
 
     /// <summary>
@@ -159,6 +166,7 @@ internal sealed class SixelImageStore
             _retainedBytes = checked(_retainedBytes - entry.RetainedBytes);
             _byHash.Remove(hash);
         }
+        _retainedBudget.SetSixelBytes(_retainedBytes);
 
         return toRemove.Count;
     }

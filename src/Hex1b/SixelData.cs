@@ -278,59 +278,106 @@ public sealed class SixelData
     internal void DetachRetainedResourceOwner(ISixelRetainedResourceOwner owner) =>
         Interlocked.CompareExchange(ref _retainedResourceOwner, null, owner);
 
-    internal SixelRasterResult GetRasterOwned(Func<long, bool> tryReserve)
+    internal bool TryGetCachedRaster(out SixelRasterResult raster)
+    {
+        lock (_decodeLock)
+        {
+            raster = _raster!;
+            return raster is not null;
+        }
+    }
+
+    internal SixelRasterResult ComputeRasterCandidate()
+    {
+        lock (_decodeLock)
+        {
+            return _raster ??
+                SixelRasterizer.Rasterize(ParseResult, GetRasterEnvironment());
+        }
+    }
+
+    internal SixelRasterResult PublishRasterOwned(
+        SixelRasterResult candidate,
+        Func<long, bool> tryReserve)
     {
         lock (_decodeLock)
         {
             if (_raster is not null)
                 return _raster;
 
-            var candidate = SixelRasterizer.Rasterize(ParseResult, GetRasterEnvironment());
-            var retainedBytes = SixelRetainedSize.GetRasterBytes(candidate);
-            if (tryReserve(retainedBytes))
+            if (tryReserve(SixelRetainedSize.GetRasterBytes(candidate)))
                 _raster = candidate;
             return candidate;
         }
     }
 
-    internal SixelPixelBuffer? GetPixelsOwned(Func<long, bool> tryReserve)
+    internal SixelRasterResult PublishRasterUnowned(SixelRasterResult candidate)
+    {
+        lock (_decodeLock)
+            return _raster ??= candidate;
+    }
+
+    internal bool TryGetCachedPixels(
+        out SixelPixelBuffer? pixels,
+        out bool attempted)
+    {
+        lock (_decodeLock)
+        {
+            pixels = _decodedPixels;
+            attempted = _decodeAttempted;
+            return pixels is not null;
+        }
+    }
+
+    internal SixelPixelBuffer? ComputePixelCandidate(SixelRasterResult raster)
     {
         lock (_decodeLock)
         {
             if (_decodeAttempted)
                 return _decodedPixels;
+            return raster.Image?.Materialize();
+        }
+    }
 
-            var raster = _raster;
-            if (raster is null)
+    internal SixelPixelBuffer? PublishPixelsOwned(
+        SixelRasterResult raster,
+        SixelPixelBuffer? candidate,
+        Func<long, bool> tryReserve)
+    {
+        lock (_decodeLock)
+        {
+            if (_decodeAttempted)
+                return _decodedPixels;
+            if (!ReferenceEquals(_raster, raster))
+                return candidate;
+            if (candidate is null)
             {
-                var candidate = SixelRasterizer.Rasterize(ParseResult, GetRasterEnvironment());
-                if (tryReserve(SixelRetainedSize.GetRasterBytes(candidate)))
-                {
-                    _raster = candidate;
-                    raster = candidate;
-                }
-                else
-                {
-                    raster = candidate;
-                }
-            }
-
-            var pixels = raster.Image?.Materialize();
-            if (pixels is null)
-            {
-                if (ReferenceEquals(raster, _raster))
-                    _decodeAttempted = true;
+                _decodeAttempted = true;
                 return null;
             }
 
-            if (ReferenceEquals(raster, _raster) &&
-                tryReserve(SixelRetainedSize.GetDensePixelBytes(pixels)))
+            if (tryReserve(SixelRetainedSize.GetDensePixelBytes(candidate)))
             {
-                _decodedPixels = pixels;
+                _decodedPixels = candidate;
                 _decodeAttempted = true;
             }
 
-            return pixels;
+            return candidate;
+        }
+    }
+
+    internal SixelPixelBuffer? PublishPixelsUnowned(
+        SixelRasterResult raster,
+        SixelPixelBuffer? candidate)
+    {
+        lock (_decodeLock)
+        {
+            _raster ??= raster;
+            if (_decodeAttempted)
+                return _decodedPixels;
+            _decodedPixels = candidate;
+            _decodeAttempted = true;
+            return candidate;
         }
     }
 

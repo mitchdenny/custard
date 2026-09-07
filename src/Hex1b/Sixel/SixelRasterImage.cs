@@ -1,4 +1,5 @@
 using Hex1b.Surfaces;
+using System.Runtime.CompilerServices;
 
 namespace Hex1b.Sixel;
 
@@ -66,10 +67,18 @@ internal sealed class SixelRasterImage
     {
         get
         {
-            var bytesPerTile = checked((long)_tilePixelCount * 4 + sizeof(long));
-            return _tiles.Count > long.MaxValue / bytesPerTile
-                ? long.MaxValue
-                : _tiles.Count * bytesPerTile;
+            const int arrayHeaderBytes = 24;
+            const int dictionaryEntryStateBytes = 2 * sizeof(int);
+            var capacity = _tiles.EnsureCapacity(0);
+            var buckets = checked((long)capacity * sizeof(int));
+            var entries = checked(
+                (long)capacity *
+                (Unsafe.SizeOf<KeyValuePair<long, Rgba32[]>>() +
+                 dictionaryEntryStateBytes));
+            var tiles = checked(
+                (long)_tiles.Count *
+                (arrayHeaderBytes + ((long)_tilePixelCount * 4)));
+            return checked(buckets + entries + tiles);
         }
     }
 

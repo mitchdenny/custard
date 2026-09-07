@@ -21,6 +21,7 @@ public sealed class KgpImageStore
     internal readonly record struct StoreResult(
         KgpImageData Image,
         bool Replaced,
+        bool Stored = true,
         ImageRelocation? Relocation = null);
 
     internal readonly record struct TransmissionStartResult(
@@ -122,6 +123,7 @@ public sealed class KgpImageStore
     private uint _nextId = 1;
     private long _totalSize;
     private readonly long _quotaBytes;
+    private readonly TerminalGraphicsRetainedBudget? _sharedBudget;
 
     private KgpPendingUpload? _pendingUpload;
 
@@ -138,6 +140,13 @@ public sealed class KgpImageStore
     {
         _quotaBytes = quotaBytes;
         _nextId = nextId == 0 ? 1 : nextId;
+    }
+
+    internal KgpImageStore(TerminalGraphicsRetainedBudget sharedBudget)
+    {
+        _sharedBudget = sharedBudget;
+        _quotaBytes = sharedBudget.MaximumBytes;
+        _nextId = 1;
     }
 
     /// <summary>
@@ -191,7 +200,7 @@ public sealed class KgpImageStore
     }
 
     internal long MaximumPendingUploadBytes
-        => Math.Min(Math.Max(0, _quotaBytes), Array.MaxLength);
+        => Math.Min(Math.Max(0, EffectiveQuotaBytes), Array.MaxLength);
 
     /// <summary>
     /// Allocates a currently unused, non-zero image ID.
@@ -217,7 +226,8 @@ public sealed class KgpImageStore
     {
         lock (_lock)
         {
-            return StoreImageUnsafe(image).Image;
+            var result = StoreImageUnsafe(image);
+            return result.Stored ? result.Image : null;
         }
     }
 
@@ -440,7 +450,7 @@ public sealed class KgpImageStore
                 WouldExceedQuota(
                     _totalSize,
                     info.RequiredStorageBytes,
-                    _quotaBytes))
+                    EffectiveQuotaBytes))
             {
                 return new AnimationFrameResult(
                     info with { Status = AnimationFrameStatus.NoSpace },
@@ -516,7 +526,7 @@ public sealed class KgpImageStore
                 }
 
                 _imagesById[image.ImageId] = updatedImage;
-                _totalSize = checked(_totalSize + storageDelta);
+                SetTotalSizeUnsafe(checked(_totalSize + storageDelta));
                 return new AnimationFrameResult(info, updatedImage);
             }
             catch (OutOfMemoryException)
@@ -602,8 +612,8 @@ public sealed class KgpImageStore
                     currentFrameIndex);
                 var updatedImage = image.WithAnimation(updatedAnimation);
                 _imagesById[image.ImageId] = updatedImage;
-                _totalSize = checked(
-                    _totalSize - (image.StorageSize - updatedImage.StorageSize));
+                SetTotalSizeUnsafe(checked(
+                    _totalSize - (image.StorageSize - updatedImage.StorageSize)));
                 return new AnimationFrameDeleteResult(
                     AnimationFrameDeleteStatus.Deleted,
                     image.ImageId,
@@ -775,7 +785,7 @@ public sealed class KgpImageStore
             _imagesById.Clear();
             _imagesByNumber.Clear();
             _unaddressableImageIds.Clear();
-            _totalSize = 0;
+            SetTotalSizeUnsafe(0);
             AbortChunkedTransferUnsafe();
         }
     }
@@ -1028,7 +1038,7 @@ public sealed class KgpImageStore
         var replaced = _imagesById.TryGetValue(image.ImageId, out var existing);
         if (existing is not null)
         {
-            _totalSize -= existing.StorageSize;
+            SetTotalSizeUnsafe(checked(_totalSize - existing.StorageSize));
             _imagesById.Remove(existing.ImageId);
             _unaddressableImageIds.Remove(existing.ImageId);
             RemoveFromNumberIndex(existing);
@@ -1037,13 +1047,17 @@ public sealed class KgpImageStore
         while (WouldExceedQuota(
                    _totalSize,
                    image.StorageSize,
-                   _quotaBytes) &&
+                   EffectiveQuotaBytes) &&
                _imagesById.Count > 0)
         {
             EvictOldest();
         }
 
-        _totalSize += image.StorageSize;
+        if (_sharedBudget is not null &&
+            WouldExceedQuota(_totalSize, image.StorageSize, EffectiveQuotaBytes))
+            return new StoreResult(image, replaced, Stored: false);
+
+        SetTotalSizeUnsafe(checked(_totalSize + image.StorageSize));
         _imagesById[image.ImageId] = image;
         if (addressable)
             _unaddressableImageIds.Remove(image.ImageId);
@@ -1068,7 +1082,7 @@ public sealed class KgpImageStore
         if (!_imagesById.TryGetValue(imageId, out var image))
             return false;
 
-        _totalSize -= image.StorageSize;
+        SetTotalSizeUnsafe(checked(_totalSize - image.StorageSize));
         _imagesById.Remove(imageId);
         _unaddressableImageIds.Remove(imageId);
         RemoveFromNumberIndex(image);
@@ -1120,6 +1134,16 @@ public sealed class KgpImageStore
             throw new ArgumentOutOfRangeException(nameof(currentSize));
         return addedSize > quotaBytes ||
                currentSize > quotaBytes - addedSize;
+    }
+
+    private long EffectiveQuotaBytes =>
+        _sharedBudget?.MaximumKgpBytes ?? _quotaBytes;
+
+    private void SetTotalSizeUnsafe(long totalSize)
+    {
+        if (_sharedBudget is not null)
+            _sharedBudget.SetKgpBytes(totalSize);
+        _totalSize = totalSize;
     }
 
     private static KgpImageData CreateImage(

@@ -110,21 +110,21 @@ rasterizer, placement-lifetime, and fuzz tests.
 `Hex1bTerminalGraphicsOptions.MaximumRetainedBytesPerScreen` configures the
 aggregate retained-image budget independently for the main and alternate
 screens. Accounting is deterministic protocol content accounting, not a CLR
-heap-size estimate: UTF-8 payload bytes, content identities, parsed commands,
+heap-size estimate: retained UTF-16 strings, content identities, parsed commands,
 palette and diagnostic metadata, captured palette state, sparse tile pixels
 and keys, raster diagnostics, and a cached dense RGBA buffer are included.
 Placements and history fragments remain governed by their count limits and do
 not cause a shared image to be counted more than once.
 
-When admitting a new distinct image would exceed the byte budget, the terminal
-evicts oldest placements until enough image resources become unreachable. An
-image larger than the entire budget is rejected without evicting existing
-content. Lazy sparse-raster or dense-cache growth protects the image being
-materialized and evicts older unrelated placements first. If the protected
-image still cannot fit, the requested pixels are produced without attaching
-the new cache to live terminal state; accounting and existing placements remain
-unchanged. Clearing, history pruning, alternate-screen exit, RIS, reflow, and
-terminal disposal sweep unreachable images and their accounting together.
+The byte ceiling is shared with KGP rather than duplicated per protocol. Each
+protocol applies its established oldest-first eviction order to its own
+resources. A new Sixel or KGP image that still cannot fit in the capacity left
+by the other protocol is rejected without destroying the other protocol's
+placements. Lazy Sixel sparse-raster or dense-cache growth is observational:
+if it cannot fit, the requested raster or pixels are returned uncached and no
+live placement is evicted. Clearing, history pruning, alternate-screen exit,
+RIS, reflow, and terminal disposal sweep unreachable images and their
+accounting together.
 
 Snapshots copy placements but intentionally share immutable `SixelData`
 resources. A caller-retained snapshot can therefore extend an evicted image's

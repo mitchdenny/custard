@@ -336,13 +336,14 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         _sessionStart = _timeProvider.GetUtcNow();
         _metrics = options.Metrics ?? Diagnostics.Hex1bMetrics.Default;
         var sixelPolicy = options.CreateSixelPolicy();
-        _kgpGraphicsState = new KgpTerminalGraphicsState(
+        var graphicsBudgets = new TerminalGraphicsRetainedBudgetSet(
             options.Graphics.MaximumRetainedBytesPerScreen);
+        _kgpGraphicsState = new KgpTerminalGraphicsState(graphicsBudgets);
         _sixelColorRegisters = new Sixel.SixelColorRegisters(sixelPolicy);
         _sixelGraphicsState = new SixelGraphicsState(
             sixelPolicy,
             RecordSixelStateEvent,
-            options.Graphics.MaximumRetainedBytesPerScreen,
+            graphicsBudgets,
             _bufferLock);
         
         // Notify lifecycle-aware presentation adapters that the terminal is created
@@ -2748,6 +2749,9 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
     internal int SixelHistoryPlacementCount => _sixelGraphicsState.MainHistoryPlacementCount;
 
     internal long SixelRetainedByteCount => _sixelGraphicsState.ActiveRetainedBytes;
+
+    internal long GraphicsRetainedByteCount =>
+        checked(ActiveKgpImageStore.TotalSize + SixelRetainedByteCount);
 
     internal Diagnostics.Hex1bMetrics DiagnosticsMetrics => _metrics;
 
@@ -8052,6 +8056,16 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         var stored = ActiveKgpImageStore.StoreImage(transmission, decodedData);
         if (stored.Relocation is { } relocation)
             ApplyKgpImageRelocation(relocation);
+        if (!stored.Stored)
+        {
+            _kgpGraphicsState.ReconcileActiveImageReferences();
+            SendKgpTransmissionResponse(
+                transmission,
+                storedImage: null,
+                "ENOSPC:Image storage full",
+                quiet);
+            return;
+        }
 
         if (stored.Replaced)
             _kgpGraphicsState.RemoveActiveImageReferences(stored.Image.ImageId);

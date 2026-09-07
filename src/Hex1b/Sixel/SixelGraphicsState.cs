@@ -81,7 +81,7 @@ internal sealed class SixelReflowPlan
 internal sealed class SixelGraphicsState
 {
     private readonly SixelCompatibilityPolicy _policy;
-    private readonly long _maximumRetainedBytesPerScreen;
+    private readonly TerminalGraphicsRetainedBudgetSet _retainedBudgets;
     private readonly object _syncRoot;
     private readonly Action<SixelStateEvent>? _observe;
     private readonly SixelScreenGraphicsState _main;
@@ -93,16 +93,16 @@ internal sealed class SixelGraphicsState
     internal SixelGraphicsState(
         SixelCompatibilityPolicy? policy = null,
         Action<SixelStateEvent>? observe = null,
-        long maximumRetainedBytesPerScreen = 320L * 1024 * 1024,
+        TerminalGraphicsRetainedBudgetSet? retainedBudgets = null,
         object? syncRoot = null)
     {
         _policy = policy ?? SixelCompatibilityPolicy.Default;
         _policy.Validate();
-        ArgumentOutOfRangeException.ThrowIfNegative(maximumRetainedBytesPerScreen);
-        _maximumRetainedBytesPerScreen = maximumRetainedBytesPerScreen;
+        _retainedBudgets = retainedBudgets ??
+            new TerminalGraphicsRetainedBudgetSet(320L * 1024 * 1024);
         _syncRoot = syncRoot ?? new object();
         _observe = observe;
-        _main = CreateScreen();
+        _main = CreateScreen(_retainedBudgets.Main);
     }
 
     internal bool InAlternateScreen => _alternateActive;
@@ -217,7 +217,7 @@ internal sealed class SixelGraphicsState
     {
         if (_alternate is not null)
             ClearScreen(_alternate);
-        _alternate = CreateScreen();
+        _alternate = CreateScreen(_retainedBudgets.Alternate);
         _alternateActive = true;
     }
 
@@ -828,7 +828,7 @@ internal sealed class SixelGraphicsState
         while (screen.Images.Count > _policy.MaximumImagesPerScreen ||
                screen.Images.GetBoundedLogicalPixelCount(_policy.MaximumRasterPixels) >
                    _policy.MaximumRetainedLogicalPixelsPerScreen ||
-               screen.Images.RetainedBytes > _maximumRetainedBytesPerScreen)
+               !screen.RetainedBudget.CanSetSixelBytes(screen.Images.RetainedBytes))
         {
             var reason = screen.Images.Count > _policy.MaximumImagesPerScreen
                 ? "image_limit"
@@ -930,19 +930,12 @@ internal sealed class SixelGraphicsState
     {
         if (addedBytes < 0)
             throw new ArgumentOutOfRangeException(nameof(addedBytes));
-        if (!screen.Images.Contains(image) ||
-            addedBytes > _maximumRetainedBytesPerScreen)
-        {
+        if (!screen.Images.Contains(image))
             return false;
-        }
 
-        while (WouldExceedBudget(screen.Images.RetainedBytes, addedBytes))
-        {
-            if (!TryRemoveOldestPlacement(screen, image))
-                return false;
-            Observe(SixelStateEventKind.PlacementEvicted, reason: "retained_byte_limit");
-            ReconcileImages(screen);
-        }
+        var retainedBytes = SaturatingAdd(screen.Images.RetainedBytes, addedBytes);
+        if (!screen.RetainedBudget.CanSetSixelBytes(retainedBytes))
+            return false;
 
         return screen.Images.TryIncreaseRetainedBytes(image, addedBytes);
     }
@@ -952,10 +945,8 @@ internal sealed class SixelGraphicsState
         long addedBytes,
         SixelData? protectedImage)
     {
-        if (addedBytes > _maximumRetainedBytesPerScreen)
-            return false;
-
-        while (WouldExceedBudget(screen.Images.RetainedBytes, addedBytes))
+        while (!screen.RetainedBudget.CanSetSixelBytes(
+                   SaturatingAdd(screen.Images.RetainedBytes, addedBytes)))
         {
             if (!TryRemoveOldestPlacement(screen, protectedImage))
                 return false;
@@ -966,12 +957,12 @@ internal sealed class SixelGraphicsState
         return true;
     }
 
-    private bool WouldExceedBudget(long currentBytes, long addedBytes) =>
-        addedBytes > _maximumRetainedBytesPerScreen ||
-        currentBytes > _maximumRetainedBytesPerScreen - addedBytes;
+    private SixelScreenGraphicsState CreateScreen(
+        TerminalGraphicsRetainedBudget retainedBudget) =>
+        new(_syncRoot, retainedBudget, TryReserveGrowth);
 
-    private SixelScreenGraphicsState CreateScreen() =>
-        new(_syncRoot, TryReserveGrowth);
+    private static long SaturatingAdd(long left, long right) =>
+        right > long.MaxValue - left ? long.MaxValue : left + right;
 
     private void ClearScreen(SixelScreenGraphicsState screen)
     {

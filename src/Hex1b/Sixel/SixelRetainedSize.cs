@@ -1,4 +1,4 @@
-using System.Text;
+using System.Runtime.CompilerServices;
 using Hex1b.Surfaces;
 
 namespace Hex1b.Sixel;
@@ -12,21 +12,20 @@ namespace Hex1b.Sixel;
 /// </remarks>
 internal static class SixelRetainedSize
 {
-    private const int Int32Bytes = sizeof(int);
-    private const int Int64Bytes = sizeof(long);
     private const int BooleanBytes = sizeof(byte);
-    private const int NullableMarkerBytes = sizeof(byte);
     private const int Rgba32Bytes = 4;
+    private const int ArrayHeaderBytes = 24;
+    private const int StringHeaderBytes = 24;
 
     internal static long GetInitialBytes(SixelData image)
     {
         var total = 0L;
-        Add(ref total, Encoding.UTF8.GetByteCount(image.Payload));
-        Add(ref total, image.ContentHash.Length);
+        Add(ref total, GetStringBytes(image.Payload));
+        Add(ref total, GetArrayBytes(image.ContentHash.Length, sizeof(byte)));
         Add(ref total, GetParseResultBytes(image.ParseResult));
         Add(ref total, GetRasterPreparationBytes(image.RasterPreparation));
-        Add(ref total, 4L * Int32Bytes);
-        Add(ref total, 2L * sizeof(double) + 2L * Int32Bytes);
+        Add(ref total, 4L * sizeof(int));
+        Add(ref total, 2L * sizeof(double) + 2L * sizeof(int));
         Add(ref total, BooleanBytes);
         return total;
     }
@@ -34,39 +33,27 @@ internal static class SixelRetainedSize
     internal static long GetRasterBytes(SixelRasterResult raster)
     {
         var total = 0L;
-        Add(ref total, Int32Bytes);
-        Add(ref total, 7L * 2 * Int32Bytes);
-        Add(ref total, 4L * Int32Bytes);
-        Add(ref total, Int32Bytes);
-        Add(ref total, Rgba32Bytes);
-        Add(ref total, raster.Identity.Length);
+        Add(ref total, Unsafe.SizeOf<SixelRasterResultContent>());
+        Add(ref total, GetArrayBytes(raster.Identity.Length, sizeof(byte)));
         Add(ref total, GetRasterDiagnosticsBytes(raster.Diagnostics));
         Add(ref total, raster.Image?.RetainedTileBytes ?? 0);
         return total;
     }
 
     internal static long GetDensePixelBytes(SixelPixelBuffer pixels) =>
-        SaturatingMultiply((long)pixels.Width * pixels.Height, Rgba32Bytes);
+        GetArrayBytes((long)pixels.Width * pixels.Height, Rgba32Bytes);
 
     private static long GetParseResultBytes(SixelParseResult parse)
     {
         var total = 0L;
-        Add(ref total, 6L * Int32Bytes);
-        if (parse.RasterAttributes is not null)
-            Add(ref total, 4L * Int32Bytes);
-        Add(ref total, 4L * Int32Bytes);
-        Add(ref total, 5L * 2 * Int32Bytes);
-        Add(ref total, 2L * 4 * Int32Bytes);
-        Add(ref total, Int32Bytes);
+        Add(ref total, Unsafe.SizeOf<SixelParseResultContent>());
         Add(ref total, GetPaletteCommandsBytes(parse.PaletteMutations));
         Add(ref total, GetPaletteCommandsBytes(parse.FinalPaletteDefinitions));
-        foreach (var command in parse.Commands)
-        {
-            Add(ref total, 5L * Int32Bytes + NullableMarkerBytes);
-            if (command.Palette is { } palette)
-                Add(ref total, GetPaletteCommandBytes(palette));
-        }
-        Add(ref total, BooleanBytes + Int32Bytes);
+        Add(
+            ref total,
+            GetCollectionBytes(
+                parse.Commands,
+                Unsafe.SizeOf<SixelCommand>()));
         Add(ref total, GetDiagnosticsBytes(parse.Diagnostics));
         return total;
     }
@@ -77,56 +64,53 @@ internal static class SixelRetainedSize
             return 0;
 
         var total = 0L;
-        Add(ref total, preparation.Identity.Length);
-        Add(ref total, Rgba32Bytes);
-        Add(ref total, SaturatingMultiply(preparation.Environment.Registers.Count, Rgba32Bytes));
+        Add(ref total, GetArrayBytes(preparation.Identity.Length, sizeof(byte)));
+        Add(ref total, Unsafe.SizeOf<SixelRasterPreparationContent>());
+        Add(
+            ref total,
+            GetArrayBytes(preparation.Environment.Registers.Count, Rgba32Bytes));
         return total;
     }
 
     private static long GetPaletteCommandsBytes(IReadOnlyList<SixelPaletteCommand> commands)
-    {
-        var total = 0L;
-        foreach (var command in commands)
-            Add(ref total, GetPaletteCommandBytes(command));
-        return total;
-    }
-
-    private static long GetPaletteCommandBytes(SixelPaletteCommand command)
-    {
-        long total = Int32Bytes;
-        Add(ref total, NullableMarkerBytes + (command.ColorSpace is null ? 0 : Int32Bytes));
-        Add(ref total, GetNullableIntBytes(command.X));
-        Add(ref total, GetNullableIntBytes(command.Y));
-        Add(ref total, GetNullableIntBytes(command.Z));
-        return total;
-    }
-
-    private static long GetNullableIntBytes(int? value) =>
-        NullableMarkerBytes + (value is null ? 0 : Int32Bytes);
+        => GetCollectionBytes(commands, Unsafe.SizeOf<SixelPaletteCommand>());
 
     private static long GetDiagnosticsBytes(IReadOnlyList<SixelDiagnostic> diagnostics)
     {
-        var total = 0L;
+        var total = GetCollectionBytes(
+            diagnostics,
+            Unsafe.SizeOf<SixelDiagnostic>());
         foreach (var diagnostic in diagnostics)
-        {
-            Add(ref total, Int32Bytes + Int64Bytes + NullableMarkerBytes);
-            if (diagnostic.Command is not null)
-                Add(ref total, sizeof(byte));
-            Add(ref total, Encoding.UTF8.GetByteCount(diagnostic.Message));
-        }
+            Add(ref total, GetStringBytes(diagnostic.Message));
         return total;
     }
 
     private static long GetRasterDiagnosticsBytes(
         IReadOnlyList<SixelRasterDiagnostic> diagnostics)
     {
-        var total = 0L;
+        var total = GetCollectionBytes(
+            diagnostics,
+            Unsafe.SizeOf<SixelRasterDiagnostic>());
         foreach (var diagnostic in diagnostics)
-        {
-            Add(ref total, Int32Bytes);
-            Add(ref total, Encoding.UTF8.GetByteCount(diagnostic.Message));
-        }
+            Add(ref total, GetStringBytes(diagnostic.Message));
         return total;
+    }
+
+    private static long GetStringBytes(string value) =>
+        AlignToEight(SaturatingAdd(
+            StringHeaderBytes,
+            SaturatingMultiply((long)value.Length + 1, sizeof(char))));
+
+    private static long GetArrayBytes(long length, int elementSize) =>
+        AlignToEight(
+            SaturatingAdd(ArrayHeaderBytes, SaturatingMultiply(length, elementSize)));
+
+    private static long GetCollectionBytes<T>(
+        IReadOnlyList<T> values,
+        int elementSize)
+    {
+        var capacity = values is List<T> list ? list.Capacity : values.Count;
+        return GetArrayBytes(capacity, elementSize);
     }
 
     private static long SaturatingMultiply(long left, long right)
@@ -136,8 +120,49 @@ internal static class SixelRetainedSize
         return left > long.MaxValue / right ? long.MaxValue : left * right;
     }
 
+    private static long SaturatingAdd(long left, long right) =>
+        right > long.MaxValue - left ? long.MaxValue : left + right;
+
+    private static long AlignToEight(long value) =>
+        value > long.MaxValue - 7 ? long.MaxValue : (value + 7) & ~7L;
+
     private static void Add(ref long total, long value)
     {
         total = value > long.MaxValue - total ? long.MaxValue : total + value;
     }
+
+    private readonly record struct SixelParseResultContent(
+        SixelHeader Header,
+        SixelRasterAttributes? RasterAttributes,
+        SixelPoint GraphicsCursor,
+        SixelPoint MaximumCommandOrDataPosition,
+        SixelExtent DeclaredExtent,
+        SixelExtent DataExtent,
+        SixelBounds PaintedBounds,
+        SixelExtent LogicalCanvasExtent,
+        SixelExtent UnscaledDataExtent,
+        SixelBounds UnscaledPaintedBounds,
+        SixelExtent UnscaledLogicalCanvasExtent,
+        int SelectedColorRegister,
+        nint PaletteMutations,
+        nint FinalPaletteDefinitions,
+        nint Commands,
+        bool CommandsComplete,
+        SixelParseOutcome Outcome,
+        nint Diagnostics);
+
+    private readonly record struct SixelRasterPreparationContent(
+        Rgba32 Background,
+        nint Registers,
+        nint Policy,
+        nint Identity);
+
+    private readonly record struct SixelRasterResultContent(
+        SixelRasterStatus Status,
+        SixelRasterExtents Extents,
+        nint Image,
+        SixelBackgroundMode BackgroundMode,
+        Rgba32 UnpaintedPixel,
+        nint Identity,
+        nint Diagnostics);
 }

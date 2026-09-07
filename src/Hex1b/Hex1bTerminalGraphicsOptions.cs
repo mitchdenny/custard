@@ -90,14 +90,16 @@ public sealed class Hex1bTerminalGraphicsOptions
     /// by one screen. The default is 335,544,320 bytes.
     /// </summary>
     /// <remarks>
-    /// The main and alternate screens each receive an independent budget. KGP
-    /// counts encoded image and animation-frame bytes. Sixel counts each distinct
-    /// image once, including retained payload, parsed metadata, sparse raster
-    /// tiles, and a cached dense pixel buffer. Sixel evicts the oldest placements
-    /// whose image is not the resource currently growing; if one image cannot fit,
-    /// the new placement or cache is not retained. A value of zero disables
-    /// retained byte-backed image data. Per-image input and raster limits remain
-    /// independent safety bounds.
+    /// The main and alternate screens each receive one shared budget across all
+    /// graphics protocols. KGP counts encoded image and animation-frame bytes.
+    /// Sixel counts each distinct image once, including retained payload, parsed
+    /// metadata, sparse raster tiles, and a cached dense pixel buffer. Each
+    /// protocol applies its established oldest-first eviction order to its own
+    /// resources; a new resource is rejected when it cannot fit after those
+    /// evictions, without destroying another protocol's placements. Lazy Sixel
+    /// cache growth is non-destructive and remains uncached when it cannot fit.
+    /// A value of zero disables retained byte-backed image data. Per-image input
+    /// and raster limits remain independent safety bounds.
     /// </remarks>
     public long MaximumRetainedBytesPerScreen { get; set; } = 320L * 1024 * 1024;
 

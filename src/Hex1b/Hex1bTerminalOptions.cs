@@ -165,21 +165,82 @@ public sealed class Hex1bTerminalOptions
 
     internal Sixel.SixelCompatibilityPolicy CreateSixelPolicy()
     {
-        var tileArea = checked(
-            (long)SixelPolicy.RasterTileSize * SixelPolicy.RasterTileSize);
-        var maximumRasterTiles = checked((int)(
-            (Graphics.MaximumRasterPixelsPerImage + tileArea - 1) / tileArea));
+        ValidateSixelPolicyResourceLimits();
         return SixelPolicy with
         {
             MaximumRetainedDcsBytes = Graphics.MaximumRetainedInputBytesPerImage,
             MaximumRasterPixels = Graphics.MaximumRasterPixelsPerImage,
             MaximumRasterOperations = Graphics.MaximumRasterOperationsPerImage,
-            MaximumRasterTiles = maximumRasterTiles,
             MaximumPlacementsPerScreen = Graphics.MaximumPlacementsPerScreen,
             MaximumHistoryPlacements = Graphics.MaximumHistoryPlacements,
             MaximumImagesPerScreen = Graphics.MaximumImagesPerScreen,
             MaximumRetainedLogicalPixelsPerScreen =
                 Graphics.MaximumRetainedLogicalPixelsPerScreen,
         };
+    }
+
+    private void ValidateSixelPolicyResourceLimits()
+    {
+        var defaults = Sixel.SixelCompatibilityPolicy.Default;
+        EnsureNoConflict(
+            nameof(Sixel.SixelCompatibilityPolicy.MaximumRetainedDcsBytes),
+            SixelPolicy.MaximumRetainedDcsBytes,
+            defaults.MaximumRetainedDcsBytes,
+            nameof(Hex1bTerminalGraphicsOptions.MaximumRetainedInputBytesPerImage),
+            Graphics.MaximumRetainedInputBytesPerImage);
+        EnsureNoConflict(
+            nameof(Sixel.SixelCompatibilityPolicy.MaximumRasterPixels),
+            SixelPolicy.MaximumRasterPixels,
+            defaults.MaximumRasterPixels,
+            nameof(Hex1bTerminalGraphicsOptions.MaximumRasterPixelsPerImage),
+            Graphics.MaximumRasterPixelsPerImage);
+        EnsureNoConflict(
+            nameof(Sixel.SixelCompatibilityPolicy.MaximumRasterOperations),
+            SixelPolicy.MaximumRasterOperations,
+            defaults.MaximumRasterOperations,
+            nameof(Hex1bTerminalGraphicsOptions.MaximumRasterOperationsPerImage),
+            Graphics.MaximumRasterOperationsPerImage);
+        EnsureNoConflict(
+            nameof(Sixel.SixelCompatibilityPolicy.MaximumPlacementsPerScreen),
+            SixelPolicy.MaximumPlacementsPerScreen,
+            defaults.MaximumPlacementsPerScreen,
+            nameof(Hex1bTerminalGraphicsOptions.MaximumPlacementsPerScreen),
+            Graphics.MaximumPlacementsPerScreen);
+        EnsureNoConflict(
+            nameof(Sixel.SixelCompatibilityPolicy.MaximumHistoryPlacements),
+            SixelPolicy.MaximumHistoryPlacements,
+            defaults.MaximumHistoryPlacements,
+            nameof(Hex1bTerminalGraphicsOptions.MaximumHistoryPlacements),
+            Graphics.MaximumHistoryPlacements);
+        EnsureNoConflict(
+            nameof(Sixel.SixelCompatibilityPolicy.MaximumImagesPerScreen),
+            SixelPolicy.MaximumImagesPerScreen,
+            defaults.MaximumImagesPerScreen,
+            nameof(Hex1bTerminalGraphicsOptions.MaximumImagesPerScreen),
+            Graphics.MaximumImagesPerScreen);
+        EnsureNoConflict(
+            nameof(Sixel.SixelCompatibilityPolicy.MaximumRetainedLogicalPixelsPerScreen),
+            SixelPolicy.MaximumRetainedLogicalPixelsPerScreen,
+            defaults.MaximumRetainedLogicalPixelsPerScreen,
+            nameof(Hex1bTerminalGraphicsOptions.MaximumRetainedLogicalPixelsPerScreen),
+            Graphics.MaximumRetainedLogicalPixelsPerScreen);
+    }
+
+    private static void EnsureNoConflict<T>(
+        string policyName,
+        T policyValue,
+        T defaultPolicyValue,
+        string graphicsName,
+        T graphicsValue)
+        where T : IEquatable<T>
+    {
+        if (!policyValue.Equals(defaultPolicyValue) &&
+            !policyValue.Equals(graphicsValue))
+        {
+            throw new InvalidOperationException(
+                $"Internal Sixel policy limit {policyName} conflicts with " +
+                $"{nameof(Graphics)}.{graphicsName}. Configure the public graphics " +
+                "limit with the same value.");
+        }
     }
 }

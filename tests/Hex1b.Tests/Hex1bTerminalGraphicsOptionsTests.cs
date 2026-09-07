@@ -18,6 +18,25 @@ public class Hex1bTerminalGraphicsOptionsTests
             64L * 1024 * 1024,
             options.MaximumRetainedLogicalPixelsPerScreen);
         Assert.AreEqual(320L * 1024 * 1024, options.MaximumRetainedBytesPerScreen);
+
+        var policy = new Hex1bTerminalOptions().CreateSixelPolicy();
+        Assert.AreEqual(4_096, policy.MaximumRasterTiles);
+    }
+
+    [TestMethod]
+    public void MaximumRasterPixels_MaximumValue_DerivesTileCountWithoutOverflow()
+    {
+        var options = new Hex1bTerminalOptions
+        {
+            Graphics = new Hex1bTerminalGraphicsOptions
+            {
+                MaximumRasterPixelsPerImage = int.MaxValue,
+            },
+        };
+
+        var policy = options.CreateSixelPolicy();
+
+        Assert.AreEqual(524_288, policy.MaximumRasterTiles);
     }
 
     [TestMethod]
@@ -96,6 +115,48 @@ public class Hex1bTerminalGraphicsOptionsTests
             {
                 MaximumRetainedInputBytesPerImage = 0,
                 MaximumRetainedBytesPerScreen = 0,
+            },
+        });
+    }
+
+    [TestMethod]
+    public void Construction_ConflictingInternalAndPublicLimits_Throws()
+    {
+        using var workload = new Hex1bAppWorkloadAdapter();
+        var options = new Hex1bTerminalOptions
+        {
+            WorkloadAdapter = workload,
+            SixelPolicy = global::Hex1b.Sixel.SixelCompatibilityPolicy.Default with
+            {
+                MaximumImagesPerScreen = 1,
+            },
+        };
+
+        var exception = Assert.ThrowsExactly<InvalidOperationException>(
+            () => new Hex1bTerminal(options));
+
+        StringAssert.Contains(
+            exception.Message,
+            nameof(global::Hex1b.Sixel.SixelCompatibilityPolicy.MaximumImagesPerScreen));
+        StringAssert.Contains(
+            exception.Message,
+            nameof(Hex1bTerminalGraphicsOptions.MaximumImagesPerScreen));
+    }
+
+    [TestMethod]
+    public void Construction_MatchingInternalAndPublicLimits_IsAllowed()
+    {
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = new Hex1bTerminal(new Hex1bTerminalOptions
+        {
+            WorkloadAdapter = workload,
+            SixelPolicy = global::Hex1b.Sixel.SixelCompatibilityPolicy.Default with
+            {
+                MaximumImagesPerScreen = 1,
+            },
+            Graphics = new Hex1bTerminalGraphicsOptions
+            {
+                MaximumImagesPerScreen = 1,
             },
         });
     }

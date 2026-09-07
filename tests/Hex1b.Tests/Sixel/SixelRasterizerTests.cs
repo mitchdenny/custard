@@ -791,23 +791,37 @@ public class SixelRasterizerTests
     }
 
     [TestMethod]
-    public void SparseTileBudget_ReturnsGeometryOnlyInsteadOfAPartialRaster()
+    public void PublicPixelLimit_NonAlignedDenseSquare_DoesNotExhaustTileBudget()
     {
-        var policy = SixelCompatibilityPolicy.Default with
+        var options = new Hex1bTerminalOptions
         {
-            MaximumRasterTiles = 1,
+            Graphics = new Hex1bTerminalGraphicsOptions
+            {
+                MaximumRasterPixelsPerImage = 1_000_000,
+                MaximumRasterOperationsPerImage = 1_000_000,
+            },
         };
+        var policy = options.CreateSixelPolicy();
+        var payload = new StringBuilder("0;1q\"1;1;1000;1000");
+        for (var band = 0; band < 166; band++)
+            payload.Append("!1000~-");
+
         var result = SixelRasterizer.Rasterize(
-            SixelParser.ParsePayload("7;1q!65~"),
+            SixelParser.ParsePayload(payload.ToString()),
             new SixelRasterEnvironment(
                 policy.DefaultBackground,
                 new SixelColorRegisters(policy),
                 policy));
 
-        Assert.AreEqual(SixelRasterStatus.GeometryOnly, result.Status);
-        Assert.IsNull(result.Image);
-        Assert.AreEqual(new SixelExtent(65, 6), result.Extents.Logical);
-        Assert.IsTrue(result.Diagnostics.Any(
+        Assert.AreEqual(
+            SixelRasterStatus.Rasterized,
+            result.Status,
+            string.Join(Environment.NewLine, result.Diagnostics.Select(item => item.Message)));
+        Assert.IsNotNull(result.Image);
+        Assert.AreEqual(1_000_000L, result.Image.PixelCount);
+        Assert.AreEqual(244, result.Image.AllocatedTileCount);
+        Assert.AreEqual(245, policy.MaximumRasterTiles);
+        Assert.IsFalse(result.Diagnostics.Any(
             item => item.Code == SixelRasterDiagnosticCode.RasterTileLimitExceeded));
     }
 

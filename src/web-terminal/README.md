@@ -253,5 +253,6 @@ Only `dist/`, this README, the MIT license, and package metadata are shipped.
 A prepared tarball is self-contained and can be published with
 `npm publish ./hex1b-web-terminal-<version>.tgz --ignore-scripts`; it does not
 need development sources or build scripts. The package name is always
-`@hex1b/web-terminal`, including GitHub Packages. Registry selection is left to
-the caller; no registry is pinned in `package.json`.
+`@hex1b/web-terminal`. CI publishes main/release builds to npmjs; PR builds
+provide the tarball as the `npm-web-terminal` workflow artifact and do not
+publish it to a registry. No registry is pinned in `package.json`.

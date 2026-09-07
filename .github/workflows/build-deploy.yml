@@ -66,9 +66,6 @@ jobs:
           node-version: '24'
           package-manager-cache: false
 
-      - name: Test npm publishing logic
-        run: node --test .github/scripts/publish-web-terminal.test.mjs
-
       - name: Install web terminal dependencies
         working-directory: src/web-terminal
         run: npm ci --registry=https://registry.npmjs.org
@@ -105,7 +102,7 @@ jobs:
         run: node .github/scripts/publish-web-terminal.mjs --verify
 
       - name: Upload npm artifact
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: npm-web-terminal
           path: artifacts/npm/*.tgz
@@ -187,7 +184,7 @@ jobs:
         if: runner.os == 'Linux'
         uses: actions/setup-node@v6
         with:
-          node-version: '20'
+          node-version: '24'
 
       - name: Generate API reference docs
         if: runner.os == 'Linux'
@@ -203,7 +200,7 @@ jobs:
           aspire do build-content
 
       - name: Publish test results
-        uses: dorny/test-reporter@v1
+        uses: dorny/test-reporter@v3
         if: success() || failure()
         with:
           name: Test Results (${{ runner.os }})
@@ -211,14 +208,14 @@ jobs:
           reporter: dotnet-trx
 
       - name: Upload test results
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         if: success() || failure()
         with:
           name: test-results-${{ runner.os }}
           path: ./TestResults/
 
       - name: Upload SVG attachments
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         if: success() || failure()
         with:
           name: svg-attachments-${{ runner.os }}
@@ -237,7 +234,7 @@ jobs:
         run: make
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: native-linux-x64
           path: src/Hex1b/runtimes/linux-x64/native/libhex1binterop.so
@@ -253,7 +250,7 @@ jobs:
         run: make
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: native-linux-arm64
           path: src/Hex1b/runtimes/linux-arm64/native/libhex1binterop.so
@@ -269,7 +266,7 @@ jobs:
         run: make TARGET_ARCH=x86_64
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: native-osx-x64
           path: src/Hex1b/runtimes/osx-x64/native/libhex1binterop.dylib
@@ -285,7 +282,7 @@ jobs:
         run: make
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: native-osx-arm64
           path: src/Hex1b/runtimes/osx-arm64/native/libhex1binterop.dylib
@@ -306,7 +303,7 @@ jobs:
         run: dotnet publish .\src\Hex1b.PtyHost\Hex1b.PtyHost.csproj -c Release -r win-x64 --nologo -p:PublishAot=true -p:SelfContained=true -o .\artifacts\pty-host\win-x64
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: pty-host-windows-x64
           path: artifacts/pty-host/win-x64/hex1bpty.exe
@@ -327,7 +324,7 @@ jobs:
         run: dotnet publish .\src\Hex1b.PtyHost\Hex1b.PtyHost.csproj -c Release -r win-arm64 --nologo -p:PublishAot=true -p:SelfContained=true -o .\artifacts\pty-host\win-arm64
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: pty-host-windows-arm64
           path: artifacts/pty-host/win-arm64/hex1bpty.exe
@@ -349,37 +346,37 @@ jobs:
           dotnet-version: '10.0.x'
 
       - name: Download native library - linux-x64
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v7
         with:
           name: native-linux-x64
           path: src/Hex1b/runtimes/linux-x64/native
 
       - name: Download native library - linux-arm64
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v7
         with:
           name: native-linux-arm64
           path: src/Hex1b/runtimes/linux-arm64/native
 
       - name: Download native library - osx-x64
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v7
         with:
           name: native-osx-x64
           path: src/Hex1b/runtimes/osx-x64/native
 
       - name: Download native library - osx-arm64
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v7
         with:
           name: native-osx-arm64
           path: src/Hex1b/runtimes/osx-arm64/native
 
       - name: Download PTY shim - win-x64
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v7
         with:
           name: pty-host-windows-x64
           path: src/Hex1b/runtimes/win-x64/native
 
       - name: Download PTY shim - win-arm64
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v7
         with:
           name: pty-host-windows-arm64
           path: src/Hex1b/runtimes/win-arm64/native
@@ -471,7 +468,7 @@ jobs:
           printf '%s\n' "${expected_tool_assets[@]}"
 
       - name: Upload artifacts
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: nuget-packages-pr
           path: ./artifacts/*.nupkg
@@ -493,37 +490,37 @@ jobs:
           dotnet-version: '10.0.x'
 
       - name: Download native library - linux-x64
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v7
         with:
           name: native-linux-x64
           path: src/Hex1b/runtimes/linux-x64/native
 
       - name: Download native library - linux-arm64
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v7
         with:
           name: native-linux-arm64
           path: src/Hex1b/runtimes/linux-arm64/native
 
       - name: Download native library - osx-x64
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v7
         with:
           name: native-osx-x64
           path: src/Hex1b/runtimes/osx-x64/native
 
       - name: Download native library - osx-arm64
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v7
         with:
           name: native-osx-arm64
           path: src/Hex1b/runtimes/osx-arm64/native
 
       - name: Download PTY shim - win-x64
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v7
         with:
           name: pty-host-windows-x64
           path: src/Hex1b/runtimes/win-x64/native
 
       - name: Download PTY shim - win-arm64
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v7
         with:
           name: pty-host-windows-arm64
           path: src/Hex1b/runtimes/win-arm64/native
@@ -615,7 +612,7 @@ jobs:
           printf '%s\n' "${expected_tool_assets[@]}"
 
       - name: Upload artifacts
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: nuget-packages-release
           path: ./artifacts/*.nupkg
@@ -643,32 +640,10 @@ jobs:
           persist-credentials: false
 
       - name: Download artifacts
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v7
         with:
           name: nuget-packages-pr
           path: ./artifacts
-
-      - name: Download npm artifact
-        uses: actions/download-artifact@v5
-        with:
-          name: npm-web-terminal
-          path: artifacts/npm
-
-      - name: Setup Node.js for GitHub Packages
-        uses: actions/setup-node@v6
-        with:
-          node-version: '24'
-          registry-url: https://npm.pkg.github.com
-          scope: '@hex1b'
-          package-manager-cache: false
-
-      - name: Publish npm preview to GitHub Packages
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_GITHUB_PACKAGES_TOKEN || github.token }}
-          PACKAGE_VERSION: ${{ needs.version.outputs.version }}
-          PACKAGE_KIND: ${{ needs.version.outputs.kind }}
-          PR_NUMBER: ${{ github.event.pull_request.number }}
-        run: node .github/scripts/publish-web-terminal.mjs
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v5
@@ -709,7 +684,7 @@ jobs:
           cat > artifacts/pr_comment.md << EOF
           ## 📦 PR Packages Published
 
-          Preview packages for this PR have been published to GitHub Packages.
+          NuGet preview packages for this PR have been published to GitHub Packages.
 
           ### Package Version
           \`${PACKAGE_VERSION}\`
@@ -721,18 +696,22 @@ jobs:
           | Hex1b | Core TUI library |
           | Hex1b.McpServer | MCP server for terminal session management |
           | Hex1b.Tool | CLI tool for terminal management and diagnostics |
-          | @hex1b/web-terminal | Paired experimental HWT1 browser client |
 
           ### Usage Examples
 
-          **Browser client (GitHub Packages login required):**
+          **Browser client (downloadable workflow artifact):**
+
+          The npm package is not published to a registry for PRs. Download the
+          \`npm-web-terminal\` artifact from [this workflow run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}),
+          or use the GitHub CLI:
+
           \`\`\`bash
-          npm install @hex1b/web-terminal@${PACKAGE_VERSION} --save-exact --registry=https://npm.pkg.github.com
+          gh run download ${{ github.run_id }} --repo ${{ github.repository }} --name npm-web-terminal --dir artifacts/npm
+          npm install ./artifacts/npm/hex1b-web-terminal-${PACKAGE_VERSION}.tgz --save-exact
           \`\`\`
 
-          The moving npm preview tag is \`pr-${{ github.event.pull_request.number }}\`.
-          Pin the exact version above alongside the matching Hex1b NuGet packages.
-          See the [publishing and authentication guide](https://github.com/mitchdenny/hex1b/blob/${{ github.event.pull_request.head.sha }}/docs/web-terminal-publishing.md).
+          Use this tarball alongside the matching Hex1b NuGet packages.
+          See the [publishing guide](https://github.com/mitchdenny/hex1b/blob/${{ github.event.pull_request.head.sha }}/docs/web-terminal-publishing.md).
 
           **Hex1b - PackageReference (csproj):**
           \`\`\`xml
@@ -830,13 +809,13 @@ jobs:
         uses: actions/checkout@v5
 
       - name: Download artifacts
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v7
         with:
           name: nuget-packages-release
           path: ./artifacts
 
       - name: Download npm artifact
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v7
         with:
           name: npm-web-terminal
           path: artifacts/npm
@@ -1066,7 +1045,7 @@ jobs:
           aspire --version
 
       - name: Azure Login
-        uses: azure/login@v2
+        uses: azure/login@v3
         with:
           client-id: ${{ secrets.AZURE_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}

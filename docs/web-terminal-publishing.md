@@ -6,8 +6,10 @@ version from the same build**. It is a paired client, not an independently
 versioned protocol implementation: there is no promise of wire compatibility
 between arbitrary browser-client and server versions.
 
-The package name is **`@hex1b/web-terminal` in both registries**. Its source
-repository remains `mitchdenny/hex1b`, and its `package.json` contains:
+The package name is **`@hex1b/web-terminal`**. Main and release builds publish
+to npmjs; PR builds provide a downloadable tarball, not an npm registry
+publication. Its source repository remains `mitchdenny/hex1b`, and its
+`package.json` contains:
 
 ```json
 {
@@ -29,17 +31,19 @@ existing [version action](../.github/actions/version/action.yml). The npm build
 consumes **exactly `needs.version.outputs.version`**, just like the NuGet builds.
 It does not derive a separate npm version from tags, commits, or `package.json`.
 
-| Build | Registry | Version from the common version job | npm dist-tag |
+| Build | Distribution | Version from the common version job | npm dist-tag |
 | --- | --- | --- | --- |
-| Same-repository PR | `https://npm.pkg.github.com` | `BASE-pr.NUM.RUN.ATTEMPT.SHA` | `pr-NUM` |
+| PR | `npm-web-terminal` workflow artifact | `BASE-pr.NUM.RUN.ATTEMPT.SHA` | None |
 | `main` | `https://registry.npmjs.org` | `BASE-alpha.RUN.ATTEMPT.SHA` | `alpha` |
 | `release/X.Y` preview | `https://registry.npmjs.org` | `BASE-beta.RUN.ATTEMPT.SHA` | `beta` |
 | Manual dispatch on `release/X.Y` with `release=true` | `https://registry.npmjs.org` | `BASE` | `latest` |
 
 `BASE`, the PR number, run number, attempt, and short SHA are all supplied by the
 existing version action. Prereleases never move `latest`. Fork and Dependabot
-PRs still build and test, but **do not run the credential-bearing publish job**.
-Publishing jobs run only in the canonical repository.
+PRs still build, test, and upload the npm artifact, but **do not run the
+credential-bearing NuGet publish job**. Same-repository PRs continue publishing
+NuGet previews to GitHub Packages. Publishing jobs run only in the canonical
+repository.
 If a short SHA is entirely numeric and starts with zero, the shared action
 prefixes that identifier with `g` to satisfy npm's SemVer rules. This
 normalization applies to both npm and NuGet, not just one distribution.
@@ -52,7 +56,7 @@ sample's build command to compile the library once, check the playground's
 TypeScript consumer, and copy its browser assets. It then tests and packs that
 same library build, uploading the tested `.tgz` as `npm-web-terminal`.
 The .NET test/package jobs depend on that job. Publishing downloads this artifact
-and uses `npm publish <tarball> --ignore-scripts`; it does not install development
+for npmjs and uses `npm publish <tarball> --ignore-scripts`; it does not install development
 dependencies, rebuild, or run package lifecycle scripts with publishing credentials.
 No npm version-stamping commit or git tag is created.
 
@@ -63,8 +67,8 @@ the npm organization `hex1b`, and configure interactive login and two-factor
 authentication. This npm organization is independent of any GitHub organization.
 
 Leave the repository Actions variable `NPM_PUBLISH_ENABLED` unset or set to
-`false`. This disables only automated **npmjs** publication; build artifacts,
-NuGet publishing, and the configured GitHub Packages preview flow remain available.
+`false`. This disables only automated **npmjs** publication; build artifacts
+and NuGet publishing remain available.
 
 From the repository root, using Node.js 24 and npm **11.5.1 or newer**:
 
@@ -101,7 +105,7 @@ npm view @hex1b/web-terminal@0.1.0 version --registry=https://registry.npmjs.org
 
 Complete npm's browser/2FA prompts. Do not put an OTP or login credential into
 the repository or a CI secret. Check any existing local `@hex1b:registry` mapping:
-it must point to npmjs for this bootstrap, not GitHub Packages.
+it must point to npmjs for this bootstrap.
 
 This initial `0.1.0` publication creates the npm package so you can configure its
 trusted publisher. It is **independent of the common CI version stream** and
@@ -149,63 +153,31 @@ This does not disable trusted publishing.
 See npm's [trusted-publisher documentation](https://docs.npmjs.com/trusted-publishers/)
 for current requirements and troubleshooting.
 
-## GitHub Packages preview prerequisites
+## PR preview artifacts
 
-On GitHub Packages, the `@hex1b` scope refers to a **GitHub** account or
-organization named `hex1b`. Owning an npmjs organization named `hex1b` does not
-create that GitHub namespace or grant permissions to it.
+PR builds do not publish the npm package to GitHub Packages or npmjs. They
+still build, test, and pack `@hex1b/web-terminal` with the shared PR version,
+then upload the tarball as the **`npm-web-terminal`** workflow artifact.
+There is no npm preview dist-tag or npm publishing-token prerequisite.
 
-Before expecting PR publication to succeed:
-
-1. Confirm the GitHub `hex1b` namespace exists, is controlled by the intended
-   owner, and allows this package and publisher.
-2. Verify GitHub accepts the package's association with the canonical
-   `mitchdenny/hex1b` repository. GitHub's npm registry uses `repository.url`
-   for repository association. Its documentation distinguishes repository
-   association, inherited permissions, and **Manage Actions access**, but does
-   **not guarantee this cross-owner association**. Do not assume a token alone
-   bypasses namespace or repository-association restrictions. If GitHub rejects
-   this arrangement, resolve the supported setup with the namespace administrator
-   or GitHub Support before relying on preview publication. The workflow does
-   not rename the package, change its repository URL, or strip its metadata.
-3. Where GitHub supports the association/access arrangement, grant the workflow
-   repository appropriate package write access. Without an override, the job
-   uses its `github.token` with `packages: write`.
-4. If a separate authorized identity is required, configure the repository
-   secret **`NPM_GITHUB_PACKAGES_TOKEN`** with a **classic PAT**, granting
-   `write:packages` and `read:packages` and the required namespace/package
-   permissions (including organization authorization where required).
-   The workflow uses this token in preference to `github.token`, only in the
-   GitHub npm publish step. A PAT is an authentication option, **not a guarantee
-   of cross-owner publication**.
-5. Configure package visibility and consumer access on GitHub. npm packages
-   default to private there; even public npm packages on GitHub require
-   authentication to install.
-
-These are external setup prerequisites, not completed by this change. An
-incompatible GitHub namespace/repository setup blocks preview publication
-without changing the required package name. npmjs trusted publishing is
-configured separately and does not use this PAT.
-
-To consume a PR preview, authenticate using a GitHub username and a classic
-PAT with `read:packages` when prompted, then install the exact version printed
-by the PR workflow (replace the example below with that version):
+Download that artifact from the PR's Deploy workflow run in GitHub Actions,
+or use the GitHub CLI. Replace `RUN_ID` and `VERSION` below with the values
+from that run:
 
 ```bash
-npm login --scope=@hex1b --auth-type=legacy --registry=https://npm.pkg.github.com
-npm install @hex1b/web-terminal@0.43.0-pr.123.202.1.abc1234 --save-exact --registry=https://npm.pkg.github.com
+gh run download RUN_ID --repo mitchdenny/hex1b --name npm-web-terminal --dir artifacts/npm
+npm install ./artifacts/npm/hex1b-web-terminal-VERSION.tgz --save-exact
 ```
 
-This login may create a user-level `@hex1b:registry` mapping. Switch it back with
-`npm config set @hex1b:registry https://registry.npmjs.org --location=user` when
-returning to npmjs, and check for project-level mappings too. Keep registry
-credentials outside committed files. A moving `pr-123` tag is convenient for
-discovery, but pin the resolved version alongside matching NuGet packages.
+Authenticate the GitHub CLI with `gh auth login` if needed to download workflow
+artifacts. Installing the downloaded tarball does not require a GitHub Packages
+registry login. Preserve the tarball if you need it beyond the workflow's
+artifact retention period.
 
-See GitHub's official guides for the
-[npm registry and authentication](https://docs.github.com/en/packages/working-with-a-github-packages-registry/working-with-the-npm-registry),
-[repository association](https://docs.github.com/en/packages/learn-github-packages/connecting-a-repository-to-a-package),
-and [package/Actions access](https://docs.github.com/en/packages/learn-github-packages/configuring-a-packages-access-control-and-visibility).
+Use the browser tarball with the matching Hex1b NuGet packages from the same
+run. Same-repository PRs continue publishing those NuGet packages to GitHub
+Packages, and the PR comment contains their feed/authentication instructions.
+Fork and Dependabot PRs do not publish NuGet packages.
 
 ## Failure handling and retries
 
@@ -213,16 +185,15 @@ The workflow serializes publishing per branch. The existing stale-beta check
 applies to **both** npm and NuGet: if the final `vBASE` tag already exists, neither
 publishes that beta.
 
-For npm, the helper first queries the exact package version in the selected
-registry. An already published version is skipped; only an npm `E404`/HTTP 404
+For npmjs, the helper first queries the exact package version in the registry.
+An already published version is skipped; only an npm `E404`/HTTP 404
 means absent. Authentication, authorization, network, rate-limit, malformed
 responses, and server failures stop the job rather than trigger a blind publish.
-GitHub may hide inaccessible packages behind a 404, so verify permissions when
-troubleshooting an unexpected publish rejection.
 
-npm publication runs **before NuGet**. If npm fails, NuGet has not been pushed by
-that job; if NuGet subsequently fails, retrying the failed publish job reuses the
-artifact, skips an existing npm version, and uses NuGet's duplicate-safe push.
+For main and release builds, enabled npm publication runs **before NuGet**.
+If npm fails, NuGet has not been pushed by that job; if NuGet subsequently fails,
+retrying the failed publish job reuses the artifact, skips an existing npm
+version, and uses NuGet's duplicate-safe push.
 Existing npm versions are not republished or retagged on retry. Review any
 partially completed stable GitHub release/baseline dispatch separately.
 
@@ -231,12 +202,6 @@ outputs and artifacts. Rerunning the whole workflow can compute a different
 version because attempt numbers and release tags are inputs to the version
 action. npm does not permit reusing a published name/version, even after
 unpublishing.
-
-To test publication decisions locally without publishing or registry requests:
-
-```bash
-node --test .github/scripts/publish-web-terminal.test.mjs
-```
 
 Further npm references:
 [publishing scoped public packages](https://docs.npmjs.com/creating-and-publishing-scoped-public-packages/),

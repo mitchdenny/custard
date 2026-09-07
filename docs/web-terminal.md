@@ -680,7 +680,7 @@ terminal output, links, clipboard requests, and graphics payloads.
 ## Package distribution
 
 [`@hex1b/web-terminal`](../src/web-terminal/README.md) is the chosen npm
-package name on both npmjs and GitHub Packages. Strict TypeScript sources
+package name. It is published to npmjs, not GitHub Packages. Strict TypeScript sources
 produce ES modules, declarations, a module worker, and the licensed default
 font. `WebTerminalDemo` consumes this package rather than maintaining another
 copy of the browser implementation.
@@ -693,7 +693,8 @@ Bundled consumers must ensure their toolchain emits the worker and font assets;
 do not assume importing a library module automatically copies every asset.
 
 CI uses the existing, single NuGet version calculation for the npm package too:
-PR previews go to GitHub Packages; main/release builds use npmjs after trusted
+PR browser previews are downloadable workflow artifacts; NuGet PR previews
+continue to go to GitHub Packages. Main/release builds use npmjs after trusted
 publishing is configured and enabled. The initial manual `0.1.0` publish
 bootstraps npm package ownership and publisher configuration, not a separate
 automated version stream. See the

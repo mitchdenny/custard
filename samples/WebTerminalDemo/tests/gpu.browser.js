@@ -9,7 +9,8 @@ async page => {
       const { TerminalRenderer } = await import("/web-terminal/renderer.js");
       const errors = [];
       const canvas = document.querySelector("canvas");
-      const renderer = await TerminalRenderer.create(canvas, 2, error => errors.push(error.message));
+      const renderer = await TerminalRenderer.create(canvas, 2, error => errors.push(error.message), undefined, "webgpu");
+      const { context, device, format } = renderer.backend;
       const check = (condition, message) => { if (!condition) throw new Error(message); };
       try {
         renderer.resize(40, 20, { width: 800, height: 800 });
@@ -18,7 +19,7 @@ async page => {
         await renderer.updateImages([{ key: "native", width: 3, height: 3, format: "rgba", byteLength: bytes.length, bytes }], ["native"]);
         const cells = [{ text: "A", width: 1, foreground: 0xffffffff, background: 0xff000000, underlineColor: 0xffffffff, attributes: 0, underlineStyle: 0 }];
         renderer.prepareGlyphs(cells);
-        renderer.context.configure({ device: renderer.device, format: renderer.format, alphaMode: "opaque",
+        context.configure({ device, format, alphaMode: "opaque",
           usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.COPY_SRC });
         const metadata = {
           defaultBackground: 0xff000000,
@@ -29,15 +30,15 @@ async page => {
         };
         renderer.render(cells, metadata, true);
         const bytesPerRow = Math.ceil(canvas.width * 4 / 256) * 256;
-        const readback = renderer.device.createBuffer({ size: bytesPerRow * canvas.height,
+        const readback = device.createBuffer({ size: bytesPerRow * canvas.height,
           usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ });
-        const copy = renderer.device.createCommandEncoder();
-        copy.copyTextureToBuffer({ texture: renderer.context.getCurrentTexture() },
+        const copy = device.createCommandEncoder();
+        copy.copyTextureToBuffer({ texture: context.getCurrentTexture() },
           { buffer: readback, bytesPerRow }, [canvas.width, canvas.height]);
-        renderer.device.queue.submit([copy.finish()]);
+        device.queue.submit([copy.finish()]);
         await readback.mapAsync(GPUMapMode.READ);
         const pixels = new Uint8Array(readback.getMappedRange());
-        const redIndex = renderer.format.startsWith("bgra") ? 2 : 0;
+        const redIndex = format.startsWith("bgra") ? 2 : 0;
         const blueIndex = redIndex === 2 ? 0 : 2;
         const red = [];
         for (let y = 0; y < canvas.height; y++) for (let x = 0; x < canvas.width; x++) {
@@ -59,7 +60,7 @@ async page => {
         check(thumbnail.imageUploadBytes === primary.imageUploadBytes && thumbnail.glyphUploadBytes === primary.glyphUploadBytes, "Viewport change reuploaded graphics or glyphs");
 
         renderer.resize(1000, 200);
-        const large = { columns: renderer.columns, rows: renderer.rows, width: canvas.width, height: canvas.height, limit: renderer.device.limits.maxTextureDimension2D };
+        const large = { columns: renderer.columns, rows: renderer.rows, width: canvas.width, height: canvas.height, limit: renderer.backend.maxCanvasDimension2D };
         check(large.columns === 1000 && large.rows === 200 && large.width <= large.limit && large.height <= large.limit, "Remote grid did not respect framebuffer bounds");
         renderer.resize(40, 20, { width: 0, height: 0 });
         renderer.render(cells, metadata, true);

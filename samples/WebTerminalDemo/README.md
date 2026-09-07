@@ -24,7 +24,7 @@ npm ci --prefix samples/WebTerminalDemo
 dotnet run --project samples/WebTerminalDemo -c Release
 ```
 
-Open <http://localhost:5290> in a browser with WebGPU and worker
+Open <http://localhost:5290> in a browser with WebGPU or WebGL2 and worker
 `OffscreenCanvas` support. The .NET build compiles the package and the
 TypeScript playground, then copies the package's complete `dist/` tree to
 `wwwroot/web-terminal/`. The playground consumes the package by its npm name,
@@ -90,7 +90,7 @@ origin:
 | `history.browser.js` | Shared producer history, independent viewports, character/word/logical-line/block selection, held/released wheel scrolling, clipboard intent, capture override, read-only inspection, and eviction. Clipboard writes are intercepted rather than changing the user's clipboard. |
 | `bindings.browser.js` | Per-view input overrides, named actions, Windows-style right-click copy/paste, clipboard failures/races, capture ownership, and native text/paste/IME paths. Clipboard access is mocked. |
 | `selection-ui.browser.js` | Default, augmented, and replaced selection controls; host CSS, highlight parts, canvas alignment, focus/input isolation, action reuse, UI errors, and disposal. |
-| `graphics.browser.js` | Sixel and KGP in two views, cached-image movement, and late attachment to silent server-driven animation. |
+| `graphics.browser.js` | Sixel and KGP in mixed WebGPU/WebGL2 views, renderer controls/diagnostics, cached-image movement, and late attachment to silent server-driven animation. |
 | `cloud-flicker.browser.js` | Real shell-launched Sixel/KGP cloud animations, sampling visible canvas pixels over at least 180 browser frames and ten received updates to detect blank/partial redraws. Build `samples/SixelCloudDemo` and `samples/KgpCloudDemo` in Release first. |
 | `nested-flicker.browser.js` | WindowingDemo's Bash terminal running KittySearch: hover animation must keep painting through unrelated parent redraws, with at least 180 sampled browser frames and five distinct image states. Build `samples/WindowingDemo` and `samples/KittySearch` in Release first. Requires Bash. |
 | `nested-sixel.browser.js` | WindowingDemo's Bash terminal running both SixelCloudDemo modes: native Sixel presentation, overlapping motes, and synchronized frame persistence. Build `samples/WindowingDemo` and `samples/SixelCloudDemo` in Release first. Requires Bash. |
@@ -98,7 +98,16 @@ origin:
 The full-stack fixtures create and delete their own terminal instances. Run them
 against an isolated demo server with capacity available, not a production host.
 Headless Chromium may need `--enable-unsafe-webgpu` in its test launch configuration.
-These fixtures use WebGPU APIs rather than the Node tests' stub GPU interface.
+The GPU fixtures exercise real browser graphics APIs rather than the Node tests'
+stub interfaces.
+
+`renderers.browser.js` compares real WebGPU/WebGL2 pixels, uploads, clipping,
+layering, glyphs, resizing and resource retention. It allows native horizontal
+edge-coverage differences only where geometry ends exactly on a pixel center.
+It also mounts real workers with only their WebSocket transport mocked on an
+ordinary HTTP origin, exercising HWT1 decoding, frame acknowledgements,
+automatic fallback and forced selection without weakening the sample host's
+loopback-only access policy.
 
 The package's Node regressions and TypeScript builds run in CI. The browser
 fixtures remain focused, explicitly invoked checks; they are not a claim of
@@ -136,6 +145,13 @@ existing instance without claiming primary, or creates a mixed instance if the
 registry is empty. A supported `?scene=...` selects a newly created workload.
 `?empty=1` suppresses automatic view creation/attachment for browser checks;
 the normal controls remain available.
+
+**New view renderer** chooses Auto (prefer WebGPU), WebGPU, or WebGL2 for newly
+opened views. `?renderer=webgl2` selects WebGL2 on initial load; `auto` and
+`webgpu` are also accepted. Existing views keep their backend until remounted.
+The selected-view metrics show the active backend and any automatic fallback
+reason. WebGPU requires HTTPS or localhost; the package can use WebGL2 on
+ordinary HTTP, but this demo's loopback-only host policy remains unchanged.
 
 ## Mount in a sized element
 
@@ -706,7 +722,7 @@ hidden or swapped. A one-second watchdog releases a missing end marker, and
 soft/full reset releases it immediately. Repeated begins do not extend the
 deadline. Unmarked output can still produce intermediate snapshots.
 
-At most one revision per view is in flight. The browser acknowledges after WebGPU reports
+At most one revision per view is in flight. The browser acknowledges after the selected GPU backend reports
 submitted work complete. While it is busy, the terminal continues to consume workload output;
 superseded display states coalesce, but workload commands are not discarded.
 Resync and resize establish a complete cell and resource baseline. A resync
@@ -798,8 +814,10 @@ produce frames.
 
 ## Limits and interpretation
 
-- WebGPU only; no software renderer or WebGL fallback. GPU/worker errors are
-  surfaced rather than silently switching rendering implementations.
+- Auto prefers WebGPU and falls back to WebGL2 for capability/device acquisition
+  failures. Explicit backend choices never fall back. Shader, font, unexpected
+  initialization, and runtime GPU/worker errors are surfaced, not hidden by a
+  backend switch. There is no Canvas2D terminal renderer.
 - Fixed 10x20 logical-pixel cells. Device pixel ratio affects browser
   rasterization, not terminal protocol geometry. Local resize/claim requests use
   20..300 columns and 10..100 rows; a native HMP1 primary can establish a larger

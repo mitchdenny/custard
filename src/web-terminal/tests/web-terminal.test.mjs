@@ -161,8 +161,9 @@ function renderer(scale = 2, limit = 8192) {
   const writes = [];
   const result = Object.create(TerminalRenderer.prototype);
   Object.assign(result, {
-    scale, columns: 0, rows: 0, canvas: { width: 0, height: 0 }, uniform: {},
-    device: { limits: { maxTextureDimension2D: limit }, queue: { writeBuffer: (...args) => writes.push(args[2]) } }
+    scale, columns: 0, rows: 0, canvas: { width: 0, height: 0 },
+    backend: { maxCanvasDimension2D: limit,
+      resize: (width, height) => writes.push(new Float32Array([width, height, 0, 0])) }
   });
   return { result, writes };
 }

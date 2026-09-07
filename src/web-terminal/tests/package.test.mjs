@@ -33,6 +33,8 @@ test("Packed allowlist ships a complete, registry-neutral browser package", () =
   const paths = new Set(packed.files.map(file => file.path));
   for (const file of ["package.json", "README.md", "LICENSE", "dist/index.js", "dist/index.d.ts",
     "dist/web-terminal.js", "dist/terminal-worker.js", "dist/renderer.js", "dist/protocol.js",
+    "dist/backend-selection.js", "dist/render-backend.js", "dist/renderer-options.js",
+    "dist/webgpu-backend.js", "dist/webgl2-backend.js",
     "dist/fonts/cascadia-mono-nf/CascadiaMonoNF.woff2",
     "dist/fonts/cascadia-mono-nf/LICENSE.txt", "dist/fonts/cascadia-mono-nf/README.md"]) {
     assert.ok(paths.has(file), `Missing ${file}`);

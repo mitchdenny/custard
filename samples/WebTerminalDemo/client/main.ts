@@ -156,6 +156,8 @@ function metrics(view: Pick<TerminalView, "id" | "stats" | "text"> & { instance:
   window.webTerminalScreenText = view.text || "";
   const number = (value: number | undefined, digits = 1) => Number(value || 0).toFixed(digits);
   byId("metric-fps").textContent = number(stats.fps);
+  byId("metric-renderer").textContent = stats.renderer || "Initializing";
+  byId("metric-renderer").title = stats.rendererFallbackReason || "";
   byId("metric-received").textContent = number(stats.receivedKBps);
   byId("metric-workload").textContent = number(stats.workloadMBps, 2);
   byId("metric-projection").textContent = number(stats.captureMs, 2);
@@ -165,7 +167,10 @@ function metrics(view: Pick<TerminalView, "id" | "stats" | "text"> & { instance:
   byId("metric-atlas").textContent = `${stats.atlasGlyphs || 0} / ${number((stats.atlasBytes ?? 0) / 1048576, 1)}`;
   byId("metric-uploads").textContent = number((stats.imageUploadBytes ?? 0) / 1048576, 2);
   byId("metric-revision").textContent = `${stats.revision || 0} / ${stats.fullFrames || 0}`;
-  byId("warnings").textContent = (stats.warnings || []).join("\n");
+  byId("warnings").textContent = [
+    ...(stats.rendererFallbackReason ? [`WebGL2 fallback: ${stats.rendererFallbackReason}`] : []),
+    ...(stats.warnings || [])
+  ].join("\n");
   byId("screen-mirror").textContent = view.text || "";
   byId("selected-view").textContent = `${view.instance.name} / view ${view.id}`;
 }
@@ -288,7 +293,7 @@ async function openView(instance: TerminalInstance, { primary = false, thumbnail
     </div>
     <div class="terminal-mount"></div>
     <footer class="view-footer">
-      <span class="view-status">Initializing WebGPU...</span>
+      <span class="view-status">Initializing renderer...</span>
       <button class="font-smaller" disabled title="Smaller text; more cells (Auto mode)" aria-label="Decrease terminal font size">-</button>
       <span class="font-size" title="Requested font size in Auto mode; fixed grids scale to fit">Fit</span>
       <button class="font-larger" disabled title="Larger text; fewer cells (Auto mode)" aria-label="Increase terminal font size">+</button>
@@ -342,8 +347,11 @@ async function openView(instance: TerminalInstance, { primary = false, thumbnail
   const url = new URL("/ws", location.href);
   url.search = new URLSearchParams({ instance: instance.id, name: `Web view ${id}` }).toString();
   try {
+    const renderer = select("renderer").value;
+    if (renderer !== "auto" && renderer !== "webgpu" && renderer !== "webgl2") throw new Error("Invalid renderer selection");
     view.terminal = await WebTerminal.mount(elementAt(element, ".terminal-mount", HTMLElement), {
       url, signal: view.controller.signal,
+      renderer,
       scale: select("scale").value === "auto" ? "auto" : Number(select("scale").value),
       font: select("font").value === "monospace" ? { family: "monospace" } : undefined,
       label: `${instance.name}, view ${id}, terminal input`,
@@ -454,11 +462,12 @@ window.addEventListener("pagehide", () => {
 });
 
 try {
-  if (!window.isSecureContext || !("gpu" in navigator) || !navigator.gpu) {
-    button("create").disabled = true;
-    throw new Error("WebTerminal requires a WebGPU-enabled browser over HTTPS or localhost");
-  }
   const parameters = new URLSearchParams(location.search);
+  const renderer = parameters.get("renderer");
+  if (renderer !== null) {
+    if (!["auto", "webgpu", "webgl2"].includes(renderer)) throw new Error("Invalid renderer query parameter");
+    select("renderer").value = renderer;
+  }
   const scene = parameters.get("scene");
   const requestedScene = scene !== null && [...select("scene").options].some(option => option.value === scene);
   if (requestedScene) select("scene").value = scene;

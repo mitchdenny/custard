@@ -18,7 +18,8 @@ async page => {
       const results = [];
       for (const scale of [1, 1.25, 1.5, 2, 3]) {
         const failures = [];
-        const renderer = await TerminalRenderer.create(canvas, scale, error => failures.push(error.message));
+        const renderer = await TerminalRenderer.create(canvas, scale, error => failures.push(error.message), undefined, "webgpu");
+        const { context, device, format } = renderer.backend;
         try {
           renderer.resize(8, 8);
           const cells = Array.from({ length: 64 }, (_, index) => {
@@ -30,17 +31,17 @@ async page => {
               underlineColor: 0xffffffff, attributes: x >= 4 ? 1 : 0, underlineStyle: 0 };
           });
           renderer.prepareGlyphs(cells);
-          renderer.context.configure({ device: renderer.device, format: renderer.format, alphaMode: "opaque",
+          context.configure({ device, format, alphaMode: "opaque",
             usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.COPY_SRC });
           renderer.render(cells, { defaultBackground: 0xff000000,
             cursor: { visible: false }, placements: [] }, true);
           const bytesPerRow = Math.ceil(canvas.width * 4 / 256) * 256;
-          const buffer = renderer.device.createBuffer({ size: bytesPerRow * canvas.height,
+          const buffer = device.createBuffer({ size: bytesPerRow * canvas.height,
             usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ });
-          const encoder = renderer.device.createCommandEncoder();
-          encoder.copyTextureToBuffer({ texture: renderer.context.getCurrentTexture() },
+          const encoder = device.createCommandEncoder();
+          encoder.copyTextureToBuffer({ texture: context.getCurrentTexture() },
             { buffer, bytesPerRow }, [canvas.width, canvas.height]);
-          renderer.device.queue.submit([encoder.finish()]);
+          device.queue.submit([encoder.finish()]);
           await buffer.mapAsync(GPUMapMode.READ);
           const bytes = new Uint8Array(buffer.getMappedRange());
           const ink = (x, y) => bytes[y * bytesPerRow + x * 4] > 64;

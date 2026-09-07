@@ -1,5 +1,6 @@
 import { captureMouse } from "./mouse-input.js";
 import { normalizeFont } from "./terminal-font.js";
+import { normalizeRenderer } from "./renderer-options.js";
 import { dimensions, normalizeSizing, requestedGrid, fittedScale } from "./terminal-sizing.js";
 import { HistoryState } from "./history-state.js";
 import { terminalThemeCss } from "./terminal-theme.js";
@@ -10,7 +11,7 @@ import { Hyperlinks } from "./hyperlinks.js";
 import type { MouseCapture } from "./mouse-input.js";
 import type { CopySelectionOptions, InputActionHandler, InputDecision, InputBinding,
   TerminalActionName, TerminalGeometry, TerminalInput, TerminalInputContext, TerminalPeer,
-  TerminalSelection, TerminalSizing, TerminalSizingState, TerminalStats, TerminalViewport,
+  TerminalRendererPreference, TerminalSelection, TerminalSizing, TerminalSizingState, TerminalStats, TerminalViewport,
   WebTerminalHandle, WebTerminalOptions } from "./types.js";
 import type { InputCommand, TerminalCommand, WorkerInputMessage, WorkerOutputMessage } from "./wire-types.js";
 import { errorMessage, isRecord } from "./validation.js";
@@ -29,6 +30,7 @@ function requiredElement<T extends Element>(root: ParentNode, selector: string, 
 export class WebTerminal implements WebTerminalHandle {
   readonly element: HTMLDivElement;
   #options: WebTerminalOptions;
+  #renderer: TerminalRendererPreference;
   // DOM and worker fields are initialized by mount before a handle is returned.
   #worker!: Worker;
   #surface!: HTMLDivElement;
@@ -72,7 +74,9 @@ export class WebTerminal implements WebTerminalHandle {
     if (!(container instanceof HTMLElement)) throw new TypeError("A terminal container HTMLElement is required");
     if (!options?.url) throw new TypeError("A terminal WebSocket URL is required");
     if (options.signal?.aborted) throw options.signal.reason;
-    if (!window.isSecureContext || !navigator.gpu) throw new Error("WebTerminal requires WebGPU over HTTPS or localhost");
+    if (normalizeRenderer(options.renderer) === "webgpu" && (!window.isSecureContext || !navigator.gpu)) {
+      throw new Error("The requested WebGPU renderer requires WebGPU over HTTPS or localhost");
+    }
     if (!window.Worker || !window.ResizeObserver || !window.OffscreenCanvas ||
         !HTMLCanvasElement.prototype.transferControlToOffscreen) {
       throw new Error("WebTerminal requires module workers, ResizeObserver, and a transferable OffscreenCanvas");
@@ -89,6 +93,7 @@ export class WebTerminal implements WebTerminalHandle {
 
   private constructor(options: WebTerminalOptions) {
     this.#options = options;
+    this.#renderer = normalizeRenderer(options.renderer);
     if (options.workerUrl !== undefined && !(options.workerUrl instanceof URL) &&
         (typeof options.workerUrl !== "string" || !options.workerUrl.trim()))
       throw new TypeError("workerUrl must be a nonempty URL string or URL");
@@ -248,7 +253,8 @@ export class WebTerminal implements WebTerminalHandle {
     });
     this.#worker.addEventListener("messageerror", () => this.#fail(new Error("Terminal worker message could not be decoded")));
     const canvas = this.#canvas.transferControlToOffscreen();
-    this.#post({ type: "init", canvas, url: url.href, scale, font }, [canvas]);
+    this.#post({ type: "init", canvas, url: url.href, scale, font,
+      renderer: this.#renderer }, [canvas]);
   }
 
   #message(message: WorkerOutputMessage): void {

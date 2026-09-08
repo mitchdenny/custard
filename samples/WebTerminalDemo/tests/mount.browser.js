@@ -17,7 +17,7 @@ async page => {
         for (const worker of workers) {
           if (worker.stopped) continue;
           worker.dispatchEvent(new MessageEvent("message", { data: {
-            type: "geometry", ...grid, cellWidth: 10, cellHeight: 20, mouseTracking: 1003, hyperlinks: [],
+            type: "geometry", ...grid, cellWidth: 10, cellHeight: 20, mouseTracking: 1003, hyperlinks: [], title: "",
             peer: { id: worker.id, primaryId, isPrimary: worker.id === primaryId }
           } }));
           worker.dispatchEvent(new MessageEvent("message", { data: {
@@ -34,7 +34,7 @@ async page => {
               queueMicrotask(() => {
                 this.dispatchEvent(new MessageEvent("message", { data: { type: "connected" } }));
                 this.dispatchEvent(new MessageEvent("message", { data: {
-                  type: "geometry", ...grid, cellWidth: 10, cellHeight: 20, mouseTracking: 0, hyperlinks: [],
+                  type: "geometry", ...grid, cellWidth: 10, cellHeight: 20, mouseTracking: 0, hyperlinks: [], title: "",
                   peer: { id: null, primaryId: null, isPrimary: false }
                 } }));
                 this.dispatchEvent(new MessageEvent("message", { data: { type: "stats", stats: { revision: 1 } } }));

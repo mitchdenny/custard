@@ -229,6 +229,8 @@ public sealed class Hmp1PresentationAdapter : ITerminalLifecycleAwarePresentatio
     /// <param name="stream">A bidirectional stream connected to the client.</param>
     /// <param name="ct">Cancellation token.</param>
     /// <returns>A handle that can be disposed to disconnect the client.</returns>
+    /// <exception cref="InvalidDataException">The snapshot and saved title state exceed
+    /// the 16 MiB StateSync payload limit. Saved titles are not silently discarded.</exception>
     public async Task<Hmp1ClientHandle> AddClient(Stream stream, CancellationToken ct = default)
     {
         ArgumentNullException.ThrowIfNull(stream);
@@ -387,7 +389,7 @@ public sealed class Hmp1PresentationAdapter : ITerminalLifecycleAwarePresentatio
             {
                 // A peer must also receive unplaced images: future output can
                 // place or animate retained pixels without transmitting them again.
-                using var snap = _terminal.CreateSnapshot(includeAllKgpImages: true);
+                using var snap = _terminal.CreateSnapshot(includeAllKgpImages: true, includeSavedTitles: true);
                 var prefix = BuildStateReplayPrefix(snap);
                 var ansi = snap.ToAnsi(new TerminalAnsiOptions
                 {
@@ -406,7 +408,10 @@ public sealed class Hmp1PresentationAdapter : ITerminalLifecycleAwarePresentatio
                     IncludeTrailingNewline = false,
                 }, includeHyperlinks: true);
                 var suffix = BuildStateReplaySuffix(snap);
-                syncBytes = Encoding.UTF8.GetBytes(prefix + ansi + suffix);
+                var titles = Hmp1TitleStateReplay.Build(snap,
+                    Hmp1Protocol.MaxPayloadSize - Encoding.UTF8.GetByteCount(prefix) -
+                    Encoding.UTF8.GetByteCount(ansi) - Encoding.UTF8.GetByteCount(suffix));
+                syncBytes = Encoding.UTF8.GetBytes(prefix + titles + ansi + suffix);
                 kgpPlacements = snap.KgpPlacements;
                 kgpImages = snap.KgpImages;
                 kgpAnimationTimestamp = snap.KgpAnimationTimestamp;

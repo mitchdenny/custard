@@ -1,7 +1,7 @@
 # Hex1b Web Terminal Protocol (HWT1): internal implementation notes
 
 Status: **internal, evolving state-transfer protocol**, describing the
-implementation as of 2026-09-07.
+implementation as of 2026-09-08.
 
 HWT1 is an implementation detail shared by Hex1b's server and first-party browser
 client, **not a third-party integration contract**. Independent frontend
@@ -161,6 +161,7 @@ delta.
 | `cellWidth`, `cellHeight` | integers | Logical pixels per cell; currently exactly `10`, `20`. |
 | `mouseTracking` | integer | Effective mouse tracking mode: `0`, `9`, `1000`, `1002`, or `1003`; see §7. |
 | `peer` | object | Required complete HMP1 peer/primary state, or standalone defaults, defined below. |
+| `title` | string | Required complete current workload window title on every full/delta frame; `""` means unset or explicitly cleared. At most 4,096 UTF-16 code units, no C0/DEL/C1 controls or unpaired surrogates. |
 | `history` | object or null | Complete per-view text viewport, selection, and copy state, defined below. Null denotes a projection without history interaction metadata. |
 | `hyperlinks` | array of objects | Complete OSC 8 destination ranges for the presented viewport, including on cell-delta frames. |
 | `defaultBackground`, `defaultForeground` | integers | Resolved packed colors, using §3.3; producer emits opaque colors. |
@@ -170,6 +171,47 @@ delta.
 | `placements` | array of objects | Complete ordered placement list; not placement deltas. |
 | `stats` | object | Server counters and durations, defined below. |
 | `warnings` | array of strings | Human-readable diagnostics; not machine-readable error codes. |
+
+Title state is captured atomically with the screen and is not a stream of OSC
+events. Title-only changes may produce zero-cell deltas and obey the normal
+acknowledgement gate and synchronized-output boundary. Intermediate changes may
+coalesce. Historical viewports carry the current workload title, not a title
+associated with an old row.
+
+The core normalizes title values before storage: it strips C0 (`U+0000..U+001F`),
+DEL (`U+007F`), and C1 (`U+0080..U+009F`), replaces malformed surrogates with
+U+FFFD, and truncates to 4,096 UTF-16 code units at a Unicode scalar boundary.
+The browser validates this contract rather than renormalizing it. A missing,
+non-string, oversized, control-bearing, or malformed-surrogate title is fatal;
+there is no mixed-version fallback to an empty title.
+
+OSC 0 and OSC 2 set or explicitly clear the window title; OSC 1 affects only
+the icon name. Title payloads preserve semicolons and support BEL or ST (`ESC \`)
+termination. Unicode C1 OSC/ST (`U+009D`/`U+009C`) are accepted through the UTF-8
+input path, not a new legacy-byte encoding. Existing OSC 22/23 saved-title
+extensions use the same authoritative state; HMP1 replays saved and current
+values before pending parser continuation and subsequent live bytes.
+The per-title bound does not cap parser buffering or saved-stack depth.
+Oversized saved-state replay fails the HMP1 16 MiB StateSync budget explicitly.
+RIS, soft reset, screen clearing, and alternate-buffer switches
+preserve title state and existing saved-title semantics.
+
+**Reference browser behavior:** the worker forwards title in its existing
+geometry message only after an accepted frame completes presentation. The
+read-only handle `title` is updated before `onTitleChange(title)`. The initial
+authoritative value, including `""`, notifies once before mount resolves; later
+notifications require a distinct presented value. Preliminary relay frames with
+null peer IDs and `isPrimary:false` do not establish the initial title. The relay
+publishes connected peer state only after authoritative StateSync is applied.
+Discarded/invalid frames, same-title resyncs, blink redraws, and stats do not
+notify. Disconnect/disposal retain the last known title without a synthetic
+clear; disposal/abort stops callbacks. A new mount gets its own initial value.
+There is no new subscription API, DOM event, or title-specific wire message.
+
+Titles remain untrusted workload text, including literal markup and bidi text.
+The component never changes `document.title`, the accessible label, or host
+headers automatically. Hosts must use text rendering such as
+`header.textContent = title || fallback` and apply their own presentation policy.
 
 `cursor` has exactly these currently emitted fields:
 
@@ -969,6 +1011,7 @@ decoder does not expand the public adapter's input or image limits.
 |---|---|---|
 | Complete state frame | 96 MiB | No separate total-frame budget check in the projection. |
 | Metadata length | 2 bytes..8 MiB | UTF-8 serialized metadata. |
+| Window title | Required string, at most 4,096 UTF-16 code units; no C0/DEL/C1 controls or unpaired surrogates | Normalized in the core before storage; scalar-safe truncation. |
 | Grid | Columns 1..1024, rows 1..512, product at most 262,144 | Projection rejects geometry outside those receiver limits without clamping producer/mirror dimensions. Local resize/claim bounds remain 20..300 columns, 10..100 rows. |
 | Changed cells | 0..grid product; full count equals product | Every full cell or each differing projected cell. |
 | Text per cell | `u16` byte length; strict UTF-8 | At most 65,535 UTF-8 bytes. |
@@ -1151,6 +1194,9 @@ not a recorded multi-head benchmark.
   "cellHeight": 20,
   "mouseTracking": 0,
   "peer": { "id": null, "primaryId": null, "isPrimary": true },
+  "title": "",
+  "history": null,
+  "hyperlinks": [],
   "defaultBackground": 4279769112,
   "defaultForeground": 4292796126,
   "cursor": { "x": 1, "y": 0, "visible": true, "shape": 0 },
@@ -1192,10 +1238,18 @@ Existing executable coverage includes
 for projection, Unicode ownership, image placement/cropping, and resync, and
 [`Hwt1PresentationAdapterTests`](../tests/Hex1b.Tests/Hwt1PresentationAdapterTests.cs)
 for the full-frame and acknowledgement/input lifecycle.
-The sample's [Node regressions](../samples/WebTerminalDemo/tests/web-terminal.test.mjs)
+The package's [Node regressions](../src/web-terminal/tests/web-terminal.test.mjs)
 cover peer metadata validation and local framebuffer/logical-geometry
 calculations without a browser. Their stub GPU does not validate actual GPU
 presentation or mounted DOM/input/lifetime behavior.
+[Title regressions](../src/web-terminal/tests/title.test.mjs) additionally execute
+the real decoder, worker, and mounted handle through Node worker messages with
+minimal DOM, WebSocket, and renderer doubles. They cover presentation ordering,
+initial/duplicate/clear notifications, rejected frames, independent views,
+disconnect/remount, abort/disposal, and callback errors, not real GPU or network I/O.
+The [title browser fixture](../samples/WebTerminalDemo/tests/titles.browser.js)
+uses a real POSIX shell, worker, renderer, and WebSocket for direct/relay title
+changes, late/reconnected views, safe host text, reset retention, and disposal.
 The persisted [mounted-browser fixture](../samples/WebTerminalDemo/tests/mount.browser.js)
 exercises the actual component's DOM, input, resize observation, and cleanup in
 an isolated DPR2 context, but mocks the Worker and opens no WebSocket. It is not

@@ -137,6 +137,7 @@ workers, fonts, and the intended WebSocket endpoint.
 | `sizing` | `{ mode: "auto", fontSize?: number }` or `{ mode: "fixed", columns, rows, fontSize?: number }`. |
 | `readOnly` | Disable application input while retaining history inspection and selection. |
 | `label` | Accessible label for the terminal's hidden keyboard input. |
+| `onTitleChange` | Initial authoritative workload title, then distinct presented changes; see below. |
 | `inputBindings`, `onInput`, `actions` | Per-view input policy and custom actions. |
 | `onSelectionUI` | Synchronous, cancelable UI notification hook. |
 
@@ -147,7 +148,7 @@ Font size is an integer from 8–32, defaulting to 16. Import `MIN_FONT_SIZE` an
 ownership. `requestPrimary()` explicitly requests ownership; inspect `peer` or
 `onRoleChange` to observe the result.
 
-The handle exposes `geometry`, `peer`, `connected`, `stats`, `screenText`,
+The handle exposes `geometry`, `peer`, `connected`, `title`, `stats`, `screenText`,
 `sizing`, `viewport`, `selection`, `inputBindings`, and `inputContext`.
 Metrics start empty; check optional fields before using them. History may be
 unavailable, and selection can be unavailable, none, pending, valid, or
@@ -155,8 +156,69 @@ invalidated. Narrow `viewport.available` and `selection.status` before using
 their state-specific values. `screenText` reflects the presented viewport, not
 an independently reconstructed ANSI buffer.
 
-Callbacks include `onGeometry`, `onRoleChange`, `onSizingChange`, `onStats`,
+Callbacks include `onGeometry`, `onRoleChange`, `onTitleChange`, `onSizingChange`, `onStats`,
 `onViewportChange`, `onSelectionChange`, `onStatus`, and `onInputError`.
+
+### Workload titles
+
+The read-only `terminal.title` is the current presented workload title. An empty
+string means unset or explicitly cleared; choose your own fallback. The optional
+`onTitleChange(title)` callback runs once with the first authoritative presented
+value, **including `""`, before mount resolves**. The getter is updated before
+the callback. Later notifications report only distinct presented values. Identical
+updates, same-title resyncs, cursor blinking, and statistics do not notify again.
+Intermediate workload changes can coalesce; this is not an event for every OSC
+sequence.
+
+```ts
+import { WebTerminal } from "@hex1b/web-terminal";
+
+const container = document.getElementById("terminal");
+const header = document.getElementById("terminal-header");
+if (!container || !header) throw new Error("Missing terminal elements");
+const resourceName = "Build service";
+
+const terminal = await WebTerminal.mount(container, {
+  url: "/ws/terminal",
+  onTitleChange(title) {
+    header.textContent = title || resourceName;
+  }
+});
+console.log(terminal.title);
+```
+
+The callback uses elements and fallback text captured **before** mounting, not
+the still-pending `terminal` result. The component does not change `document.title`,
+your header, or the input's accessible `label` automatically. There is no title
+subscription method or DOM title event.
+
+Titles are normalized by the core to at most 4,096 UTF-16 code units, with C0,
+DEL, and C1 controls removed, malformed surrogates replaced with U+FFFD, and
+truncation at a Unicode scalar boundary. They remain **untrusted text**: markup
+and bidi characters are preserved. Use `textContent`, not `innerHTML`; apply your
+own presentation and bidi policies.
+
+OSC 0 and OSC 2 set or explicitly clear the window title; OSC 1 is icon-only.
+Use `ESC ] 0 ; text BEL` or `ESC ] 2 ; text BEL`; `ESC \` (ST) may replace BEL.
+The UTF-8 input path also accepts Unicode C1 OSC (`U+009D`) and ST (`U+009C`).
+Semicolons within `text` are literal. Existing OSC 22/23 saved-title extensions
+update the same state, including after a late HMP1 attachment.
+RIS, soft reset, screen clearing, and buffer switching preserve the title and
+existing saved-title behavior. History inspection retains the current workload
+title rather than a title associated with an old row.
+
+Disconnect and disposal retain the last known title without a synthetic clear.
+Disposal (including abort) stops title callbacks. Attach a new view to reconnect;
+it receives its own initial current title. Preliminary disconnected relay frames
+do not trigger the initial notification. Callbacks run directly like the other
+state callbacks; thrown host errors are not swallowed or retried.
+
+The required title field needs the matching server build. Missing or malformed
+title metadata fails the connection; an older server is not silently treated as
+an empty title.
+The per-title bound is not a limit on all parser buffering or saved-stack depth.
+An HMP1 snapshot with too much saved title state fails its 16 MiB replay limit
+rather than silently discarding saved titles.
 
 ## Input and clipboard
 

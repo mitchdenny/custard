@@ -42,6 +42,10 @@ namespace Hex1b;
 /// Selected text is bounded to 512 Ki UTF-16 code units (including padding before trimming).
 /// Word and logical-line expansion enforce this bound during traversal. An oversized
 /// selection is explicitly invalidated rather than copied partially.
+/// Frames also carry the captured <see cref="Hex1bTerminal.WindowTitle"/>, including an empty
+/// title. Title-only output can produce a frame with no changed cells. Titles follow
+/// the same coalescing and synchronized-output rules as other state; frames are not
+/// a lossless stream of individual title-setting sequences.
 /// </remarks>
 public sealed class Hwt1PresentationAdapter :
     ICellImpactAwarePresentationAdapter, ITerminalLifecycleAwarePresentationAdapter
@@ -176,7 +180,7 @@ public sealed class Hwt1PresentationAdapter :
             Hex1bTerminalSnapshot? snapshot;
             Hwt1History? history;
             Hwt1Peer peer;
-            var outputLock = _muxer is null ? null : terminal.Hmp1OutputStateLock;
+            var outputLock = _muxer is not null || _hmp1Workload is not null ? terminal.Hmp1OutputStateLock : null;
             while (true)
             {
                 linked.Token.ThrowIfCancellationRequested();

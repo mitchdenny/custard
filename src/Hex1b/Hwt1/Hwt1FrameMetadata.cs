@@ -6,4 +6,4 @@ internal sealed record Hwt1FrameMetadata(
     uint DefaultBackground, uint DefaultForeground, Hwt1Cursor Cursor,
     List<Hwt1RenderImage> Images, string[] RetainedImages, List<Hwt1RenderPlacement> Placements,
     Hwt1FrameStatistics Stats, List<string> Warnings, Hwt1Peer Peer, Hwt1History? History,
-    List<Hwt1Hyperlink> Hyperlinks);
+    List<Hwt1Hyperlink> Hyperlinks, string Title);

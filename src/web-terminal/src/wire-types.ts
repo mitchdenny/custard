@@ -34,6 +34,7 @@ export interface ImagePlacement {
 export interface FrameMetadata extends TerminalGeometry {
   version: 1; full: boolean; revision: number; baseRevision: number;
   peer: TerminalPeer; history: HistoryMetadata | null;
+  title: string;
   defaultBackground?: number; defaultForeground?: number;
   cursor: { visible: boolean; x: number; y: number; shape: number };
   images: ImageMetadata[]; retainedImages: string[]; placements: ImagePlacement[]; warnings: string[];
@@ -81,6 +82,6 @@ export type WorkerOutputMessage =
   | { type: "connected" | "disconnected" }
   | { type: "status"; message: string; level: TerminalStatusLevel }
   | ({ type: "geometry"; peer: TerminalPeer; history: HistoryMetadata | null;
-       revision: number; text: string; hyperlinks: HyperlinkRange[] } & TerminalGeometry)
+       revision: number; title: string; text: string; hyperlinks: HyperlinkRange[] } & TerminalGeometry)
   | { type: "history"; history: HistoryMetadata | null; revision: number; text: string }
   | { type: "stats"; stats: WorkerStats; text?: string };

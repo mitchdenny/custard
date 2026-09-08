@@ -1024,6 +1024,14 @@ public static class AnsiTokenizer
 
         command = oscData[..firstSemicolon];
 
+        // Title commands have one text payload; semicolons are literal title text,
+        // unlike OSC 8's separate hyperlink parameters.
+        if (command is "0" or "1" or "2" or "22" or "23")
+        {
+            payload = oscData[(firstSemicolon + 1)..];
+            return true;
+        }
+
         var secondSemicolon = oscData.IndexOf(';', firstSemicolon + 1);
         if (secondSemicolon < 0)
         {

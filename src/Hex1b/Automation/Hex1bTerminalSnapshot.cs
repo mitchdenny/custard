@@ -58,6 +58,9 @@ public sealed class Hex1bTerminalSnapshot : IHex1bTerminalRegion, IDisposable
         SixelPlacements = state.SixelPlacements;
         SixelImages = state.SixelImages;
         ActiveHyperlink = state.ActiveHyperlink;
+        WindowTitle = state.WindowTitle;
+        IconName = state.IconName;
+        SavedTitles = state.SavedTitles;
 
         var scrollbackRows = state.ScrollbackRows;
         ScrollbackLineCount = scrollbackRows.Length;
@@ -153,6 +156,15 @@ public sealed class Hex1bTerminalSnapshot : IHex1bTerminalRegion, IDisposable
     internal DateTimeOffset KgpAnimationTimestamp { get; }
 
     internal HyperlinkData? ActiveHyperlink { get; }
+
+    /// <summary>Gets the window title captured atomically with this snapshot.</summary>
+    /// <remarks>Empty means no title. The value uses the same normalization and reset
+    /// behavior as <see cref="Hex1bTerminal.WindowTitle"/> and remains untrusted text.</remarks>
+    public string WindowTitle { get; }
+
+    internal string IconName { get; }
+
+    internal IReadOnlyList<(string Title, string IconName)> SavedTitles { get; }
 
     /// <summary>
     /// Whether the terminal was in alternate screen mode at snapshot time.

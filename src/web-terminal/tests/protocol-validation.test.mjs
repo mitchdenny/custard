@@ -5,6 +5,7 @@ import { decodeFrame } from "../dist/protocol.js";
 function metadata() {
   return {
     version: 1, revision: 1, baseRevision: 0, full: true,
+    title: "",
     columns: 1, rows: 1, cellWidth: 10, cellHeight: 20, mouseTracking: 0,
     peer: { id: null, primaryId: null, isPrimary: true },
     cursor: { x: 0, y: 0, visible: false, shape: "SteadyBlock" }, history: null,
@@ -34,6 +35,22 @@ test("Typed protocol decoding preserves cursor normalization and binary cells", 
   assert.equal(decoded.cells.length, 1);
   assert.equal(decoded.cells[0].text, "A");
   assert.equal(decoded.cells[0].width, 1);
+});
+
+test("Title metadata preserves empty, literal, and scalar Unicode text at the UTF-16 limit", () => {
+  for (const title of ["", "shell; 日本語 😀", "<script>alert(1)</script>", "left\u202eright",
+    "\ufffd", "a".repeat(4096), "a".repeat(4094) + "😀", "😀".repeat(2048)]) {
+    assert.equal(decodeFrame(frame({ ...metadata(), title })).metadata.title, title);
+  }
+});
+
+test("Title metadata is required and rejects controls, oversized strings, and lone surrogates", () => {
+  const controls = [...Array(32).keys(), ...Array.from({ length: 33 }, (_, i) => 127 + i)];
+  for (const title of [undefined, null, 42, false, {}, [], "a".repeat(4097),
+    "a".repeat(4095) + "😀", "\ud800", "\udfff", "\ud800x", "x\udfff", "\udfff\ud800",
+    ...controls.map(code => `prefix${String.fromCharCode(code)}suffix`)]) {
+    assert.throws(() => decodeFrame(frame({ ...metadata(), title })), /Invalid terminal title/u);
+  }
 });
 
 test("Typed protocol boundary still rejects malformed metadata before use", () => {

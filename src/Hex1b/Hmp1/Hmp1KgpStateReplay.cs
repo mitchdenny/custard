@@ -19,63 +19,92 @@ internal static class Hmp1KgpStateReplay
         CancellationToken ct,
         DateTimeOffset? animationTimestamp = null)
     {
-        if (placements.Count == 0 || images.Count == 0)
+        if (images.Count == 0)
             return;
 
         var frame = new StringBuilder(TargetFrameSize);
         var animations = new List<KgpAnimationPlaybackSnapshot>();
-
-        foreach (var image in images.Values.OrderBy(image => image.ImageId))
-        {
-            await AppendPixelsAsync(image, image.Data, image.Format, animationGap: null).ConfigureAwait(false);
-            if (image.AnimationState is not { } animation)
-                continue;
-
-            // Frames are already fully composed in the store. Overwrite preserves
-            // their RGBA bytes, including RGB channels beneath transparent pixels.
-            foreach (var animationFrame in animation.Frames.Skip(1))
-                await AppendPixelsAsync(image, animationFrame.Data, animationFrame.Format,
-                    animationFrame.GapMilliseconds).ConfigureAwait(false);
-
-            var rootGap = animation.GetFrame(0).GapMilliseconds;
-            var remainingLoops = animation.MaximumLoops > 1
-                ? animation.MaximumLoops - animation.CompletedLoops : 1;
-            await AppendAsync(BuildKgpSequence(FormattableString.Invariant(
-                $"a=a,{BuildImageIdentity(image)},r=1,z={(rootGap == 0 ? -1 : rootGap)},c={image.CurrentFrameNumber},s=1,v={remainingLoops},q=2"),
-                string.Empty)).ConfigureAwait(false);
-            animations.Add(new(
-                image.ImageNumber == 0 ? image.ImageId : 0,
-                image.ImageNumber,
-                image.CurrentFrameNumber,
-                animation.PlaybackState,
-                animation.MaximumLoops,
-                animation.CompletedLoops,
-                animation.CurrentFrameShownAt is { } shownAt && animationTimestamp is { } capturedAt
-                    ? Math.Max(0, (capturedAt - shownAt).Ticks) : null));
-        }
-
+        var repeatedNumbers = images.Values.Where(image => image.ImageNumber > 0)
+            .GroupBy(image => image.ImageNumber).Where(group => group.Count() > 1)
+            .Select(group => group.Key).ToHashSet();
+        var placementsByImage = placements.ToLookup(placement => placement.ImageId);
         var placementIdentityCounts = placements
             .Where(placement => placement.PlacementId > 0)
             .GroupBy(placement => (placement.ImageId, placement.PlacementId))
             .ToDictionary(group => group.Key, group => group.Count());
 
+        // Reserve explicit IDs before numbered uploads allocate viewer-local IDs.
+        // Resident snapshots preserve generation order within each image number.
+        foreach (var image in images.Values.OrderBy(image => image.ImageNumber > 0)
+            .ThenBy(image => image.ImageNumber == 0 ? image.ImageId : 0))
+        {
+            await AppendPixelsAsync(image, image.Data, image.Format, animationGap: null).ConfigureAwait(false);
+            KgpAnimationPlaybackSnapshot? playback = null;
+            if (image.AnimationState is { } animation)
+            {
+                // Frames are already fully composed in the store. Overwrite preserves
+                // their RGBA bytes, including RGB channels beneath transparent pixels.
+                foreach (var animationFrame in animation.Frames.Skip(1))
+                    await AppendPixelsAsync(image, animationFrame.Data, animationFrame.Format,
+                        animationFrame.GapMilliseconds).ConfigureAwait(false);
+
+                var rootGap = animation.GetFrame(0).GapMilliseconds;
+                var remainingLoops = animation.MaximumLoops > 1
+                    ? animation.MaximumLoops - animation.CompletedLoops : 1;
+                await AppendAsync(BuildKgpSequence(FormattableString.Invariant(
+                    $"a=a,{BuildImageIdentity(image)},r=1,z={(rootGap == 0 ? -1 : rootGap)},c={image.CurrentFrameNumber},s=1,v={remainingLoops},q=2"),
+                    string.Empty)).ConfigureAwait(false);
+                playback = new(
+                    image.ImageNumber == 0 ? image.ImageId : 0,
+                    image.ImageNumber,
+                    image.CurrentFrameNumber,
+                    animation.PlaybackState,
+                    animation.MaximumLoops,
+                    animation.CompletedLoops,
+                    animation.CurrentFrameShownAt is { } shownAt && animationTimestamp is { } capturedAt
+                        ? Math.Max(0, (capturedAt - shownAt).Ticks) : null);
+            }
+
+            if (repeatedNumbers.Contains(image.ImageNumber))
+            {
+                // I= resolves only the newest generation. Finish this generation's
+                // placements and playback before another upload changes that lookup.
+                foreach (var placement in placementsByImage[image.ImageId])
+                    await AppendPlacementAsync(placement, image).ConfigureAwait(false);
+                if (playback is not null)
+                {
+                    await AppendPlaybackAsync(playback).ConfigureAwait(false);
+                    await FlushAsync().ConfigureAwait(false);
+                    await WriteAnimationCheckpointAsync([playback]).ConfigureAwait(false);
+                }
+            }
+            else if (playback is not null)
+                animations.Add(playback);
+        }
+
         foreach (var placement in placements)
         {
-            if (!images.TryGetValue(placement.ImageId, out var image))
+            if (!images.TryGetValue(placement.ImageId, out var image) ||
+                repeatedNumbers.Contains(image.ImageNumber))
                 continue;
 
-            var preservePlacementId =
-                placement.PlacementId > 0 &&
-                placementIdentityCounts[(placement.ImageId, placement.PlacementId)] == 1;
-            await AppendAsync(BuildPlacementSequence(
-                placement,
-                image,
-                preservePlacementId)).ConfigureAwait(false);
+            await AppendPlacementAsync(placement, image).ConfigureAwait(false);
         }
 
         await AppendAsync(FormattableString.Invariant(
             $"\x1b[{cursorY + 1};{cursorX + 1}H")).ConfigureAwait(false);
         foreach (var animation in animations)
+            await AppendPlaybackAsync(animation).ConfigureAwait(false);
+        await FlushAsync().ConfigureAwait(false);
+        if (animations.Count > 0)
+            await WriteAnimationCheckpointAsync(animations).ConfigureAwait(false);
+
+        ValueTask AppendPlacementAsync(KgpPlacement placement, KgpImageData image)
+            => AppendAsync(BuildPlacementSequence(placement, image,
+                placement.PlacementId > 0 &&
+                placementIdentityCounts[(placement.ImageId, placement.PlacementId)] == 1));
+
+        ValueTask AppendPlaybackAsync(KgpAnimationPlaybackSnapshot animation)
         {
             var identity = animation.ImageNumber > 0
                 ? FormattableString.Invariant($"I={animation.ImageNumber}")
@@ -86,14 +115,14 @@ internal static class Hmp1KgpStateReplay
             var playbackState = animation.PlaybackState == KgpParsedCommand.AnimationPlaybackState.Running &&
                 animation.MaximumLoops > 1 && animation.CompletedLoops == animation.MaximumLoops - 1
                     ? KgpParsedCommand.AnimationPlaybackState.Loading : animation.PlaybackState;
-            await AppendAsync(BuildKgpSequence(FormattableString.Invariant(
-                $"a=a,{identity},s={(int)playbackState},q=2"), string.Empty)).ConfigureAwait(false);
+            return AppendAsync(BuildKgpSequence(FormattableString.Invariant(
+                $"a=a,{identity},s={(int)playbackState},q=2"), string.Empty));
         }
-        await FlushAsync().ConfigureAwait(false);
-        if (animations.Count > 0)
+
+        async Task WriteAnimationCheckpointAsync(IReadOnlyList<KgpAnimationPlaybackSnapshot> states)
         {
             await Hmp1Protocol.WriteFrameAsync(stream, Hmp1FrameType.KgpAnimationState,
-                JsonSerializer.SerializeToUtf8Bytes(new Hmp1KgpAnimationState(animations),
+                JsonSerializer.SerializeToUtf8Bytes(new Hmp1KgpAnimationState(states),
                     Hmp1JsonContext.Default.Hmp1KgpAnimationState), ct).ConfigureAwait(false);
         }
 

@@ -1,5 +1,6 @@
 async page => {
   const origin = page.url().match(/^https?:\/\/[^/]+/)?.[0] || "http://localhost:5290";
+  const transport = await page.evaluate(() => new URL(location.href).searchParams.get("transport") || "direct");
   const context = await page.context().browser().newContext({ viewport: { width: 1440, height: 1100 }, deviceScaleFactor: 2 });
   const test = await context.newPage();
   const errors = [];
@@ -22,7 +23,7 @@ async page => {
     return (await response.json()).find(instance => instance.id === id);
   };
   try {
-    await test.goto(`${origin}/?empty=1&scale=auto`);
+    await test.goto(`${origin}/?empty=1&scale=auto&transport=${encodeURIComponent(transport)}`);
     await test.locator("#scene").selectOption("mixed");
     const created = test.waitForResponse(response => response.url() === `${origin}/api/terminals` &&
       response.request().method() === "POST" && response.status() === 201);

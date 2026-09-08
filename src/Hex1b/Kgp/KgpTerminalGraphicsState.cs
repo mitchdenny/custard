@@ -1138,7 +1138,8 @@ internal sealed class KgpTerminalGraphicsState
             int width,
             int height,
             int cellPixelWidth,
-            int cellPixelHeight)
+            int cellPixelHeight,
+            bool includeAllImages = false)
     {
         var active = Active;
         ReconcileImageReferences(active);
@@ -1148,7 +1149,8 @@ internal sealed class KgpTerminalGraphicsState
         var snapshotEnd = checked(historyCount + height);
         var captured = active.ImageStore.CaptureSnapshot(
             [],
-            GetRetainedImageIds(active));
+            GetRetainedImageIds(active),
+            includeAllImages);
         IReadOnlyDictionary<uint, KgpImageData> virtualImages = captured.Images;
         if (active.VirtualPlacements.Count > 0)
         {
@@ -1357,6 +1359,9 @@ internal sealed class KgpTerminalGraphicsState
                 ? result
                 : left.SourceX.CompareTo(right.SourceX);
         });
+
+        if (includeAllImages)
+            return (snapshotPlacements, captured.Images);
 
         var snapshotImages = new Dictionary<uint, KgpImageData>();
         foreach (var placement in snapshotPlacements)

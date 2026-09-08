@@ -385,7 +385,9 @@ public sealed class Hmp1PresentationAdapter : ITerminalLifecycleAwarePresentatio
 
             if (_terminal != null)
             {
-                using var snap = _terminal.CreateSnapshot();
+                // A peer must also receive unplaced images: future output can
+                // place or animate retained pixels without transmitting them again.
+                using var snap = _terminal.CreateSnapshot(includeAllKgpImages: true);
                 var prefix = BuildStateReplayPrefix(snap);
                 var ansi = snap.ToAnsi(new TerminalAnsiOptions
                 {
@@ -431,7 +433,7 @@ public sealed class Hmp1PresentationAdapter : ITerminalLifecycleAwarePresentatio
             widthSnapshot = _width;
             heightSnapshot = _height;
 
-            if (kgpPlacements.Count > 0)
+            if (kgpImages.Count > 0)
             {
                 EnqueueControlFrameAsync(session, stream =>
                     Hmp1KgpStateReplay.WriteAsync(
@@ -476,6 +478,25 @@ public sealed class Hmp1PresentationAdapter : ITerminalLifecycleAwarePresentatio
                         new KeyValuePair<string, object?>(
                             "skipped",
                             result.SkippedPlacements > 0 ? "true" : "false"));
+                });
+            }
+
+            // Snapshot state covers completed tokens, not an unfinished escape
+            // sequence. Seed the new parser after all replay commands and before
+            // live output can deliver the remainder of that sequence.
+            var pendingAnsi = _terminal?.CapturePendingAnsiOutput() ?? ReadOnlyMemory<byte>.Empty;
+            if (!pendingAnsi.IsEmpty)
+            {
+                EnqueueControlFrameAsync(session, async stream =>
+                {
+                    for (var offset = 0; offset < pendingAnsi.Length;)
+                    {
+                        var length = Math.Min(pendingAnsi.Length - offset, Hmp1Protocol.MaxPayloadSize);
+                        await Hmp1Protocol.WriteFrameAsync(stream, Hmp1FrameType.Output,
+                            pendingAnsi.Slice(offset, length),
+                            session.Cts.Token).ConfigureAwait(false);
+                        offset += length;
+                    }
                 });
             }
 

@@ -91,7 +91,8 @@ origin:
 | `bindings.browser.js` | Per-view input overrides, named actions, Windows-style right-click copy/paste, clipboard failures/races, capture ownership, and native text/paste/IME paths. Clipboard access is mocked. |
 | `selection-ui.browser.js` | Default, augmented, and replaced selection controls; host CSS, highlight parts, canvas alignment, focus/input isolation, action reuse, UI errors, and disposal. |
 | `graphics.browser.js` | Sixel and KGP in mixed WebGPU/WebGL2 views, renderer controls/diagnostics, cached-image movement, and late attachment to silent server-driven animation. |
-| `cloud-flicker.browser.js` | Real shell-launched Sixel/KGP cloud animations, sampling visible canvas pixels over at least 180 browser frames and ten received updates to detect blank/partial redraws. Build `samples/SixelCloudDemo` and `samples/KgpCloudDemo` in Release first. |
+| `relay.browser.js` | Direct/relay transport selection, mixed peers, input and resize authority, primary closure, fresh reconnect/navigation-return replicas, retained KGP movement, and silent animation. |
+| `cloud-flicker.browser.js` | Real shell-launched Sixel/KGP cloud animations, sampling visible canvas pixels over at least 180 browser frames and ten received updates; twenty fresh KGP views (including thumbnails) must retain sprites and keep animating without pixel re-uploads or stray command text. Build `samples/SixelCloudDemo` and `samples/KgpCloudDemo` in Release first. |
 | `nested-flicker.browser.js` | WindowingDemo's Bash terminal running KittySearch: hover animation must keep painting through unrelated parent redraws, with at least 180 sampled browser frames and five distinct image states. Build `samples/WindowingDemo` and `samples/KittySearch` in Release first. Requires Bash. |
 | `nested-sixel.browser.js` | WindowingDemo's Bash terminal running both SixelCloudDemo modes: native Sixel presentation, overlapping motes, and synchronized frame persistence. Build `samples/WindowingDemo` and `samples/SixelCloudDemo` in Release first. Requires Bash. |
 
@@ -152,6 +153,46 @@ opened views. `?renderer=webgl2` selects WebGL2 on initial load; `auto` and
 The selected-view metrics show the active backend and any automatic fallback
 reason. WebGPU requires HTTPS or localhost; the package can use WebGL2 on
 ordinary HTTP, but this demo's loopback-only host policy remains unchanged.
+
+### Optional HMP1 relay
+
+**New view transport** defaults to **Direct HWT1**, which reads the shared
+producer's state without replaying it into another terminal. Select **HMP1 relay
+-> HWT1**, or open `?transport=hmp1`, to exercise the serialized path:
+
+```text
+Producer Hex1bTerminal -> HMP1 -> per-view Hex1bTerminal -> HWT1 -> browser
+```
+
+Each browser connection creates a fresh HMP1 client and terminal replica over
+bounded in-memory duplex pipes. This uses the real HMP1 handshake, state/image
+replay, live output, input, and primary/resize messages without requiring a
+socket or another process. Closing the view disposes its peer and replica, not
+the shared producer. Attaching again or reloading creates a new replica.
+
+The selector applies to newly opened views, including thumbnails. Existing
+views retain their transport; their title and selected-view metrics show it.
+Direct and relay views can inspect the same instance side by side. The
+WebSocket route accepts `transport=direct` (also the default when omitted) or
+`transport=hmp1`; other values are rejected before accepting the connection.
+
+All scenes and workload controls work in both modes. For retained-image replay,
+start the Kitty graphics or Graphics animation scene, then attach a relay view
+after pixels were uploaded, close it, and attach again. The shell scene can run
+`KgpCloudDemo` to exercise upload-once sprites and synchronized placement
+replacement. Relay views receive the live screen at attachment and accumulate
+their own subsequent scrollback; they do not receive the producer's pre-existing
+history. Direct views retain the existing shared-history behavior.
+
+Run `tests/relay.browser.js` with the Playwright CLI invocation above for a
+focused direct/relay lifecycle comparison. The existing `graphics.browser.js`,
+`floating.browser.js`, and `cloud-flicker.browser.js` fixtures inherit
+`transport=hmp1` from the current page URL, or default to direct mode:
+
+```sh
+playwright-cli goto 'http://localhost:5290/?empty=1&transport=hmp1'
+playwright-cli run-code "$(< samples/WebTerminalDemo/tests/cloud-flicker.browser.js)"
+```
 
 ## Mount in a sized element
 

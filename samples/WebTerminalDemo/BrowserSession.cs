@@ -4,18 +4,25 @@ using Hex1b;
 
 namespace WebTerminalDemo;
 
-internal sealed class BrowserSession(WebSocket socket, TerminalInstance instance, string? name, ILogger logger)
+internal sealed class BrowserSession(WebSocket socket, TerminalInstance instance, string? name, bool relay, ILogger logger)
 {
     public async Task RunAsync(CancellationToken requestAborted)
     {
         using var cts = CancellationTokenSource.CreateLinkedTokenSource(requestAborted, instance.Stopping);
         Hwt1PresentationAdapter? presentation = null;
+        Hmp1BrowserView? relayView = null;
         Task[] tasks = [];
         var closeStatus = WebSocketCloseStatus.NormalClosure;
         var closeReason = "View closed";
         try
         {
-            presentation = await instance.Presentation.CreateBrowserViewAsync(name, cts.Token);
+            if (relay)
+            {
+                relayView = await Hmp1BrowserView.CreateAsync(instance.Presentation, name, cts.Token);
+                presentation = relayView.Presentation;
+            }
+            else
+                presentation = await instance.Presentation.CreateBrowserViewAsync(name, cts.Token);
             tasks = [SendFramesAsync(presentation, cts.Token), ReceiveAsync(presentation, cts.Token)];
             var finished = await Task.WhenAny(tasks);
             await finished;
@@ -51,7 +58,13 @@ internal sealed class BrowserSession(WebSocket socket, TerminalInstance instance
                 await ObserveAsync(task);
             if (presentation is not null)
             {
-                try { await presentation.DisposeAsync(); }
+                try
+                {
+                    if (relayView is not null)
+                        await relayView.DisposeAsync();
+                    else
+                        await presentation.DisposeAsync();
+                }
                 catch (Exception ex) { logger.LogDebug(ex, "HMP browser peer disposal failed for {Instance}", instance.Id); }
             }
             if (socket.State is WebSocketState.Open or WebSocketState.CloseReceived)

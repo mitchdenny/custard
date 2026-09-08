@@ -20,6 +20,7 @@ interface TerminalView {
   terminal?: WebTerminal;
   stats: Partial<WebTerminal["stats"]>;
   text: string;
+  transport: "direct" | "hmp1";
   viewport?: WebTerminal["viewport"];
   selection?: WebTerminal["selection"];
 }
@@ -149,7 +150,7 @@ async function loadInstances(preferred?: string) {
   updateInstanceControls();
 }
 
-function metrics(view: Pick<TerminalView, "id" | "stats" | "text"> & { instance: Pick<TerminalInstance, "name"> }, force = false) {
+function metrics(view: Pick<TerminalView, "id" | "stats" | "text" | "transport"> & { instance: Pick<TerminalInstance, "name"> }, force = false) {
   if (!force && selected !== view) return;
   const stats = view.stats || {};
   window.webTerminalStats = stats;
@@ -158,6 +159,7 @@ function metrics(view: Pick<TerminalView, "id" | "stats" | "text"> & { instance:
   byId("metric-fps").textContent = number(stats.fps);
   byId("metric-renderer").textContent = stats.renderer || "Initializing";
   byId("metric-renderer").title = stats.rendererFallbackReason || "";
+  byId("metric-transport").textContent = view.transport === "hmp1" ? "HMP1 relay → HWT1" : "Direct HWT1";
   byId("metric-received").textContent = number(stats.receivedKBps);
   byId("metric-workload").textContent = number(stats.workloadMBps, 2);
   byId("metric-projection").textContent = number(stats.captureMs, 2);
@@ -261,7 +263,7 @@ function closeView(view: TerminalView) {
     const remaining = [...views.values()].at(-1);
     if (remaining) selectView(remaining);
     else {
-      metrics({ instance: { name: "" }, id: "", stats: {}, text: "" }, true);
+      metrics({ instance: { name: "" }, id: "", stats: {}, text: "", transport: "direct" }, true);
       byId("selected-view").textContent = "No view selected";
       window.webTerminalStats = {};
       window.webTerminalScreenText = "";
@@ -273,12 +275,15 @@ function closeView(view: TerminalView) {
 
 async function openView(instance: TerminalInstance, { primary = false, thumbnail = false } = {}) {
   if (views.size >= 8) throw new Error("Close a view before opening another (eight views per playground)");
+  const transport = select("transport").value;
+  if (transport !== "direct" && transport !== "hmp1") throw new Error("Invalid transport selection");
   const id = String(++nextView);
   const element = document.createElement("section");
   element.className = "terminal-window";
   element.tabIndex = -1;
   element.dataset.view = id;
   element.dataset.instance = instance.id;
+  element.dataset.transport = transport;
   element.setAttribute("aria-label", `${instance.name}, view ${id}`);
   element.innerHTML = `
     <header class="view-titlebar">
@@ -305,7 +310,8 @@ async function openView(instance: TerminalInstance, { primary = false, thumbnail
       </select>
     </footer>
     <span class="resize-handle" title="Drag to resize view" aria-hidden="true"></span>`;
-  elementAt(element, ".view-title", HTMLElement).textContent = `${instance.name} / ${id}`;
+  elementAt(element, ".view-title", HTMLElement).textContent =
+    `${instance.name} / ${id} / ${transport === "hmp1" ? "HMP1 relay" : "Direct HWT1"}`;
   const width = thumbnail ? 320 : Math.min(1040, Math.max(300, workspace.clientWidth - 64));
   const height = thumbnail ? 240 : Math.min(660, Math.max(300, workspace.clientHeight - 64));
   element.style.width = `${width}px`;
@@ -314,7 +320,7 @@ async function openView(instance: TerminalInstance, { primary = false, thumbnail
   element.style.top = `${24 + (views.size % 5) * (thumbnail ? 48 : 32)}px`;
   workspace.append(element);
   workspace.classList.remove("empty");
-  const view: TerminalView = { id, instance, element, controller: new AbortController(), stats: {}, text: "" };
+  const view: TerminalView = { id, instance, element, controller: new AbortController(), stats: {}, text: "", transport };
   views.set(id, view);
   selectView(view);
   moveAndResize(view);
@@ -345,7 +351,7 @@ async function openView(instance: TerminalInstance, { primary = false, thumbnail
     }
   }, { signal: view.controller.signal });
   const url = new URL("/ws", location.href);
-  url.search = new URLSearchParams({ instance: instance.id, name: `Web view ${id}` }).toString();
+  url.search = new URLSearchParams({ instance: instance.id, name: `Web view ${id}`, transport }).toString();
   try {
     const renderer = select("renderer").value;
     if (renderer !== "auto" && renderer !== "webgpu" && renderer !== "webgl2") throw new Error("Invalid renderer selection");
@@ -463,6 +469,11 @@ window.addEventListener("pagehide", () => {
 
 try {
   const parameters = new URLSearchParams(location.search);
+  const transport = parameters.get("transport");
+  if (transport !== null) {
+    if (transport !== "direct" && transport !== "hmp1") throw new Error("Invalid transport query parameter");
+    select("transport").value = transport;
+  }
   const renderer = parameters.get("renderer");
   if (renderer !== null) {
     if (!["auto", "webgpu", "webgl2"].includes(renderer)) throw new Error("Invalid renderer query parameter");

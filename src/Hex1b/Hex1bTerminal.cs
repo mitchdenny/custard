@@ -1397,6 +1397,22 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         }
     }
 
+    /// <summary>Captures the unfinished text-tokenizer escape prefix for raw output continuation.</summary>
+    internal ReadOnlyMemory<byte> CapturePendingAnsiOutput()
+    {
+        // Filtered presentations receive serialized complete tokens, not raw
+        // continuations, so there is no partial wire sequence to restore.
+        if (_presentationFilters.Count > 0 || _presentation is ICellImpactAwarePresentationAdapter)
+            return ReadOnlyMemory<byte>.Empty;
+
+        // The caller holds Hmp1OutputStateLock. The byte framer may hold an ESC
+        // separately from the text tokenizer, including the first byte of ST.
+        var pending = _incompleteSequenceBuffer;
+        if (_dcsByteStreamParser.HasPendingGroundEscape)
+            pending += "\x1b";
+        return Encoding.UTF8.GetBytes(pending);
+    }
+
     private RawOutputTokenization TokenizeRawWorkloadOutput(ReadOnlySpan<byte> data)
     {
         var batch = _dcsByteStreamParser.Process(data);
@@ -1947,7 +1963,8 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
     internal Hex1bTerminalSnapshotState CaptureSnapshotState(
         int scrollbackLines,
         ScrollbackWidth scrollbackWidth,
-        int? textViewportTop = null)
+        int? textViewportTop = null,
+        bool includeAllKgpImages = false)
     {
         lock (_bufferLock)
         {
@@ -2003,7 +2020,8 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                 retainedScrollbackWidth,
                 _height,
                 Capabilities.CellPixelWidth,
-                Capabilities.CellPixelHeight);
+                Capabilities.CellPixelHeight,
+                includeAllKgpImages);
             (IReadOnlyList<SixelPlacement> Placements, IReadOnlyDictionary<byte[], SixelData> Images) sixel =
                 textViewportTop is not null ? ([], new Dictionary<byte[], SixelData>()) :
                 _sixelGraphicsState.CaptureActiveSnapshot(
@@ -2280,6 +2298,11 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
     {
         return new Hex1bTerminalSnapshot(this);
     }
+
+    internal Hex1bTerminalSnapshot CreateSnapshot(bool includeAllKgpImages)
+        => new(this,
+            CaptureSnapshotState(0, ScrollbackWidth.CurrentTerminal, includeAllKgpImages: includeAllKgpImages),
+            ScrollbackWidth.CurrentTerminal, TerminalCell.Empty);
 
     internal Hex1bTerminalSnapshot CreateSnapshot(out Hmp1TerminalState? remoteState)
     {

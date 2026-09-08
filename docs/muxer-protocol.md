@@ -161,6 +161,11 @@ Sent by the server immediately after the Hello frame. Contains a full snapshot o
 
 The payload may be empty if no screen content is available yet.
 
+Viewport cell hyperlinks are replayed with their OSC 8 destinations and parameters,
+including links spanning rows or wide characters. The active hyperlink is restored
+after painting so subsequent output retains its original link state. Sixel damage
+repaint also preserves cell links without changing that active state.
+
 If the snapshot contains graphics, the server queues KGP and Sixel replay after
 `StateSync` and before subsequent live output. The clear-screen sequence in
 `StateSync` would erase graphics sent before it. Graphics use separate `Output`

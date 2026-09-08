@@ -141,7 +141,12 @@ public class Hmp1SixelStateReplayTests
     }
 
     [TestMethod]
-    public async Task StateSync_WithDamagedSixelCell_PreservesOverwrittenTextAfterReplay()
+    [DataRow(false, false)]
+    [DataRow(true, false)]
+    [DataRow(false, true)]
+    [DataRow(true, true)]
+    public async Task StateSync_WithDamagedSixelCell_PreservesOverwrittenTextAfterReplay(
+        bool linkedCell, bool activeHyperlink)
     {
         // Regression coverage for the ordering fix: Sixel placement creation
         // blanks its occupied cells (unlike KGP), so the placement-creation
@@ -161,8 +166,11 @@ public class Hmp1SixelStateReplayTests
             "q#1;2;100;0;0#1!11~"u8.ToArray());
         producer.ApplyTokens(AnsiTokenizer.Tokenize(
             "\x1b[1;1H" + Encoding.ASCII.GetString(fixture.StandardBytes)));
-        // Overwrite only the origin cell with plain text, damaging it.
-        producer.ApplyTokens(AnsiTokenizer.Tokenize("\x1b[1;1HX"));
+        // The damaged cell's link can differ from the active link for future output.
+        producer.ApplyTokens(AnsiTokenizer.Tokenize("\x1b[1;1H" +
+            (linkedCell ? "\x1b]8;id=cell;https://example.com/cell\x1b\\" : "") +
+            "X\x1b]8;;\x1b\\" +
+            (activeHyperlink ? "\x1b]8;id=active;https://example.com/active\x1b\\" : "")));
 
         using (var producerState = producer.CreateSnapshot())
         {
@@ -213,12 +221,23 @@ public class Hmp1SixelStateReplayTests
         // step re-applies it after the placement-creation replay re-blanks
         // it.
         Assert.AreEqual("X", snapshot.GetCell(0, 0).Character);
+        Assert.AreEqual(linkedCell ? "https://example.com/cell" : null,
+            snapshot.GetCell(0, 0).HyperlinkData?.Uri);
+        Assert.AreEqual(linkedCell ? "id=cell" : null,
+            snapshot.GetCell(0, 0).HyperlinkData?.Parameters);
 
         // The placement itself is still present and still occupies its
         // second cell (never damaged).
         var placement = TestSeq.Single(snapshot.SixelPlacements);
         Assert.AreEqual(0, placement.Row);
         Assert.AreEqual(0, placement.Column);
+
+        viewer.ApplyTokens(AnsiTokenizer.Tokenize("\x1b[3;1HY"));
+        using var continued = viewer.CreateSnapshot();
+        Assert.AreEqual(activeHyperlink ? "https://example.com/active" : null,
+            continued.GetCell(0, 2).HyperlinkData?.Uri);
+        Assert.AreEqual(activeHyperlink ? "id=active" : null,
+            continued.GetCell(0, 2).HyperlinkData?.Parameters);
     }
 
     [TestMethod]

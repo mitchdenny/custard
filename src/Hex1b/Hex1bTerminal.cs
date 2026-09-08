@@ -2040,7 +2040,8 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                 kgp.Placements,
                 kgp.Images,
                 sixel.Placements,
-                sixel.Images);
+                sixel.Images,
+                _currentHyperlink?.Data);
         }
     }
 

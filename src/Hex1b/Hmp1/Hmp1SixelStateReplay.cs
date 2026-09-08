@@ -3,6 +3,7 @@ using System.Text;
 using Hex1b.Sixel;
 using Hex1b.Surfaces;
 using Hex1b.Theming;
+using Hex1b.Tokens;
 
 namespace Hex1b;
 
@@ -91,11 +92,13 @@ internal static class Hmp1SixelStateReplay
     /// <param name="placements">The producer's current viewport Sixel placements, captured from the same snapshot as <paramref name="damagedCells"/>.</param>
     /// <param name="damagedCells">Absolute (row, column, cell) triples for every cell any of <paramref name="placements"/> reports as damaged, captured from the same snapshot.</param>
     /// <param name="ct">Cancellation token.</param>
+    /// <param name="activeHyperlink">The captured hyperlink for subsequent producer output.</param>
     internal static async Task<ReplayResult> WriteAsync(
         Stream stream,
         IReadOnlyList<SixelPlacement> placements,
         IReadOnlyList<(int Row, int Column, TerminalCell Cell)> damagedCells,
-        CancellationToken ct)
+        CancellationToken ct,
+        HyperlinkData? activeHyperlink = null)
     {
         if (placements.Count == 0)
             return new ReplayResult(ReplayOutcome.Empty, 0, 0, 0, 0, 0, null);
@@ -170,7 +173,7 @@ internal static class Hmp1SixelStateReplay
         foreach (var (row, column, cell) in damagedCells)
         {
             ct.ThrowIfCancellationRequested();
-            if (!TryAddSequence(BuildDamagePatchSequence(row, column, cell), "damage_payload", out var limit))
+            if (!TryAddSequence(BuildDamagePatchSequence(row, column, cell, activeHyperlink), "damage_payload", out var limit))
             {
                 return new ReplayResult(
                     ReplayOutcome.ResourceLimitExceeded,
@@ -279,7 +282,7 @@ internal static class Hmp1SixelStateReplay
     /// single damaged cell's exact content after its owning placement has
     /// re-blanked it.
     /// </summary>
-    private static string BuildDamagePatchSequence(int row, int column, TerminalCell cell)
+    private static string BuildDamagePatchSequence(int row, int column, TerminalCell cell, HyperlinkData? activeHyperlink)
     {
         var sb = new StringBuilder();
         sb.Append(FormattableString.Invariant($"\x1b[{row + 1};{column + 1}H"));
@@ -308,9 +311,18 @@ internal static class Hmp1SixelStateReplay
         var ch = cell.Character;
         if (!string.IsNullOrEmpty(ch) && ch != "\0" && ch != "\uE000")
         {
+            var hyperlink = cell.HyperlinkData;
+            var hyperlinkChanged = hyperlink?.Uri != activeHyperlink?.Uri ||
+                hyperlink?.Parameters != activeHyperlink?.Parameters;
+            if (hyperlinkChanged)
+                sb.Append(AnsiTokenSerializer.Serialize(new OscToken("8",
+                    hyperlink?.Parameters ?? "", hyperlink?.Uri ?? "", UseEscBackslash: true)));
             sb.Append((attrs & CellAttributes.Hidden) != 0
                 ? new string(' ', DisplayWidth.GetGraphemeWidth(ch))
                 : ch);
+            if (hyperlinkChanged)
+                sb.Append(AnsiTokenSerializer.Serialize(new OscToken("8",
+                    activeHyperlink?.Parameters ?? "", activeHyperlink?.Uri ?? "", UseEscBackslash: true)));
         }
 
         return sb.ToString();

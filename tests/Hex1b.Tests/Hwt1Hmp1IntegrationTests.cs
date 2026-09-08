@@ -117,6 +117,81 @@ public class Hwt1Hmp1IntegrationTests
     }
 
     [TestMethod]
+    public async Task LateAttachment_Hyperlinks_PreserveDestinationsAcrossReconnect()
+    {
+        using var workload = new Hex1bAppWorkloadAdapter();
+        await using var server = new Hmp1PresentationAdapter(20, 10);
+        await using var producer = Hex1bTerminal.CreateBuilder().WithWorkload(workload)
+            .WithPresentation(server).WithDimensions(20, 10).Build();
+
+        foreach (var destination in new[] { "https://example.com/first", "https://example.com/second" })
+        {
+            producer.ApplyTokens(AnsiTokenizer.Tokenize(
+                $"\x1b[H\x1b]8;id=link;{destination}\x1b\\LINK\x1b]8;;\x1b\\ plain" +
+                $"\x1b[2;19H\x1b]8;id=wide;{destination}\x1b\\\u754cAB\x1b]8;;\x1b\\" +
+                $"\x1b[10;20H\x1b]8;id=last;{destination}\x1b\\Z\x1b]8;;\x1b\\\x1b[4;1H"));
+            var connection = await ConnectAsync(server);
+            await using var handle = connection.Handle;
+            await using var client = connection.Client;
+            await using var view = new Hwt1PresentationAdapter(20, 10);
+            await using var mirror = Hex1bTerminal.CreateBuilder().WithWorkload(client)
+                .WithPresentation(view).Build();
+            await WaitForScreenAsync(mirror, snapshot => snapshot.GetLineTrimmed(0) == "LINK plain" &&
+                snapshot.GetLineTrimmed(2) == "AB" && snapshot.GetCell(19, 9).Character == "Z");
+
+            using var expected = producer.CreateSnapshot();
+            using var actual = mirror.CreateSnapshot();
+            for (var row = 0; row < expected.Height; row++)
+            {
+                for (var column = 0; column < expected.Width; column++)
+                {
+                    var expectedLink = expected.GetCell(column, row).HyperlinkData;
+                    var actualLink = actual.GetCell(column, row).HyperlinkData;
+                    Assert.AreEqual(expectedLink?.Uri, actualLink?.Uri, $"Destination at {column},{row}");
+                    Assert.AreEqual(expectedLink?.Parameters, actualLink?.Parameters, $"Parameters at {column},{row}");
+                }
+            }
+
+            var frame = await ReadUntilAsync(view, metadata => PeerId(metadata) is not null);
+            var links = frame.GetProperty("hyperlinks").EnumerateArray().ToArray();
+            Assert.IsNotEmpty(links);
+            Assert.IsTrue(links.All(link => link.GetProperty("uri").GetString() == destination));
+
+            workload.Write(".");
+            await WaitForScreenAsync(mirror, snapshot => snapshot.GetCell(0, 3).Character == ".");
+            using var continued = mirror.CreateSnapshot();
+            Assert.IsNull(continued.GetCell(0, 3).HyperlinkData);
+        }
+    }
+
+    [TestMethod]
+    public async Task LateAttachment_ActiveHyperlink_PreservesSubsequentOutput()
+    {
+        using var workload = new Hex1bAppWorkloadAdapter();
+        await using var server = new Hmp1PresentationAdapter(20, 10);
+        await using var producer = Hex1bTerminal.CreateBuilder().WithWorkload(workload)
+            .WithPresentation(server).WithDimensions(20, 10).Build();
+        producer.ApplyTokens(AnsiTokenizer.Tokenize(
+            "\x1b]8;id=active;https://example.com/active\x1b\\A"));
+
+        var connection = await ConnectAsync(server);
+        await using var handle = connection.Handle;
+        await using var client = connection.Client;
+        await using var view = new Hwt1PresentationAdapter(20, 10);
+        await using var mirror = Hex1bTerminal.CreateBuilder().WithWorkload(client)
+            .WithPresentation(view).Build();
+        await WaitForScreenAsync(mirror, snapshot => snapshot.GetLineTrimmed(0) == "A");
+
+        workload.Write("B\x1b]8;;\x1b\\.");
+        await WaitForScreenAsync(mirror, snapshot => snapshot.GetLineTrimmed(0) == "AB.");
+        using var snapshot = mirror.CreateSnapshot();
+        Assert.AreEqual("https://example.com/active", snapshot.GetCell(1, 0).HyperlinkData?.Uri);
+        Assert.AreEqual("id=active", snapshot.GetCell(1, 0).HyperlinkData?.Parameters);
+        Assert.IsNull(snapshot.GetCell(2, 0).HyperlinkData);
+        Assert.IsNull(snapshot.GetCell(3, 0).HyperlinkData);
+    }
+
+    [TestMethod]
     public async Task LateAttachment_SilentRunningAnimation_AdvancesHwtPixelsWithoutFreshOutput()
     {
         var producerTime = new FakeTimeProvider();

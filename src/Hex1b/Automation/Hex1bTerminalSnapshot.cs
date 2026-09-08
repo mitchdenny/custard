@@ -57,6 +57,7 @@ public sealed class Hex1bTerminalSnapshot : IHex1bTerminalRegion, IDisposable
         KgpImages = state.KgpImages;
         SixelPlacements = state.SixelPlacements;
         SixelImages = state.SixelImages;
+        ActiveHyperlink = state.ActiveHyperlink;
 
         var scrollbackRows = state.ScrollbackRows;
         ScrollbackLineCount = scrollbackRows.Length;
@@ -150,6 +151,8 @@ public sealed class Hex1bTerminalSnapshot : IHex1bTerminalRegion, IDisposable
     public DateTimeOffset Timestamp { get; }
 
     internal DateTimeOffset KgpAnimationTimestamp { get; }
+
+    internal HyperlinkData? ActiveHyperlink { get; }
 
     /// <summary>
     /// Whether the terminal was in alternate screen mode at snapshot time.

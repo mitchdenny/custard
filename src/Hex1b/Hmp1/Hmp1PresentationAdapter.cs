@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Security.Cryptography;
 using System.Text;
+using Hex1b.Tokens;
 using System.Threading.Channels;
 using Hex1b.Automation;
 using Hex1b.Diagnostics;
@@ -364,6 +365,7 @@ public sealed class Hmp1PresentationAdapter : ITerminalLifecycleAwarePresentatio
         IReadOnlyList<KgpPlacement> kgpPlacements;
         IReadOnlyDictionary<uint, KgpImageData> kgpImages;
         DateTimeOffset? kgpAnimationTimestamp;
+        HyperlinkData? activeHyperlink;
         IReadOnlyList<SixelPlacement> sixelPlacements;
         IReadOnlyList<(int Row, int Column, TerminalCell Cell)> sixelDamagedCells;
         int cursorX;
@@ -400,12 +402,13 @@ public sealed class Hmp1PresentationAdapter : ITerminalLifecycleAwarePresentatio
                     // ghosting on every fresh viewer connect or RoleChange-driven
                     // re-StateSync.)
                     IncludeTrailingNewline = false,
-                });
+                }, includeHyperlinks: true);
                 var suffix = BuildStateReplaySuffix(snap);
                 syncBytes = Encoding.UTF8.GetBytes(prefix + ansi + suffix);
                 kgpPlacements = snap.KgpPlacements;
                 kgpImages = snap.KgpImages;
                 kgpAnimationTimestamp = snap.KgpAnimationTimestamp;
+                activeHyperlink = snap.ActiveHyperlink;
                 sixelPlacements = snap.SixelPlacements;
                 sixelDamagedCells = CaptureSixelDamagedCells(snap, sixelPlacements);
                 cursorX = snap.CursorX;
@@ -417,6 +420,7 @@ public sealed class Hmp1PresentationAdapter : ITerminalLifecycleAwarePresentatio
                 kgpPlacements = [];
                 kgpImages = new Dictionary<uint, KgpImageData>();
                 kgpAnimationTimestamp = null;
+                activeHyperlink = null;
                 sixelPlacements = [];
                 sixelDamagedCells = [];
                 cursorX = 0;
@@ -455,7 +459,8 @@ public sealed class Hmp1PresentationAdapter : ITerminalLifecycleAwarePresentatio
                         stream,
                         sixelPlacements,
                         sixelDamagedCells,
-                        session.Cts.Token).ConfigureAwait(false);
+                        session.Cts.Token,
+                        activeHyperlink).ConfigureAwait(false);
                     lock (_sessionsLock)
                     {
                         _lastSixelReplayResult = result;
@@ -603,6 +608,12 @@ public sealed class Hmp1PresentationAdapter : ITerminalLifecycleAwarePresentatio
             sb.Append("\x1b[");
             sb.Append(snapshot.CursorShape);
             sb.Append(" q");
+        }
+
+        if (snapshot.ActiveHyperlink is { } hyperlink)
+        {
+            sb.Append(AnsiTokenSerializer.Serialize(new OscToken("8",
+                hyperlink.Parameters, hyperlink.Uri, UseEscBackslash: true)));
         }
 
         return sb.ToString();

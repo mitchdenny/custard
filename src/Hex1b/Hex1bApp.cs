@@ -649,6 +649,44 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
                 _invalidateChannel.Reader.TryRead(out _);
                 await RenderFrameAsync(cancellationToken);
                 _lastRenderTimestamp = Stopwatch.GetTimestamp();
+
+                // IMPORTANT: Handle race condition where output arrived during render.
+                // If invalidation was signaled while we were rendering, we need to re-render
+                // before blocking on WhenAny, otherwise content may not appear until next input.
+                // Limit to 2 extra renders to prevent animation timer cascades from starving input.
+                int extraRenders = 0;
+                const int maxExtraRenders = 2;
+
+                while (extraRenders < maxExtraRenders)
+                {
+                    // Check the budget before consuming the signal. A deferred render
+                    // must leave its invalidation queued to wake the next iteration.
+                    var elapsedSinceLastRender = TimeSpan.FromSeconds(
+                        (Stopwatch.GetTimestamp() - _lastRenderTimestamp) / (double)Stopwatch.Frequency);
+                    if (elapsedSinceLastRender < _frameRateLimit)
+                        break;
+
+                    if (!_invalidateChannel.Reader.TryRead(out _))
+                        break;
+
+                    // ALWAYS process pending input before each re-render to prevent starvation
+                    while (_adapter.InputEvents.TryRead(out var pendingEvent))
+                    {
+                        await ProcessInputEventAsync(pendingEvent, cancellationToken);
+                        if (_stopRequested || cancellationToken.IsCancellationRequested)
+                            break;
+                    }
+
+                    if (_stopRequested || cancellationToken.IsCancellationRequested)
+                        break;
+
+                    // Fire any timers that became due
+                    _animationTimer.FireDue();
+
+                    await RenderFrameAsync(cancellationToken);
+                    _lastRenderTimestamp = Stopwatch.GetTimestamp();
+                    extraRenders++;
+                }
             }
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)

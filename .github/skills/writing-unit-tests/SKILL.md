@@ -294,6 +294,30 @@ var result = await TestHelpers.CreateTerminalAndRunScenario(
 
 ---
 
+## Scheduler Progress Under Load
+
+For starvation regressions, keep the producer active while asserting input, timer,
+or shutdown progress. A finite output burst followed by `app.Invalidate()` can
+hide a lost wakeup. Use `TestWidget.OnRender` to place events at a known frame:
+
+```csharp
+var observer = new TestWidget().OnRender(args =>
+{
+    app.Invalidate(); // Renew on every frame, including while input is pending.
+    if (args.RenderCount == 3)
+        workload.SendKey(Hex1bKey.A);
+});
+```
+
+This fragment assumes captured `app` and `workload` references. Pair it with
+changing visible content so frames actually render, a bounded completion signal,
+and cancellation in `finally`. See `Hex1bAppSchedulingTests` for full examples.
+Check input ordering with coalescing both enabled and disabled. For cadence,
+measure steady-state intervals rather than using sleeps to synchronize.
+For nested output races, gate later child redraws: their extra notifications can
+mask a lost first-frame notification. These controlled cases supplement, rather
+than prove, responsiveness under arbitrary real-world load.
+
 ## Widget Test Dimensions
 
 When writing tests for widgets, consider all the **dimensions** that affect behavior. Each widget should have tests covering these scenarios:

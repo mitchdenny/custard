@@ -472,30 +472,58 @@ public class TerminalWidgetKgpTests
     public async Task Render_ChildKgpOutputDuringParentFrame_RendersWithoutFurtherInput(int frameRateLimitMs)
     {
         var imageBytes = KgpTestHelper.CreatePixelData(4, 4, fillByte: 0x5A);
-        using var workload = new Hex1bAppWorkloadAdapter();
+        var releaseInnerBuilds = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var innerBuilds = 0;
+        Hex1bApp? innerApp = null;
         await using var innerTerminal = Hex1bTerminal.CreateBuilder()
-            .WithWorkload(workload)
+            .WithHex1bApp(
+                options => options.EnableRescue = false,
+                (Func<Hex1bApp, Func<RootContext, Task<Hex1bWidget>>>)(app =>
+                {
+                    innerApp = app;
+                    return async context =>
+                    {
+                        // Only one child frame may wake the parent; a later startup
+                        // redraw would mask a lost notification from the first frame.
+                        if (++innerBuilds > 1)
+                            await releaseInnerBuilds.Task.WaitAsync(context.CancellationToken);
+                        return new KgpImageWidget(
+                            imageBytes, 4, 4, new TextBlockWidget("[inner fallback]"))
+                            .Width(4).Height(2);
+                    };
+                }))
             .WithDimensions(8, 4)
             .WithTerminalWidget(out var handle)
             .Build();
-        var childOutput = AnsiTokenizer.Tokenize(KgpTestHelper.BuildCommand(
-            "a=T,f=32,s=4,v=4,i=1,c=4,r=2,C=1,q=2", imageBytes));
+        Task? innerRunTask = null;
         var outputDelivered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var afterChild = new TestWidget().OnRender(args =>
         {
             if (args.RenderCount != 2)
                 return;
 
-            // Publish after TerminalNode captured the child, during a non-initial frame.
-            handle.WriteOutputWithImpactsAsync(innerTerminal.ApplyTokensWithImpacts(childOutput))
+            // Hold the parent after its child snapshot until the real inner app finishes
+            // a synchronized KGP frame. Subscribe after TerminalNode so its wakeup is queued.
+            handle.OutputReceived += () =>
+            {
+                if (handle.TryCaptureRenderFrame(0, out var frame) && frame?.KgpPlacements.Count == 1)
+                    outputDelivered.TrySetResult();
+            };
+            innerRunTask = innerTerminal.RunAsync(TestContext.Current.CancellationToken);
+            outputDelivered.Task.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken)
                 .GetAwaiter().GetResult();
-            outputDelivered.SetResult();
+            var childNode = TestSeq.Single(args.Node.Parent!.GetChildren().OfType<TerminalNode>());
+            Assert.IsTrue(childNode.HasPendingOutput, "The parent has not rendered the child's completed frame.");
         });
         var builds = 0;
         Hex1bApp? outerApp = null;
         await using var outerTerminal = Hex1bTerminal.CreateBuilder()
             .WithHex1bApp(
-                options => options.FrameRateLimitMs = frameRateLimitMs,
+                options =>
+                {
+                    options.FrameRateLimitMs = frameRateLimitMs;
+                    options.EnableRescue = false;
+                },
                 app =>
                 {
                     outerApp = app;
@@ -532,8 +560,10 @@ public class TerminalWidgetKgpTests
         }
         finally
         {
+            innerApp?.RequestStop();
+            releaseInnerBuilds.TrySetResult();
             outerApp!.RequestStop();
-            await runTask;
+            await Task.WhenAll(runTask, innerRunTask ?? Task.CompletedTask);
         }
     }
 

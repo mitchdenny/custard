@@ -53,6 +53,8 @@ export class WebTerminal implements WebTerminalHandle {
   #readyTimer: ReturnType<typeof setTimeout> | undefined;
   #stats: TerminalStats = {};
   #screenText = "";
+  #title = "";
+  #hasTitle = false;
   #history: HistoryState;
   #highlights!: HTMLDivElement;
   #inspection!: HTMLDivElement;
@@ -112,6 +114,8 @@ export class WebTerminal implements WebTerminalHandle {
   get geometry(): TerminalGeometry { return { ...this.#geometry }; }
   get peer(): TerminalPeer { return { ...this.#peer }; }
   get connected() { return this.#connected; }
+  /** Current presented workload title; retained on disconnect/dispose. Treat as untrusted text. */
+  get title(): string { return this.#title; }
   get stats(): TerminalStats { return { ...this.#stats }; }
   get screenText() { return this.#screenText; }
   get sizing(): TerminalSizingState { return { ...this.#sizing }; }
@@ -302,13 +306,19 @@ export class WebTerminal implements WebTerminalHandle {
       if (oldPeer.id !== this.#peer.id || oldPeer.primaryId !== this.#peer.primaryId || oldPeer.isPrimary !== this.#peer.isPrimary) {
         this.#options.onRoleChange?.(this.peer);
       }
+      if (!this.#disposed && this.#connected && (this.#peer.id !== null || this.#peer.isPrimary) &&
+          (!this.#hasTitle || this.#title !== message.title)) {
+        this.#title = message.title;
+        this.#hasTitle = true;
+        this.#options.onTitleChange?.(this.#title);
+      }
     } else if (message.type === "history") {
       this.#screenText = message.text;
       this.#history.accept(message.history, message.revision);
     } else if (message.type === "stats") {
       this.#stats = message.stats;
       if (message.text !== undefined) this.#screenText = message.text;
-      if (message.stats.revision > 0 && this.#connected && (this.#peer.id !== null || this.#peer.isPrimary)) {
+      if (message.stats.revision > 0 && this.#hasTitle && this.#connected && (this.#peer.id !== null || this.#peer.isPrimary)) {
         clearTimeout(this.#readyTimer);
         this.#ready.resolve(this);
       }

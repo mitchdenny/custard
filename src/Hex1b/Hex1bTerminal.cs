@@ -121,6 +121,8 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
     private bool _savedPendingWrap; // Saved pending wrap state for DECSC/DECRC
     private bool _savedCursorProtected; // Saved protection state for DECSC/DECRC
     private readonly Decoder _utf8Decoder = Encoding.UTF8.GetDecoder(); // Handles incomplete UTF-8 sequences across workload output reads
+    private readonly byte[] _pendingUtf8Output = new byte[3];
+    private int _pendingUtf8OutputLength;
     private readonly Decoder _inputUtf8Decoder = Encoding.UTF8.GetDecoder(); // Handles incomplete UTF-8 sequences across presentation input reads
     private readonly DcsByteStreamParser _dcsByteStreamParser;
     private List<TerminalGraphicsImpact>? _currentGraphicsImpacts;
@@ -461,7 +463,8 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
     /// </summary>
     internal IHex1bTerminalWorkloadAdapter Workload => _workload;
 
-    internal SemaphoreSlim Hmp1OutputStateLock => _hmp1OutputStateLock ??= new(1, 1);
+    internal SemaphoreSlim Hmp1OutputStateLock =>
+        LazyInitializer.EnsureInitialized(ref _hmp1OutputStateLock, static () => new(1, 1));
     
     /// <summary>
     /// Terminal capabilities from the presentation adapter, workload adapter, or defaults.
@@ -483,6 +486,11 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
     ///   <item>OSC 0 - Sets both window title and icon name</item>
     ///   <item>OSC 2 - Sets window title only</item>
     /// </list>
+    /// <para>Empty means no title. Titles retain at most 4096 UTF-16 code units, without
+    /// splitting a Unicode scalar. Control characters are removed and malformed surrogates
+    /// are replaced. Titles remain untrusted text, not markup or escape sequences.</para>
+    /// <para>RIS, soft reset, screen clearing, and buffer switches preserve the title.
+    /// An empty OSC 0 or OSC 2 clears it. Existing OSC 22/23 save and restore titles.</para>
     /// </remarks>
     public string WindowTitle => _windowTitle;
 
@@ -500,14 +508,17 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
     ///   <item>OSC 0 - Sets both window title and icon name</item>
     ///   <item>OSC 1 - Sets icon name only</item>
     /// </list>
+    /// <para>Uses the same text normalization and length bound as <see cref="WindowTitle"/>.</para>
     /// </remarks>
     public string IconName => _iconName;
 
     /// <summary>
-    /// Event raised when the window title changes (OSC 0 or OSC 2).
+    /// Event raised when the normalized window title changes, including saved-title restoration.
     /// </summary>
     /// <remarks>
-    /// The event provides the new window title as a string.
+    /// The event provides the new <see cref="WindowTitle"/> as untrusted text.
+    /// Identical normalized values do not raise the event. Read <see cref="WindowTitle"/>
+    /// to obtain the current value when subscribing; this event does not replay it.
     /// </remarks>
     public event Action<string>? WindowTitleChanged;
 
@@ -1229,6 +1240,9 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
             {
                 ReadOnlyMemory<byte> data;
                 IReadOnlyList<AnsiToken>? preTokenizedTokens = null;
+                Hmp1TerminalState? remoteState = null;
+                Hmp1KgpAnimationState? animationState = null;
+                var isStateSync = false;
                 byte[]? pooledItemBuffer = null;
                 List<AnsiToken>? pooledItemTokens = null;
                 Action<List<AnsiToken>>? pooledItemTokensReturn = null;
@@ -1236,18 +1250,9 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                 if (_workload is Hmp1WorkloadAdapter remoteWorkload)
                 {
                     var item = await remoteWorkload.ReadTerminalOutputAsync(ct);
-                    if (item.State is { } state)
-                    {
-                        await ApplyHmp1StateAsync(state);
-                        if (item.Bytes.IsEmpty)
-                            continue;
-                    }
-                    if (item.AnimationState is { } animationState)
-                    {
-                        ApplyHmp1KgpAnimationState(animationState);
-                        if (item.Bytes.IsEmpty)
-                            continue;
-                    }
+                    remoteState = item.State;
+                    animationState = item.AnimationState;
+                    isStateSync = item.IsStateSync;
                     data = item.Bytes;
                 }
                 else if (_workload is IHex1bTerminalTokenWorkloadAdapter tokenWorkload)
@@ -1264,7 +1269,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                     data = await _workload.ReadOutputAsync(ct);
                 }
                 
-                if (data.IsEmpty)
+                if (data.IsEmpty && remoteState is null && animationState is null)
                 {
                     if (pooledItemBuffer is not null)
                         System.Buffers.ArrayPool<byte>.Shared.Return(pooledItemBuffer);
@@ -1281,7 +1286,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
 
                 Interlocked.Add(ref _outputBytesRead, data.Length);
 
-                var outputStateLock = _hmp1OutputStateLock;
+                var outputStateLock = _workload is Hmp1WorkloadAdapter ? Hmp1OutputStateLock : _hmp1OutputStateLock;
                 var outputStateLockTaken = false;
                 try
                 {
@@ -1290,6 +1295,19 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                     await outputStateLock.WaitAsync(ct);
                     outputStateLockTaken = true;
                 }
+                // Publish connection geometry and its replay as one output-state
+                // transaction. A browser must not become ready on the empty replica.
+                if (remoteState is not null)
+                    await ApplyHmp1StateAsync(remoteState);
+                if (animationState is not null)
+                    ApplyHmp1KgpAnimationState(animationState);
+                if (isStateSync)
+                {
+                    lock (_bufferLock)
+                        _titleStack.Clear();
+                }
+                if (data.IsEmpty)
+                    continue;
                 var rawPresentationPassthrough =
                     _presentationFilters.Count == 0 &&
                     _presentation is not ICellImpactAwarePresentationAdapter;
@@ -1405,12 +1423,17 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         if (_presentationFilters.Count > 0 || _presentation is ICellImpactAwarePresentationAdapter)
             return ReadOnlyMemory<byte>.Empty;
 
-        // The caller holds Hmp1OutputStateLock. The byte framer may hold an ESC
-        // separately from the text tokenizer, including the first byte of ST.
-        var pending = _incompleteSequenceBuffer;
+        // Restore decoder bytes before the byte framer's held ESC, which may be
+        // the first byte of ST. Neither is represented by the decoded OSC prefix.
+        // The caller holds Hmp1OutputStateLock.
+        var prefixBytes = Encoding.UTF8.GetByteCount(_incompleteSequenceBuffer);
+        var pending = new byte[prefixBytes + _pendingUtf8OutputLength +
+            (_dcsByteStreamParser.HasPendingGroundEscape ? 1 : 0)];
+        Encoding.UTF8.GetBytes(_incompleteSequenceBuffer, pending);
+        _pendingUtf8Output.AsSpan(0, _pendingUtf8OutputLength).CopyTo(pending.AsSpan(prefixBytes));
         if (_dcsByteStreamParser.HasPendingGroundEscape)
-            pending += "\x1b";
-        return Encoding.UTF8.GetBytes(pending);
+            pending[^1] = 0x1b;
+        return pending;
     }
 
     private RawOutputTokenization TokenizeRawWorkloadOutput(ReadOnlySpan<byte> data)
@@ -1459,6 +1482,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         var charCount = _utf8Decoder.GetCharCount(data, flushAtBoundary);
         var chars = new char[charCount];
         _utf8Decoder.GetChars(data, chars, flushAtBoundary);
+        TrackPendingUtf8Output(data, flushAtBoundary);
         var decodedText = new string(chars);
 
         var text = _incompleteSequenceBuffer + decodedText;
@@ -1481,6 +1505,34 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         if (flushAtBoundary && !string.IsNullOrEmpty(extracted.incompleteSequence))
         {
             tokens.Add(new UnrecognizedSequenceToken(extracted.incompleteSequence));
+        }
+    }
+
+    private void TrackPendingUtf8Output(ReadOnlySpan<byte> data, bool flush)
+    {
+        if (flush)
+        {
+            _pendingUtf8OutputLength = 0;
+            return;
+        }
+
+        // Only a valid, incomplete scalar at the end of the stream can remain in
+        // the UTF-8 decoder. Keep its original bytes for late-attachment replay.
+        Span<byte> tail = stackalloc byte[3];
+        var dataLength = Math.Min(data.Length, tail.Length);
+        var priorLength = Math.Min(_pendingUtf8OutputLength, tail.Length - dataLength);
+        _pendingUtf8Output.AsSpan(_pendingUtf8OutputLength - priorLength, priorLength).CopyTo(tail);
+        data[^dataLength..].CopyTo(tail[priorLength..]);
+        tail = tail[..(priorLength + dataLength)];
+        _pendingUtf8OutputLength = 0;
+        for (var start = 0; start < tail.Length; start++)
+        {
+            var suffix = tail[start..];
+            if (Rune.DecodeFromUtf8(suffix, out _, out _) != System.Buffers.OperationStatus.NeedMoreData)
+                continue;
+            suffix.CopyTo(_pendingUtf8Output);
+            _pendingUtf8OutputLength = suffix.Length;
+            break;
         }
     }
 
@@ -1964,7 +2016,8 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         int scrollbackLines,
         ScrollbackWidth scrollbackWidth,
         int? textViewportTop = null,
-        bool includeAllKgpImages = false)
+        bool includeAllKgpImages = false,
+        bool includeSavedTitles = false)
     {
         lock (_bufferLock)
         {
@@ -2059,7 +2112,10 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                 kgp.Images,
                 sixel.Placements,
                 sixel.Images,
-                _currentHyperlink?.Data);
+                _currentHyperlink?.Data,
+                _windowTitle,
+                _iconName,
+                includeSavedTitles ? Array.AsReadOnly(_titleStack.ToArray()) : []);
         }
     }
 
@@ -2299,9 +2355,10 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         return new Hex1bTerminalSnapshot(this);
     }
 
-    internal Hex1bTerminalSnapshot CreateSnapshot(bool includeAllKgpImages)
+    internal Hex1bTerminalSnapshot CreateSnapshot(bool includeAllKgpImages, bool includeSavedTitles = false)
         => new(this,
-            CaptureSnapshotState(0, ScrollbackWidth.CurrentTerminal, includeAllKgpImages: includeAllKgpImages),
+            CaptureSnapshotState(0, ScrollbackWidth.CurrentTerminal, includeAllKgpImages: includeAllKgpImages,
+                includeSavedTitles: includeSavedTitles),
             ScrollbackWidth.CurrentTerminal, TerminalCell.Empty);
 
     internal Hex1bTerminalSnapshot CreateSnapshot(out Hmp1TerminalState? remoteState)
@@ -6735,6 +6792,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
     /// </summary>
     private void SetWindowTitle(string title)
     {
+        title = TerminalTitle.Normalize(title);
         if (_windowTitle != title)
         {
             _windowTitle = title;
@@ -6747,6 +6805,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
     /// </summary>
     private void SetIconName(string name)
     {
+        name = TerminalTitle.Normalize(name);
         if (_iconName != name)
         {
             _iconName = name;

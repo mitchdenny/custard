@@ -310,8 +310,9 @@ async function openView(instance: TerminalInstance, { primary = false, thumbnail
       </select>
     </footer>
     <span class="resize-handle" title="Drag to resize view" aria-hidden="true"></span>`;
-  elementAt(element, ".view-title", HTMLElement).textContent =
-    `${instance.name} / ${id} / ${transport === "hmp1" ? "HMP1 relay" : "Direct HWT1"}`;
+  const header = elementAt(element, ".view-title", HTMLElement);
+  const fallbackTitle = `${instance.name} / ${id} / ${transport === "hmp1" ? "HMP1 relay" : "Direct HWT1"}`;
+  header.textContent = fallbackTitle;
   const width = thumbnail ? 320 : Math.min(1040, Math.max(300, workspace.clientWidth - 64));
   const height = thumbnail ? 240 : Math.min(660, Math.max(300, workspace.clientHeight - 64));
   element.style.width = `${width}px`;
@@ -361,6 +362,9 @@ async function openView(instance: TerminalInstance, { primary = false, thumbnail
       scale: select("scale").value === "auto" ? "auto" : Number(select("scale").value),
       font: select("font").value === "monospace" ? { family: "monospace" } : undefined,
       label: `${instance.name}, view ${id}, terminal input`,
+      onTitleChange(title) {
+        header.textContent = title || fallbackTitle;
+      },
       onStatus(message, level) {
         const status = elementAt(element, ".view-status", HTMLElement);
         status.textContent = message;

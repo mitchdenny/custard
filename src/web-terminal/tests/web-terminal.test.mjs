@@ -116,6 +116,7 @@ test("Unusable font metrics fail instead of silently choosing another font", () 
 function frame(peer) {
   const metadata = {
     version: 1, revision: 1, baseRevision: 0, full: true,
+    title: "",
     columns: 1, rows: 1, cellWidth: 10, cellHeight: 20, mouseTracking: 0, peer,
     cursor: { x: 0, y: 0, visible: false, shape: 0 }, history: null,
     images: [], retainedImages: [], placements: [], warnings: [], hyperlinks: [],

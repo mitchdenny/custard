@@ -6,6 +6,7 @@ export const LIMITS = Object.freeze({
   commandBytes: 64 * 1024,
   frameBytes: 96 * 1024 * 1024,
   metadataBytes: 8 * 1024 * 1024,
+  titleUnits: 4096,
   cells: 262144,
   images: 4096,
   placements: 16384,
@@ -97,6 +98,10 @@ function validateMetadata(metadata: unknown): asserts metadata is FrameMetadata 
   }
   integer(metadata.revision, "revision", 1);
   integer(metadata.baseRevision, "base revision");
+  if (typeof metadata.title !== "string" || metadata.title.length > LIMITS.titleUnits ||
+      /[\u0000-\u001f\u007f-\u009f\ud800-\udfff]/u.test(metadata.title)) {
+    throw new Error("Invalid terminal title");
+  }
   const columns = integer(metadata.columns, "columns", 1, 1024);
   const rows = integer(metadata.rows, "rows", 1, 512);
   if (typeof metadata.mouseTracking !== "number" || ![0, 9, 1000, 1002, 1003].includes(metadata.mouseTracking)) {

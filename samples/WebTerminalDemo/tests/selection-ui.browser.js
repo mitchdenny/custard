@@ -48,7 +48,7 @@ async page => {
           if (this.stopped) return;
           const revision = ++uiFixture.revision;
           this.dispatchEvent(new MessageEvent("message", { data: {
-            type: "geometry", columns: 40, rows: 10, cellWidth: 10, cellHeight: 20, mouseTracking: 1003, hyperlinks: [],
+            type: "geometry", columns: 40, rows: 10, cellWidth: 10, cellHeight: 20, mouseTracking: 1003, hyperlinks: [], title: "",
             peer: { id: this.id, primaryId: "native", isPrimary: false }, revision, text: "HELLO",
             history: { generation: "1", buffer: "main", totalRows: 30, top: this.top, liveTop: 20,
               following: this.top === 20, requestId: this.viewportRequest,

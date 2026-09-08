@@ -303,7 +303,7 @@ public sealed class Hmp1WorkloadAdapter : IHex1bTerminalWorkloadAdapter, IHmp1Co
 
         // Hello geometry must be applied before StateSync, even when the adapter
         // was connected before its consuming terminal was constructed.
-        _outputChannel.Writer.TryWrite(new(syncFrame.Payload, CaptureTerminalState(connected: true)));
+        _outputChannel.Writer.TryWrite(new(syncFrame.Payload, CaptureTerminalState(connected: true), IsStateSync: true));
 
         // Start the background read pump. Important: do NOT capture the caller-supplied
         // CancellationToken here. A "handshake timeout" CT must NOT keep cancelling
@@ -557,8 +557,12 @@ public sealed class Hmp1WorkloadAdapter : IHex1bTerminalWorkloadAdapter, IHmp1Co
 
                 switch (frame.Type)
                 {
-                    case Hmp1FrameType.Output:
                     case Hmp1FrameType.StateSync:
+                        await _outputChannel.Writer.WriteAsync(
+                            new(frame.Payload, CaptureTerminalState(connected: true), IsStateSync: true), ct).ConfigureAwait(false);
+                        break;
+
+                    case Hmp1FrameType.Output:
                         // WriteAsync (not TryWrite) so the bounded channel back-pressures
                         // the network when the consumer is slow, instead of silently
                         // losing frames. Restored from Hex1b PR #308 (Phase 9c).

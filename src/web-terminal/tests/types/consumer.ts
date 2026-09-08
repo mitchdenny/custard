@@ -50,6 +50,10 @@ const options: WebTerminalOptions = {
     const reason: string | undefined = stats.rendererFallbackReason;
     console.log(revision, mirror, renderer, reason);
   },
+  onTitleChange(title) {
+    const currentTitle: string = title;
+    console.log(currentTitle);
+  },
   onSelectionUI(event) {
     const notification: SelectionUIEvent = event;
     notification.preventDefault();
@@ -73,7 +77,11 @@ const options: WebTerminalOptions = {
   }
 };
 
-const terminal: WebTerminalHandle = await WebTerminal.mount(container, options);
+const mountedTerminal: WebTerminal = await WebTerminal.mount(container, options);
+const terminal: WebTerminalHandle = mountedTerminal;
+const title: string = terminal.title;
+const mountedTitle: string = mountedTerminal.title;
+console.log(title, mountedTitle);
 const forcedRenderer: TerminalRendererPreference = "webgl2";
 const forcedOptions: WebTerminalOptions = { ...options, renderer: forcedRenderer };
 console.log(forcedOptions);
@@ -90,6 +98,10 @@ terminal.dispose();
 
 // @ts-expect-error Consumers must use mount to obtain an initialized handle.
 new WebTerminal(options);
+// @ts-expect-error The current title is read-only on the public handle.
+terminal.title = "host title";
+// @ts-expect-error The WebTerminal class exposes only a getter.
+mountedTerminal.title = "host title";
 // @ts-expect-error Fixed sizing requires both grid dimensions.
 terminal.setSizing({ mode: "fixed", columns: 80 });
 // @ts-expect-error Paste is text, not bytes.

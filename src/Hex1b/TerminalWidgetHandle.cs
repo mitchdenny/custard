@@ -246,11 +246,14 @@ public sealed class TerminalWidgetHandle :
     /// <summary>
     /// Gets the current window title set by OSC 0 or OSC 2 sequences from the child process.
     /// </summary>
+    /// <remarks>Empty means no title. Uses the same control-free, 4096 UTF-16 code-unit
+    /// normalization as <see cref="Hex1bTerminal.WindowTitle"/>. Render as untrusted text.</remarks>
     public string WindowTitle => _windowTitle;
 
     /// <summary>
     /// Gets the current icon name set by OSC 0 or OSC 1 sequences from the child process.
     /// </summary>
+    /// <remarks>Uses the same text normalization and length bound as <see cref="WindowTitle"/>.</remarks>
     public string IconName => _iconName;
     
     /// <summary>
@@ -431,6 +434,7 @@ public sealed class TerminalWidgetHandle :
     /// </summary>
     private void SetWindowTitle(string title)
     {
+        title = TerminalTitle.Normalize(title);
         if (_windowTitle != title)
         {
             _windowTitle = title;
@@ -443,6 +447,7 @@ public sealed class TerminalWidgetHandle :
     /// </summary>
     private void SetIconName(string name)
     {
+        name = TerminalTitle.Normalize(name);
         if (_iconName != name)
         {
             _iconName = name;

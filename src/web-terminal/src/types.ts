@@ -158,6 +158,12 @@ export interface WebTerminalOptions extends InputPolicyOptions {
   onGeometry?: (geometry: TerminalGeometry) => void;
   onSizingChange?: (sizing: TerminalSizingState) => void;
   onRoleChange?: (peer: TerminalPeer) => void;
+  /**
+   * Receives the first authoritative presented title (including "") before mount resolves,
+   * then distinct presented changes. The title getter is updated first. Titles are untrusted
+   * text; render with textContent, not HTML. No notifications after disposal.
+   */
+  onTitleChange?: (title: string) => void;
   onStats?: (stats: TerminalStats, text: string | undefined) => void;
   onViewportChange?: (viewport: TerminalViewport) => void;
   onSelectionChange?: (selection: TerminalSelection) => void;
@@ -171,6 +177,8 @@ export interface WebTerminalHandle {
   readonly geometry: TerminalGeometry;
   readonly peer: TerminalPeer;
   readonly connected: boolean;
+  /** Current presented workload title, or "" when unset/cleared. Retained on disconnect/dispose. */
+  readonly title: string;
   readonly stats: TerminalStats;
   readonly screenText: string;
   readonly sizing: TerminalSizingState;

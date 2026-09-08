@@ -171,7 +171,8 @@ internal sealed class Hwt1RenderProjection
             newImages, _images.Keys.ToArray(), placements,
             new(workloadBytes, outputBatches, elapsedMs,
                 snapshotMs + Stopwatch.GetElapsedTime(started).TotalMilliseconds),
-            warnings, peer ?? Hwt1Peer.Standalone, history, hyperlinks), Hwt1JsonSerializerContext.Default.Hwt1FrameMetadata);
+            warnings, peer ?? Hwt1Peer.Standalone, history, hyperlinks, snapshot.WindowTitle),
+            Hwt1JsonSerializerContext.Default.Hwt1FrameMetadata);
         if (metadata.Length > 8 * 1024 * 1024)
             throw new InvalidDataException("Frame metadata exceeds the HWT1 8 MiB limit.");
 

@@ -30,4 +30,7 @@ internal sealed record Hex1bTerminalSnapshotState(
     IReadOnlyDictionary<uint, KgpImageData> KgpImages,
     IReadOnlyList<SixelPlacement> SixelPlacements,
     IReadOnlyDictionary<byte[], SixelData> SixelImages,
-    HyperlinkData? ActiveHyperlink);
+    HyperlinkData? ActiveHyperlink,
+    string WindowTitle,
+    string IconName,
+    IReadOnlyList<(string Title, string IconName)> SavedTitles);

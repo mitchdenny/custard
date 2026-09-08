@@ -604,16 +604,15 @@ public class Hex1bTerminalBuilderTests
     [TestMethod]
     public async Task WithProcess_ExecutesProcess()
     {
-        // Inline C# echo script
-        const string script = """Console.WriteLine(string.Join(" ", args));""";
-        
-        using var workspace = TestWorkspace.Create("process_exec");
-        var scriptFile = workspace.CreateCSharpProgram("echo.cs", script);
-        
+        // Test process output, not on-demand SDK compilation inside the output deadline.
+        var (fileName, arguments) = OperatingSystem.IsWindows()
+            ? ("cmd.exe", new[] { "/d", "/c", "echo", "Hello", "from", "process" })
+            : ("/bin/echo", new[] { "Hello", "from", "process" });
+
         var pattern = new CellPatternSearcher().Find("Hello from process");
         
         await using var terminal = Hex1bTerminal.CreateBuilder()
-            .WithProcess("dotnet", "run", scriptFile.FullName, "Hello", "from", "process")
+            .WithProcess(fileName, arguments)
             .WithHeadless()
             .WithDimensions(60, 10)
             .Build();
@@ -653,14 +652,10 @@ public class Hex1bTerminalBuilderTests
     [TestMethod]
     public async Task WithProcess_ProcessStartInfo_AdapterCapturesOutput()
     {
-        // Inline C# echo script
-        const string script = """Console.WriteLine(string.Join(" ", args));""";
-        
-        using var workspace = TestWorkspace.Create("adapter_output");
-        var scriptFile = workspace.CreateCSharpProgram("echo.cs", script);
-        
-        var startInfo = new ProcessStartInfo("dotnet", $"run {scriptFile.FullName} AdapterTestOutput");
-        var adapter = new StandardProcessWorkloadAdapter(startInfo);
+        var startInfo = OperatingSystem.IsWindows()
+            ? new ProcessStartInfo("cmd.exe", "/d /c echo AdapterTestOutput")
+            : new ProcessStartInfo("/bin/echo", "AdapterTestOutput");
+        await using var adapter = new StandardProcessWorkloadAdapter(startInfo);
         
         await adapter.StartAsync();
         
@@ -680,7 +675,6 @@ public class Hex1bTerminalBuilderTests
         }
         
         var exitCode = await adapter.WaitForExitAsync();
-        await adapter.DisposeAsync();
         
         Assert.AreEqual(0, exitCode);
         Assert.Contains("AdapterTestOutput", output.ToString());

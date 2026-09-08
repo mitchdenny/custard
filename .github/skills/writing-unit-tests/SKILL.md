@@ -354,6 +354,9 @@ stderr reach the snapshot. See `StandardProcessOutputTests` for raw and filtered
 output, cancellation, and pump-failure cases. Keep ordinary `WithProcess` tests
 alongside this ordering test; do not keep a one-shot child alive or wait for visible
 output before awaiting `RunAsync` in a drain regression, since that hides the race.
+For echo/transport tests, use an already-available executable (`cmd /d /c echo` on
+Windows, `/bin/echo` on Unix). Runtime-compiling a temporary C# program with
+`dotnet run` puts SDK startup and compilation inside the output deadline.
 
 ## Widget Test Dimensions
 

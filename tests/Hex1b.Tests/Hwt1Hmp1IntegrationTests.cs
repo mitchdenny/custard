@@ -13,6 +13,80 @@ namespace Hex1b.Tests;
 public class Hwt1Hmp1IntegrationTests
 {
     [TestMethod]
+    [DataRow(false, false)]
+    [DataRow(false, true)]
+    [DataRow(true, false)]
+    [DataRow(true, true)]
+    public async Task LateAttachment_DuringKgpPlacementReplacement_RetainsUnusedPalette(
+        bool alternateScreen, bool keepPlacement)
+    {
+        using var workload = new Hex1bAppWorkloadAdapter();
+        await using var server = new Hmp1PresentationAdapter(20, 10);
+        await using var producer = Hex1bTerminal.CreateBuilder().WithWorkload(workload)
+            .WithPresentation(server).WithDimensions(20, 10).WithTimeProvider(new FakeTimeProvider()).Build();
+        var upstream = await ConnectAsync(server);
+        await using var upstreamHandle = upstream.Handle;
+        await using var upstreamClient = upstream.Client;
+        await using var relay = new Hmp1PresentationAdapter(20, 10);
+        await using var replica = Hex1bTerminal.CreateBuilder().WithWorkload(upstreamClient)
+            .WithPresentation(relay).WithTimeProvider(new FakeTimeProvider()).Build();
+        var first = await ConnectAsync(relay);
+        await using var firstHandle = first.Handle;
+        await using var firstClient = first.Client;
+        await using var firstView = new Hwt1PresentationAdapter(20, 10);
+        await using var firstMirror = Hex1bTerminal.CreateBuilder().WithWorkload(firstClient)
+            .WithPresentation(firstView).Build();
+        var red = Enumerable.Range(0, 9).SelectMany(_ => new byte[] { 255, 0, 0, 255 }).ToArray();
+        var green = Enumerable.Range(0, 9).SelectMany(_ => new byte[] { 0, 255, 0, 255 }).ToArray();
+        workload.Write((alternateScreen ? "\x1b[?1049h" : "") + "\x1b[?2026h" +
+            KgpTestHelper.BuildCommand("a=t,f=32,s=3,v=3,i=7300,q=2", red) +
+            KgpTestHelper.BuildCommand("a=t,f=32,s=3,v=3,i=7301,q=2", green) +
+            "\x1b[2;3H" + KgpTestHelper.BuildCommand("a=p,i=7300,C=1,q=2") +
+            "\x1b[4;3H" + KgpTestHelper.BuildCommand("a=p,i=7301,C=1,q=2") + "\x1b[?2026l");
+        await ReadUntilAsync(firstView, frame => frame.GetProperty("placements").GetArrayLength() == 2);
+
+        // Freeze the clock so attachment occurs inside the actual synchronized
+        // frame, not after the terminal's synchronized-output watchdog expires.
+        workload.Write("\x1b[?2026h" + KgpTestHelper.BuildCommand("a=d,d=a,q=2") +
+            (keepPlacement ? "\x1b[2;3H" + KgpTestHelper.BuildCommand("a=p,i=7300,C=1,q=2") : "") +
+            "\x1b[Hpalette-cleared");
+        await WaitForScreenAsync(producer, snapshot => snapshot.ContainsText("palette-cleared") &&
+            snapshot.KgpPlacements.Count == (keepPlacement ? 1 : 0));
+        await WaitForScreenAsync(replica, snapshot => snapshot.ContainsText("palette-cleared") &&
+            snapshot.KgpPlacements.Count == (keepPlacement ? 1 : 0));
+        Assert.AreEqual(2, producer.KgpImageStore.ImageCount);
+        Assert.AreEqual(2, replica.KgpImageStore.ImageCount);
+
+        var late = await ConnectAsync(relay);
+        await using var lateHandle = late.Handle;
+        await using var lateClient = late.Client;
+        await using var lateView = new Hwt1PresentationAdapter(20, 10);
+        await using var lateMirror = Hex1bTerminal.CreateBuilder().WithWorkload(lateClient)
+            .WithPresentation(lateView).Build();
+
+        workload.Write(KgpTestHelper.BuildCommand("a=d,d=a,q=2") +
+            "\x1b[2;8H" + KgpTestHelper.BuildCommand("a=p,i=7300,X=1,Y=2,C=1,q=2") +
+            "\x1b[4;8H" + KgpTestHelper.BuildCommand("a=p,i=7301,X=1,Y=2,C=1,q=2") +
+            "\x1b[6;1Hreplacement-done\x1b[?2026l");
+        await WaitForScreenAsync(firstMirror, snapshot => snapshot.ContainsText("replacement-done") &&
+            snapshot.KgpPlacements.Count == 2);
+        await WaitForScreenAsync(lateMirror, snapshot => snapshot.ContainsText("replacement-done") &&
+            snapshot.KgpPlacements.Count == 2);
+        using var actual = lateMirror.CreateSnapshot();
+        Assert.AreEqual(alternateScreen, actual.InAlternateScreen);
+        TestSeq.AreEqual(red, actual.KgpImages[7300].Data);
+        TestSeq.AreEqual(green, actual.KgpImages[7301].Data);
+        foreach (var placement in actual.KgpPlacements)
+        {
+            Assert.AreEqual(7, placement.Column);
+            Assert.AreEqual(1u, placement.CellOffsetX);
+            Assert.AreEqual(2u, placement.CellOffsetY);
+            Assert.IsTrue(placement.UsesNativeSize);
+        }
+        await ReadUntilAsync(lateView, frame => frame.GetProperty("placements").GetArrayLength() == 2);
+    }
+
+    [TestMethod]
     public async Task ProducerBackedView_SplitSynchronizedOutput_PublishesCompleteFrameToAllViews()
     {
         var clock = new FakeTimeProvider();

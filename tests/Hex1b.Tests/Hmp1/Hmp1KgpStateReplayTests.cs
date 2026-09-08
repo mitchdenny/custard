@@ -10,6 +10,194 @@ namespace Hex1b.Tests.Hmp1;
 public class Hmp1KgpStateReplayTests
 {
     [TestMethod]
+    [DataRow(KgpFormat.Rgb24)]
+    [DataRow(KgpFormat.Rgba32)]
+    [DataRow(KgpFormat.Png)]
+    public async Task WriteAsync_UnplacedResidentImage_PreservesFormatAndLaterPlacement(KgpFormat format)
+    {
+        var time = new FakeTimeProvider();
+        using var producerWorkload = new Hex1bAppWorkloadAdapter();
+        using var producer = CreateTerminal(producerWorkload, time);
+        var pixels = format == KgpFormat.Png
+            ? Convert.FromBase64String(
+                "iVBORw0KGgoAAAANSUhEUgAAAAMAAAADCAYAAABWKLW/AAAAEUlEQVR4nGP4z8DwH4YZcHIAXdcR79xPMRAAAAAASUVORK5CYII=")
+            : Enumerable.Range(0, 3 * 3 * (format == KgpFormat.Rgb24 ? 3 : 4)).Select(i => (byte)i).ToArray();
+        producer.ApplyTokens(AnsiTokenizer.Tokenize(
+            KgpTestHelper.BuildCommand($"a=t,f={(int)format},s=3,v=3,i=7300,q=2", pixels)));
+        using var source = producer.CreateSnapshot(includeAllKgpImages: true);
+        using var viewerWorkload = new Hex1bAppWorkloadAdapter();
+        using var viewer = CreateTerminal(viewerWorkload, time);
+
+        await ReplayAsync(source, viewer);
+
+        using (var beforePlacement = viewer.CreateSnapshot())
+        {
+            Assert.IsEmpty(beforePlacement.KgpImages);
+            Assert.IsEmpty(beforePlacement.KgpPlacements);
+        }
+        viewer.ApplyTokens(AnsiTokenizer.Tokenize(
+            "\x1b[2;8H" + KgpTestHelper.BuildCommand("a=p,i=7300,C=1,q=2")));
+        using var replay = viewer.CreateSnapshot();
+        Assert.AreEqual(format, replay.KgpImages[7300].Format);
+        TestSeq.AreEqual(pixels, replay.KgpImages[7300].Data);
+        Assert.AreEqual(7, TestSeq.Single(replay.KgpPlacements).Column);
+    }
+
+    [TestMethod]
+    public async Task CreateSnapshot_AllResidentImages_RespectsDeletionEvictionAndSnapshotLifetime()
+    {
+        using var producerWorkload = new Hex1bAppWorkloadAdapter();
+        using var producer = Hex1bTerminal.CreateBuilder().WithWorkload(producerWorkload)
+            .WithHeadless(new TerminalCapabilities { SupportsKgp = true })
+            .WithDimensions(20, 10).WithGraphics(options => options.MaximumRetainedBytesPerScreen = 12).Build();
+        foreach (var id in new[] { 6, 7, 8, 9 })
+            producer.ApplyTokens(AnsiTokenizer.Tokenize(
+                KgpTestHelper.BuildCommand($"a=t,f=32,s=1,v=1,i={id},q=2", [(byte)id, 0, 0, 255])));
+        producer.ApplyTokens(AnsiTokenizer.Tokenize(
+            KgpTestHelper.BuildCommand("a=d,d=I,i=8,q=2") +
+            KgpTestHelper.BuildCommand("a=d,d=i,i=7,q=2")));
+        using var source = producer.CreateSnapshot(includeAllKgpImages: true);
+        TestSeq.AreEqual(new uint[] { 7, 9 }, source.KgpImages.Keys.Order());
+        Assert.IsEmpty(source.KgpPlacements);
+        using (var screen = producer.CreateSnapshot())
+            Assert.IsEmpty(screen.KgpImages, "Display snapshots must not acquire unused resident pixels.");
+        Assert.AreSame(producer.KgpImageStore.GetImageById(7), source.KgpImages[7]);
+
+        producer.ApplyTokens(AnsiTokenizer.Tokenize(
+            KgpTestHelper.BuildCommand("a=t,f=32,s=1,v=1,i=7,q=2", [70, 0, 0, 255]) +
+            KgpTestHelper.BuildCommand("a=d,d=I,i=9,q=2")));
+        using var current = producer.CreateSnapshot(includeAllKgpImages: true);
+        Assert.AreEqual(7u, TestSeq.Single(current.KgpImages.Keys));
+        using var viewerWorkload = new Hex1bAppWorkloadAdapter();
+        using var viewer = CreateTerminal(viewerWorkload, TimeProvider.System);
+
+        await ReplayAsync(source, viewer);
+
+        Assert.AreEqual(2, viewer.KgpImageStore.ImageCount);
+        Assert.IsNull(viewer.KgpImageStore.GetImageById(6));
+        Assert.IsNull(viewer.KgpImageStore.GetImageById(8));
+        TestSeq.AreEqual(new byte[] { 7, 0, 0, 255 }, viewer.KgpImageStore.GetImageById(7)!.Data);
+        TestSeq.AreEqual(new byte[] { 9, 0, 0, 255 }, viewer.KgpImageStore.GetImageById(9)!.Data);
+    }
+
+    [TestMethod]
+    [DataRow(false)]
+    [DataRow(true)]
+    public async Task WriteAsync_UnplacedNewerImageNumber_PreservesOlderPlacementAndFutureNumberLookup(bool wrappedIds)
+    {
+        var time = new FakeTimeProvider();
+        using var producerWorkload = new Hex1bAppWorkloadAdapter();
+        using var producer = CreateTerminal(producerWorkload, time);
+        if (wrappedIds)
+        {
+            producer.KgpImageStore.StoreImage(new KgpImageData(uint.MaxValue, 42, [1, 0, 0, 255],
+                1, 1, KgpFormat.Rgba32));
+            producer.ApplyTokens(AnsiTokenizer.Tokenize(KgpTestHelper.BuildCommand("a=p,I=42,C=1,q=2")));
+        }
+        else
+            producer.ApplyTokens(AnsiTokenizer.Tokenize(
+                KgpTestHelper.BuildCommand("a=T,f=32,s=1,v=1,I=42,C=1,q=2", [1, 0, 0, 255])));
+        producer.ApplyTokens(AnsiTokenizer.Tokenize(
+            KgpTestHelper.BuildCommand("a=t,f=32,s=1,v=1,I=42,q=2", [2, 0, 0, 255])));
+        using var source = producer.CreateSnapshot(includeAllKgpImages: true);
+        using var viewerWorkload = new Hex1bAppWorkloadAdapter();
+        using var viewer = CreateTerminal(viewerWorkload, time);
+
+        await ReplayAsync(source, viewer);
+
+        using (var replay = viewer.CreateSnapshot())
+            TestSeq.AreEqual(new byte[] { 1, 0, 0, 255 },
+                replay.KgpImages[TestSeq.Single(replay.KgpPlacements).ImageId].Data);
+        viewer.ApplyTokens(AnsiTokenizer.Tokenize(
+            "\x1b[2;1H" + KgpTestHelper.BuildCommand("a=p,I=42,C=1,q=2")));
+        using var continued = viewer.CreateSnapshot();
+        var latest = continued.KgpPlacements.Single(placement => placement.Row == 1);
+        TestSeq.AreEqual(new byte[] { 2, 0, 0, 255 }, continued.KgpImages[latest.ImageId].Data);
+        viewer.ApplyTokens(AnsiTokenizer.Tokenize(
+            KgpTestHelper.BuildCommand("a=d,d=N,I=42,q=2") +
+            "\x1b[3;1H" + KgpTestHelper.BuildCommand("a=p,I=42,C=1,q=2")));
+        using var fallback = viewer.CreateSnapshot();
+        var older = fallback.KgpPlacements.Single(placement => placement.Row == 2);
+        Assert.AreEqual(2, fallback.KgpPlacements.Count);
+        TestSeq.AreEqual(new byte[] { 1, 0, 0, 255 }, fallback.KgpImages[older.ImageId].Data);
+    }
+
+    [TestMethod]
+    public async Task WriteAsync_NumberedAnimationGenerations_PreservesIndependentPlaybackCheckpoints()
+    {
+        var producerTime = new FakeTimeProvider();
+        using var producerWorkload = new Hex1bAppWorkloadAdapter();
+        using var producer = CreateTerminal(producerWorkload, producerTime);
+        producer.ApplyTokens(AnsiTokenizer.Tokenize(
+            KgpTestHelper.BuildCommand("a=T,f=32,s=1,v=1,I=42,p=11,C=1,q=2", [1, 0, 0, 255]) +
+            KgpTestHelper.BuildCommand("a=f,f=32,s=1,v=1,I=42,z=30,q=2", [2, 0, 0, 255]) +
+            KgpTestHelper.BuildCommand("a=a,I=42,r=1,z=20,s=3,v=3,q=2")));
+        for (var elapsed = 0; elapsed < 55; elapsed++)
+            producerTime.Advance(TimeSpan.FromMilliseconds(1));
+        producer.ApplyTokens(AnsiTokenizer.Tokenize(
+            KgpTestHelper.BuildCommand("a=t,f=32,s=1,v=1,I=42,q=2", [3, 0, 0, 255]) +
+            KgpTestHelper.BuildCommand("a=f,f=32,s=1,v=1,I=42,z=80,q=2", [4, 0, 0, 255]) +
+            KgpTestHelper.BuildCommand("a=a,I=42,r=1,z=60,c=2,s=1,v=2,q=2")));
+        using var source = producer.CreateSnapshot(includeAllKgpImages: true);
+        using var viewerWorkload = new Hex1bAppWorkloadAdapter();
+        using var viewer = CreateTerminal(viewerWorkload, new FakeTimeProvider());
+
+        await ReplayAsync(source, viewer);
+
+        using var replay = viewer.CreateSnapshot(includeAllKgpImages: true);
+        Assert.AreEqual(2, replay.KgpImages.Count);
+        foreach (var expected in source.KgpImages.Values)
+        {
+            var actual = replay.KgpImages.Values.Single(image => image.Data[0] == expected.Data[0]);
+            Assert.AreEqual(expected.CurrentFrameNumber, actual.CurrentFrameNumber);
+            Assert.AreEqual(expected.AnimationState!.PlaybackState, actual.AnimationState!.PlaybackState);
+            Assert.AreEqual(expected.AnimationState.MaximumLoops, actual.AnimationState.MaximumLoops);
+            Assert.AreEqual(expected.AnimationState.CompletedLoops, actual.AnimationState.CompletedLoops);
+            TestSeq.AreEqual(expected.AnimationFrames!.Select(frame => frame.GapMilliseconds),
+                actual.AnimationFrames!.Select(frame => frame.GapMilliseconds));
+            TestSeq.AreEqual(expected.CurrentFrameData, actual.CurrentFrameData);
+        }
+        Assert.AreEqual((byte)1, replay.KgpImages[TestSeq.Single(replay.KgpPlacements).ImageId].Data[0]);
+        Assert.AreEqual((byte)3, viewer.KgpImageStore.GetImageByNumber(42)!.Data[0]);
+    }
+
+    [TestMethod]
+    [DataRow(false)]
+    [DataRow(true)]
+    public async Task WriteAsync_AnimationWithoutPlacements_PreservesPixelsForLaterCommands(bool numbered)
+    {
+        var time = new FakeTimeProvider();
+        using var producerWorkload = new Hex1bAppWorkloadAdapter();
+        using var producer = CreateTerminal(producerWorkload, time);
+        var identity = numbered ? "I=42" : "i=7";
+        producer.ApplyTokens(AnsiTokenizer.Tokenize(
+            KgpTestHelper.BuildCommand($"a=T,f=24,s=1,v=1,{identity},C=1,q=2", [1, 2, 3]) +
+            KgpTestHelper.BuildCommand($"a=f,f=32,s=1,v=1,{identity},z=30,q=2", [4, 5, 6, 255]) +
+            KgpTestHelper.BuildCommand($"a=a,{identity},r=1,z=20,c=2,s=1,v=3,q=2")));
+        using var source = producer.CreateSnapshot();
+        using var viewerWorkload = new Hex1bAppWorkloadAdapter();
+        using var viewer = CreateTerminal(viewerWorkload, time);
+
+        await ReplayAsync(source, viewer, omitPlacements: true);
+
+        Assert.AreEqual(1, viewer.KgpImageStore.ImageCount);
+        using (var invisible = viewer.CreateSnapshot())
+            Assert.IsEmpty(invisible.KgpPlacements);
+        viewer.ApplyTokens(AnsiTokenizer.Tokenize(
+            KgpTestHelper.BuildCommand($"a=f,f=32,s=1,v=1,{identity},z=50,q=2", [7, 8, 9, 255]) +
+            KgpTestHelper.BuildCommand($"a=a,{identity},c=3,q=2") +
+            "\x1b[3;5H" + KgpTestHelper.BuildCommand($"a=p,{identity},C=1,q=2")));
+        using var replay = viewer.CreateSnapshot();
+        var image = TestSeq.Single(replay.KgpImages.Values);
+        Assert.AreEqual(3, image.FrameCount);
+        Assert.AreEqual(3, image.CurrentFrameNumber);
+        Assert.AreEqual(3u, image.AnimationState!.MaximumLoops);
+        TestSeq.AreEqual(new[] { 20, 30, 50 }, image.AnimationFrames!.Select(frame => frame.GapMilliseconds));
+        TestSeq.AreEqual(new byte[] { 7, 8, 9, 255 }, image.CurrentFrameData);
+        Assert.AreEqual(2, TestSeq.Single(replay.KgpPlacements).Row);
+    }
+
+    [TestMethod]
     public async Task WriteAsync_ComposedAnimation_PreservesAllFramesGapsAndStoppedCurrentFrame()
     {
         var time = new FakeTimeProvider();
@@ -160,10 +348,11 @@ public class Hmp1KgpStateReplayTests
             .WithHeadless(new TerminalCapabilities { SupportsKgp = true, CellPixelWidth = 10, CellPixelHeight = 20 })
             .WithDimensions(20, 10).WithTimeProvider(time).Build();
 
-    private static async Task ReplayAsync(Hex1bTerminalSnapshot source, Hex1bTerminal viewer, bool applyCheckpoint = true)
+    private static async Task ReplayAsync(Hex1bTerminalSnapshot source, Hex1bTerminal viewer,
+        bool applyCheckpoint = true, bool omitPlacements = false)
     {
         using var stream = new MemoryStream();
-        await Hmp1KgpStateReplay.WriteAsync(stream, source.KgpPlacements, source.KgpImages,
+        await Hmp1KgpStateReplay.WriteAsync(stream, omitPlacements ? [] : source.KgpPlacements, source.KgpImages,
             source.CursorX, source.CursorY, TestContext.Current.CancellationToken, source.KgpAnimationTimestamp);
         stream.Position = 0;
         while (stream.Position < stream.Length)

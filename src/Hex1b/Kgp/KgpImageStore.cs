@@ -260,12 +260,24 @@ public sealed class KgpImageStore
         IReadOnlyList<KgpPlacement> Placements,
         IReadOnlyDictionary<uint, KgpImageData> Images) CaptureSnapshot(
             IReadOnlyList<KgpPlacement> sourcePlacements,
-            IEnumerable<uint>? additionalImageIds = null)
+            IEnumerable<uint>? additionalImageIds = null,
+            bool includeAllImages = false)
     {
         lock (_lock)
         {
             var placements = new List<KgpPlacement>(sourcePlacements.Count);
             var images = new Dictionary<uint, KgpImageData>();
+            if (includeAllImages)
+            {
+                foreach (var image in _imagesById.Values.Where(image => image.ImageNumber == 0))
+                    images.Add(image.ImageId, image);
+
+                // Preserve each number's generation order, including ID wraparound.
+                // Replaying I= uploads in this order restores newest-number lookup.
+                foreach (var generations in _imagesByNumber.Values)
+                    foreach (var imageId in generations)
+                        images.Add(imageId, _imagesById[imageId]);
+            }
             foreach (var sourcePlacement in sourcePlacements)
             {
                 if (!_imagesById.TryGetValue(

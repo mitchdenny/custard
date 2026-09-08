@@ -385,7 +385,9 @@ public sealed class Hmp1PresentationAdapter : ITerminalLifecycleAwarePresentatio
 
             if (_terminal != null)
             {
-                using var snap = _terminal.CreateSnapshot();
+                // A peer must also receive unplaced images: future output can
+                // place or animate retained pixels without transmitting them again.
+                using var snap = _terminal.CreateSnapshot(includeAllKgpImages: true);
                 var prefix = BuildStateReplayPrefix(snap);
                 var ansi = snap.ToAnsi(new TerminalAnsiOptions
                 {
@@ -431,7 +433,7 @@ public sealed class Hmp1PresentationAdapter : ITerminalLifecycleAwarePresentatio
             widthSnapshot = _width;
             heightSnapshot = _height;
 
-            if (kgpPlacements.Count > 0)
+            if (kgpImages.Count > 0)
             {
                 EnqueueControlFrameAsync(session, stream =>
                     Hmp1KgpStateReplay.WriteAsync(

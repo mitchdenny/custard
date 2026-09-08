@@ -1947,7 +1947,8 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
     internal Hex1bTerminalSnapshotState CaptureSnapshotState(
         int scrollbackLines,
         ScrollbackWidth scrollbackWidth,
-        int? textViewportTop = null)
+        int? textViewportTop = null,
+        bool includeAllKgpImages = false)
     {
         lock (_bufferLock)
         {
@@ -2003,7 +2004,8 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                 retainedScrollbackWidth,
                 _height,
                 Capabilities.CellPixelWidth,
-                Capabilities.CellPixelHeight);
+                Capabilities.CellPixelHeight,
+                includeAllKgpImages);
             (IReadOnlyList<SixelPlacement> Placements, IReadOnlyDictionary<byte[], SixelData> Images) sixel =
                 textViewportTop is not null ? ([], new Dictionary<byte[], SixelData>()) :
                 _sixelGraphicsState.CaptureActiveSnapshot(
@@ -2280,6 +2282,11 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
     {
         return new Hex1bTerminalSnapshot(this);
     }
+
+    internal Hex1bTerminalSnapshot CreateSnapshot(bool includeAllKgpImages)
+        => new(this,
+            CaptureSnapshotState(0, ScrollbackWidth.CurrentTerminal, includeAllKgpImages: includeAllKgpImages),
+            ScrollbackWidth.CurrentTerminal, TerminalCell.Empty);
 
     internal Hex1bTerminalSnapshot CreateSnapshot(out Hmp1TerminalState? remoteState)
     {

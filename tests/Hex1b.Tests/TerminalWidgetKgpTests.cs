@@ -467,6 +467,77 @@ public class TerminalWidgetKgpTests
     }
 
     [TestMethod]
+    [DataRow(16)]
+    [DataRow(1000)] // Exercise a follow-up frame deferred by a slow frame-rate limit.
+    public async Task Render_ChildKgpOutputDuringParentFrame_RendersWithoutFurtherInput(int frameRateLimitMs)
+    {
+        var imageBytes = KgpTestHelper.CreatePixelData(4, 4, fillByte: 0x5A);
+        using var workload = new Hex1bAppWorkloadAdapter();
+        await using var innerTerminal = Hex1bTerminal.CreateBuilder()
+            .WithWorkload(workload)
+            .WithDimensions(8, 4)
+            .WithTerminalWidget(out var handle)
+            .Build();
+        var childOutput = AnsiTokenizer.Tokenize(KgpTestHelper.BuildCommand(
+            "a=T,f=32,s=4,v=4,i=1,c=4,r=2,C=1,q=2", imageBytes));
+        var outputDelivered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var afterChild = new TestWidget().OnRender(args =>
+        {
+            if (args.RenderCount != 2)
+                return;
+
+            // Publish after TerminalNode captured the child, during a non-initial frame.
+            handle.WriteOutputWithImpactsAsync(innerTerminal.ApplyTokensWithImpacts(childOutput))
+                .GetAwaiter().GetResult();
+            outputDelivered.SetResult();
+        });
+        var builds = 0;
+        Hex1bApp? outerApp = null;
+        await using var outerTerminal = Hex1bTerminal.CreateBuilder()
+            .WithHex1bApp(
+                options => options.FrameRateLimitMs = frameRateLimitMs,
+                app =>
+                {
+                    outerApp = app;
+                    return _ => new VStackWidget([
+                        new TextBlockWidget($"Host {++builds}"),
+                        new TerminalWidget(handle)
+                            .Width(SizeHint.Fixed(8))
+                            .Height(SizeHint.Fixed(4)),
+                        afterChild,
+                    ]);
+                })
+            .WithHeadless(KgpCapabilities)
+            .WithDimensions(12, 8)
+            .Build();
+
+        var runTask = outerTerminal.RunAsync(TestContext.Current.CancellationToken);
+        try
+        {
+            await outputDelivered.Task.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+            using var childSnapshot = innerTerminal.CreateSnapshot();
+            Assert.HasCount(1, childSnapshot.KgpPlacements);
+            using var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+                .WaitUntil(
+                    current => current.KgpPlacements.Count == 1,
+                    TimeSpan.FromSeconds(5),
+                    "child KGP output arriving during the parent frame was rendered")
+                .Build()
+                .ApplyAsync(outerTerminal, TestContext.Current.CancellationToken);
+
+            var placement = TestSeq.Single(snapshot.KgpPlacements);
+            CollectionAssert.AreEqual(imageBytes, snapshot.KgpImages[placement.ImageId].Data);
+            Assert.AreEqual(1, placement.Row);
+            Assert.AreEqual(0, placement.Column);
+        }
+        finally
+        {
+            outerApp!.RequestStop();
+            await runTask;
+        }
+    }
+
+    [TestMethod]
     public async Task NestedHex1bApp_KgpPlacementMovesAndDeletesWithoutGhosts()
     {
         var state = new NestedKgpState();

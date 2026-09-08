@@ -642,46 +642,13 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
                 {
                     await PaceFrameAsync(cancellationToken);
                 }
+
+                // The capacity-one channel coalesces pending invalidations. Consume the
+                // signal before building/rendering so invalidations raised during this
+                // frame wake the next iteration, which handles input and frame pacing.
+                _invalidateChannel.Reader.TryRead(out _);
                 await RenderFrameAsync(cancellationToken);
                 _lastRenderTimestamp = Stopwatch.GetTimestamp();
-                
-                // IMPORTANT: Handle race condition where output arrived during render.
-                // If invalidation was signaled while we were rendering, we need to re-render
-                // before blocking on WhenAny, otherwise content may not appear until next input.
-                // Limit to 2 extra renders to prevent animation timer cascades from starving input.
-                int extraRenders = 0;
-                const int maxExtraRenders = 2;
-                
-                while (_invalidateChannel.Reader.TryRead(out _) && extraRenders < maxExtraRenders)
-                {
-                    // If we're already inside the frame budget, defer remaining invalidations
-                    // to the next outer iteration so the render loop honors FrameRateLimitMs.
-                    var elapsedSinceLastRender = TimeSpan.FromSeconds(
-                        (Stopwatch.GetTimestamp() - _lastRenderTimestamp) / (double)Stopwatch.Frequency);
-                    if (elapsedSinceLastRender < _frameRateLimit)
-                        break;
-
-                    // ALWAYS process pending input before each re-render to prevent starvation
-                    while (_adapter.InputEvents.TryRead(out var pendingEvent))
-                    {
-                        await ProcessInputEventAsync(pendingEvent, cancellationToken);
-                        if (_stopRequested || cancellationToken.IsCancellationRequested)
-                            break;
-                    }
-                    
-                    if (_stopRequested || cancellationToken.IsCancellationRequested)
-                        break;
-                    
-                    // Fire any timers that became due
-                    _animationTimer.FireDue();
-                        
-                    await RenderFrameAsync(cancellationToken);
-                    _lastRenderTimestamp = Stopwatch.GetTimestamp();
-                    extraRenders++;
-                }
-                
-                // Drain any remaining invalidations without rendering (will be caught next loop)
-                while (_invalidateChannel.Reader.TryRead(out _)) { }
             }
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)

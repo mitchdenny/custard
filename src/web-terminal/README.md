@@ -1,6 +1,6 @@
 # @hex1b/web-terminal
 
-The first-party WebGPU browser terminal for Hex1b. It renders server-authoritative
+The first-party GPU-rendered browser terminal for Hex1b. It renders server-authoritative
 cells and graphics in a module worker, with local input routing, producer-backed
 history and selection, clipboard actions, and primary/secondary view sizing.
 There are no runtime package dependencies.
@@ -53,10 +53,42 @@ connection, not the container or server-side shared terminal.
 
 ### Browser and deployment requirements
 
-Use HTTPS or localhost and a browser with WebGPU, module workers, transferable
-OffscreenCanvas, worker animation frames, ResizeObserver, and CSS Font Loading.
-Clipboard access also requires browser permission and, for relevant actions, a
-user gesture. There is no Canvas2D terminal-rendering fallback.
+Use a browser with WebGPU or WebGL2, module workers, transferable OffscreenCanvas,
+worker animation frames, ResizeObserver, and CSS Font Loading. WebGPU requires
+HTTPS or localhost; WebGL2 rendering also works on ordinary HTTP origins.
+Clipboard API access still requires a secure context, browser permission and,
+for relevant actions, a user gesture. There is no Canvas2D terminal-rendering fallback.
+Renderer selection does not change transport security: use HTTPS/WSS to protect
+terminal input and output.
+
+### Renderer selection
+
+Set the mount-time `renderer` option to `"auto"` (the default), `"webgpu"`, or
+`"webgl2"`. Auto prefers WebGPU and uses WebGL2 if the secure context, API,
+adapter, device acquisition, or presentation context is unavailable. Explicit
+modes require that backend and report an error rather than falling back.
+Shader, font, validation, and unexpected initialization errors are not
+compatibility fallbacks. Runtime GPU/context loss terminates the view with an
+error; it does not switch backends behind the caller's back.
+
+```ts
+const terminal = await WebTerminal.mount(container, {
+  url: "/ws/terminal",
+  renderer: "webgl2", // Use WebGL2 even if WebGPU is available.
+  onStats(stats) {
+    console.log(stats.renderer, stats.rendererFallbackReason);
+  }
+});
+```
+
+`stats.renderer` identifies the active backend after initialization.
+`stats.rendererFallbackReason` explains an automatic fallback and is absent
+for explicit selections and successful WebGPU initialization. Both backends
+share glyph rasterization, frame preparation, clipping, and image ordering.
+WebGPU preference is not a performance guarantee; compare representative
+workloads on your target browsers and devices.
+
+### Module and worker deployment
 
 The package contains browser ES modules, not a single bundle. For bare static
 hosting, copy **all of `dist/`**, preserving its directory structure, and import
@@ -100,6 +132,7 @@ workers, fonts, and the intended WebSocket endpoint.
 | --- | --- |
 | `workerUrl` | Optional module-worker entry; useful when worker assets are deployed separately. |
 | `scale` | GPU backing scale `0.5`–`3`, or `"auto"` (default, bounded device pixel ratio). |
+| `renderer` | `"auto"` (prefer WebGPU), `"webgpu"`, or `"webgl2"`; selected once per mount. |
 | `font` | One family and optional downloadable font faces; see below. |
 | `sizing` | `{ mode: "auto", fontSize?: number }` or `{ mode: "fixed", columns, rows, fontSize?: number }`. |
 | `readOnly` | Disable application input while retaining history inspection and selection. |

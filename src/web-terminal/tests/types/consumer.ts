@@ -1,7 +1,8 @@
 import {
   WebTerminal, InputRoute, TerminalAction, defaultInputBindings, MIN_FONT_SIZE, MAX_FONT_SIZE,
   type WebTerminalOptions, type WebTerminalHandle, type TerminalInput, type InputBinding,
-  type TerminalSelection, type TerminalViewport, type SelectionUIEvent, type TerminalStats
+  type TerminalSelection, type TerminalViewport, type SelectionUIEvent, type TerminalStats,
+  type TerminalRendererKind, type TerminalRendererPreference
 } from "@hex1b/web-terminal";
 
 const container = document.createElement("div");
@@ -14,6 +15,7 @@ const options: WebTerminalOptions = {
   workerUrl: new URL("/web-terminal/terminal-worker.js", "https://example.test"),
   signal: new AbortController().signal,
   scale: "auto",
+  renderer: "auto",
   sizing: { mode: "fixed", columns: 80, rows: 24, fontSize: 16 },
   font: { family: "Terminal Font", faces: [{ url: "/font.woff2", weight: "200 700" }] },
   actions: {
@@ -44,7 +46,9 @@ const options: WebTerminalOptions = {
     const state: TerminalStats = stats;
     const revision: number | undefined = state.revision;
     const mirror: string | undefined = text;
-    console.log(revision, mirror);
+    const renderer: TerminalRendererKind | undefined = stats.renderer;
+    const reason: string | undefined = stats.rendererFallbackReason;
+    console.log(revision, mirror, renderer, reason);
   },
   onSelectionUI(event) {
     const notification: SelectionUIEvent = event;
@@ -70,6 +74,9 @@ const options: WebTerminalOptions = {
 };
 
 const terminal: WebTerminalHandle = await WebTerminal.mount(container, options);
+const forcedRenderer: TerminalRendererPreference = "webgl2";
+const forcedOptions: WebTerminalOptions = { ...options, renderer: forcedRenderer };
+console.log(forcedOptions);
 const copied: string = await terminal.runAction(TerminalAction.CopySelection, { clear: true });
 const pasted: string = await terminal.runAction(TerminalAction.PasteClipboard);
 await terminal.runAction(TerminalAction.ScrollLines, -20);
@@ -99,6 +106,8 @@ const asyncRouting: WebTerminalOptions = { url: "/terminal", onInput: async () =
 const asyncBinding: InputBinding = { id: "async", match: async () => true, route: InputRoute.Consume };
 // @ts-expect-error Worker entries must be URL strings or URL objects.
 const invalidWorker: WebTerminalOptions = { url: "/terminal", workerUrl: 42 };
+// @ts-expect-error Only supported rendering backends are selectable.
+const invalidRenderer: WebTerminalOptions = { url: "/terminal", renderer: "canvas2d" };
 // @ts-expect-error Routing decisions specify exactly one route or action.
 const ambiguous: InputBinding = { id: "both", match: () => true, route: InputRoute.Browser, action: "inspect" };
 // @ts-expect-error Protocol internals are not public package exports.

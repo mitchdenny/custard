@@ -87,7 +87,7 @@ The demo consumes the library's public presentation adapter without friend acces
 | `Hwt1RenderProjection` (internal to Hex1b) | Projects captured snapshots, computes cell differences, manages image resources, and serializes HWT1 frames. |
 | Sample host / `BrowserSession` | Manages shared instances through HTTP; each WebSocket session owns only its HMP1 peer/view adapter and browser delivery loops. |
 | Mounted `WebTerminal` | Owns its appended shadow-root wrapper, hidden input textarea, coordinate conversion, local fitting, and pointer capture; does not own the caller's container. |
-| Per-view dedicated worker | Owns one WebSocket, decoder, transferred `OffscreenCanvas`, and independent WebGPU/glyph/image caches. |
+| Per-view dedicated worker | Owns one WebSocket, decoder, transferred `OffscreenCanvas`, and independent WebGPU or WebGL2/glyph/image caches. |
 
 ```text
 workload / PTY -> shared Hex1bTerminal + HMP1 producer
@@ -161,6 +161,13 @@ We considered SVG and canvas and chose a worker-owned WebGPU canvas for the
 spike. Canvas is the hosting surface; the main rendering path is not Canvas 2D.
 The renderer uses instanced quads, a glyph atlas, and persistent image textures.
 Canvas 2D is used to rasterize reusable glyphs into the atlas.
+
+The renderer now supports both WebGPU and WebGL2 behind a shared frame-preparation
+layer. Mount-time `renderer: "auto"` prefers WebGPU and falls back to WebGL2 for
+capability/device acquisition failures; `"webgpu"` and `"webgl2"` force a backend.
+WebGPU requires a secure context; WebGL2 permits ordinary HTTP rendering.
+Font/shader errors and runtime device/context loss remain errors, not fallback
+triggers. Stats expose the active renderer and any automatic fallback reason.
 
 This gives us explicit positioning and compositing without a DOM element for
 each cell or image. Text masks and color emoji share an atlas. A font-wide
@@ -250,7 +257,8 @@ by content, and unchanged byte-array identities avoid repeated hashing where
 possible. The placement list itself is still sent in full.
 
 There is at most one state revision in flight per view. The browser acknowledges after
-WebGPU reports submitted work complete. The terminal continues consuming output
+the selected backend reports submitted work complete (WebGPU queue completion
+or a WebGL2 fence). The terminal continues consuming output
 while presentation is busy: intermediate visual states can be skipped, but
 workload bytes are not intentionally dropped.
 
@@ -636,7 +644,7 @@ Scrollback, selection, and reconnect behavior should be designed together.
 | Browser UX | Text scrollback/selection/copy exist. Search, hyperlink activation, full accessibility, and complete touch behavior remain absent. | Build remaining features on server text/history and safe metadata, with keyboard-accessible controls and a real screen-reader strategy rather than only a text mirror. |
 | Recovery | Views can detach and attach to a process-local persistent instance, each with a fresh viewport/selection and baseline. GPU failure is surfaced; there is no automatic reconnect or durable recovery. | Define recovery across transport/device/server failure, resource restoration, authorization, and retention policy beyond the spike's explicit attach/end actions. |
 | Integration | The demo consumes a public experimental adapter, but stable hosting and browser-component APIs remain undefined. | Stabilize embedding and hosting APIs independently of HWT1, which remains internal to the paired server/client implementation. |
-| Compatibility | Exercised mainly in one Chromium/macOS environment. | Establish a browser/OS/GPU matrix, feature detection, and an explicit unsupported-device policy. Choose WebGPU-only support or a fallback backend based on requirements and evidence. |
+| Compatibility | WebGPU-preferred auto selection and explicit WebGPU/WebGL2 modes exist; exercised mainly in one Chromium/macOS environment. | Establish a browser/OS/GPU matrix and qualify backend performance. There is no Canvas2D terminal renderer or automatic runtime device-loss recovery. |
 
 ## Proposed production architecture
 

@@ -1,6 +1,6 @@
 import type { InputModifiers, PointerButton, SelectionMode, SelectionRange,
   TerminalBuffer, TerminalFont, TerminalGeometry, TerminalPeer, TerminalSize, TerminalStats,
-  TerminalStatusLevel } from "./types.js";
+  TerminalRendererPreference, TerminalStatusLevel } from "./types.js";
 
 export type SelectionText =
   | { status: "valid"; text: string }
@@ -61,7 +61,8 @@ export type TerminalCommand = InputCommand
   | { type: "resync" }
   | { type: "ack"; revision: number };
 export type WorkerInputMessage =
-  | { type: "init"; canvas: OffscreenCanvas; url: string; scale: number; font: TerminalFont }
+  | { type: "init"; canvas: OffscreenCanvas; url: string; scale: number; font: TerminalFont;
+      renderer: TerminalRendererPreference }
   | ({ type: "viewport" } & TerminalSize)
   | { type: "command"; command: TerminalCommand }
   | { type: "stop" };

@@ -124,7 +124,7 @@
   <main>
     <header>
       <h1>WebTerminalDemo</h1>
-      <p>HMP1 shared terminals · HWT1 WebGPU views · primary-owned geometry</p>
+      <p>HMP1 shared terminals · HWT1 GPU-rendered views · primary-owned geometry</p>
     </header>
     <section class="panel controls" aria-label="Terminal controls">
       <label>Scene
@@ -152,6 +152,13 @@
           <option value="monospace">System monospace</option>
         </select>
       </label>
+      <label>New view renderer
+        <select id="renderer">
+          <option value="auto">Auto (prefer WebGPU)</option>
+          <option value="webgpu">WebGPU</option>
+          <option value="webgl2">WebGL2</option>
+        </select>
+      </label>
       <button id="create" class="primary">New terminal</button>
       <div class="instance-controls">
         <label>Existing terminal <select id="instances"></select></label>
@@ -168,6 +175,7 @@
     <details class="panel">
       <summary>Selected view: <span id="selected-view">none</span> — metrics and text mirror</summary>
       <dl class="metrics">
+        <div><dt>Renderer</dt><dd id="metric-renderer">Initializing</dd></div>
         <div><dt>Presented frames / s</dt><dd id="metric-fps">0</dd></div>
         <div><dt>Received KB / s</dt><dd id="metric-received">0</dd></div>
         <div><dt>Mirror workload MB / s</dt><dd id="metric-workload">0</dd></div>

@@ -29,6 +29,7 @@ async page => {
         constructor() { super(); this.id = String(workers.length + 1); workers.push(this); }
         postMessage(message) {
           if (message.type === "init") {
+            this.renderer = message.renderer;
             if (window.holdWorker) {
               queueMicrotask(() => {
                 this.dispatchEvent(new MessageEvent("message", { data: { type: "connected" } }));
@@ -58,10 +59,12 @@ async page => {
       const { WebTerminal } = await import("/web-terminal/index.js");
       window.WebTerminal = WebTerminal;
       window.a = await WebTerminal.mount(document.getElementById("a"), { url: "/ws" });
-      window.b = await WebTerminal.mount(document.getElementById("b"), { url: "/ws" });
+      window.b = await WebTerminal.mount(document.getElementById("b"), { url: "/ws", renderer: "webgl2" });
       window.c = await WebTerminal.mount(document.getElementById("c"), { url: "/ws", readOnly: true });
     });
     await test.waitForFunction(() => a.geometry.columns === 60 && a.geometry.rows === 20);
+    check(await test.evaluate(() => workers[0].renderer === "auto" && workers[1].renderer === "webgl2"),
+      "Mount did not forward default and explicit renderer preferences to the worker");
     check(await test.evaluate(() => !!document.getElementById("keep")), "Mount replaced caller-owned children");
     check(await test.evaluate(() => b.geometry.columns === 60 && b.geometry.rows === 20), "Secondary missed initial authoritative geometry");
     const firstFit = await test.evaluate(() => {

@@ -12,6 +12,102 @@ namespace Hex1b.Tests;
 [TestClass]
 public class Hwt1Hmp1IntegrationTests
 {
+    public static IEnumerable<object[]> KgpPlacementCuts()
+    {
+        var placement = KgpTestHelper.BuildCommand("a=p,i=7311,X=1,Y=3,z=11,C=1,q=2");
+        foreach (var alternate in new[] { false, true })
+        foreach (var filtered in new[] { false, true })
+        foreach (var split in Enumerable.Range(1, placement.Length - 1))
+            yield return [split, alternate, filtered];
+    }
+
+    [TestMethod]
+    [DynamicData(nameof(KgpPlacementCuts))]
+    public async Task LateAttachment_InsideKgpPlacement_DoesNotRenderCommandTail(
+        int split, bool alternate, bool filtered)
+    {
+        using var workload = new Hex1bAppWorkloadAdapter();
+        await using var server = new Hmp1PresentationAdapter(40, 12);
+        var builder = Hex1bTerminal.CreateBuilder().WithWorkload(workload)
+            .WithPresentation(server).WithDimensions(40, 12).WithTimeProvider(new FakeTimeProvider());
+        if (filtered)
+            builder.AddPresentationFilter(new PassThroughPresentationFilter());
+        await using var producer = builder.Build();
+        var first = await ConnectAsync(server);
+        await using var firstHandle = first.Handle;
+        await using var firstClient = first.Client;
+        await using var firstMirror = Hex1bTerminal.CreateBuilder().WithWorkload(firstClient)
+            .WithHeadless().Build();
+        var placement = KgpTestHelper.BuildCommand("a=p,i=7311,X=1,Y=3,z=11,C=1,q=2");
+        workload.Write((alternate ? "\x1b[?1049h" : "") + "\x1b[?2026h" +
+            KgpTestHelper.BuildCommand("a=t,f=32,s=1,v=1,i=7311,q=2", [255, 0, 0, 255]) +
+            "\x1b[Hready\x1b[4;8H" + placement[..split]);
+        await WaitForScreenAsync(producer, snapshot => snapshot.ContainsText("ready"));
+
+        var late = await ConnectAsync(server);
+        await using var lateHandle = late.Handle;
+        await using var lateClient = late.Client;
+        await using var lateView = new Hwt1PresentationAdapter();
+        await using var lateMirror = Hex1bTerminal.CreateBuilder().WithWorkload(lateClient)
+            .WithPresentation(lateView).Build();
+        workload.Write(placement[split..] + "\x1b[10;1Hdone\x1b[?2026l");
+        await WaitForScreenAsync(producer, snapshot => snapshot.ContainsText("done"));
+        await WaitForScreenAsync(firstMirror, snapshot => snapshot.ContainsText("done"));
+        await WaitForScreenAsync(lateMirror, snapshot => snapshot.ContainsText("done"));
+
+        using var expected = producer.CreateSnapshot();
+        using var early = firstMirror.CreateSnapshot();
+        using var actual = lateMirror.CreateSnapshot();
+        for (var row = 0; row < expected.Height; row++)
+        {
+            Assert.AreEqual(expected.GetLine(row), early.GetLine(row), $"Existing peer row {row}");
+            Assert.AreEqual(expected.GetLine(row), actual.GetLine(row), $"Late peer row {row}");
+        }
+        var image = TestSeq.Single(actual.KgpPlacements);
+        Assert.AreEqual(3, image.Row);
+        Assert.AreEqual(7, image.Column);
+        Assert.AreEqual(1u, image.CellOffsetX);
+        Assert.AreEqual(3u, image.CellOffsetY);
+        await ReadUntilAsync(lateView, frame => frame.GetProperty("placements").GetArrayLength() == 1);
+    }
+
+    [TestMethod]
+    [DataRow("\x1b[4;", "8H")]
+    [DataRow("\x1b]8;;https://example.test", "\x1b\\")]
+    [DataRow("\x1b]8;;https://example.test\x1b", "\\")]
+    public async Task LateAttachment_InsideAnsiSequence_PreservesContinuationAcrossTwoHops(string prefix, string suffix)
+    {
+        using var workload = new Hex1bAppWorkloadAdapter();
+        await using var server = new Hmp1PresentationAdapter(40, 12);
+        await using var producer = Hex1bTerminal.CreateBuilder().WithWorkload(workload)
+            .WithPresentation(server).WithDimensions(40, 12).Build();
+        var upstream = await ConnectAsync(server);
+        await using var upstreamHandle = upstream.Handle;
+        await using var upstreamClient = upstream.Client;
+        await using var relay = new Hmp1PresentationAdapter(40, 12);
+        await using var replica = Hex1bTerminal.CreateBuilder().WithWorkload(upstreamClient)
+            .WithPresentation(relay).Build();
+        workload.Write("\x1b[Hready\x1b[2;1H" + prefix);
+        await WaitForScreenAsync(replica, snapshot => snapshot.ContainsText("ready"));
+
+        var late = await ConnectAsync(relay);
+        await using var lateHandle = late.Handle;
+        await using var lateClient = late.Client;
+        await using var lateMirror = Hex1bTerminal.CreateBuilder().WithWorkload(lateClient).WithHeadless().Build();
+        workload.Write(suffix + "linked\x1b]8;;\x1b\\\x1b[10;1Hdone");
+        await WaitForScreenAsync(producer, snapshot => snapshot.ContainsText("done"));
+        await WaitForScreenAsync(lateMirror, snapshot => snapshot.ContainsText("done"));
+        using var expected = producer.CreateSnapshot();
+        using var actual = lateMirror.CreateSnapshot();
+        for (var row = 0; row < expected.Height; row++)
+        {
+            Assert.AreEqual(expected.GetLine(row), actual.GetLine(row), $"Row {row}");
+            for (var column = 0; column < expected.Width; column++)
+                Assert.AreEqual(expected.GetCell(column, row).HyperlinkData?.Uri,
+                    actual.GetCell(column, row).HyperlinkData?.Uri, $"Cell {column},{row}");
+        }
+    }
+
     [TestMethod]
     [DataRow(false, false)]
     [DataRow(false, true)]
@@ -868,6 +964,21 @@ public class Hwt1Hmp1IntegrationTests
             }
             base.Dispose(disposing);
         }
+    }
+
+    private sealed class PassThroughPresentationFilter : IHex1bTerminalPresentationFilter
+    {
+        public ValueTask<IReadOnlyList<AnsiToken>> OnOutputAsync(
+            IReadOnlyList<AppliedToken> tokens, TimeSpan elapsed, CancellationToken ct = default)
+            => ValueTask.FromResult<IReadOnlyList<AnsiToken>>(tokens.Select(token => token.Token).ToArray());
+        public ValueTask OnSessionStartAsync(int width, int height, DateTimeOffset timestamp, CancellationToken ct = default)
+            => ValueTask.CompletedTask;
+        public ValueTask OnInputAsync(IReadOnlyList<AnsiToken> tokens, TimeSpan elapsed, CancellationToken ct = default)
+            => ValueTask.CompletedTask;
+        public ValueTask OnResizeAsync(int width, int height, TimeSpan elapsed, CancellationToken ct = default)
+            => ValueTask.CompletedTask;
+        public ValueTask OnSessionEndAsync(TimeSpan elapsed, CancellationToken ct = default)
+            => ValueTask.CompletedTask;
     }
 
     private sealed class GatedOutputFilter : IHex1bTerminalWorkloadFilter

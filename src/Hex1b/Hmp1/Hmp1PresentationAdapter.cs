@@ -481,6 +481,25 @@ public sealed class Hmp1PresentationAdapter : ITerminalLifecycleAwarePresentatio
                 });
             }
 
+            // Snapshot state covers completed tokens, not an unfinished escape
+            // sequence. Seed the new parser after all replay commands and before
+            // live output can deliver the remainder of that sequence.
+            var pendingAnsi = _terminal?.CapturePendingAnsiOutput() ?? ReadOnlyMemory<byte>.Empty;
+            if (!pendingAnsi.IsEmpty)
+            {
+                EnqueueControlFrameAsync(session, async stream =>
+                {
+                    for (var offset = 0; offset < pendingAnsi.Length;)
+                    {
+                        var length = Math.Min(pendingAnsi.Length - offset, Hmp1Protocol.MaxPayloadSize);
+                        await Hmp1Protocol.WriteFrameAsync(stream, Hmp1FrameType.Output,
+                            pendingAnsi.Slice(offset, length),
+                            session.Cts.Token).ConfigureAwait(false);
+                        offset += length;
+                    }
+                });
+            }
+
             _sessions.Add(session);
 
             // Enqueue PeerJoin notifications to existing peers atomically with the

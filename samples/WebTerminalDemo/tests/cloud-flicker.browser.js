@@ -60,19 +60,23 @@ async page => {
       }
       results.push({ sample, ...result });
       if (sample === "KgpCloudDemo") {
-        for (const id of ["2", "3"]) {
-          await test.locator("#attach").click();
+        for (let connection = 2; connection <= 21; connection++) {
+          const id = String(connection);
+          const thumbnail = connection > 3;
+          await test.locator(thumbnail ? '[data-view="1"] .thumbnail' : "#attach").click();
           await test.waitForFunction(id => webTerminalViews.get(id)?.terminal?.connected &&
             webTerminalViews.get(id).stats.imageCount === 12, id, { timeout: 30000 });
           const before = await test.evaluate(id => webTerminalViews.get(id).terminal.stats, id);
           await test.waitForFunction(({ id, frames }) => webTerminalViews.get(id).stats.frames >= frames + 10,
             { id, frames: before.frames }, { timeout: 30000 });
           const after = await test.evaluate(id => webTerminalViews.get(id).terminal.stats, id);
+          const text = await test.evaluate(id => webTerminalViews.get(id).terminal.screenText.trim(), id);
           if (after.imageCount !== 12 || after.imageUploadBytes !== before.imageUploadBytes ||
-              after.discardedFrames !== 0 || after.warnings.length) {
-            throw new Error(`KgpCloudDemo ${transport} late/reconnected view ${id}: ${JSON.stringify(after)}`);
+              after.discardedFrames !== 0 || after.warnings.length || text.length) {
+            throw new Error(`KgpCloudDemo ${transport} late/reconnected view ${id}: ${JSON.stringify({ ...after, text })}`);
           }
-          results.push({ sample, transport, view: id, images: after.imageCount, receivedFrames: after.frames - before.frames });
+          results.push({ sample, transport, view: id, thumbnail, images: after.imageCount,
+            receivedFrames: after.frames - before.frames, text });
           await test.locator(`[data-view="${id}"] .close-view`).click();
           await test.waitForFunction(() => webTerminalViews.size === 1);
         }

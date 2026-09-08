@@ -1397,6 +1397,22 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         }
     }
 
+    /// <summary>Captures the unfinished text-tokenizer escape prefix for raw output continuation.</summary>
+    internal ReadOnlyMemory<byte> CapturePendingAnsiOutput()
+    {
+        // Filtered presentations receive serialized complete tokens, not raw
+        // continuations, so there is no partial wire sequence to restore.
+        if (_presentationFilters.Count > 0 || _presentation is ICellImpactAwarePresentationAdapter)
+            return ReadOnlyMemory<byte>.Empty;
+
+        // The caller holds Hmp1OutputStateLock. The byte framer may hold an ESC
+        // separately from the text tokenizer, including the first byte of ST.
+        var pending = _incompleteSequenceBuffer;
+        if (_dcsByteStreamParser.HasPendingGroundEscape)
+            pending += "\x1b";
+        return Encoding.UTF8.GetBytes(pending);
+    }
+
     private RawOutputTokenization TokenizeRawWorkloadOutput(ReadOnlySpan<byte> data)
     {
         var batch = _dcsByteStreamParser.Process(data);

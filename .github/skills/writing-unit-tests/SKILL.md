@@ -294,6 +294,27 @@ var result = await TestHelpers.CreateTerminalAndRunScenario(
 
 ---
 
+## Network Test Fixtures
+
+Let the server reserve its listening port atomically. Random port selection and
+probing a free port before closing the probe both allow collisions under parallel
+execution. For Kestrel fixtures, configure
+`options.Listen(IPAddress.Loopback, 0)`, await `app.StartAsync()`, then derive client
+URIs from `TestSeq.Single(app.Urls)`. For example:
+
+```csharp
+var wsUri = new UriBuilder(TestSeq.Single(app.Urls))
+{
+    Scheme = "ws",
+    Path = "/ws/attach"
+}.Uri;
+```
+
+Keep the application owned by the fixture before awaiting startup so cleanup can
+dispose it even if startup fails. Cover independently reachable concurrent servers
+and listener release; see `RemoteTerminalWorkloadAdapterTests`. Do not mask port
+collisions with sleeps, retries, or disabled parallelism.
+
 ## Scheduler Progress Under Load
 
 For starvation regressions, keep the producer active while asserting input, timer,

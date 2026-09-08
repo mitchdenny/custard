@@ -84,6 +84,12 @@ app.MapGet("/ws", async (HttpContext context) =>
     }
     var id = context.Request.Query["instance"].ToString();
     var name = context.Request.Query["name"].ToString();
+    var transport = context.Request.Query["transport"].ToString();
+    if (transport is not ("" or "direct" or "hmp1"))
+    {
+        await Results.BadRequest(new { error = "transport must be direct or hmp1." }).ExecuteAsync(context);
+        return;
+    }
     if (string.IsNullOrWhiteSpace(id) || name.Length > 0 && !IsValidName(name))
     {
         await Results.BadRequest(new { error = "instance is required; name may contain 1..80 printable characters." }).ExecuteAsync(context);
@@ -98,7 +104,8 @@ app.MapGet("/ws", async (HttpContext context) =>
     }
     using (view)
     using (var socket = await context.WebSockets.AcceptWebSocketAsync())
-        await new BrowserSession(socket, view.Instance, string.IsNullOrEmpty(name) ? null : name, app.Logger)
+        await new BrowserSession(socket, view.Instance, string.IsNullOrEmpty(name) ? null : name,
+                transport == "hmp1", app.Logger)
             .RunAsync(context.RequestAborted);
 });
 await app.RunAsync();

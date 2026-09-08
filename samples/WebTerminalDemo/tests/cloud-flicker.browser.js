@@ -1,5 +1,6 @@
 async page => {
   const origin = page.url().match(/^https?:\/\/[^/]+/)?.[0] || "http://localhost:5290";
+  const transport = await page.evaluate(() => new URL(location.href).searchParams.get("transport") || "direct");
   const context = await page.context().browser().newContext({ viewport: { width: 1440, height: 1100 } });
   const test = await context.newPage();
   const instances = [];
@@ -10,7 +11,7 @@ async page => {
     for (const sample of ["SixelCloudDemo", "KgpCloudDemo"]) {
       const created = test.waitForResponse(response =>
         response.url() === `${origin}/api/terminals` && response.request().method() === "POST" && response.status() === 201);
-      await test.goto(`${origin}/?scene=shell&scale=auto`);
+      await test.goto(`${origin}/?scene=shell&scale=auto&transport=${encodeURIComponent(transport)}`);
       instances.push((await (await created).json()).id);
       await test.waitForFunction(() => webTerminalViews.get("1")?.terminal?.peer.isPrimary &&
         /[❯$#%>]$/.test(webTerminalViews.get("1").terminal.screenText.trimEnd()));
@@ -58,6 +59,24 @@ async page => {
         throw new Error(`${sample}: ${JSON.stringify(result)}`);
       }
       results.push({ sample, ...result });
+      if (sample === "KgpCloudDemo") {
+        for (const id of ["2", "3"]) {
+          await test.locator("#attach").click();
+          await test.waitForFunction(id => webTerminalViews.get(id)?.terminal?.connected &&
+            webTerminalViews.get(id).stats.imageCount === 12, id, { timeout: 30000 });
+          const before = await test.evaluate(id => webTerminalViews.get(id).terminal.stats, id);
+          await test.waitForFunction(({ id, frames }) => webTerminalViews.get(id).stats.frames >= frames + 10,
+            { id, frames: before.frames }, { timeout: 30000 });
+          const after = await test.evaluate(id => webTerminalViews.get(id).terminal.stats, id);
+          if (after.imageCount !== 12 || after.imageUploadBytes !== before.imageUploadBytes ||
+              after.discardedFrames !== 0 || after.warnings.length) {
+            throw new Error(`KgpCloudDemo ${transport} late/reconnected view ${id}: ${JSON.stringify(after)}`);
+          }
+          results.push({ sample, transport, view: id, images: after.imageCount, receivedFrames: after.frames - before.frames });
+          await test.locator(`[data-view="${id}"] .close-view`).click();
+          await test.waitForFunction(() => webTerminalViews.size === 1);
+        }
+      }
       await test.request.delete(`${origin}/api/terminals/${instances.at(-1)}`, { headers: { Origin: origin } });
       instances.pop();
     }

@@ -27,6 +27,8 @@
     <Compile Include="../../samples/CloudDemo.Shared/ICloudRenderer.cs" Link="Samples/ICloudRenderer.cs" />
     <Compile Include="../../samples/CloudDemo.Shared/MoteCursorOrder.cs" Link="Samples/MoteCursorOrder.cs" />
     <Compile Include="../../samples/SixelCloudDemo/SixelCloudRenderer.cs" Link="Samples/SixelCloudRenderer.cs" />
+    <Compile Include="../../samples/WebTerminalDemo/Hmp1BrowserView.cs" Link="Samples/Hmp1BrowserView.cs" />
+    <Compile Include="../../samples/WebTerminalDemo/DuplexPipeStream.cs" Link="Samples/DuplexPipeStream.cs" />
   </ItemGroup>
 
   <Target Name="CopyNativeLibraryLinux" AfterTargets="Build" Condition="$([MSBuild]::IsOSPlatform('Linux')) and Exists('../../src/Hex1b/Terminal/runtimes/linux-x64/native/libhex1binterop.so')">

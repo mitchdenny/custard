@@ -159,6 +159,12 @@
           <option value="webgl2">WebGL2</option>
         </select>
       </label>
+      <label>New view transport
+        <select id="transport">
+          <option value="direct">Direct HWT1</option>
+          <option value="hmp1">HMP1 relay → HWT1</option>
+        </select>
+      </label>
       <button id="create" class="primary">New terminal</button>
       <div class="instance-controls">
         <label>Existing terminal <select id="instances"></select></label>
@@ -176,6 +182,7 @@
       <summary>Selected view: <span id="selected-view">none</span> — metrics and text mirror</summary>
       <dl class="metrics">
         <div><dt>Renderer</dt><dd id="metric-renderer">Initializing</dd></div>
+        <div><dt>Transport</dt><dd id="metric-transport">Direct HWT1</dd></div>
         <div><dt>Presented frames / s</dt><dd id="metric-fps">0</dd></div>
         <div><dt>Received KB / s</dt><dd id="metric-received">0</dd></div>
         <div><dt>Mirror workload MB / s</dt><dd id="metric-workload">0</dd></div>
@@ -191,7 +198,7 @@
       <p>Click a view to type; mouse input, IME, paste, Tab, and Ctrl+C reach the workload. Browser tab, address, and zoom shortcuts stay browser-owned. All writable views can send input; primary controls resizing only. Closing the primary retains the grid and leaves primary unassigned until “Take primary”.</p>
       <p>Wheel to inspect text history. Drag to select characters; double-click and drag for words, triple-click and drag for logical lines, or Option/Alt-drag for a rectangle. Shift-click extends a selection. When an app captures the mouse, hold Shift to begin local selection or scroll history. A held selection drag keeps its local ownership even after Shift is released.</p>
       <p>Use Copy, Cmd+C, or Ctrl+Shift+C for plain text. Ctrl+C always reaches the app. Copy preserves your selection and scroll position; typing or pasting clears selection and returns to live. Historical graphics are deferred; live Sixel and Kitty graphics remain available. Expired selections and clipboard failures appear in the view.</p>
-      <p>This is still a renderer spike: rich accessibility and ligature shaping are deferred. HWT1 is internal to the paired first-party server/client, not a third-party wire contract. Producer rendering and history are shared; each view owns its scroll position, selection, worker, and GPU cache. Renderer CPU time is not GPU execution time.</p>
+      <p>This is still a renderer spike: rich accessibility and ligature shaping are deferred. HWT1 is internal to the paired first-party server/client, not a third-party wire contract. Direct views share producer rendering and history. HMP1 relay views each have a separate terminal replica with live-state replay and history accumulated since attachment, not the producer's earlier scrollback. Each view owns its scroll position, selection, worker, and GPU cache. Renderer CPU time is not GPU execution time.</p>
       <pre id="screen-mirror" aria-label="Latest terminal text" tabindex="0"></pre>
     </details>
   </main>

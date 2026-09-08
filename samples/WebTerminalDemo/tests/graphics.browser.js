@@ -1,5 +1,6 @@
 async page => {
   const origin = page.url().match(/^https?:\/\/[^/]+/)?.[0] || "http://localhost:5290";
+  const transport = await page.evaluate(() => new URL(location.href).searchParams.get("transport") || "direct");
   const context = await page.context().browser().newContext({ viewport: { width: 1440, height: 1100 }, deviceScaleFactor: 2 });
   const test = await context.newPage();
   const errors = [];
@@ -12,7 +13,7 @@ async page => {
     for (const scene of ["sixel", "kgp", "animation"]) {
       const created = test.waitForResponse(response =>
         response.url() === `${origin}/api/terminals` && response.request().method() === "POST" && response.status() === 201);
-      await test.goto(`${origin}/?scene=${scene}&scale=auto`);
+      await test.goto(`${origin}/?scene=${scene}&scale=auto&transport=${encodeURIComponent(transport)}`);
       const instance = await (await created).json();
       instances.push(instance.id);
       stage = `${scene}/primary`;

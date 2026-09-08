@@ -569,6 +569,11 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
     /// workload lifecycle.
     /// </para>
     /// <para>
+    /// For <see cref="StandardProcessWorkloadAdapter"/> workloads, normal completion
+    /// also waits for redirected output to be applied to the terminal and sent to
+    /// the presentation adapter. Cancellation can interrupt this drain.
+    /// </para>
+    /// <para>
     /// For terminals created with a raw workload adapter and no run callback, this method
     /// waits for the workload to disconnect.
     /// </para>
@@ -596,13 +601,10 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                 startedAdapter.TerminalStarted();
             }
 
-            // Execute the run callback or wait for workload disconnect
-            var runTask = _runCallback != null
-                ? _runCallback(ct)
-                : WaitForWorkloadDisconnectWithExitCodeAsync(ct);
+            var runTask = RunWorkloadAsync(ct);
 
-            var completedTask = await Task.WhenAny(runTask, _pumpFaultTcs.Task);
-            if (completedTask == _pumpFaultTcs.Task)
+            await Task.WhenAny(runTask, _pumpFaultTcs.Task);
+            if (_pumpFaultTcs.Task.IsCompleted)
             {
                 var (pumpName, error) = await _pumpFaultTcs.Task;
                 throw new InvalidOperationException($"The {pumpName} failed.", error);
@@ -638,6 +640,22 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                 }
             }
         }
+    }
+
+    private async Task<int> RunWorkloadAsync(CancellationToken ct)
+    {
+        var exitCode = _runCallback != null
+            ? await _runCallback(ct)
+            : await WaitForWorkloadDisconnectWithExitCodeAsync(ct);
+
+        // Process exit drains stdout/stderr into the adapter's channel, not into
+        // the terminal. Finish applying and presenting those bytes before shutdown.
+        if (_workload is StandardProcessWorkloadAdapter && _outputProcessingTask is not null)
+        {
+            await _outputProcessingTask.WaitAsync(ct);
+        }
+
+        return exitCode;
     }
 
     /// <summary>
@@ -1282,6 +1300,11 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
 
                     // Channel empty - this is a frame boundary
                     await NotifyWorkloadFiltersFrameCompleteAsync();
+
+                    // Standard process reads return empty only at EOF (or cancellation).
+                    // Other workloads can return empty between frames and must keep pumping.
+                    if (_workload is StandardProcessWorkloadAdapter)
+                        break;
                     
                     // Small delay to prevent busy-waiting in headless mode
                     await Task.Delay(10, ct);

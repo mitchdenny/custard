@@ -220,6 +220,7 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
 
     // Minimum interval between rendered frames (paces the render loop, not just Schedule()).
     private readonly TimeSpan _frameRateLimit;
+    private readonly TimeProvider _frameTimeProvider;
     // Timestamp of the last frame actually rendered. Used by the render loop
     // to enforce _frameRateLimit so invalidations triggered faster than the
     // configured cadence get coalesced into a single render.
@@ -266,6 +267,7 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
         var frameRateLimitMs = Math.Max(1, options.FrameRateLimitMs);
         _animationTimer = new AnimationTimer(TimeSpan.FromMilliseconds(frameRateLimitMs));
         _frameRateLimit = TimeSpan.FromMilliseconds(frameRateLimitMs);
+        _frameTimeProvider = options.FrameTimeProvider;
         
         // Check if mouse is enabled in options
         _mouseEnabled = options.EnableMouse;
@@ -648,7 +650,7 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
                 // frame wake the next iteration, which handles input and frame pacing.
                 _invalidateChannel.Reader.TryRead(out _);
                 await RenderFrameAsync(cancellationToken);
-                _lastRenderTimestamp = Stopwatch.GetTimestamp();
+                _lastRenderTimestamp = _frameTimeProvider.GetTimestamp();
 
                 // IMPORTANT: Handle race condition where output arrived during render.
                 // If invalidation was signaled while we were rendering, we need to re-render
@@ -661,8 +663,7 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
                 {
                     // Check the budget before consuming the signal. A deferred render
                     // must leave its invalidation queued to wake the next iteration.
-                    var elapsedSinceLastRender = TimeSpan.FromSeconds(
-                        (Stopwatch.GetTimestamp() - _lastRenderTimestamp) / (double)Stopwatch.Frequency);
+                    var elapsedSinceLastRender = _frameTimeProvider.GetElapsedTime(_lastRenderTimestamp);
                     if (elapsedSinceLastRender < _frameRateLimit)
                         break;
 
@@ -684,7 +685,7 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
                     _animationTimer.FireDue();
 
                     await RenderFrameAsync(cancellationToken);
-                    _lastRenderTimestamp = Stopwatch.GetTimestamp();
+                    _lastRenderTimestamp = _frameTimeProvider.GetTimestamp();
                     extraRenders++;
                 }
             }
@@ -913,13 +914,13 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
     {
         if (_lastRenderTimestamp == 0)
             return;
-        var elapsed = TimeSpan.FromSeconds((Stopwatch.GetTimestamp() - _lastRenderTimestamp) / (double)Stopwatch.Frequency);
+        var elapsed = _frameTimeProvider.GetElapsedTime(_lastRenderTimestamp);
         var remaining = _frameRateLimit - elapsed;
         if (remaining > TimeSpan.Zero)
         {
             try
             {
-                await Task.Delay(remaining, cancellationToken);
+                await Task.Delay(remaining, _frameTimeProvider, cancellationToken);
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
             {

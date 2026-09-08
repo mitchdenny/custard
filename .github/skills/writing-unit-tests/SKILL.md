@@ -312,8 +312,12 @@ var observer = new TestWidget().OnRender(args =>
 This fragment assumes captured `app` and `workload` references. Pair it with
 changing visible content so frames actually render, a bounded completion signal,
 and cancellation in `finally`. See `Hex1bAppSchedulingTests` for full examples.
-Check input ordering with coalescing both enabled and disabled. For cadence,
-measure steady-state intervals rather than using sleeps to synchronize.
+Check input ordering with coalescing both enabled and disabled. For exact cadence,
+use the app's internal `FrameTimeProvider` with a fake clock, wait for timer
+registration before advancing it, and assert both the requested delay and elapsed
+virtual time. A fixed wall-clock tolerance around `Task.Delay` is not portable
+across CI runners. Keep real-time full-stack tests alongside deterministic pacing
+coverage rather than widening timing tolerances.
 For nested output races, gate later child redraws: their extra notifications can
 mask a lost first-frame notification. These controlled cases supplement, rather
 than prove, responsiveness under arbitrary real-world load.

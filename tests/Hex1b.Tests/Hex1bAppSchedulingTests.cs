@@ -1,6 +1,7 @@
-using System.Diagnostics;
+using System.Threading.Channels;
 using Hex1b.Input;
 using Hex1b.Widgets;
+using Microsoft.Extensions.Time.Testing;
 
 namespace Hex1b.Tests;
 
@@ -92,12 +93,15 @@ public class Hex1bAppSchedulingTests
     public async Task RunAsync_ContinuousInvalidation_RespectsFrameRateLimit(int frameRateLimitMs)
     {
         using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
+        var clock = new FrameTimeProvider();
+        clock.Advance(TimeSpan.FromMilliseconds(1));
+        var interval = TimeSpan.FromMilliseconds(frameRateLimitMs);
         Hex1bApp? app = null;
         var timestamps = new List<long>();
         var finished = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var observer = new TestWidget().OnRender(args =>
         {
-            timestamps.Add(Stopwatch.GetTimestamp());
+            timestamps.Add(clock.GetTimestamp());
             for (var i = 0; i < 32; i++)
                 app!.Invalidate();
             if (args.RenderCount == 6)
@@ -109,6 +113,7 @@ public class Hex1bAppSchedulingTests
                 options =>
                 {
                     options.FrameRateLimitMs = frameRateLimitMs;
+                    options.FrameTimeProvider = clock;
                     options.EnableRescue = false;
                 },
                 instance =>
@@ -123,6 +128,15 @@ public class Hex1bAppSchedulingTests
         var runTask = Task.Run(() => terminal.RunAsync(cancellation.Token), cancellation.Token);
         try
         {
+            // Wait until pacing actually schedules its delay before advancing time.
+            // The first two frames are unpaced; each subsequent frame needs a full budget.
+            for (var i = 2; i < 6; i++)
+            {
+                var delay = await clock.Delays.Reader.ReadAsync(TestContext.Current.CancellationToken)
+                    .AsTask().WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+                Assert.AreEqual(interval, delay, $"Frame {i + 1} must wait for the configured budget.");
+                clock.Advance(interval);
+            }
             await finished.Task.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
         }
         finally
@@ -131,13 +145,10 @@ public class Hex1bAppSchedulingTests
             await runTask.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
         }
 
-        // The initial frame has no pacing timestamp. Check steady-state frames only;
-        // allow timer granularity, but not an unpaced repaint storm.
         for (var i = 2; i < 6; i++)
         {
-            var elapsed = Stopwatch.GetElapsedTime(timestamps[i - 1], timestamps[i]);
-            Assert.IsTrue(elapsed.TotalMilliseconds >= frameRateLimitMs - 2,
-                $"Frames {i} and {i + 1} were only {elapsed.TotalMilliseconds:F2}ms apart.");
+            Assert.AreEqual(interval, clock.GetElapsedTime(timestamps[i - 1], timestamps[i]),
+                $"Frames {i} and {i + 1} must be one budget apart.");
         }
     }
 
@@ -199,6 +210,18 @@ public class Hex1bAppSchedulingTests
         {
             cancellation.Cancel();
             await runTask.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+        }
+    }
+
+    private sealed class FrameTimeProvider : FakeTimeProvider
+    {
+        public Channel<TimeSpan> Delays { get; } = Channel.CreateUnbounded<TimeSpan>();
+
+        public override ITimer CreateTimer(TimerCallback callback, object? state, TimeSpan dueTime, TimeSpan period)
+        {
+            var timer = base.CreateTimer(callback, state, dueTime, period);
+            Delays.Writer.TryWrite(dueTime);
+            return timer;
         }
     }
 

@@ -1,4 +1,5 @@
 using System.Net;
+using System.Net.Sockets;
 using System.Net.WebSockets;
 using System.Text;
 using System.Text.Json;
@@ -13,7 +14,6 @@ namespace Hex1b.Tests;
 public class RemoteTerminalWorkloadAdapterTests
 {
     private WebApplication? _server;
-    private int _port;
     private readonly List<WebSocket> _connectedClients = new();
     private readonly SemaphoreSlim _clientConnected = new(0);
     private readonly TaskCompletionSource<string?> _authorizationHeader =
@@ -26,8 +26,13 @@ public class RemoteTerminalWorkloadAdapterTests
     [TestInitialize]
     public async Task InitializeAsync()
     {
-        _port = Random.Shared.Next(19000, 19999);
-        _server = await StartMockServerAsync(_port);
+        _server = CreateMockServer();
+        await _server.StartAsync();
+        WsUri = new UriBuilder(TestSeq.Single(_server.Urls))
+        {
+            Scheme = "ws",
+            Path = "/ws/attach"
+        }.Uri;
     }
 
     [TestCleanup]
@@ -48,7 +53,76 @@ public class RemoteTerminalWorkloadAdapterTests
         }
     }
 
-    private Uri WsUri => new($"ws://localhost:{_port}/ws/attach");
+    private Uri WsUri { get; set; } = null!;
+
+    [TestMethod]
+    public async Task InitializeAsync_ConcurrentFixtures_BindDistinctReachableEndpoints()
+    {
+        var fixtures = Enumerable.Range(0, 4)
+            .Select(_ => new RemoteTerminalWorkloadAdapterTests())
+            .ToArray();
+        using var cts = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
+        cts.CancelAfter(TimeSpan.FromSeconds(10));
+        using var httpClient = new HttpClient();
+
+        try
+        {
+            await Task.WhenAll(fixtures.Select(fixture => fixture.InitializeAsync()));
+
+            Assert.AreEqual(fixtures.Length, fixtures.Select(fixture => fixture.WsUri).Distinct().Count());
+
+            for (var i = 0; i < fixtures.Length; i++)
+            {
+                var fixture = fixtures[i];
+                var address = new Uri(TestSeq.Single(fixture._server!.Urls));
+                Assert.IsGreaterThan(0, address.Port);
+                Assert.AreEqual(address.Host, fixture.WsUri.Host);
+                Assert.AreEqual(address.Port, fixture.WsUri.Port);
+                Assert.AreEqual("ws", fixture.WsUri.Scheme);
+                Assert.AreEqual("/ws/attach", fixture.WsUri.AbsolutePath);
+
+                using var response = await httpClient.GetAsync(new Uri(address, "/ws/attach"), cts.Token);
+                Assert.AreEqual(HttpStatusCode.BadRequest, response.StatusCode);
+
+                var authorization = $"fixture-{i}";
+                await using var adapter = new RemoteTerminalWorkloadAdapter(
+                    fixture.WsUri, options => options.SetRequestHeader("Authorization", authorization));
+                await adapter.ConnectAsync(cts.Token);
+
+                Assert.AreEqual(authorization, await fixture._authorizationHeader.Task.WaitAsync(cts.Token));
+                Assert.AreEqual("/ws/attach", await fixture._requestPathAndQuery.Task.WaitAsync(cts.Token));
+                Assert.AreEqual(120, adapter.RemoteWidth);
+                Assert.AreEqual(30, adapter.RemoteHeight);
+                var initialScreen = await adapter.ReadOutputAsync(cts.Token);
+                Assert.AreEqual("Welcome", Encoding.UTF8.GetString(initialScreen.Span));
+            }
+        }
+        finally
+        {
+            await Task.WhenAll(fixtures.Select(fixture => fixture.DisposeAsync()));
+        }
+    }
+
+    [TestMethod]
+    public async Task DisposeAsync_AfterInitialization_ReleasesListeningEndpoint()
+    {
+        var fixture = new RemoteTerminalWorkloadAdapterTests();
+        IPEndPoint endpoint;
+        try
+        {
+            await fixture.InitializeAsync();
+            var address = new Uri(TestSeq.Single(fixture._server!.Urls));
+            endpoint = new IPEndPoint(IPAddress.Parse(address.Host), address.Port);
+        }
+        finally
+        {
+            await fixture.DisposeAsync();
+        }
+
+        using var listener = new TcpListener(endpoint);
+        listener.Start();
+        Assert.AreEqual(endpoint, listener.LocalEndpoint);
+    }
 
     [TestMethod]
     public async Task Constructor_WithValidUri_CreatesAdapter()
@@ -332,12 +406,13 @@ public class RemoteTerminalWorkloadAdapterTests
 
     // --- Mock WebSocket Server ---
 
-    private async Task<WebApplication> StartMockServerAsync(int port)
+    private WebApplication CreateMockServer()
     {
         var builder = WebApplication.CreateSlimBuilder();
         builder.WebHost.ConfigureKestrel(options =>
         {
-            options.Listen(IPAddress.Loopback, port);
+            // Let the OS assign and reserve the port in the same bind operation.
+            options.Listen(IPAddress.Loopback, 0);
         });
         builder.Logging.ClearProviders();
 
@@ -384,7 +459,6 @@ public class RemoteTerminalWorkloadAdapterTests
             catch (OperationCanceledException) { }
         });
 
-        await app.StartAsync();
         return app;
     }
 

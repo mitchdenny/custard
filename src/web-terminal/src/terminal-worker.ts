@@ -137,6 +137,7 @@ async function drawFrame() {
         cellWidth: metadata.cellWidth, cellHeight: metadata.cellHeight,
         mouseTracking: metadata.mouseTracking, peer: metadata.peer,
         history: metadata.history, revision: frame.revision, title: metadata.title,
+        progress: metadata.progress, shellIntegration: metadata.shellIntegration,
         text, hyperlinks: metadata.hyperlinks
       });
       send({ type: "ack", revision: frame.revision });

@@ -93,6 +93,7 @@ origin:
 | `graphics.browser.js` | Sixel and KGP in mixed WebGPU/WebGL2 views, renderer controls/diagnostics, cached-image movement, and late attachment to silent server-driven animation. |
 | `relay.browser.js` | Direct/relay transport selection, mixed peers, input and resize authority, primary closure, fresh reconnect/navigation-return replicas, retained KGP movement, and silent animation. |
 | `titles.browser.js` | Real POSIX shell title output through direct HWT1 and HMP1 relay, initial/late/reconnect notifications, safe header text and fallback, reset retention, duplicate/resync suppression, and disposal. |
+| `activity.browser.js` | Host-owned progress/severity and shell-phase chrome, direct and relayed current state, paused late attachment, resync, and fresh reconnect. No shell hooks required. |
 | `cloud-flicker.browser.js` | Real shell-launched Sixel/KGP cloud animations, sampling visible canvas pixels over at least 180 browser frames and ten received updates; twenty fresh KGP views (including thumbnails) must retain sprites and keep animating without pixel re-uploads or stray command text. Build `samples/SixelCloudDemo` and `samples/KgpCloudDemo` in Release first. |
 | `nested-flicker.browser.js` | WindowingDemo's Bash terminal running KittySearch: hover animation must keep painting through unrelated parent redraws, with at least 180 sampled browser frames and five distinct image states. Build `samples/WindowingDemo` and `samples/KittySearch` in Release first. Requires Bash. |
 | `nested-sixel.browser.js` | WindowingDemo's Bash terminal running both SixelCloudDemo modes: native Sixel presentation, overlapping motes, and synchronized frame persistence. Build `samples/WindowingDemo` and `samples/SixelCloudDemo` in Release first. Requires Bash. |
@@ -154,6 +155,28 @@ opened views. `?renderer=webgl2` selects WebGL2 on initial load; `auto` and
 The selected-view metrics show the active backend and any automatic fallback
 reason. WebGPU requires HTTPS or localhost; the package can use WebGL2 on
 ordinary HTTP, but this demo's loopback-only host policy remains unchanged.
+
+### Progress and shell activity
+
+Choose **Progress and shell activity**, or open `?scene=activity`, to run a
+controlled, repeating demonstration at one step per second. It emits OSC 133
+prompt/input/execution/completion markers and OSC 9;4 busy, determinate,
+warning, error, and clear states. These are simulated shell markers: the scene
+does not execute commands or install shell hooks.
+
+The activity strip is owned by this sample, outside the mounted terminal.
+It uses only `onProgressChange` and `onShellIntegrationChange`, with connection
+status to suppress stale active chrome. The terminal's title remains independent.
+Pause the producer while busy or showing a warning, select **HMP1 relay**,
+and **Attach view**: the new view should immediately show current activity.
+Close and reattach it, or press **Resync**, to exercise state restoration.
+Resume to watch progress and the latest command result change together.
+
+These are coalesced current-state notifications, not a history of every command.
+For .NET consumers, `Hex1bTerminal.Progress`, `ShellIntegration`, and their
+matching change events expose the same state, captured atomically by
+`CreateSnapshot()`. An unknown shell phase does not mean idle; a nullable
+exit status does not mean success.
 
 ### Optional HMP1 relay
 

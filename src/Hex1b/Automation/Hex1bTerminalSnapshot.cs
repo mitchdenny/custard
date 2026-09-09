@@ -61,6 +61,8 @@ public sealed class Hex1bTerminalSnapshot : IHex1bTerminalRegion, IDisposable
         WindowTitle = state.WindowTitle;
         IconName = state.IconName;
         SavedTitles = state.SavedTitles;
+        Progress = state.Progress;
+        ShellIntegration = state.ShellIntegration;
 
         var scrollbackRows = state.ScrollbackRows;
         ScrollbackLineCount = scrollbackRows.Length;
@@ -161,6 +163,13 @@ public sealed class Hex1bTerminalSnapshot : IHex1bTerminalRegion, IDisposable
     /// <remarks>Empty means no title. The value uses the same normalization and reset
     /// behavior as <see cref="Hex1bTerminal.WindowTitle"/> and remains untrusted text.</remarks>
     public string WindowTitle { get; }
+
+    /// <summary>Gets the immutable progress state captured atomically with this snapshot.</summary>
+    public TerminalProgress Progress { get; }
+
+    /// <summary>Gets the immutable shell phase and latest result captured atomically with this snapshot.</summary>
+    /// <remarks>This is current terminal activity even when the snapshot displays historical text.</remarks>
+    public TerminalShellIntegration ShellIntegration { get; }
 
     internal string IconName { get; }
 

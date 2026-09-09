@@ -185,6 +185,7 @@ async page => {
         peer: { id: null, primaryId: null, isPrimary: true },
         cursor: { x: 0, y: 0, visible: false, shape: 0 }, history: null,
         images: [], retainedImages: [], placements: [], warnings: [], hyperlinks: [], title: "",
+        progress: { state: "none", percentage: null }, shellIntegration: { phase: "unknown", lastExitCode: null },
         stats: { workloadBytes: 0, outputBatches: 0, captureMs: 0, elapsedMs: 0 }
       };
       const json = Uint8Array.from(JSON.stringify(metadata), character => character.charCodeAt(0));

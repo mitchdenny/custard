@@ -27,9 +27,10 @@ internal sealed class DemoWorkload : IHex1bTerminalWorkloadAdapter
 
     public DemoWorkload(string scene, int columns, int rows)
     {
-        if (scene is not ("mixed" or "text" or "sixel" or "kgp" or "animation"))
+        if (scene is not ("mixed" or "text" or "sixel" or "kgp" or "animation" or "activity"))
             throw new ArgumentException("Unknown demo scene.", nameof(scene));
         _scene = scene;
+        if (scene == "activity") _rate = 1;
         _columns = Math.Clamp(columns, 1, 300);
         _rows = Math.Clamp(rows, 2, 100);
         _sixels = scene is "mixed" or "sixel"
@@ -160,6 +161,8 @@ internal sealed class DemoWorkload : IHex1bTerminalWorkloadAdapter
                         Dashboard(output, columns, rows, tick);
                     else if (_scene == "kgp")
                         PlaceImage(output, columns, rows, tick);
+                    if (_scene == "activity")
+                        Activity(output, tick);
                     if (_scene == "text")
                     {
                         output.Append($"\x1b[3;{Math.Max(3, rows - 2)}r")
@@ -203,7 +206,7 @@ internal sealed class DemoWorkload : IHex1bTerminalWorkloadAdapter
         output.Append("\x1b[0m\x1b[2J").Append(Cup(1, 1))
             .Append("\x1b[1;38;2;100;210;255mHex1b WebTerminalDemo\x1b[0m");
         Status(output, 2, $"{_scene}: raw ANSI -> real Hex1bTerminal -> authoritative browser state");
-        if (_scene == "text") return;
+        if (_scene is "text" or "activity") return;
         output.Append(Cup(3, 1)).Append("Wide: \u4e16\u754c \u65e5\u672c\u8a9e | emoji: \U0001f680 \U0001f30d | combining: e\u0301 a\u0308 n\u0303")
             .Append(Cup(4, 1)).Append("\x1b[1mBold\x1b[0m  \x1b[3mItalic\x1b[0m  \x1b[4mUnderline\x1b[0m  \x1b[9mStrike\x1b[0m")
             .Append(Cup(5, 1)).Append("\x1b[2mDim\x1b[0m  \x1b[7mReverse\x1b[0m  \x1b[38;2;255;170;50mTruecolor\x1b[0m  \x1b[48;5;54m Indexed BG \x1b[0m");
@@ -222,6 +225,30 @@ internal sealed class DemoWorkload : IHex1bTerminalWorkloadAdapter
         }
         if (_scene == "mixed")
             output.Append(Cup(7, Math.Max(2, columns / 2))).Append("KGP: RGBA + alpha holes");
+    }
+
+    private static void Activity(StringBuilder output, long tick)
+    {
+        var (sequence, description) = (tick % 12) switch
+        {
+            0 => ("\x1b]9;4;0\a\x1b]133;A\a", "Prompt starts; progress hidden"),
+            1 => ("\x1b]133;B\a", "Command-line input; not executing"),
+            2 => ("\x1b]133;C\a\x1b]9;4;3\a", "Command executes; indeterminate progress"),
+            3 => ("\x1b]9;4;1;25\a", "Normal progress: 25%"),
+            4 => ("\x1b]9;4;1;75\a", "Normal progress: 75%"),
+            5 => ("\x1b]9;4;4;75\a", "Warning progress: 75%"),
+            6 => ("\x1b]9;4;2;75\a", "Error progress: 75%"),
+            7 => ("\x1b]133;D;1\a\x1b]9;4;0\a", "Command finishes with exit code 1; progress cleared"),
+            8 => ("\x1b]133;A\a", "Next prompt; previous result remains available"),
+            9 => ("\x1b]133;B\a", "Next command-line input"),
+            10 => ("\x1b]133;C\a\x1b]9;4;1;100\a", "Next command executes; progress 100%"),
+            _ => ("\x1b]133;D;0\a\x1b]9;4;0\a", "Command finishes successfully; progress cleared")
+        };
+        output.Append(sequence);
+        Status(output, 3, "Simulated shell markers and application progress (no commands are run)");
+        Status(output, 5, description);
+        Status(output, 7, "Watch the host-owned activity strip above the terminal.");
+        Status(output, 8, "Pause to attach a late Direct HWT1 or HMP1 relay view.");
     }
 
     private void PlaceImage(StringBuilder output, int columns, int rows, long tick)

@@ -13,7 +13,8 @@ namespace Hex1b;
 /// input and resize events to it. On connection, the client sends a
 /// <see cref="Hmp1FrameType.ClientHello"/> frame; the server responds with a
 /// <see cref="Hmp1FrameType.Hello"/> (with the assigned peer ID, current primary, and
-/// roster) and a <see cref="Hmp1FrameType.StateSync"/>.
+/// roster), a <see cref="Hmp1FrameType.StateSync"/>, and its mandatory
+/// <see cref="Hmp1FrameType.ActivityState"/> checkpoint.
 /// </para>
 /// <para>
 /// The adapter is transport-agnostic: provide any bidirectional <see cref="Stream"/>
@@ -29,7 +30,8 @@ namespace Hex1b;
 /// <see cref="IHmp1ConnectionHandle.OnPeerLeft"/> to drive UX state.
 /// </para>
 /// </remarks>
-public sealed class Hmp1WorkloadAdapter : IHex1bTerminalWorkloadAdapter, IHmp1ConnectionHandle, IConnectableWorkloadAdapter
+public sealed class Hmp1WorkloadAdapter : IHex1bTerminalWorkloadAdapter, IHmp1ConnectionHandle, IConnectableWorkloadAdapter,
+    IHmp1TerminalOutputSource
 {
     private readonly Hmp1ClientOptions _options;
     private readonly string _localDisplayName;
@@ -51,13 +53,26 @@ public sealed class Hmp1WorkloadAdapter : IHex1bTerminalWorkloadAdapter, IHmp1Co
     // user-handler duration. See WaitForDisconnectAsync.
     private readonly TaskCompletionSource _disconnectedTcs = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
-    // Completed once the handshake (ClientHello → Hello → StateSync) has
+    // Completed once the handshake (ClientHello → Hello → StateSync → ActivityState) has
     // succeeded. Surfaced via IConnectableWorkloadAdapter so multiplexing
     // wrappers (PlaceholderWorkloadAdapter) can react without HMP1-specific
     // coupling. Never faults — connect failures during ConnectAsync are
     // surfaced through the usual exception channel and leave this task
     // pending; callers then rely on DisconnectedTask for the disconnect path.
     private readonly TaskCompletionSource _connectedTcs = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    private readonly TaskCompletionSource<Exception?> _initialHandshake =
+        new(TaskCreationOptions.RunContinuationsAsynchronously);
+    private readonly TaskCompletionSource<Exception?> _initialReplay =
+        new(TaskCreationOptions.RunContinuationsAsynchronously);
+    private int _connectionStarted;
+
+    internal bool ConnectionStarted => Volatile.Read(ref _connectionStarted) != 0;
+    internal Task<Exception?> InitialHandshake => _initialHandshake.Task;
+    internal Task<Exception?> InitialReplay => _initialReplay.Task;
+    internal void CompleteInitialReplay(Exception? error) => _initialReplay.TrySetResult(error);
+    Hmp1WorkloadAdapter IHmp1TerminalOutputSource.Hmp1Workload => this;
+    ValueTask<Hmp1WorkloadOutput> IHmp1TerminalOutputSource.ReadTerminalOutputAsync(CancellationToken cancellationToken)
+        => ReadTerminalOutputAsync(cancellationToken);
 
     /// <summary>
     /// Creates a muxer workload adapter from the supplied options bag.
@@ -228,7 +243,7 @@ public sealed class Hmp1WorkloadAdapter : IHex1bTerminalWorkloadAdapter, IHmp1Co
     public Task DisconnectedTask => _disconnectedTcs.Task;
 
     /// <summary>
-    /// Completes when the HMP1 handshake (ClientHello → Hello → StateSync)
+    /// Completes when the HMP1 handshake (ClientHello → Hello → StateSync → ActivityState)
     /// has succeeded and the read pump has been started. Implements
     /// <see cref="IConnectableWorkloadAdapter.ConnectedTask"/>.
     /// </summary>
@@ -241,7 +256,7 @@ public sealed class Hmp1WorkloadAdapter : IHex1bTerminalWorkloadAdapter, IHmp1Co
     public bool IsConnected => _connectedTcs.Task.IsCompletedSuccessfully && !_disconnectedTcs.Task.IsCompleted;
 
     /// <summary>
-    /// Connects to the server, sends ClientHello, reads Hello and StateSync,
+    /// Connects to the server, sends ClientHello, reads Hello, StateSync, and ActivityState,
     /// and starts the background read pump.
     /// </summary>
     /// <remarks>
@@ -252,6 +267,22 @@ public sealed class Hmp1WorkloadAdapter : IHex1bTerminalWorkloadAdapter, IHmp1Co
     /// down the read pump after the handshake had already succeeded.
     /// </remarks>
     public async Task ConnectAsync(CancellationToken ct)
+    {
+        Interlocked.Exchange(ref _connectionStarted, 1);
+        try
+        {
+            await ConnectCoreAsync(ct).ConfigureAwait(false);
+        }
+        catch (Exception error)
+        {
+            _initialHandshake.TrySetResult(error);
+            _outputChannel.Writer.TryComplete();
+            _disconnectedTcs.TrySetResult();
+            throw;
+        }
+    }
+
+    private async Task ConnectCoreAsync(CancellationToken ct)
     {
         var rawStream = await _options.StreamFactory(ct).ConfigureAwait(false);
 
@@ -303,7 +334,9 @@ public sealed class Hmp1WorkloadAdapter : IHex1bTerminalWorkloadAdapter, IHmp1Co
 
         // Hello geometry must be applied before StateSync, even when the adapter
         // was connected before its consuming terminal was constructed.
-        _outputChannel.Writer.TryWrite(new(syncFrame.Payload, CaptureTerminalState(connected: true), IsStateSync: true));
+        var activityState = await Hmp1Protocol.ReadActivityStateAsync(_stream, ct).ConfigureAwait(false);
+        _outputChannel.Writer.TryWrite(new(syncFrame.Payload, CaptureTerminalState(connected: true),
+            IsStateSync: true, ActivityState: activityState));
 
         // Start the background read pump. Important: do NOT capture the caller-supplied
         // CancellationToken here. A "handshake timeout" CT must NOT keep cancelling
@@ -318,6 +351,7 @@ public sealed class Hmp1WorkloadAdapter : IHex1bTerminalWorkloadAdapter, IHmp1Co
         // also fires before the user's OnDisconnected callback so framework
         // wrappers don't get coupled to user-handler duration.
         _connectedTcs.TrySetResult();
+        _initialHandshake.TrySetResult(null);
 
         // Snapshot connected-state under the lock, raise the event without
         // holding it. Handlers run on the connecting thread and are
@@ -372,9 +406,9 @@ public sealed class Hmp1WorkloadAdapter : IHex1bTerminalWorkloadAdapter, IHmp1Co
             _outputChannel.Reader.Completion.IsCompleted && !_terminalDisconnectDelivered)
         {
             _terminalDisconnectDelivered = true;
-            return new(default, CaptureTerminalState(connected: false));
+            return new(default, CaptureTerminalState(connected: false), Source: this);
         }
-        return item;
+        return item with { Source = this };
     }
 
     private Hmp1TerminalState CaptureTerminalState(bool connected)
@@ -398,13 +432,13 @@ public sealed class Hmp1WorkloadAdapter : IHex1bTerminalWorkloadAdapter, IHmp1Co
 
             // Never coalesce across a terminal-state or animation checkpoint. Public callbacks
             // still run at receipt time; terminal state follows this ordered queue.
-            if (first.State is not null || first.AnimationState is not null ||
-                !_outputChannel.Reader.TryPeek(out var next) || next.State is not null || next.AnimationState is not null)
+            if (first.State is not null || first.AnimationState is not null || first.IsStateSync ||
+                !_outputChannel.Reader.TryPeek(out var next) || next.State is not null || next.AnimationState is not null || next.IsStateSync)
                 return first;
 
             var pending = new List<ReadOnlyMemory<byte>> { first.Bytes };
             var total = first.Bytes.Length;
-            while (_outputChannel.Reader.TryPeek(out next) && next.State is null && next.AnimationState is null &&
+            while (_outputChannel.Reader.TryPeek(out next) && next.State is null && next.AnimationState is null && !next.IsStateSync &&
                 _outputChannel.Reader.TryRead(out var more))
             {
                 pending.Add(more.Bytes);
@@ -558,9 +592,14 @@ public sealed class Hmp1WorkloadAdapter : IHex1bTerminalWorkloadAdapter, IHmp1Co
                 switch (frame.Type)
                 {
                     case Hmp1FrameType.StateSync:
+                        var activityState = await Hmp1Protocol.ReadActivityStateAsync(_stream, ct).ConfigureAwait(false);
                         await _outputChannel.Writer.WriteAsync(
-                            new(frame.Payload, CaptureTerminalState(connected: true), IsStateSync: true), ct).ConfigureAwait(false);
+                            new(frame.Payload, CaptureTerminalState(connected: true),
+                                IsStateSync: true, ActivityState: activityState), ct).ConfigureAwait(false);
                         break;
+
+                    case Hmp1FrameType.ActivityState:
+                        throw new InvalidDataException("ActivityState checkpoint without StateSync.");
 
                     case Hmp1FrameType.Output:
                         // WriteAsync (not TryWrite) so the bounded channel back-pressures
@@ -618,7 +657,7 @@ public sealed class Hmp1WorkloadAdapter : IHex1bTerminalWorkloadAdapter, IHmp1Co
             }
         }
         catch (OperationCanceledException) { }
-        catch (Exception ex) when (ex is IOException or ObjectDisposedException or InvalidOperationException)
+        catch (Exception ex) when (ex is IOException or ObjectDisposedException or InvalidOperationException or InvalidDataException)
         {
             // Stream error
         }
@@ -711,6 +750,8 @@ public sealed class Hmp1WorkloadAdapter : IHex1bTerminalWorkloadAdapter, IHmp1Co
     {
         if (_disposed) return;
         _disposed = true;
+        _initialHandshake.TrySetResult(new ObjectDisposedException(nameof(Hmp1WorkloadAdapter)));
+        _initialReplay.TrySetResult(new ObjectDisposedException(nameof(Hmp1WorkloadAdapter)));
 
         // Detect dispose-from-callback: a user handler running on the
         // read pump that calls back into us (e.g.

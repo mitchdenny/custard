@@ -23,7 +23,8 @@ namespace Hex1b;
 /// Each client first sends a <see cref="Hmp1FrameType.ClientHello"/> frame; the
 /// server then assigns a peer ID and replies with <see cref="Hmp1FrameType.Hello"/>
 /// (carrying the assigned peer ID, current primary, and roster) followed by a
-/// <see cref="Hmp1FrameType.StateSync"/> frame with a full screen snapshot.
+/// <see cref="Hmp1FrameType.StateSync"/> frame with a full screen snapshot and
+/// its mandatory <see cref="Hmp1FrameType.ActivityState"/> checkpoint.
 /// </para>
 /// <para>
 /// One peer may be the <em>primary</em> at any time. The primary's
@@ -153,7 +154,7 @@ public sealed class Hmp1PresentationAdapter : ITerminalLifecycleAwarePresentatio
 
     /// <summary>
     /// Invoked after a new client completes its ClientHello → Hello →
-    /// StateSync handshake. Argument carries the assigned peer ID, the
+    /// StateSync → ActivityState handshake. Argument carries the assigned peer ID, the
     /// display name and (parsed) role hint the client supplied.
     /// </summary>
     /// <remarks>
@@ -224,7 +225,7 @@ public sealed class Hmp1PresentationAdapter : ITerminalLifecycleAwarePresentatio
     /// <see cref="Hmp1FrameType.ClientHello"/> frame; the server then writes
     /// the assigned peer ID, current primary, and roster in
     /// <see cref="Hmp1FrameType.Hello"/>, followed by a
-    /// <see cref="Hmp1FrameType.StateSync"/> frame.
+    /// <see cref="Hmp1FrameType.StateSync"/> frame and its activity checkpoint.
     /// </summary>
     /// <param name="stream">A bidirectional stream connected to the client.</param>
     /// <param name="ct">Cancellation token.</param>
@@ -296,6 +297,7 @@ public sealed class Hmp1PresentationAdapter : ITerminalLifecycleAwarePresentatio
         session.BrowserView = view;
         try
         {
+            await terminal.WaitForHmp1InitialReplayAsync(cancellationToken).ConfigureAwait(false);
             await terminal.Hmp1OutputStateLock.WaitAsync(cancellationToken).ConfigureAwait(false);
             try
             {
@@ -364,6 +366,7 @@ public sealed class Hmp1PresentationAdapter : ITerminalLifecycleAwarePresentatio
         var displayName = session.DisplayName;
         Hmp1ClientSession[] existingPeers;
         byte[] syncBytes;
+        Hmp1ActivityState activityState;
         IReadOnlyList<KgpPlacement> kgpPlacements;
         IReadOnlyDictionary<uint, KgpImageData> kgpImages;
         DateTimeOffset? kgpAnimationTimestamp;
@@ -375,6 +378,8 @@ public sealed class Hmp1PresentationAdapter : ITerminalLifecycleAwarePresentatio
         string? primarySnapshot;
         int widthSnapshot;
         int heightSnapshot;
+        if (_terminal is not null)
+            await _terminal.WaitForHmp1InitialReplayAsync(ct).ConfigureAwait(false);
         var outputStateLock = _terminal?.Hmp1OutputStateLock;
         if (outputStateLock is not null)
             await outputStateLock.WaitAsync(ct).ConfigureAwait(false);
@@ -408,10 +413,13 @@ public sealed class Hmp1PresentationAdapter : ITerminalLifecycleAwarePresentatio
                     IncludeTrailingNewline = false,
                 }, includeHyperlinks: true);
                 var suffix = BuildStateReplaySuffix(snap);
+                activityState = Hmp1ActivityState.Capture(snap);
+                var progress = activityState.BuildProgressReplay();
                 var titles = Hmp1TitleStateReplay.Build(snap,
                     Hmp1Protocol.MaxPayloadSize - Encoding.UTF8.GetByteCount(prefix) -
-                    Encoding.UTF8.GetByteCount(ansi) - Encoding.UTF8.GetByteCount(suffix));
-                syncBytes = Encoding.UTF8.GetBytes(prefix + titles + ansi + suffix);
+                    Encoding.UTF8.GetByteCount(ansi) - Encoding.UTF8.GetByteCount(suffix) -
+                    Encoding.UTF8.GetByteCount(progress));
+                syncBytes = Encoding.UTF8.GetBytes(prefix + titles + progress + ansi + suffix);
                 kgpPlacements = snap.KgpPlacements;
                 kgpImages = snap.KgpImages;
                 kgpAnimationTimestamp = snap.KgpAnimationTimestamp;
@@ -423,6 +431,7 @@ public sealed class Hmp1PresentationAdapter : ITerminalLifecycleAwarePresentatio
             }
             else
             {
+                activityState = Hmp1ActivityState.Default;
                 syncBytes = [];
                 kgpPlacements = [];
                 kgpImages = new Dictionary<uint, KgpImageData>();
@@ -532,13 +541,14 @@ public sealed class Hmp1PresentationAdapter : ITerminalLifecycleAwarePresentatio
             roster.Add(new HelloPeerInfo { PeerId = p.PeerId, DisplayName = p.DisplayName });
         }
 
-        // Send Hello + StateSync to the new peer over the raw stream (the per-client
+        // Send Hello + StateSync + ActivityState over the raw stream (the per-client
         // pump hasn't started yet). Failures here are propagated because the caller
         // hasn't yet received a handle.
         await Hmp1Protocol.WriteHelloAsync(
             stream, widthSnapshot, heightSnapshot, peerId, primarySnapshot, roster, ct).ConfigureAwait(false);
 
         await Hmp1Protocol.WriteFrameAsync(stream, Hmp1FrameType.StateSync, syncBytes, ct).ConfigureAwait(false);
+        await Hmp1Protocol.WriteActivityStateAsync(stream, activityState, ct).ConfigureAwait(false);
 
         ct.ThrowIfCancellationRequested();
         // Always enter the pumps so their finally blocks clean up even if the
@@ -685,7 +695,8 @@ public sealed class Hmp1PresentationAdapter : ITerminalLifecycleAwarePresentatio
     /// <inheritdoc />
     public ValueTask WriteOutputAsync(ReadOnlyMemory<byte> data, CancellationToken ct = default)
     {
-        if (_disposed || data.IsEmpty) return ValueTask.CompletedTask;
+        var replayActivity = _terminal?.Hmp1ReplayActivityState;
+        if (_disposed || (data.IsEmpty && replayActivity is null)) return ValueTask.CompletedTask;
 
         // Copy once; each session's pump consumes the same buffer view.
         var copy = data.ToArray();
@@ -702,7 +713,16 @@ public sealed class Hmp1PresentationAdapter : ITerminalLifecycleAwarePresentatio
                     browserView.RecordOutputBatch();
                     continue;
                 }
-                if (!session.OutputChannel.Writer.TryWrite(new Hmp1OutboundWork(copy, null)))
+                var work = replayActivity is null
+                    ? new Hmp1OutboundWork(copy, null)
+                    : new Hmp1OutboundWork(default, async stream =>
+                    {
+                        await Hmp1Protocol.WriteFrameAsync(stream, Hmp1FrameType.StateSync, copy, session.Cts.Token)
+                            .ConfigureAwait(false);
+                        await Hmp1Protocol.WriteActivityStateAsync(stream, replayActivity, session.Cts.Token)
+                            .ConfigureAwait(false);
+                    });
+                if (!session.OutputChannel.Writer.TryWrite(work))
                 {
                     // Client can't keep up — disconnect it
                     _sessions.RemoveAt(i);

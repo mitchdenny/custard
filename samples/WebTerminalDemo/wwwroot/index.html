@@ -98,6 +98,12 @@
     .view-tools { display: flex; flex: 0 0 36px; min-width: 0; align-items: center; gap: 4px; overflow: hidden; padding: 4px 6px; border-bottom: 1px solid var(--cp-border); }
     .terminal-window button { font-size: 11px; min-height: 26px; padding: 3px 6px; border-radius: 6px; flex: none; }
     .view-grid { font: 11px Consolas, "Courier New", Courier, monospace; white-space: nowrap; margin-left: auto; color: var(--cp-text-muted); }
+    .view-activity { display: flex; flex: 0 0 24px; align-items: center; gap: 8px; padding: 0 8px; font-size: 11px; color: var(--cp-text-muted); overflow: hidden; white-space: nowrap; }
+    .activity-progress { width: 80px; height: 8px; flex: none; accent-color: var(--cp-accent); }
+    [data-progress=warning] .activity-progress { accent-color: var(--cp-warning); }
+    [data-progress=error] .activity-progress { accent-color: var(--cp-danger); }
+    [data-shell-phase=executing] .shell-status { color: var(--cp-accent); }
+    [data-connected=false] .view-activity { visibility: hidden; }
     .terminal-mount { flex: 1 1 0; min-width: 0; min-height: 0; contain: size; overflow: hidden; }
     .view-footer { display: flex; flex: 0 0 24px; min-width: 0; align-items: center; gap: 4px; padding: 0 24px 0 8px; border-top: 1px solid var(--cp-border); }
     .view-status { flex: 1; min-width: 0; font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--cp-text-muted); }
@@ -134,6 +140,7 @@
           <option value="sixel">Sixel graphics</option>
           <option value="kgp">Kitty graphics</option>
           <option value="animation">Graphics animation</option>
+          <option value="activity">Progress and shell activity</option>
           <option value="shell">Interactive shell</option>
         </select>
       </label>

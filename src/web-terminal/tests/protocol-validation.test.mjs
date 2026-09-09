@@ -6,6 +6,8 @@ function metadata() {
   return {
     version: 1, revision: 1, baseRevision: 0, full: true,
     title: "",
+    progress: { state: "none", percentage: null },
+    shellIntegration: { phase: "unknown", lastExitCode: null },
     columns: 1, rows: 1, cellWidth: 10, cellHeight: 20, mouseTracking: 0,
     peer: { id: null, primaryId: null, isPrimary: true },
     cursor: { x: 0, y: 0, visible: false, shape: "SteadyBlock" }, history: null,
@@ -65,6 +67,35 @@ test("Typed protocol boundary still rejects malformed metadata before use", () =
     const state = metadata();
     state[field] = invalid;
     assert.throws(() => decodeFrame(frame(state)), field);
+  }
+});
+
+test("Activity metadata preserves all progress states and signed shell exit codes", () => {
+  for (const state of ["none", "normal", "error", "indeterminate", "warning"]) {
+    for (const percentage of state === "none" || state === "indeterminate" ? [null] : [0, 50, 100]) {
+      const progress = { state, percentage };
+      assert.deepEqual(decodeFrame(frame({ ...metadata(), progress })).metadata.progress, progress);
+    }
+  }
+  for (const phase of ["unknown", "prompt", "commandLine", "executing", "finished"]) {
+    for (const lastExitCode of phase === "unknown" ? [null] : [null, -2147483648, -1, 0, 1, 2147483647]) {
+      const shellIntegration = { phase, lastExitCode };
+      assert.deepEqual(decodeFrame(frame({ ...metadata(), shellIntegration })).metadata.shellIntegration, shellIntegration);
+    }
+  }
+});
+
+test("Activity metadata rejects missing, inconsistent, and out-of-range state", () => {
+  for (const progress of [undefined, null, {}, [], { state: 1, percentage: 50 },
+    { state: "busy", percentage: null }, { state: "none", percentage: 0 },
+    { state: "indeterminate" }, { state: "indeterminate", percentage: 50 },
+    ...[undefined, null, -1, 101, 1.5, "50"].map(percentage => ({ state: "normal", percentage }))]) {
+    assert.throws(() => decodeFrame(frame({ ...metadata(), progress })), /progress/u);
+  }
+  for (const shellIntegration of [undefined, null, {}, [], { phase: "idle", lastExitCode: null },
+    { phase: 3, lastExitCode: 0 }, { phase: "unknown", lastExitCode: 0 },
+    ...[undefined, -2147483649, 2147483648, .5, "0"].map(lastExitCode => ({ phase: "finished", lastExitCode }))]) {
+    assert.throws(() => decodeFrame(frame({ ...metadata(), shellIntegration })), /shell/u);
   }
 });
 

@@ -12,7 +12,7 @@ import type { MouseCapture } from "./mouse-input.js";
 import type { CopySelectionOptions, InputActionHandler, InputDecision, InputBinding,
   TerminalActionName, TerminalGeometry, TerminalInput, TerminalInputContext, TerminalPeer,
   TerminalRendererPreference, TerminalSelection, TerminalSizing, TerminalSizingState, TerminalStats, TerminalViewport,
-  WebTerminalHandle, WebTerminalOptions } from "./types.js";
+  TerminalProgress, TerminalShellIntegration, WebTerminalHandle, WebTerminalOptions } from "./types.js";
 import type { InputCommand, TerminalCommand, WorkerInputMessage, WorkerOutputMessage } from "./wire-types.js";
 import { errorMessage, isRecord } from "./validation.js";
 export { InputRoute, TerminalAction, defaultInputBindings } from "./input-policy.js";
@@ -55,6 +55,9 @@ export class WebTerminal implements WebTerminalHandle {
   #screenText = "";
   #title = "";
   #hasTitle = false;
+  #progress: TerminalProgress = { state: "none", percentage: null };
+  #shellIntegration: TerminalShellIntegration = { phase: "unknown", lastExitCode: null };
+  #hasActivity = false;
   #history: HistoryState;
   #highlights!: HTMLDivElement;
   #inspection!: HTMLDivElement;
@@ -116,6 +119,8 @@ export class WebTerminal implements WebTerminalHandle {
   get connected() { return this.#connected; }
   /** Current presented workload title; retained on disconnect/dispose. Treat as untrusted text. */
   get title(): string { return this.#title; }
+  get progress(): TerminalProgress { return { ...this.#progress }; }
+  get shellIntegration(): TerminalShellIntegration { return { ...this.#shellIntegration }; }
   get stats(): TerminalStats { return { ...this.#stats }; }
   get screenText() { return this.#screenText; }
   get sizing(): TerminalSizingState { return { ...this.#sizing }; }
@@ -306,11 +311,20 @@ export class WebTerminal implements WebTerminalHandle {
       if (oldPeer.id !== this.#peer.id || oldPeer.primaryId !== this.#peer.primaryId || oldPeer.isPrimary !== this.#peer.isPrimary) {
         this.#options.onRoleChange?.(this.peer);
       }
-      if (!this.#disposed && this.#connected && (this.#peer.id !== null || this.#peer.isPrimary) &&
-          (!this.#hasTitle || this.#title !== message.title)) {
+      if (!this.#disposed && this.#connected && (this.#peer.id !== null || this.#peer.isPrimary)) {
+        const titleChanged = !this.#hasTitle || this.#title !== message.title;
+        const progressChanged = !this.#hasActivity || this.#progress.state !== message.progress.state ||
+          this.#progress.percentage !== message.progress.percentage;
+        const shellChanged = !this.#hasActivity || this.#shellIntegration.phase !== message.shellIntegration.phase ||
+          this.#shellIntegration.lastExitCode !== message.shellIntegration.lastExitCode;
         this.#title = message.title;
         this.#hasTitle = true;
-        this.#options.onTitleChange?.(this.#title);
+        this.#progress = { ...message.progress };
+        this.#shellIntegration = { ...message.shellIntegration };
+        this.#hasActivity = true;
+        if (titleChanged) this.#options.onTitleChange?.(this.#title);
+        if (!this.#disposed && progressChanged) this.#options.onProgressChange?.(this.progress);
+        if (!this.#disposed && shellChanged) this.#options.onShellIntegrationChange?.(this.shellIntegration);
       }
     } else if (message.type === "history") {
       this.#screenText = message.text;
@@ -318,7 +332,8 @@ export class WebTerminal implements WebTerminalHandle {
     } else if (message.type === "stats") {
       this.#stats = message.stats;
       if (message.text !== undefined) this.#screenText = message.text;
-      if (message.stats.revision > 0 && this.#hasTitle && this.#connected && (this.#peer.id !== null || this.#peer.isPrimary)) {
+      if (message.stats.revision > 0 && this.#hasTitle && this.#hasActivity && this.#connected &&
+          (this.#peer.id !== null || this.#peer.isPrimary)) {
         clearTimeout(this.#readyTimer);
         this.#ready.resolve(this);
       }

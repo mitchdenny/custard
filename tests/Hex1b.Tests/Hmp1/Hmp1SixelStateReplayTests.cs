@@ -78,6 +78,7 @@ public class Hmp1SixelStateReplayTests
             ?? throw new AssertFailedException("Server closed the stream before sending Hello.");
         var stateSync = await Hmp1Protocol.ReadFrameAsync(clientStream, cts.Token)
             ?? throw new AssertFailedException("Server closed the stream before sending StateSync.");
+        await Hmp1Protocol.ReadActivityStateAsync(clientStream, cts.Token);
         var sixelReplay = await Hmp1Protocol.ReadFrameAsync(clientStream, cts.Token)
             ?? throw new AssertFailedException("Server closed the stream before sending Sixel replay.");
 
@@ -192,6 +193,7 @@ public class Hmp1SixelStateReplayTests
             ?? throw new AssertFailedException("Server closed the stream before sending Hello.");
         var stateSync = await Hmp1Protocol.ReadFrameAsync(clientStream, cts.Token)
             ?? throw new AssertFailedException("Server closed the stream before sending StateSync.");
+        await Hmp1Protocol.ReadActivityStateAsync(clientStream, cts.Token);
         var sixelReplay = await Hmp1Protocol.ReadFrameAsync(clientStream, cts.Token)
             ?? throw new AssertFailedException("Server closed the stream before sending Sixel replay.");
 

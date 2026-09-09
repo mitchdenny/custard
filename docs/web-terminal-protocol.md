@@ -162,6 +162,8 @@ delta.
 | `mouseTracking` | integer | Effective mouse tracking mode: `0`, `9`, `1000`, `1002`, or `1003`; see §7. |
 | `peer` | object | Required complete HMP1 peer/primary state, or standalone defaults, defined below. |
 | `title` | string | Required complete current workload window title on every full/delta frame; `""` means unset or explicitly cleared. At most 4,096 UTF-16 code units, no C0/DEL/C1 controls or unpaired surrogates. |
+| `progress` | object | Required complete OSC 9;4 state: `state` and nullable `percentage`, defined below. |
+| `shellIntegration` | object | Required complete OSC 133 state: `phase` and nullable `lastExitCode`, defined below. |
 | `history` | object or null | Complete per-view text viewport, selection, and copy state, defined below. Null denotes a projection without history interaction metadata. |
 | `hyperlinks` | array of objects | Complete OSC 8 destination ranges for the presented viewport, including on cell-delta frames. |
 | `defaultBackground`, `defaultForeground` | integers | Resolved packed colors, using §3.3; producer emits opaque colors. |
@@ -212,6 +214,36 @@ Titles remain untrusted workload text, including literal markup and bidi text.
 The component never changes `document.title`, the accessible label, or host
 headers automatically. Hosts must use text rendering such as
 `header.textContent = title || fallback` and apply their own presentation policy.
+
+**Activity state:** `progress` is `{ "state": "none", "percentage": null }`
+initially. State is one of `none`, `normal`, `error`, `indeterminate`, `warning`.
+The percentage must be null for none/indeterminate and an integer 0-100 for
+the other states. `shellIntegration` initially contains
+`{ "phase": "unknown", "lastExitCode": null }`. Phase is one of `unknown`,
+`prompt`, `commandLine`, `executing`, `finished`. Last exit code is null or a
+signed 32-bit integer; Unknown requires null. Null does not imply success.
+All properties are required, including explicit nulls.
+
+Both objects are captured atomically with the screen, sent on every full and
+delta frame, and remain current when inspecting historical rows. Metadata-only
+output can emit a zero-cell delta. They use existing acknowledgement and
+synchronized-output coalescing; they do not retain semantic boundary positions
+or transport an event log. The browser validates fields before presenting,
+updates both getters, then invokes `onProgressChange` and
+`onShellIntegrationChange` for the initial state and distinct presented changes.
+Missing/malformed fields are fatal. Unchanged resyncs, discarded frames, and
+disposal do not notify.
+
+HMP1 restores these values from its structured activity checkpoint as part of
+the StateSync transaction, before the replica is available to browser capture.
+It does not reconstruct shell phase by sending synthetic OSC 133 markers.
+See [the muxer protocol](muxer-protocol.md) for ordering. Live OSC sequences
+still pass through the core parser. RIS clears activity; soft resets, screen
+clears, resize, and buffer switches preserve it. Disconnect/exit retain the
+last reported values, not an invented completion. Hosts should combine these
+values with connection status. The
+[public client contract](../src/web-terminal/README.md#application-progress-and-shell-activity)
+describes callback semantics and the supported OSC argument forms.
 
 `cursor` has exactly these currently emitted fields:
 
@@ -1195,6 +1227,8 @@ not a recorded multi-head benchmark.
   "mouseTracking": 0,
   "peer": { "id": null, "primaryId": null, "isPrimary": true },
   "title": "",
+  "progress": { "state": "none", "percentage": null },
+  "shellIntegration": { "phase": "unknown", "lastExitCode": null },
   "history": null,
   "hyperlinks": [],
   "defaultBackground": 4279769112,

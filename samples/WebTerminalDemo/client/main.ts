@@ -296,6 +296,11 @@ async function openView(instance: TerminalInstance, { primary = false, thumbnail
       <button class="resync" disabled>Resync</button>
       <span class="view-grid"></span>
     </div>
+    <div class="view-activity" aria-live="polite">
+      <span class="shell-status">Shell activity unknown</span>
+      <progress class="activity-progress" max="100" hidden aria-label="Application progress"></progress>
+      <span class="progress-status"></span>
+    </div>
     <div class="terminal-mount"></div>
     <footer class="view-footer">
       <span class="view-status">Initializing renderer...</span>
@@ -365,6 +370,24 @@ async function openView(instance: TerminalInstance, { primary = false, thumbnail
       onTitleChange(title) {
         header.textContent = title || fallbackTitle;
       },
+      onProgressChange(progress) {
+        const bar = elementAt(element, ".activity-progress", HTMLProgressElement);
+        bar.hidden = progress.state === "none";
+        if (progress.percentage === null) bar.removeAttribute("value");
+        else bar.value = progress.percentage;
+        element.dataset.progress = progress.state;
+        elementAt(element, ".progress-status", HTMLElement).textContent = progress.state === "none" ? ""
+          : `${progress.state}${progress.percentage === null ? "" : ` ${progress.percentage}%`}`;
+      },
+      onShellIntegrationChange(shell) {
+        const labels = {
+          unknown: "Shell activity unknown", prompt: "Prompt", commandLine: "Command input",
+          executing: "Command running", finished: "Command finished"
+        };
+        element.dataset.shellPhase = shell.phase;
+        elementAt(element, ".shell-status", HTMLElement).textContent = labels[shell.phase] +
+          (shell.lastExitCode === null ? "" : ` / last exit ${shell.lastExitCode}`);
+      },
       onStatus(message, level) {
         const status = elementAt(element, ".view-status", HTMLElement);
         status.textContent = message;
@@ -401,6 +424,7 @@ async function openView(instance: TerminalInstance, { primary = false, thumbnail
       },
       onStats(stats, text) {
         view.stats = stats;
+        element.dataset.connected = String(stats.connected ?? false);
         if (text !== undefined) view.text = text;
         metrics(view);
       }

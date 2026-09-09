@@ -892,6 +892,7 @@ public class Hwt1Hmp1IntegrationTests
         Assert.AreEqual(Hmp1FrameType.ClientHello, hello!.Value.Type);
         await Hmp1Protocol.WriteHelloAsync(server, width, height, peerId, primaryId, [], TestContext.Current.CancellationToken);
         await Hmp1Protocol.WriteFrameAsync(server, Hmp1FrameType.StateSync, state, TestContext.Current.CancellationToken);
+        await Hmp1Protocol.WriteActivityStateAsync(server, Hmp1ActivityState.Default, TestContext.Current.CancellationToken);
         await connect.WaitAsync(TimeSpan.FromSeconds(5));
     }
 

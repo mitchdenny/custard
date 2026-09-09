@@ -86,7 +86,11 @@ internal sealed class WindowsPtyHandle : IPtyHandle
     
     // === P/Invoke Functions ===
     
+#if HEX1B_REDISTRIBUTABLE_CONPTY
+    [DllImport("conpty.dll", EntryPoint = "ConptyCreatePseudoConsole", SetLastError = true)]
+#else
     [DllImport("kernel32.dll", SetLastError = true)]
+#endif
     private static extern int CreatePseudoConsole(
         COORD size,
         SafeFileHandle hInput,
@@ -94,10 +98,18 @@ internal sealed class WindowsPtyHandle : IPtyHandle
         uint dwFlags,
         out IntPtr phPC);
     
+#if HEX1B_REDISTRIBUTABLE_CONPTY
+    [DllImport("conpty.dll", EntryPoint = "ConptyResizePseudoConsole", SetLastError = true)]
+#else
     [DllImport("kernel32.dll", SetLastError = true)]
+#endif
     private static extern int ResizePseudoConsole(IntPtr hPC, COORD size);
     
+#if HEX1B_REDISTRIBUTABLE_CONPTY
+    [DllImport("conpty.dll", EntryPoint = "ConptyClosePseudoConsole", SetLastError = true)]
+#else
     [DllImport("kernel32.dll", SetLastError = true)]
+#endif
     private static extern void ClosePseudoConsole(IntPtr hPC);
     
     [DllImport("kernel32.dll", SetLastError = true)]

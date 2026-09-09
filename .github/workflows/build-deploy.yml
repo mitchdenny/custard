@@ -306,7 +306,7 @@ jobs:
         uses: actions/upload-artifact@v6
         with:
           name: pty-host-windows-x64
-          path: artifacts/pty-host/win-x64/hex1bpty.exe
+          path: artifacts/pty-host/win-x64/
 
   build-pty-host-windows-arm64:
     runs-on: windows-11-arm
@@ -327,7 +327,7 @@ jobs:
         uses: actions/upload-artifact@v6
         with:
           name: pty-host-windows-arm64
-          path: artifacts/pty-host/win-arm64/hex1bpty.exe
+          path: artifacts/pty-host/win-arm64/
 
   build-pr:
     runs-on: ubuntu-latest
@@ -384,7 +384,7 @@ jobs:
       - name: Verify native libraries
         run: |
           echo "Native libraries downloaded:"
-          find src/Hex1b/runtimes -type f \( -name "*.so" -o -name "*.dylib" -o -name "hex1bpty.exe" \) | xargs ls -la
+          find src/Hex1b/runtimes -type f \( -name "*.so" -o -name "*.dylib" -o -name "hex1bpty.exe" -o -name "conpty.dll" -o -name "OpenConsole.exe" \) | xargs ls -la
 
       - name: Build and pack Hex1b (PR version for GH Packages)
         env:
@@ -414,7 +414,7 @@ jobs:
         run: |
           echo "Hex1b package contents:"
           unzip -l ./artifacts/Hex1b.${{ needs.version.outputs.version }}.nupkg | grep -E "runtimes|native|hex1binterop|hex1bpty" || echo "No native libraries found in Hex1b package!"
-          unexpected_windows_assets=$(unzip -Z1 ./artifacts/Hex1b.${{ needs.version.outputs.version }}.nupkg | grep -E '^runtimes/win-(x64|arm64)/native/' | grep -vE '^runtimes/win-(x64|arm64)/native/hex1bpty\.exe$' || true)
+          unexpected_windows_assets=$(unzip -Z1 ./artifacts/Hex1b.${{ needs.version.outputs.version }}.nupkg | grep -E '^runtimes/win-(x64|arm64)/native/' | grep -vE '^runtimes/win-(x64|arm64)/native/(hex1bpty\.exe|conpty\.dll|(x64|arm64)/OpenConsole\.exe)$' || true)
           if [ -n "$unexpected_windows_assets" ]; then
             echo ""
             echo "Unexpected Windows PTY payload detected:"
@@ -444,7 +444,12 @@ jobs:
             "tools/net10.0/any/runtimes/osx-x64/native/libhex1binterop.dylib"
             "tools/net10.0/any/runtimes/osx-arm64/native/libhex1binterop.dylib"
             "tools/net10.0/any/runtimes/win-x64/native/hex1bpty.exe"
+            "tools/net10.0/any/runtimes/win-x64/native/conpty.dll"
+            "tools/net10.0/any/runtimes/win-x64/native/x64/OpenConsole.exe"
+            "tools/net10.0/any/runtimes/win-x64/native/arm64/OpenConsole.exe"
             "tools/net10.0/any/runtimes/win-arm64/native/hex1bpty.exe"
+            "tools/net10.0/any/runtimes/win-arm64/native/conpty.dll"
+            "tools/net10.0/any/runtimes/win-arm64/native/arm64/OpenConsole.exe"
           )
           missing_tool_assets=()
           for asset in "${expected_tool_assets[@]}"; do
@@ -528,7 +533,7 @@ jobs:
       - name: Verify native libraries
         run: |
           echo "Native libraries downloaded:"
-          find src/Hex1b/runtimes -type f \( -name "*.so" -o -name "*.dylib" -o -name "hex1bpty.exe" \) | xargs ls -la
+          find src/Hex1b/runtimes -type f \( -name "*.so" -o -name "*.dylib" -o -name "hex1bpty.exe" -o -name "conpty.dll" -o -name "OpenConsole.exe" \) | xargs ls -la
 
       - name: Build and pack Hex1b (release version for NuGet.org)
         env:
@@ -558,7 +563,7 @@ jobs:
         run: |
           echo "Hex1b package contents:"
           unzip -l ./artifacts/Hex1b.${{ needs.version.outputs.version }}.nupkg | grep -E "runtimes|native|hex1binterop|hex1bpty" || echo "No native libraries found in Hex1b package!"
-          unexpected_windows_assets=$(unzip -Z1 ./artifacts/Hex1b.${{ needs.version.outputs.version }}.nupkg | grep -E '^runtimes/win-(x64|arm64)/native/' | grep -vE '^runtimes/win-(x64|arm64)/native/hex1bpty\.exe$' || true)
+          unexpected_windows_assets=$(unzip -Z1 ./artifacts/Hex1b.${{ needs.version.outputs.version }}.nupkg | grep -E '^runtimes/win-(x64|arm64)/native/' | grep -vE '^runtimes/win-(x64|arm64)/native/(hex1bpty\.exe|conpty\.dll|(x64|arm64)/OpenConsole\.exe)$' || true)
           if [ -n "$unexpected_windows_assets" ]; then
             echo ""
             echo "Unexpected Windows PTY payload detected:"
@@ -588,7 +593,12 @@ jobs:
             "tools/net10.0/any/runtimes/osx-x64/native/libhex1binterop.dylib"
             "tools/net10.0/any/runtimes/osx-arm64/native/libhex1binterop.dylib"
             "tools/net10.0/any/runtimes/win-x64/native/hex1bpty.exe"
+            "tools/net10.0/any/runtimes/win-x64/native/conpty.dll"
+            "tools/net10.0/any/runtimes/win-x64/native/x64/OpenConsole.exe"
+            "tools/net10.0/any/runtimes/win-x64/native/arm64/OpenConsole.exe"
             "tools/net10.0/any/runtimes/win-arm64/native/hex1bpty.exe"
+            "tools/net10.0/any/runtimes/win-arm64/native/conpty.dll"
+            "tools/net10.0/any/runtimes/win-arm64/native/arm64/OpenConsole.exe"
           )
           missing_tool_assets=()
           for asset in "${expected_tool_assets[@]}"; do

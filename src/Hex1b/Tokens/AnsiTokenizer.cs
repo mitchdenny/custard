@@ -1033,6 +1033,13 @@ public static class AnsiTokenizer
         }
 
         var secondSemicolon = oscData.IndexOf(';', firstSemicolon + 1);
+        if (command == "133" && secondSemicolon == firstSemicolon + 1)
+        {
+            // Keep an empty marker invalid, including after filtered-output serialization.
+            // Otherwise 133;;A and 133;A collapse to the same token.
+            payload = oscData[(firstSemicolon + 1)..];
+            return true;
+        }
         if (secondSemicolon < 0)
         {
             // Only one semicolon - rest is payload

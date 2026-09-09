@@ -18,6 +18,7 @@ async page => {
           if (worker.stopped) continue;
           worker.dispatchEvent(new MessageEvent("message", { data: {
             type: "geometry", ...grid, cellWidth: 10, cellHeight: 20, mouseTracking: 1003, hyperlinks: [], title: "",
+            progress: { state: "none", percentage: null }, shellIntegration: { phase: "unknown", lastExitCode: null },
             peer: { id: worker.id, primaryId, isPrimary: worker.id === primaryId }
           } }));
           worker.dispatchEvent(new MessageEvent("message", { data: {
@@ -35,6 +36,7 @@ async page => {
                 this.dispatchEvent(new MessageEvent("message", { data: { type: "connected" } }));
                 this.dispatchEvent(new MessageEvent("message", { data: {
                   type: "geometry", ...grid, cellWidth: 10, cellHeight: 20, mouseTracking: 0, hyperlinks: [], title: "",
+                  progress: { state: "none", percentage: null }, shellIntegration: { phase: "unknown", lastExitCode: null },
                   peer: { id: null, primaryId: null, isPrimary: false }
                 } }));
                 this.dispatchEvent(new MessageEvent("message", { data: { type: "stats", stats: { revision: 1 } } }));

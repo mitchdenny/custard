@@ -2,7 +2,8 @@ import {
   WebTerminal, InputRoute, TerminalAction, defaultInputBindings, MIN_FONT_SIZE, MAX_FONT_SIZE,
   type WebTerminalOptions, type WebTerminalHandle, type TerminalInput, type InputBinding,
   type TerminalSelection, type TerminalViewport, type SelectionUIEvent, type TerminalStats,
-  type TerminalRendererKind, type TerminalRendererPreference
+  type TerminalRendererKind, type TerminalRendererPreference, type TerminalProgress,
+  type TerminalShellIntegration
 } from "@hex1b/web-terminal";
 
 const container = document.createElement("div");
@@ -54,6 +55,18 @@ const options: WebTerminalOptions = {
     const currentTitle: string = title;
     console.log(currentTitle);
   },
+  onProgressChange(progress) {
+    const current: TerminalProgress = progress;
+    if (current.state === "normal") console.log(current.percentage);
+    // @ts-expect-error Progress callback values are readonly.
+    current.percentage = 100;
+  },
+  onShellIntegrationChange(shell) {
+    const current: TerminalShellIntegration = shell;
+    if (current.phase === "finished") console.log(current.lastExitCode);
+    // @ts-expect-error Shell callback values are readonly.
+    current.phase = "executing";
+  },
   onSelectionUI(event) {
     const notification: SelectionUIEvent = event;
     notification.preventDefault();
@@ -82,6 +95,9 @@ const terminal: WebTerminalHandle = mountedTerminal;
 const title: string = terminal.title;
 const mountedTitle: string = mountedTerminal.title;
 console.log(title, mountedTitle);
+const progress: TerminalProgress = terminal.progress;
+const shell: TerminalShellIntegration = mountedTerminal.shellIntegration;
+console.log(progress, shell);
 const forcedRenderer: TerminalRendererPreference = "webgl2";
 const forcedOptions: WebTerminalOptions = { ...options, renderer: forcedRenderer };
 console.log(forcedOptions);
@@ -102,6 +118,10 @@ new WebTerminal(options);
 terminal.title = "host title";
 // @ts-expect-error The WebTerminal class exposes only a getter.
 mountedTerminal.title = "host title";
+// @ts-expect-error Terminal activity is read-only on the public handle.
+terminal.progress = { state: "none", percentage: null };
+// @ts-expect-error Shell phase is read-only, not a way to execute commands.
+terminal.shellIntegration.phase = "executing";
 // @ts-expect-error Fixed sizing requires both grid dimensions.
 terminal.setSizing({ mode: "fixed", columns: 80 });
 // @ts-expect-error Paste is text, not bytes.

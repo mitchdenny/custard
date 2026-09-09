@@ -126,6 +126,8 @@ function frame({ title = "", revision = 1, full = revision === 1, baseRevision =
   peer = { id: null, primaryId: null, isPrimary: true }, ...overrides } = {}) {
   const metadata = {
     version: 1, title, revision, full, baseRevision, peer,
+    progress: { state: "none", percentage: null },
+    shellIntegration: { phase: "unknown", lastExitCode: null },
     columns: 1, rows: 1, cellWidth: 10, cellHeight: 20, mouseTracking: 0,
     cursor: { visible: true, x: 0, y: 0, shape: 1 },
     history: null, images: [], retainedImages: [], placements: [], warnings: [], hyperlinks: [],
@@ -176,6 +178,131 @@ async function present(view, state) {
   await view.worker.request("frame", { buffer: frame(state) });
   await view.worker.request("draw");
 }
+
+test("Activity arrives after presentation, before mount, with both getters set and isolated from callbacks", async t => {
+  const workers = browser(t);
+  const progressNotices = [];
+  const shellNotices = [];
+  const initialProgress = { state: "indeterminate", percentage: null };
+  const initialShell = { phase: "executing", lastExitCode: -1 };
+  const view = await mounting(t, workers, {
+    onProgressChange(progress) {
+      assert.deepEqual(view.handle.progress, progress);
+      assert.deepEqual(view.handle.shellIntegration, initialShell);
+      progressNotices.push({ ...progress });
+      progress.percentage = 99;
+    },
+    onShellIntegrationChange(shell) {
+      assert.deepEqual(view.handle.progress, initialProgress);
+      assert.deepEqual(view.handle.shellIntegration, shell);
+      shellNotices.push({ ...shell });
+      shell.phase = "finished";
+    }
+  });
+  await view.worker.request("open");
+  await view.worker.request("hold");
+  await view.worker.request("frame", { buffer: frame({ progress: initialProgress, shellIntegration: initialShell }) });
+  await view.worker.request("draw");
+  assert.deepEqual(progressNotices, []);
+  assert.deepEqual(shellNotices, []);
+  assert.equal(view.settled, false);
+  await view.worker.request("release");
+  const terminal = await view.promise;
+  assert.deepEqual(progressNotices, [initialProgress]);
+  assert.deepEqual(shellNotices, [initialShell]);
+  assert.deepEqual(terminal.progress, initialProgress);
+  assert.deepEqual(terminal.shellIntegration, initialShell);
+  terminal.progress.state = "error";
+  terminal.shellIntegration.lastExitCode = 123;
+  assert.deepEqual(terminal.progress, initialProgress);
+  assert.deepEqual(terminal.shellIntegration, initialShell);
+  assert.deepEqual(view.worker.errors, []);
+});
+
+test("Activity callbacks deliver defaults then distinct states, never infer missing intermediate markers", async t => {
+  const workers = browser(t);
+  const progressNotices = [];
+  const shellNotices = [];
+  const view = await mounting(t, workers, {
+    onProgressChange(value) { progressNotices.push(value); },
+    onShellIntegrationChange(value) { shellNotices.push(value); }
+  });
+  await view.worker.request("open");
+  await present(view, {});
+  const terminal = await view.promise;
+  assert.deepEqual(progressNotices, [{ state: "none", percentage: null }]);
+  assert.deepEqual(shellNotices, [{ phase: "unknown", lastExitCode: null }]);
+  let revision = 1;
+  for (const [state, percentage] of [["normal", 0], ["normal", 100], ["warning", 50], ["error", 25],
+    ["indeterminate", null], ["none", null]]) {
+    await present(view, { revision: ++revision, progress: { state, percentage },
+      shellIntegration: { phase: "finished", lastExitCode: 1 } });
+  }
+  assert.equal(progressNotices.length, 7);
+  assert.deepEqual(shellNotices, [{ phase: "unknown", lastExitCode: null }, { phase: "finished", lastExitCode: 1 }]);
+  await present(view, { revision: ++revision, shellIntegration: { phase: "commandLine", lastExitCode: 1 } });
+  terminal.resync();
+  await present(view, { revision: ++revision, full: true, shellIntegration: { phase: "commandLine", lastExitCode: 1 } });
+  assert.equal(shellNotices.length, 3);
+  assert.equal(progressNotices.length, 7);
+  assert.deepEqual(terminal.shellIntegration, { phase: "commandLine", lastExitCode: 1 });
+  assert.equal(terminal.title, "");
+  assert.deepEqual(view.worker.errors, []);
+});
+
+test("Activity ignores connecting replicas, dropped and malformed frames, and retains last state on disconnect", async t => {
+  const workers = browser(t);
+  const notices = [];
+  const view = await mounting(t, workers, { onProgressChange(value) { notices.push(value); } });
+  await view.worker.request("open");
+  await present(view, { peer: { id: null, primaryId: null, isPrimary: false } });
+  assert.deepEqual(notices, []);
+  assert.equal(view.settled, false);
+  const peer = { id: "replica", primaryId: "producer", isPrimary: false };
+  const progress = { state: "warning", percentage: 40 };
+  await present(view, { revision: 2, peer, progress });
+  const terminal = await view.promise;
+  await present(view, { revision: 3, baseRevision: 99, peer });
+  assert.deepEqual(terminal.progress, progress);
+  await present(view, { revision: 4, full: true, peer, progress });
+  await present(view, { revision: 5, peer, progress: { state: "normal", percentage: 101 } });
+  assert.equal(terminal.connected, false);
+  assert.deepEqual(terminal.progress, progress);
+  assert.deepEqual(notices, [progress]);
+  terminal.dispose();
+  assert.deepEqual(terminal.progress, progress);
+  const remount = await mounting(t, workers, { onProgressChange(value) { notices.push(value); } });
+  await remount.worker.request("open");
+  await present(remount, { peer, progress });
+  await remount.promise;
+  assert.deepEqual(notices, [progress, progress]);
+});
+
+test("Disposing in a progress callback suppresses the paired shell callback and queued messages", async t => {
+  const workers = browser(t);
+  const notices = [];
+  const view = await mounting(t, workers, {
+    onProgressChange(value) {
+      notices.push(value);
+      if (value.state === "error") view.handle.dispose();
+    },
+    onShellIntegrationChange(value) { notices.push(value); }
+  });
+  await view.worker.request("open");
+  await present(view, {});
+  const terminal = await view.promise;
+  const progress = { state: "error", percentage: 25 };
+  const shellIntegration = { phase: "finished", lastExitCode: 1 };
+  await present(view, { revision: 2, progress, shellIntegration });
+  const geometry = view.worker.outputs.find(message => message.type === "geometry");
+  view.worker.deliver({ ...geometry, revision: 3 });
+  assert.deepEqual(notices, [
+    { state: "none", percentage: null }, { phase: "unknown", lastExitCode: null }, progress
+  ]);
+  assert.deepEqual(terminal.progress, progress);
+  assert.deepEqual(terminal.shellIntegration, shellIntegration);
+  assert.deepEqual(view.worker.errors, []);
+});
 
 for (const initial of ["", "shell; 世界 😀"]) {
   test(`Mount publishes initial title ${JSON.stringify(initial)} only after presentation, then distinct changes`, async t => {

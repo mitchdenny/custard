@@ -88,5 +88,8 @@ internal enum Hmp1FrameType : byte
     // Server → Client. One-time playback checkpoint following a KGP state replay.
     // Standard KGP commands carry the pixels/gaps; this restores loop progress and
     // elapsed frame time that cannot be represented by those commands.
-    KgpAnimationState = 0x0C
+    KgpAnimationState = 0x0C,
+
+    // Server → Client. Mandatory authoritative activity baseline immediately after StateSync.
+    ActivityState = 0x0D
 }

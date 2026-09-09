@@ -33,4 +33,6 @@ internal sealed record Hex1bTerminalSnapshotState(
     HyperlinkData? ActiveHyperlink,
     string WindowTitle,
     string IconName,
-    IReadOnlyList<(string Title, string IconName)> SavedTitles);
+    IReadOnlyList<(string Title, string IconName)> SavedTitles,
+    TerminalProgress Progress,
+    TerminalShellIntegration ShellIntegration);

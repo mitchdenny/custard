@@ -1242,16 +1242,20 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                 IReadOnlyList<AnsiToken>? preTokenizedTokens = null;
                 Hmp1TerminalState? remoteState = null;
                 Hmp1KgpAnimationState? animationState = null;
+                Hmp1ActivityState? activityState = null;
+                Hmp1WorkloadAdapter? remoteSource = null;
                 var isStateSync = false;
                 byte[]? pooledItemBuffer = null;
                 List<AnsiToken>? pooledItemTokens = null;
                 Action<List<AnsiToken>>? pooledItemTokensReturn = null;
 
-                if (_workload is Hmp1WorkloadAdapter remoteWorkload)
+                if (_workload is IHmp1TerminalOutputSource remoteWorkload)
                 {
                     var item = await remoteWorkload.ReadTerminalOutputAsync(ct);
                     remoteState = item.State;
                     animationState = item.AnimationState;
+                    activityState = item.ActivityState;
+                    remoteSource = item.Source;
                     isStateSync = item.IsStateSync;
                     data = item.Bytes;
                 }
@@ -1286,7 +1290,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
 
                 Interlocked.Add(ref _outputBytesRead, data.Length);
 
-                var outputStateLock = _workload is Hmp1WorkloadAdapter ? Hmp1OutputStateLock : _hmp1OutputStateLock;
+                var outputStateLock = _workload is IHmp1TerminalOutputSource ? Hmp1OutputStateLock : _hmp1OutputStateLock;
                 var outputStateLockTaken = false;
                 try
                 {
@@ -1297,15 +1301,16 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                 }
                 // Publish connection geometry and its replay as one output-state
                 // transaction. A browser must not become ready on the empty replica.
+                if (isStateSync)
+                {
+                    await ApplyHmp1ReplayAsync(data, remoteState, activityState, ct);
+                    remoteSource?.CompleteInitialReplay(null);
+                    continue;
+                }
                 if (remoteState is not null)
                     await ApplyHmp1StateAsync(remoteState);
                 if (animationState is not null)
                     ApplyHmp1KgpAnimationState(animationState);
-                if (isStateSync)
-                {
-                    lock (_bufferLock)
-                        _titleStack.Clear();
-                }
                 if (data.IsEmpty)
                     continue;
                 var rawPresentationPassthrough =
@@ -1389,8 +1394,14 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                     }
                 }
                 }
+                catch (Exception error)
+                {
+                    remoteSource?.CompleteInitialReplay(error);
+                    throw;
+                }
                 finally
                 {
+                    Hmp1ReplayActivityState = null;
                     if (outputStateLockTaken)
                         outputStateLock!.Release();
                     if (pooledItemBuffer is not null)
@@ -1400,12 +1411,14 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                 }
             }
         }
-        catch (OperationCanceledException)
+        catch (OperationCanceledException error)
         {
             // Normal shutdown
+            (_workload as IHmp1TerminalOutputSource)?.Hmp1Workload?.CompleteInitialReplay(error);
         }
         catch (Exception ex)
         {
+            (_workload as IHmp1TerminalOutputSource)?.Hmp1Workload?.CompleteInitialReplay(ex);
             ReportPumpFault("workload output pump", ex);
         }
         finally
@@ -2115,7 +2128,9 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                 _currentHyperlink?.Data,
                 _windowTitle,
                 _iconName,
-                includeSavedTitles ? Array.AsReadOnly(_titleStack.ToArray()) : []);
+                includeSavedTitles ? Array.AsReadOnly(_titleStack.ToArray()) : [],
+                _activityState.Progress,
+                _activityState.ShellIntegration);
         }
     }
 
@@ -2425,6 +2440,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
     /// </summary>
     public void Resize(int newWidth, int newHeight)
     {
+        bool deferNotification;
         lock (_bufferLock)
         {
             if (_width != newWidth || _height != newHeight)
@@ -2451,8 +2467,10 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
             _scrollBottom = newHeight - 1;
             
             _pendingWrap = false;
+            deferNotification = _deferHmp1ReplayCallbacks;
         }
-        NotifyPresentationInvalidated();
+        if (!deferNotification)
+            NotifyPresentationInvalidated();
     }
 
     private void ResizeWithReflow(int newWidth, int newHeight, ITerminalReflowProvider reflowProvider)
@@ -3389,6 +3407,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                 break;
 
             case RisToken:
+                SetActivityState(TerminalActivityState.Default);
                 SetSynchronizedOutputMode(false);
                 InvalidateTextCoordinates();
                 // RIS (ESC c): Full terminal reset — clear screen, reset all state
@@ -6740,6 +6759,11 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                 // OSC 8: Hyperlinks
                 ProcessOsc8Hyperlink(parameters, payload);
                 break;
+
+            case "9":
+            case "133":
+                SetActivityState(_activityState.ApplyOsc(command, parameters, payload));
+                break;
                 
             case "22":
                 // OSC 22: Push title onto stack
@@ -6796,7 +6820,8 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         if (_windowTitle != title)
         {
             _windowTitle = title;
-            WindowTitleChanged?.Invoke(title);
+            if (!_deferHmp1ReplayCallbacks)
+                WindowTitleChanged?.Invoke(title);
         }
     }
     
@@ -6809,7 +6834,8 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         if (_iconName != name)
         {
             _iconName = name;
-            IconNameChanged?.Invoke(name);
+            if (!_deferHmp1ReplayCallbacks)
+                IconNameChanged?.Invoke(name);
         }
     }
     

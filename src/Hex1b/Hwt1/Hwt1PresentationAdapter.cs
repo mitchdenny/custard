@@ -46,6 +46,8 @@ namespace Hex1b;
 /// title. Title-only output can produce a frame with no changed cells. Titles follow
 /// the same coalescing and synchronized-output rules as other state; frames are not
 /// a lossless stream of individual title-setting sequences.
+/// Progress and shell-integration state use the same snapshot and coalescing rules.
+/// These fields are current even when the view is displaying historical text.
 /// </remarks>
 public sealed class Hwt1PresentationAdapter :
     ICellImpactAwarePresentationAdapter, ITerminalLifecycleAwarePresentationAdapter
@@ -58,7 +60,8 @@ public sealed class Hwt1PresentationAdapter :
     private readonly TimeProvider _timeProvider;
     private readonly long _started = Stopwatch.GetTimestamp();
     private Hex1bTerminal? _terminal;
-    private Hmp1WorkloadAdapter? _hmp1Workload;
+    private IHmp1TerminalOutputSource? _hmp1OutputSource;
+    private Hmp1WorkloadAdapter? Hmp1Workload => _hmp1OutputSource?.Hmp1Workload;
     private Hmp1PresentationAdapter? _muxer;
     private Hmp1PresentationAdapter.Hmp1ClientSession? _session;
     private readonly Hwt1ViewState _view = new();
@@ -167,6 +170,7 @@ public sealed class Hwt1PresentationAdapter :
         try
         {
             using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _disposedCancellation.Token);
+            await terminal.WaitForHmp1InitialReplayAsync(linked.Token).ConfigureAwait(false);
             Task? acknowledgement;
             lock (_ackLock)
                 acknowledgement = _ack?.Task;
@@ -180,7 +184,7 @@ public sealed class Hwt1PresentationAdapter :
             Hex1bTerminalSnapshot? snapshot;
             Hwt1History? history;
             Hwt1Peer peer;
-            var outputLock = _muxer is not null || _hmp1Workload is not null ? terminal.Hmp1OutputStateLock : null;
+            var outputLock = _muxer is not null || _hmp1OutputSource is not null ? terminal.Hmp1OutputStateLock : null;
             while (true)
             {
                 linked.Token.ThrowIfCancellationRequested();
@@ -195,7 +199,7 @@ public sealed class Hwt1PresentationAdapter :
                     if (terminal.TryCaptureBrowserSnapshot(_view, out snapshot, out history,
                         out var remoteState, out pendingUpdate))
                     {
-                        if (_hmp1Workload is not null)
+                        if (_muxer is null && (Hmp1Workload is not null || remoteState is not null))
                             peer = remoteState is null ? Hwt1Peer.Unconnected :
                                 new Hwt1Peer(remoteState.PeerId, remoteState.PrimaryPeerId, remoteState.IsPrimary);
                         break;
@@ -281,7 +285,7 @@ public sealed class Hwt1PresentationAdapter :
                 var rows = ReadBounded(command, "rows", 10, 100);
                 if (_muxer is not null)
                     await _muxer.ResizeBrowserAsync(_session!, columns, rows, primary: false, linked.Token);
-                else if (_hmp1Workload is { } remote)
+                else if (Hmp1Workload is { } remote)
                     await remote.ResizeAsync(columns, rows, linked.Token);
                 else
                     Resize(columns, rows);
@@ -291,9 +295,9 @@ public sealed class Hwt1PresentationAdapter :
                 var primaryRows = ReadBounded(command, "rows", 10, 100);
                 if (_muxer is not null)
                     await _muxer.ResizeBrowserAsync(_session!, primaryColumns, primaryRows, primary: true, linked.Token);
-                else if (_hmp1Workload is { IsConnected: true } candidate)
+                else if (Hmp1Workload is { IsConnected: true } candidate)
                     await candidate.RequestPrimaryAsync(primaryColumns, primaryRows, linked.Token);
-                else if (_hmp1Workload is null)
+                else if (Hmp1Workload is null)
                     Resize(primaryColumns, primaryRows);
                 break;
             case "input":
@@ -350,7 +354,7 @@ public sealed class Hwt1PresentationAdapter :
         ArgumentNullException.ThrowIfNull(terminal);
         if (Interlocked.CompareExchange(ref _terminal, terminal, null) is not null)
             throw new InvalidOperationException("An HWT1 adapter can only be attached to one terminal.");
-        _hmp1Workload = terminal.Workload as Hmp1WorkloadAdapter;
+        _hmp1OutputSource = terminal.Workload as IHmp1TerminalOutputSource;
         terminal.PresentationInvalidated += InvalidatePresentation;
         InvalidatePresentation();
     }

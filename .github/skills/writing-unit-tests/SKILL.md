@@ -343,6 +343,21 @@ For nested output races, gate later child redraws: their extra notifications can
 mask a lost first-frame notification. These controlled cases supplement, rather
 than prove, responsiveness under arbitrary real-world load.
 
+## Process Output Completion
+
+Process exit and terminal output consumption are separate events. For a controlled
+regression, start a `StandardProcessWorkloadAdapter` and await its exit before
+constructing a terminal with an already-completed run callback. Gate the first
+presentation write with a `TaskCompletionSource`: `RunAsync` and lifecycle
+completion must remain pending until the gate is released and both stdout and
+stderr reach the snapshot. See `StandardProcessOutputTests` for raw and filtered
+output, cancellation, and pump-failure cases. Keep ordinary `WithProcess` tests
+alongside this ordering test; do not keep a one-shot child alive or wait for visible
+output before awaiting `RunAsync` in a drain regression, since that hides the race.
+For echo/transport tests, use an already-available executable (`cmd /d /c echo` on
+Windows, `/bin/echo` on Unix). Runtime-compiling a temporary C# program with
+`dotnet run` puts SDK startup and compilation inside the output deadline.
+
 ## Widget Test Dimensions
 
 When writing tests for widgets, consider all the **dimensions** that affect behavior. Each widget should have tests covering these scenarios:

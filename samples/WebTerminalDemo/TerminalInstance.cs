@@ -9,6 +9,8 @@ internal sealed class TerminalInstance
     private readonly CancellationTokenSource _stop;
     private readonly Hex1bTerminal _terminal;
     private readonly DemoWorkload? _demo;
+    private readonly DemoTape[] _tapes;
+    private readonly TerminalTapePlayback _tapePlayback;
     private readonly ILogger _logger;
     private readonly Action<TerminalInstance> _onCompleted;
     private readonly string _name;
@@ -17,11 +19,12 @@ internal sealed class TerminalInstance
     private Task _completion = Task.CompletedTask;
     private bool _stopping;
 
-    public TerminalInstance(CreateTerminalRequest request, ILogger logger, CancellationToken applicationStopping,
-        Action<TerminalInstance> onCompleted)
+    public TerminalInstance(CreateTerminalRequest request, DemoTapeCatalog tapeCatalog, ILogger logger,
+        CancellationToken applicationStopping, Action<TerminalInstance> onCompleted)
     {
         Id = Guid.NewGuid().ToString("N");
         _scene = request.Scene;
+        _tapes = tapeCatalog.ForScene(_scene);
         _name = request.Name?.Trim() ?? $"{char.ToUpperInvariant(_scene[0])}{_scene[1..]} {Id[..6]}";
         _logger = logger;
         _onCompleted = onCompleted;
@@ -54,6 +57,7 @@ internal sealed class TerminalInstance
                 return await child.WaitForExitAsync(ct);
             }
         });
+        _tapePlayback = new TerminalTapePlayback(_terminal, Id, logger, Stopping);
     }
 
     public string Id { get; }
@@ -66,7 +70,8 @@ internal sealed class TerminalInstance
         lock (_gate)
             return new(Id, _name, _scene, Presentation.Width, Presentation.Height,
                 Presentation.ClientCount, Presentation.PrimaryPeerId, _createdAt,
-                _demo?.Paused, _demo?.Rate, _demo?.Batch);
+                _demo?.Paused, _demo?.Rate, _demo?.Batch,
+                _tapes.Select(tape => tape.Info).ToArray(), _tapePlayback.Status);
     }
 
     public void Start() => _completion = Task.Run(RunLifetimeAsync);
@@ -110,6 +115,14 @@ internal sealed class TerminalInstance
         return _completion;
     }
 
+    public int StartTape(string tapeId)
+    {
+        var tape = _tapes.FirstOrDefault(tape => tape.Info.Id == tapeId);
+        return tape is null ? 400 : _tapePlayback.Start(tape);
+    }
+
+    public int CancelTape() => _tapePlayback.Cancel();
+
     private void RequestStop()
     {
         lock (_gate)
@@ -136,6 +149,7 @@ internal sealed class TerminalInstance
         finally
         {
             RequestStop();
+            await _tapePlayback.DisposeAsync();
             TerminalView[] views;
             lock (_gate)
                 views = _views.ToArray();

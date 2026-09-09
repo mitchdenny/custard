@@ -70,6 +70,9 @@
     <EmbeddedResource Include="TestData\ReflowFixtures.json" />
     <EmbeddedResource Include="TestData\Sixel\*.sixel" />
     <EmbeddedResource Include="TestData\Sixel\Conformance\*.json" />
+    <EmbeddedResource Include="TestData\Tape\**\*">
+      <LogicalName>TapeConformance/%(RecursiveDir)%(Filename)%(Extension)</LogicalName>
+    </EmbeddedResource>
   </ItemGroup>
 
 </Project>

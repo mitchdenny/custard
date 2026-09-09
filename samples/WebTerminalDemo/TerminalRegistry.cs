@@ -1,6 +1,6 @@
 namespace WebTerminalDemo;
 
-internal sealed class TerminalRegistry(ILogger logger, CancellationToken applicationStopping) : IAsyncDisposable
+internal sealed class TerminalRegistry(DemoTapeCatalog tapeCatalog, ILogger logger, CancellationToken applicationStopping) : IAsyncDisposable
 {
     private readonly object _gate = new();
     private readonly Dictionary<string, TerminalInstance> _instances = [];
@@ -20,7 +20,7 @@ internal sealed class TerminalRegistry(ILogger logger, CancellationToken applica
             ObjectDisposedException.ThrowIf(_disposed || applicationStopping.IsCancellationRequested, this);
             if (_instances.Count >= 4)
                 return null;
-            var instance = new TerminalInstance(request, logger, applicationStopping, OnCompleted);
+            var instance = new TerminalInstance(request, tapeCatalog, logger, applicationStopping, OnCompleted);
             _instances.Add(instance.Id, instance);
             instance.Start();
             return instance.GetInfo();
@@ -59,6 +59,20 @@ internal sealed class TerminalRegistry(ILogger logger, CancellationToken applica
             return false;
         await instance.StopAsync();
         return true;
+    }
+
+    public int StartTape(string id, string tapeId)
+    {
+        lock (_gate)
+            return !_instances.TryGetValue(id, out var instance) || instance.IsStopping
+                ? 404 : instance.StartTape(tapeId);
+    }
+
+    public int CancelTape(string id)
+    {
+        lock (_gate)
+            return !_instances.TryGetValue(id, out var instance) || instance.IsStopping
+                ? 404 : instance.CancelTape();
     }
 
     private void OnViewClosed()

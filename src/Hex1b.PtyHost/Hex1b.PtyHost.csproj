@@ -13,7 +13,6 @@
     <IsAotCompatible>true</IsAotCompatible>
     <InvariantGlobalization>true</InvariantGlobalization>
     <JsonSerializerIsReflectionEnabledByDefault>false</JsonSerializerIsReflectionEnabledByDefault>
-    <DefineConstants>$(DefineConstants);HEX1B_REDISTRIBUTABLE_CONPTY</DefineConstants>
     <ConptyRequiresx64Host Condition="'$(RuntimeIdentifier)' == 'win-x64'">true</ConptyRequiresx64Host>
     <ConptyRequiresARM64Host Condition="'$(RuntimeIdentifier)' == 'win-x64' or '$(RuntimeIdentifier)' == 'win-arm64'">true</ConptyRequiresARM64Host>
   </PropertyGroup>

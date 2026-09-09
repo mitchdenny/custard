@@ -121,15 +121,25 @@ for asset in "${hex1b_native_assets[@]}"; do
   tool_native_assets+=("tools/net10.0/any/$asset")
 done
 
+tool_windows_graphics_assets=(
+  "tools/net10.0/any/runtimes/win-x64/native/libHarfBuzzSharp.dll"
+  "tools/net10.0/any/runtimes/win-x64/native/libSkiaSharp.dll"
+  "tools/net10.0/any/runtimes/win-arm64/native/libHarfBuzzSharp.dll"
+  "tools/net10.0/any/runtimes/win-arm64/native/libSkiaSharp.dll"
+)
+
 assert_files_exist "Hex1b.Tool" "$tool_root" \
   "tools/net10.0/any/Hex1b.Tool.dll" \
   "tools/net10.0/any/DotnetToolSettings.xml" \
-  "${tool_native_assets[@]}"
+  "${tool_native_assets[@]}" \
+  "${tool_windows_graphics_assets[@]}"
 
 assert_directory_files "Hex1b.Tool" "$tool_root" "tools/net10.0/any/runtimes/win-x64/native" \
-  "hex1bpty.exe" "conpty.dll" "x64/OpenConsole.exe" "arm64/OpenConsole.exe"
+  "hex1bpty.exe" "conpty.dll" "x64/OpenConsole.exe" "arm64/OpenConsole.exe" \
+  "libHarfBuzzSharp.dll" "libSkiaSharp.dll"
 assert_directory_files "Hex1b.Tool" "$tool_root" "tools/net10.0/any/runtimes/win-arm64/native" \
-  "hex1bpty.exe" "conpty.dll" "arm64/OpenConsole.exe"
+  "hex1bpty.exe" "conpty.dll" "arm64/OpenConsole.exe" \
+  "libHarfBuzzSharp.dll" "libSkiaSharp.dll"
 
 unexpected_tool_root_native=$(find "$tool_root/tools" -type f -printf '%P\n' \
   | grep -E '^[^/]+/any/libhex1binterop\.(so|dylib)$' || true)
@@ -142,4 +152,4 @@ fi
 echo "Verified extracted NuGet package contents:"
 printf '  Hex1b/%s\n' "lib/net8.0/Hex1b.dll" "${hex1b_native_assets[@]}"
 printf '  Hex1b.McpServer/%s\n' "tools/net10.0/any/Hex1b.McpServer.dll" "tools/net10.0/any/DotnetToolSettings.xml"
-printf '  Hex1b.Tool/%s\n' "tools/net10.0/any/Hex1b.Tool.dll" "tools/net10.0/any/DotnetToolSettings.xml" "${tool_native_assets[@]}"
+printf '  Hex1b.Tool/%s\n' "tools/net10.0/any/Hex1b.Tool.dll" "tools/net10.0/any/DotnetToolSettings.xml" "${tool_native_assets[@]}" "${tool_windows_graphics_assets[@]}"

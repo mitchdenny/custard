@@ -1,3 +1,5 @@
+using Microsoft.Extensions.Logging;
+
 namespace WebTerminalDemo;
 
 internal sealed class TerminalRegistry(DemoTapeCatalog tapeCatalog, ILogger logger, CancellationToken applicationStopping) : IAsyncDisposable
@@ -27,7 +29,7 @@ internal sealed class TerminalRegistry(DemoTapeCatalog tapeCatalog, ILogger logg
         }
     }
 
-    public (TerminalView? View, int Status) TryOpenView(string id)
+    public (TerminalView? View, int Status) TryOpenView(string id, string? viewId = null)
     {
         lock (_gate)
         {
@@ -35,12 +37,18 @@ internal sealed class TerminalRegistry(DemoTapeCatalog tapeCatalog, ILogger logg
                 return (null, 404);
             if (_viewCount >= 8)
                 return (null, 429);
-            var view = instance.TryOpenView(OnViewClosed);
+            var (view, status) = instance.TryOpenView(viewId, OnViewClosed);
             if (view is null)
-                return (null, 404);
+                return (null, status);
             _viewCount++;
             return (view, 200);
         }
+    }
+
+    public int RequestViewFailure(string id, string viewId, BrowserCloseRequest failure)
+    {
+        lock (_gate)
+            return !_instances.TryGetValue(id, out var instance) ? 404 : instance.RequestViewFailure(viewId, failure);
     }
 
     public int UpdateControls(string id, TerminalControlsRequest request)

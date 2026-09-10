@@ -1,5 +1,6 @@
 using Hex1b;
 using Hex1b.Automation;
+using Microsoft.Extensions.Logging;
 
 namespace WebTerminalDemo;
 

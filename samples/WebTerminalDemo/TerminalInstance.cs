@@ -1,12 +1,14 @@
 using Hex1b;
+using Microsoft.Extensions.Logging;
 
 namespace WebTerminalDemo;
 
 internal sealed class TerminalInstance
 {
     private readonly object _gate = new();
-    private readonly HashSet<TerminalView> _views = [];
+    private readonly Dictionary<string, TerminalView> _views = new(StringComparer.OrdinalIgnoreCase);
     private readonly CancellationTokenSource _stop;
+    private readonly CancellationTokenRegistration _applicationStopping;
     private readonly Hex1bTerminal _terminal;
     private readonly DemoWorkload? _demo;
     private readonly DemoTape[] _tapes;
@@ -18,6 +20,7 @@ internal sealed class TerminalInstance
     private readonly DateTimeOffset _createdAt = DateTimeOffset.UtcNow;
     private Task _completion = Task.CompletedTask;
     private bool _stopping;
+    private BrowserCloseRequest? _closeReason;
 
     public TerminalInstance(CreateTerminalRequest request, DemoTapeCatalog tapeCatalog, ILogger logger,
         CancellationToken applicationStopping, Action<TerminalInstance> onCompleted)
@@ -28,7 +31,7 @@ internal sealed class TerminalInstance
         _name = request.Name?.Trim() ?? $"{char.ToUpperInvariant(_scene[0])}{_scene[1..]} {Id[..6]}";
         _logger = logger;
         _onCompleted = onCompleted;
-        _stop = CancellationTokenSource.CreateLinkedTokenSource(applicationStopping);
+        _stop = new CancellationTokenSource();
         Stopping = _stop.Token;
         Presentation = new Hmp1PresentationAdapter(request.Columns, request.Rows);
         _demo = _scene == "shell" ? null : new DemoWorkload(_scene, request.Columns, request.Rows);
@@ -58,12 +61,14 @@ internal sealed class TerminalInstance
             }
         });
         _tapePlayback = new TerminalTapePlayback(_terminal, Id, logger, Stopping);
+        _applicationStopping = applicationStopping.Register(() => RequestStop(BrowserCloseRequest.ApplicationStopping));
     }
 
     public string Id { get; }
     public Hmp1PresentationAdapter Presentation { get; }
     public CancellationToken Stopping { get; }
     public bool IsStopping { get { lock (_gate) return _stopping || Stopping.IsCancellationRequested; } }
+    public BrowserCloseRequest? CloseReason { get { lock (_gate) return _closeReason; } }
 
     public TerminalInstanceInfo GetInfo()
     {
@@ -76,22 +81,31 @@ internal sealed class TerminalInstance
 
     public void Start() => _completion = Task.Run(RunLifetimeAsync);
 
-    public TerminalView? TryOpenView(Action onClosed)
+    public (TerminalView? View, int Status) TryOpenView(string? id, Action onClosed)
     {
         lock (_gate)
         {
             if (_stopping || Stopping.IsCancellationRequested)
-                return null;
-            var view = new TerminalView(this, onClosed);
-            _views.Add(view);
-            return view;
+                return (null, 404);
+            id ??= Guid.NewGuid().ToString("D");
+            if (_views.ContainsKey(id))
+                return (null, 409);
+            var view = new TerminalView(this, id, onClosed);
+            _views.Add(id, view);
+            return (view, 200);
         }
     }
 
     public void CloseView(TerminalView view)
     {
         lock (_gate)
-            _views.Remove(view);
+            _views.Remove(view.Id);
+    }
+
+    public int RequestViewFailure(string viewId, BrowserCloseRequest failure)
+    {
+        lock (_gate)
+            return _stopping || !_views.TryGetValue(viewId, out var view) ? 404 : view.RequestFailure(failure);
     }
 
     public int UpdateControls(TerminalControlsRequest request)
@@ -111,7 +125,7 @@ internal sealed class TerminalInstance
 
     public Task StopAsync()
     {
-        RequestStop();
+        RequestStop(BrowserCloseRequest.OwnerStopped);
         return _completion;
     }
 
@@ -123,12 +137,13 @@ internal sealed class TerminalInstance
 
     public int CancelTape() => _tapePlayback.Cancel();
 
-    private void RequestStop()
+    private void RequestStop(BrowserCloseRequest reason)
     {
         lock (_gate)
         {
             if (_stopping)
                 return;
+            _closeReason = reason;
             _stopping = true;
             _stop.Cancel();
         }
@@ -140,25 +155,28 @@ internal sealed class TerminalInstance
         {
             var exitCode = await _terminal.RunAsync(Stopping);
             _logger.LogInformation("Terminal {Instance} ({Scene}) exited with code {ExitCode}", Id, _scene, exitCode);
+            RequestStop(new((System.Net.WebSockets.WebSocketCloseStatus)4000, $"Workload exited with code {exitCode}"));
         }
         catch (OperationCanceledException) when (Stopping.IsCancellationRequested) { }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Terminal {Instance} ({Scene}) failed", Id, _scene);
+            RequestStop(BrowserCloseRequest.WorkloadFailed);
         }
         finally
         {
-            RequestStop();
+            RequestStop(BrowserCloseRequest.ApplicationStopping);
             await _tapePlayback.DisposeAsync();
             TerminalView[] views;
             lock (_gate)
-                views = _views.ToArray();
+                views = _views.Values.ToArray();
             // Let producer-backed views release their HMP peers before disposing the producer.
             await Task.WhenAll(views.Select(view => view.Completion));
             try { await _terminal.DisposeAsync(); }
             catch (Exception ex) { _logger.LogWarning(ex, "Could not cleanly dispose terminal {Instance}", Id); }
             finally
             {
+                await _applicationStopping.DisposeAsync();
                 lock (_gate)
                     _stop.Dispose();
                 _onCompleted(this);

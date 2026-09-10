@@ -124,6 +124,7 @@ origin:
 | `fonts.browser.js` | Real font-rendered borders at five raster scales, Nerd Font symbols, delayed worker font readiness, per-view font selection, and font-load failure cleanup. |
 | `sizing.browser.js` | Auto font-size controls, fixed-grid presets, keyboard selection, resize authority, and retained sizing policy across primary handoff. |
 | `floating.browser.js` | Real workers/WebSockets/HMP1, dragging, primary-only resize, takeover, detach/reattach, and independent instances. |
+| `lifecycle.browser.js` | Closure overlays, native close details before/after mounting, rejected upgrades, local initialization failures, explicit reconnect, per-view isolation, and owner completion through direct/relay transports. |
 | `input.browser.js` | Real POSIX shell input, Backspace, history, paste, MouseTest, thumbnail coordinates, and window-chrome focus. Build `samples/MouseTest` in Release first. |
 | `tapes.browser.js` | Scene-filtered tapes in an existing shell, shared-view output, retained identity/geometry, overlap rejection, cancellation, visible failures, and shutdown cleanup. |
 | `hyperlinks.browser.js` | Real OSC 8 output through HWT1 and the worker, Ctrl/Cmd activation, safe new tabs, selection/capture isolation, read-only thumbnails, destination updates, and scrollback. |
@@ -174,7 +175,8 @@ broad HMP graphics/performance stability or a browser/device compatibility matri
 - **Resync** refreshes that view's current-state baseline.
 - **Close view** detaches one view. Closing the primary preserves the last grid
   and leaves primary unassigned; a remaining view must explicitly take primary.
-- **End terminal** deletes the shared producer and ends all attached views.
+- **End terminal** deletes the shared producer and ends all attached views,
+  leaving each window's reason overlay visible until **Close view**.
 
 Instances persist with zero views until End terminal, workload exit, or server
 shutdown. Retention is process-local, not durable storage or automatic reconnect.
@@ -188,6 +190,57 @@ existing instance without claiming primary, or creates a mixed instance if the
 registry is empty. A supported `?scene=...` selects a newly created workload.
 `?empty=1` suppresses automatic view creation/attachment for browser checks;
 the normal controls remain available.
+
+### Closed views and failure demonstrations
+
+A closed view stays in its floating window with an overlay covering the terminal.
+It summarizes the outcome and displays the native WebSocket code, reason, and
+closing-handshake status supplied by `WebTerminalOptions.onClose`, including
+closure before mounting finishes. Local initialization failures have an overlay
+too, but no invented WebSocket status. Reasons are displayed as text, never HTML.
+The terminal and its input/resize/takeover controls are disabled; the window can
+still be moved, resized, or closed. The worker and renderer are disposed rather
+than retained behind the overlay; final-screen preservation is not part of this
+demonstration.
+
+Each window has a **Failure** picker and **Trigger** button. These affect only
+that connection, not its producer, other viewers, or scenario tapes:
+
+| Condition | Browser observation |
+|---|---|
+| Graceful close | Code 1000 with `Demo: graceful view closure`. |
+| Abrupt connection loss | Code 1006, no received close reason, incomplete handshake. |
+| Policy violation | Code 1008 with `Demo: policy violation`. |
+| Server error | Code 1011 with `Demo: server failure`. |
+
+Use **New view failure** before **Attach view**, **Thumbnail**, or **New terminal**
+to close or drop the connection before its first HWT frame, or reject its HTTP
+WebSocket upgrade with 503. Browsers report rejected upgrades as 1006 without
+exposing the HTTP response or a native reason; the overlay deliberately does
+not claim it can distinguish that from other connection failures. These modes
+work with both **Direct HWT1** and **HMP1 relay**.
+
+There is no automatic reconnect. **Reconnect view** creates a fresh connection
+inside the same window, retaining its transport but using the current font,
+scale, and renderer settings. It bypasses the new-view failure picker and does
+not take primary. A clean 1000 closure is not proof of producer completion.
+To demonstrate actual completion, choose **End terminal**, or type `exit` in an
+interactive shell. The sample sends application close code **4000** with the
+owner-stop or workload-exit reason; these overlays disable reconnect. Workload
+failures instead report 1011 with their sample-host failure reason.
+
+Code 4000 is a **WebTerminalDemo-only host convention**, not an HWT protocol
+meaning or library reconnect policy. Production hosts define their own
+completion and retry policy around the public close callback.
+
+The demo control endpoint is
+`POST /api/terminals/{id}/views/{viewId}/failure` with
+`{"mode":"close"}`, `"abort"`, `"policy"`, or `"server-error"`. The view GUID
+comes from the `/ws` connection's optional `view` query parameter. The optional
+`failure` query accepts `before-frame-close`, `before-frame-abort`, or
+`reject-upgrade`; omitted/empty means normal attachment. The controls inherit
+the sample's loopback and same-origin restrictions and are not public HWT
+messages or production fault-injection APIs.
 
 **New view renderer** chooses Auto (prefer WebGPU), WebGPU, or WebGL2 for newly
 opened views. `?renderer=webgl2` selects WebGL2 on initial load; `auto` and

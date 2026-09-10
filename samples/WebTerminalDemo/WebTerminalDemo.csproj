@@ -7,6 +7,8 @@
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="../../src/Hex1b/Hex1b.csproj" />
+    <None Remove="Tapes/**/*.tape" />
+    <Content Include="Tapes/**/*.tape" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
   <Target Name="BuildWebTerminalFrontend" BeforeTargets="PrepareForBuild" Condition="'$(DesignTimeBuild)' != 'true'">
     <Error Condition="!Exists('$(MSBuildProjectDirectory)/../../src/web-terminal/node_modules/typescript/bin/tsc')"

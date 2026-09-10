@@ -6,7 +6,8 @@ builder.WebHost.ConfigureKestrel(options => options.Limits.MaxRequestBodySize = 
 if (builder.Configuration["urls"] is null)
     builder.WebHost.UseUrls("http://localhost:5290");
 var app = builder.Build();
-await using var terminals = new TerminalRegistry(app.Logger, app.Lifetime.ApplicationStopping);
+var tapes = new DemoTapeCatalog(app.Environment.ContentRootPath);
+await using var terminals = new TerminalRegistry(tapes, app.Logger, app.Lifetime.ApplicationStopping);
 
 // This demo can launch a local shell. Reject remote clients, DNS rebinding, and cross-origin mutations.
 app.Use(async (context, next) =>
@@ -74,6 +75,24 @@ app.MapPost("/api/terminals/{id}/controls", (string id, TerminalControlsRequest 
         409 => Results.Conflict(new { error = "Controls are only available for generated workloads, not shells." }),
         _ => Results.NoContent()
     };
+});
+app.MapPost("/api/terminals/{id}/tape", (string id, PlayTapeRequest request) =>
+{
+    if (string.IsNullOrWhiteSpace(request.TapeId) || request.TapeId.Length > 80)
+        return Results.BadRequest(new { error = "tapeId must identify a bundled tape for this terminal's scene." });
+    return terminals.StartTape(id, request.TapeId) switch
+    {
+        404 => Results.NotFound(new { error = "Terminal instance not found." }),
+        400 => Results.BadRequest(new { error = "This tape is not available for the terminal's scene." }),
+        409 => Results.Conflict(new { error = "A tape is already playing on this terminal. Stop it before starting another." }),
+        _ => Results.Accepted(value: new { status = "running" })
+    };
+});
+app.MapDelete("/api/terminals/{id}/tape", (string id) => terminals.CancelTape(id) switch
+{
+    404 => Results.NotFound(new { error = "Terminal instance not found." }),
+    409 => Results.Conflict(new { error = "No tape is playing on this terminal." }),
+    _ => Results.Accepted(value: new { status = "cancelling" })
 });
 app.MapGet("/ws", async (HttpContext context) =>
 {

@@ -10,6 +10,24 @@ interface TerminalInstance {
   paused: boolean | null;
   rate: number | null;
   batch: number | null;
+  tapes: DemoTape[];
+  tapePlayback: TapePlayback | null;
+}
+
+interface DemoTape {
+  id: string;
+  scene: string;
+  name: string;
+  description: string;
+}
+
+interface TapePlayback {
+  tapeId: string;
+  name: string;
+  state: string;
+  completedCommands: number | null;
+  error: string | null;
+  diagnostics: string[];
 }
 
 interface TerminalView {
@@ -47,6 +65,8 @@ const message = (error: unknown) => error instanceof Error ? error.message : Str
 const workspace = byId("workspace");
 const instancesSelect = select("instances");
 const views = new Map<string, TerminalView>();
+const tapeSelections = new Map<string, string>();
+const pendingTapeActions = new Set<string>();
 let instances: TerminalInstance[] = [];
 let selected: TerminalView | undefined;
 let nextView = 0;
@@ -84,13 +104,46 @@ function readInstance(value: unknown): TerminalInstance {
       !("peerCount" in value) || typeof value.peerCount !== "number" ||
       !("paused" in value) || value.paused !== null && typeof value.paused !== "boolean" ||
       !("rate" in value) || value.rate !== null && typeof value.rate !== "number" ||
-      !("batch" in value) || value.batch !== null && typeof value.batch !== "number") {
+      !("batch" in value) || value.batch !== null && typeof value.batch !== "number" ||
+      !("tapes" in value) || !Array.isArray(value.tapes) ||
+      !("tapePlayback" in value)) {
     throw new Error("The server returned an invalid terminal instance");
   }
   return {
     id: value.id, name: value.name, scene: value.scene,
     columns: value.columns, rows: value.rows, peerCount: value.peerCount,
-    paused: value.paused, rate: value.rate, batch: value.batch
+    paused: value.paused, rate: value.rate, batch: value.batch,
+    tapes: value.tapes.map(readTape), tapePlayback: readTapePlayback(value.tapePlayback)
+  };
+}
+
+function readTape(value: unknown): DemoTape {
+  if (typeof value !== "object" || value === null ||
+      !("id" in value) || typeof value.id !== "string" ||
+      !("scene" in value) || typeof value.scene !== "string" ||
+      !("name" in value) || typeof value.name !== "string" ||
+      !("description" in value) || typeof value.description !== "string") {
+    throw new Error("The server returned an invalid tape");
+  }
+  return { id: value.id, scene: value.scene, name: value.name, description: value.description };
+}
+
+function readTapePlayback(value: unknown): TapePlayback | null {
+  if (value === null) return null;
+  if (typeof value !== "object" ||
+      !("tapeId" in value) || typeof value.tapeId !== "string" ||
+      !("name" in value) || typeof value.name !== "string" ||
+      !("state" in value) || typeof value.state !== "string" ||
+      !["running", "cancelling", "completed", "cancelled", "failed"].includes(value.state) ||
+      !("completedCommands" in value) || value.completedCommands !== null && typeof value.completedCommands !== "number" ||
+      !("error" in value) || value.error !== null && typeof value.error !== "string" ||
+      !("diagnostics" in value) || !Array.isArray(value.diagnostics) ||
+      !value.diagnostics.every(item => typeof item === "string")) {
+    throw new Error("The server returned an invalid tape playback status");
+  }
+  return {
+    tapeId: value.tapeId, name: value.name, state: value.state,
+    completedCommands: value.completedCommands, error: value.error, diagnostics: value.diagnostics
   };
 }
 
@@ -119,6 +172,64 @@ function updateInstanceControls() {
   for (const id of ["rate", "batch"] as const) {
     if (document.activeElement !== input(id)) input(id).value = String(instance?.[id] ?? (id === "rate" ? 30 : 20));
   }
+  updateTapeControls();
+}
+
+function updateTapeControls() {
+  const instance = instances.find(item => item.id === instancesSelect.value);
+  const tapes = instance?.tapes ?? [];
+  const picker = select("tapes");
+  const catalog = JSON.stringify(tapes);
+  if (picker.dataset.catalog !== catalog) {
+    picker.replaceChildren(...tapes.map(tape => new Option(tape.name, tape.id)));
+    if (!tapes.length) picker.add(new Option("No tapes for this scene", ""));
+    picker.dataset.catalog = catalog;
+  }
+  const previous = instance ? tapeSelections.get(instance.id) ?? instance.tapePlayback?.tapeId : undefined;
+  const tape = tapes.find(tape => tape.id === previous) ?? tapes[0];
+  picker.value = tape?.id ?? "";
+  picker.title = tape?.description ?? "Choose an Interactive shell terminal to play a tape.";
+  if (instance && tape) tapeSelections.set(instance.id, tape.id);
+  const playback = instance?.tapePlayback;
+  const busy = playback?.state === "running" || playback?.state === "cancelling";
+  const pending = !!instance && pendingTapeActions.has(instance.id);
+  picker.disabled = !tapes.length || busy || pending;
+  button("play-tape").disabled = !tape || busy || pending;
+  button("stop-tape").disabled = playback?.state !== "running" || pending;
+  const status = byId("tape-status");
+  status.dataset.instance = instance?.id ?? "";
+  status.dataset.state = playback?.state ?? "idle";
+  status.dataset.level = playback?.state === "failed" ? "error" : playback?.state === "completed" ? "ready" : "info";
+  const text = !instance ? "Choose an existing terminal to play a tape."
+    : !tapes.length ? "Tapes are currently bundled for the Interactive shell scene."
+    : !playback ? `${tape?.description} Start at an idle shell prompt.`
+    : [
+      `${playback.name}: ${playback.state}${playback.completedCommands === null ? "" : ` (${playback.completedCommands} commands)`}.`,
+      ...(playback.error ? [playback.error] : []),
+      ...playback.diagnostics
+    ].join("\n");
+  if (status.textContent !== text) status.textContent = text;
+}
+
+async function controlTape(cancel: boolean) {
+  const instance = instances.find(item => item.id === instancesSelect.value);
+  if (!instance) {
+    report("Choose an existing terminal to play a tape.", "error");
+    return;
+  }
+  const tapeId = select("tapes").value;
+  pendingTapeActions.add(instance.id);
+  updateTapeControls();
+  try {
+    await api(`/api/terminals/${encodeURIComponent(instance.id)}/tape`, cancel ? "DELETE" : "POST",
+      cancel ? undefined : { tapeId });
+    await refreshInstances();
+  } catch (error) {
+    report(message(error), "error");
+  } finally {
+    pendingTapeActions.delete(instance.id);
+    updateTapeControls();
+  }
 }
 
 async function refreshInstances(preferred?: string): Promise<void> {
@@ -139,6 +250,9 @@ async function loadInstances(preferred?: string) {
   const response = await api("/api/terminals");
   if (!Array.isArray(response)) throw new Error("The server returned an invalid terminal list");
   instances = response.map(readInstance);
+  for (const id of tapeSelections.keys()) {
+    if (!instances.some(instance => instance.id === id)) tapeSelections.delete(id);
+  }
   const selectedId = preferred || instancesSelect.value;
   instancesSelect.replaceChildren(...instances.map(instance => {
     const option = document.createElement("option");
@@ -483,6 +597,12 @@ action(button("apply-rate"), async () => {
   await refreshInstances();
 });
 instancesSelect.addEventListener("change", updateInstanceControls);
+select("tapes").addEventListener("change", () => {
+  tapeSelections.set(instancesSelect.value, select("tapes").value);
+  updateTapeControls();
+});
+button("play-tape").addEventListener("click", () => { void controlTape(false); });
+button("stop-tape").addEventListener("click", () => { void controlTape(true); });
 const refreshTimer = setInterval(() => {
   if (!refreshing) refreshInstances().catch(error => report(message(error), "error"));
 }, 2000);

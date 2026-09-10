@@ -45,6 +45,45 @@ with your privileges. Do not put this sample behind a reverse proxy or expose
 it to other users.** Closing a view does not stop its terminal: use **End terminal**
 to terminate the shared workload explicitly.
 
+## Play a scenario tape
+
+Create an **Interactive shell** terminal, or select one under **Existing terminal**.
+At an idle shell prompt, choose a **Scenario tape** and click **Play tape**. The
+picker follows the existing terminal's scene, not the **Scene** selector used to
+create new terminals. The initial catalog includes command typing, line editing
+and history, and (on Unix) ANSI colors using `printf`. Generated text/graphics
+scenes do not currently have tapes.
+
+Playback uses [`TapePlayer`](../../docs/tape.md) against the existing server-side
+producer. It does not start a new shell, reset the screen, or change the terminal
+size. Every attached view sees the same output; playback does not require primary
+ownership or even an attached view. Avoid manual input while a tape is running.
+The bundled tapes recognize common prompt endings; custom prompts may require
+adjusting their `Wait` expressions.
+
+Only one tape can run per terminal. The controls show running, completed,
+cancelled, or failed status, including source locations for playback errors.
+**Stop tape** cancels automation but does not undo input, send Ctrl+C, or interrupt
+a shell command. If cancellation leaves a partially typed line, clear it yourself
+before replaying. Closing views leaves playback running; ending the terminal,
+workload exit, or server shutdown cancels and drains it before disposing the
+producer. A run is limited to two minutes.
+
+Tapes live in `Tapes/<scene>/<id>.tape` and are registered in
+`DemoTapeCatalog.cs` with names, descriptions, and scene/platform restrictions.
+They are parsed at startup and copied to build/publish output. Add a file and a
+catalog entry, then restart the sample to offer another tape. The HTTP API accepts
+catalog IDs only, not arbitrary paths or uploaded scripts. The catalog's parser
+removes `Source` and `Output` from its syntax dictionary, so tapes containing
+those commands fail parsing. This integration does not create recording files.
+
+`GET /api/terminals` includes each instance's `tapes` catalog and latest
+`tapePlayback` status. `POST /api/terminals/{id}/tape` with
+`{"tapeId":"hello"}` starts playback; `DELETE` on the same route requests
+cancellation. Both return 202 when accepted and require the same-origin `Origin`
+header. Unknown scene/tape combinations return 400, missing terminals return 404,
+and overlapping starts or cancellation without an active tape return 409.
+
 ### Optional focused checks
 
 From the repository root:
@@ -86,6 +125,7 @@ origin:
 | `sizing.browser.js` | Auto font-size controls, fixed-grid presets, keyboard selection, resize authority, and retained sizing policy across primary handoff. |
 | `floating.browser.js` | Real workers/WebSockets/HMP1, dragging, primary-only resize, takeover, detach/reattach, and independent instances. |
 | `input.browser.js` | Real POSIX shell input, Backspace, history, paste, MouseTest, thumbnail coordinates, and window-chrome focus. Build `samples/MouseTest` in Release first. |
+| `tapes.browser.js` | Scene-filtered tapes in an existing shell, shared-view output, retained identity/geometry, overlap rejection, cancellation, visible failures, and shutdown cleanup. |
 | `hyperlinks.browser.js` | Real OSC 8 output through HWT1 and the worker, Ctrl/Cmd activation, safe new tabs, selection/capture isolation, read-only thumbnails, destination updates, and scrollback. |
 | `history.browser.js` | Shared producer history, independent viewports, character/word/logical-line/block selection, held/released wheel scrolling, clipboard intent, capture override, read-only inspection, and eviction. Clipboard writes are intercepted rather than changing the user's clipboard. |
 | `bindings.browser.js` | Per-view input overrides, named actions, Windows-style right-click copy/paste, clipboard failures/races, capture ownership, and native text/paste/IME paths. Clipboard access is mocked. |

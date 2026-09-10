@@ -293,8 +293,9 @@ test("Disposing in a progress callback suppresses the paired shell callback and 
   const terminal = await view.promise;
   const progress = { state: "error", percentage: 25 };
   const shellIntegration = { phase: "finished", lastExitCode: 1 };
-  await present(view, { revision: 2, progress, shellIntegration });
   const geometry = view.worker.outputs.find(message => message.type === "geometry");
+  // Disposal terminates the worker, so do not wait for its draw acknowledgement.
+  view.worker.deliver({ ...geometry, revision: 2, progress, shellIntegration });
   view.worker.deliver({ ...geometry, revision: 3 });
   assert.deepEqual(notices, [
     { state: "none", percentage: null }, { phase: "unknown", lastExitCode: null }, progress

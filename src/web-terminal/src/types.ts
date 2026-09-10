@@ -177,6 +177,7 @@ export interface WebTerminalOptions extends InputPolicyOptions {
   font?: TerminalFont;
   sizing?: TerminalSizing;
   label?: string;
+  /** Initial per-view input policy. Change it later with setReadOnly; not a server authorization boundary. */
   readOnly?: boolean;
   onStatus?: (message: string, level: TerminalStatusLevel) => void;
   /**
@@ -223,6 +224,8 @@ export interface WebTerminalHandle {
   readonly geometry: TerminalGeometry;
   readonly peer: TerminalPeer;
   readonly connected: boolean;
+  /** Whether this view blocks application input, resize, and primary takeover. */
+  readonly readOnly: boolean;
   /** Current presented workload title, or "" when unset/cleared. Retained on disconnect/dispose. */
   readonly title: string;
   /** Current presented progress, initially none. Retained on disconnect/dispose; check connected. */
@@ -244,6 +247,13 @@ export interface WebTerminalHandle {
   copySelection(options?: CopySelectionOptions): Promise<string>;
   paste(text: string): void;
   pasteClipboard(): Promise<string>;
+  /**
+   * Changes this view's input policy without remounting or changing peer roles.
+   * Output, history, selection and copying remain available. Cancels active gestures,
+   * pending composition and clipboard paste; already dispatched commands cannot be recalled.
+   * Hosts must separately enforce permissions on their per-view Hwt1PresentationAdapter.
+   */
+  setReadOnly(readOnly: boolean): void;
   focus(): void;
   requestPrimary(): void;
   resize(columns: number, rows: number): void;

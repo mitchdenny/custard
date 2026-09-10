@@ -22,13 +22,22 @@ export class Element extends Target {
   attributes = new Map();
   children = [];
   selectors = new Map();
+  captures = new Set();
   textContent = "";
   title = "";
   setAttribute(name, value) { this.attributes.set(name, value); }
   getAttribute(name) { return this.attributes.get(name); }
-  attachShadow() { return this.shadowRoot = new Element(); }
+  attachShadow() {
+    this.shadowRoot = new Element();
+    this.shadowRoot.host = this;
+    return this.shadowRoot;
+  }
   querySelector(selector) {
-    if (!this.selectors.has(selector)) this.selectors.set(selector, new Element());
+    if (!this.selectors.has(selector)) {
+      const element = new Element();
+      element.parent = this;
+      this.selectors.set(selector, element);
+    }
     return this.selectors.get(selector);
   }
   append(...elements) {
@@ -40,7 +49,21 @@ export class Element extends Target {
     if (this.parent) this.parent.children = this.parent.children.filter(child => child !== this);
   }
   transferControlToOffscreen() { return {}; }
-  getBoundingClientRect() { return { width: 100, height: 100, left: 0, top: 0 }; }
+  getBoundingClientRect() { return { width: 100, height: 100, left: 0, top: 0, right: 100, bottom: 100 }; }
+  hasPointerCapture(id) { return this.captures.has(id); }
+  setPointerCapture(id) { this.captures.add(id); }
+  releasePointerCapture(id) { this.captures.delete(id); }
+  focus() {
+    let root = this;
+    while (root.parent && !root.host) root = root.parent;
+    if (root.host) {
+      document.activeElement = root.host;
+      root.activeElement = this;
+    } else {
+      document.activeElement = this;
+      if (this.shadowRoot) this.shadowRoot.activeElement = null;
+    }
+  }
 }
 
 class WorkerBridge extends Target {
@@ -89,7 +112,7 @@ class WorkerBridge extends Target {
   terminate() { return this.worker.terminate(); }
 }
 
-export function browser(t) {
+export function browser(t, overrides = {}) {
   const workers = [];
   const globals = {
     Element, HTMLElement: Element, HTMLDivElement: Element, HTMLCanvasElement: Element,
@@ -101,7 +124,8 @@ export function browser(t) {
     },
     document: { createElement: () => new Element(), title: "Host document", activeElement: null },
     location: { href: "https://example.test/terminal" },
-    getComputedStyle: element => ({ width: element.style.width ?? "0", height: element.style.height ?? "0" })
+    getComputedStyle: element => ({ width: element.style.width ?? "0", height: element.style.height ?? "0" }),
+    ...overrides
   };
   globals.window = Object.assign(new Target(), {
     Worker: globals.Worker, ResizeObserver: globals.ResizeObserver,
@@ -133,14 +157,16 @@ export function frame({ title = "", revision = 1, full = revision === 1, baseRev
     stats: { workloadBytes: 0, outputBatches: 0, captureMs: 0, elapsedMs: 0 }, ...overrides
   };
   const json = new TextEncoder().encode(JSON.stringify(metadata));
-  const bytes = new Uint8Array(12 + json.length + (full ? 23 : 0));
+  const count = full ? metadata.columns * metadata.rows : 0;
+  const bytes = new Uint8Array(12 + json.length + count * 23);
   const view = new DataView(bytes.buffer);
   view.setUint32(0, 0x31545748, true);
   view.setUint32(4, json.length, true);
   bytes.set(json, 8);
-  if (full) {
-    const offset = 12 + json.length;
-    view.setUint32(offset - 4, 1, true);
+  view.setUint32(8 + json.length, count, true);
+  for (let index = 0; index < count; index++) {
+    const offset = 12 + json.length + index * 23;
+    view.setUint32(offset, index, true);
     view.setUint8(offset + 18, 1);
     view.setUint16(offset + 20, 1, true);
     view.setUint8(offset + 22, 65);

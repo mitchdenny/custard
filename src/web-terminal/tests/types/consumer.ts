@@ -98,6 +98,9 @@ const options: WebTerminalOptions = {
 
 const mountedTerminal: WebTerminal = await WebTerminal.mount(container, options);
 const terminal: WebTerminalHandle = mountedTerminal;
+const readOnly: boolean = terminal.readOnly;
+terminal.setReadOnly(!readOnly);
+mountedTerminal.setReadOnly(false);
 const title: string = terminal.title;
 const mountedTitle: string = mountedTerminal.title;
 console.log(title, mountedTitle);
@@ -118,6 +121,10 @@ terminal.refreshSelectionUI();
 terminal.paste(copied + pasted);
 terminal.dispose();
 
+// @ts-expect-error Input policy is changed through the runtime setter.
+terminal.readOnly = true;
+// @ts-expect-error Read-only policy must be a boolean.
+terminal.setReadOnly("true");
 // @ts-expect-error Consumers must use mount to obtain an initialized handle.
 new WebTerminal(options);
 // @ts-expect-error The current title is read-only on the public handle.

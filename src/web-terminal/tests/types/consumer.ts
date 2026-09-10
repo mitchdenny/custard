@@ -3,7 +3,7 @@ import {
   type WebTerminalOptions, type WebTerminalHandle, type TerminalInput, type InputBinding,
   type TerminalSelection, type TerminalViewport, type SelectionUIEvent, type TerminalStats,
   type TerminalRendererKind, type TerminalRendererPreference, type TerminalProgress,
-  type TerminalShellIntegration
+  type TerminalShellIntegration, type TerminalCloseDetails
 } from "@hex1b/web-terminal";
 
 const container = document.createElement("div");
@@ -54,6 +54,12 @@ const options: WebTerminalOptions = {
   onTitleChange(title) {
     const currentTitle: string = title;
     console.log(currentTitle);
+  },
+  onClose(details) {
+    const close: TerminalCloseDetails = details;
+    console.log(close.code, close.reason, close.wasClean);
+    // @ts-expect-error Native close details are immutable.
+    close.code = 1000;
   },
   onProgressChange(progress) {
     const current: TerminalProgress = progress;

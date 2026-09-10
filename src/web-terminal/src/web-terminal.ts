@@ -44,6 +44,7 @@ export class WebTerminal implements WebTerminalHandle {
   #geometry: TerminalGeometry = { columns: 80, rows: 24, cellWidth: 10, cellHeight: 20, mouseTracking: 0 };
   #peer: TerminalPeer = { id: null, primaryId: null, isPrimary: false };
   #connected = false;
+  #closed = false;
   #disposed = false;
   #hasGeometry = false;
   #resizeTimer: ReturnType<typeof setTimeout> | undefined;
@@ -271,8 +272,17 @@ export class WebTerminal implements WebTerminalHandle {
     if (message.type === "connected") {
       this.#connected = true;
       this.#input.disabled = !this.#canInput();
-    } else if (message.type === "disconnected") {
-      this.#disconnect();
+    } else if (message.type === "closed") {
+      if (this.#closed) return;
+      this.#closed = true;
+      clearTimeout(this.#readyTimer);
+      try {
+        this.#disconnect();
+        this.#options.onClose?.(Object.freeze({ ...message.details }));
+      } finally {
+        this.#ready.reject(new Error(`Terminal WebSocket closed (${message.details.code}${
+          message.details.reason ? `: ${message.details.reason}` : ""}) before mounting completed`));
+      }
     } else if (message.type === "status") {
       if (message.level === "error") {
         this.#disconnect();

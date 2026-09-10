@@ -48,6 +48,15 @@ export type TerminalSelection = (
   copyError: string;
 };
 export type TerminalStatusLevel = "info" | "ready" | "error";
+/** Native WebSocket close details, not an assertion that the terminal workload completed. */
+export interface TerminalCloseDetails {
+  /** RFC 6455 status reported by the browser, including 1006 for abnormal loss without a close frame. */
+  readonly code: number;
+  /** Peer-provided close reason, or "". Treat as untrusted text. */
+  readonly reason: string;
+  /** Whether the browser observed a clean WebSocket closing handshake, not workload success. */
+  readonly wasClean: boolean;
+}
 export type TerminalRendererKind = "webgpu" | "webgl2";
 /** Auto prefers WebGPU and falls back to WebGL2 for capability/device acquisition failures. */
 export type TerminalRendererPreference = "auto" | TerminalRendererKind;
@@ -170,6 +179,15 @@ export interface WebTerminalOptions extends InputPolicyOptions {
   label?: string;
   readOnly?: boolean;
   onStatus?: (message: string, level: TerminalStatusLevel) => void;
+  /**
+   * Receives the native WebSocket close details once, including connection failures and closes
+   * before the first frame. The view is disconnected before this callback; a pending mount
+   * rejects after notification. No callback is synthesized for abort, disposal, initialization
+   * failure, or mount timeout, and none runs after disposal. This client never reconnects
+   * automatically. Interpret application close codes in the host; even 1000 is not proof of
+   * workload completion. Callback exceptions reach the host and are not retried.
+   */
+  onClose?: (details: TerminalCloseDetails) => void;
   onGeometry?: (geometry: TerminalGeometry) => void;
   onSizingChange?: (sizing: TerminalSizingState) => void;
   onRoleChange?: (peer: TerminalPeer) => void;

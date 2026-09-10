@@ -284,7 +284,7 @@ export class WebTerminal implements WebTerminalHandle {
       clearTimeout(this.#readyTimer);
       try {
         this.#disconnect();
-        this.#options.onClose?.(Object.freeze({ ...message.details }));
+        if (!this.#disposed) this.#options.onClose?.(Object.freeze({ ...message.details }));
       } finally {
         this.#ready.reject(new Error(`Terminal WebSocket closed (${message.details.code}${
           message.details.reason ? `: ${message.details.reason}` : ""}) before mounting completed`));

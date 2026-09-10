@@ -168,3 +168,27 @@ test("Closing during the first GPU presentation rejects instead of resolving a d
   assert.deepEqual(notices, [closures[3]]);
   assert.deepEqual(view.notices, []);
 });
+
+for (const mounted of [false, true]) {
+  test(`Disposing reentrantly while disconnecting ${mounted ? "a mounted" : "a pending"} view suppresses onClose`, async t => {
+    const workers = browser(t);
+    const notices = [];
+    let disposeOnDisconnect = false;
+    const view = await mounting(t, workers, {
+      onSelectionChange() {
+        if (disposeOnDisconnect) view.handle.dispose();
+      },
+      onClose: details => notices.push(details)
+    });
+    await view.worker.request("open");
+    if (mounted) {
+      await present(view, {});
+      await view.promise;
+    }
+    disposeOnDisconnect = true;
+    view.worker.deliver({ type: "closed", details: closures[0] });
+    if (!mounted) await assert.rejects(view.promise, { name: "AbortError" });
+    assert.deepEqual(notices, []);
+    assert.equal(view.container.children.length, 0);
+  });
+}
